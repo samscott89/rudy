@@ -16,7 +16,7 @@ mod utils;
 
 // Re-exports
 pub use cu::CompilationUnitId;
-pub use die::DieEntryId;
+pub use die::Die;
 pub use expressions::resolve_data_location;
 pub use index::{Index, IndexData, index_symbols, index_types};
 pub use loader::{Dwarf, load};

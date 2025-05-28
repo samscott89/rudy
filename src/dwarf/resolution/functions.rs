@@ -1,7 +1,7 @@
 //! Function resolution and metadata extraction
 
 use crate::database::Db;
-use crate::dwarf::{DieEntryId, utils::to_range};
+use crate::dwarf::{Die, utils::to_range};
 use crate::types::FunctionIndexEntry;
 
 /// Function address information
@@ -16,7 +16,7 @@ pub struct FunctionAddressInfo {
 }
 
 /// Get function address information from a DIE entry
-pub fn function_address<'db>(db: &'db dyn Db, die: DieEntryId<'db>) -> Option<FunctionAddressInfo> {
+pub fn function_address<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<FunctionAddressInfo> {
     die.with_entry_and_unit(db, |entry, unit_ref| {
         let ranges = match unit_ref.die_ranges(&entry) {
             Ok(ranges) => ranges,

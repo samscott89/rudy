@@ -7,11 +7,11 @@ use crate::data::{
     StructField, UnsignedIntDef,
 };
 use crate::database::Db;
-use crate::dwarf::DieEntryId;
+use crate::dwarf::Die;
 use crate::types::NameId;
 
 /// Resolve the full type for a DIE entry
-pub fn resolve_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
+pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
     let Some(type_offset_val) = entry.get_attr(db, gimli::DW_AT_type) else {
         db.report_critical(format!("Failed to get type attribute"));
         return None;
@@ -31,7 +31,7 @@ pub fn resolve_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
-pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
+pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
     let type_offset_val = entry.get_attr(db, gimli::DW_AT_type)?;
 
     let gimli::AttributeValue::UnitRef(type_offset) = type_offset_val else {
@@ -65,7 +65,7 @@ fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> Def<'db> {
 }
 
 /// Resolve Option type structure
-fn resolve_option_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<OptionDef<'db>> {
+fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<OptionDef<'db>> {
     // we have an option type -- but we still need to get the inner
     // type and we should double check the layout
 
@@ -158,7 +158,7 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<O
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
 /// support "builtin" types -- these are types that we manually resolve rather
 /// than relying on the DWARF info to do so.
-fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
+fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
     match entry.tag(db) {
         gimli::DW_TAG_base_type => {
             // primitive type
@@ -329,7 +329,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opti
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
-pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
+pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
     let ty = if let Some(builtin_ty) = resolve_as_builtin_type(db, entry) {
         // we have a builtin type -- use it
         tracing::debug!("builtin: {builtin_ty:?}");
@@ -354,7 +354,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opt
 
 /// Fully resolve a type from a DWARF DIE entry
 #[salsa::tracked]
-pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
+pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
     if let Some(def) = resolve_as_builtin_type(db, entry) {
         return Some(def);
     }

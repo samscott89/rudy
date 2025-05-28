@@ -4,10 +4,10 @@ use anyhow::Result;
 use gimli::Reader;
 use itertools::Itertools;
 
-use super::loader::{Die, DwarfReader, UnitRef};
+use super::loader::{RawDie, DwarfReader, UnitRef};
 
 pub fn get_string_attr_raw<'a>(
-    die: &Die<'a>,
+    die: &RawDie<'a>,
     attr: gimli::DwAt,
     unit_ref: &UnitRef<'a>,
 ) -> Result<Option<DwarfReader>> {
@@ -19,7 +19,7 @@ pub fn get_string_attr_raw<'a>(
 }
 
 pub fn get_string_attr<'a>(
-    die: &Die<'a>,
+    die: &RawDie<'a>,
     attr: gimli::DwAt,
     unit_ref: &UnitRef<'a>,
 ) -> Result<Option<String>> {
@@ -30,7 +30,7 @@ pub fn get_string_attr<'a>(
 }
 
 pub fn parse_die_string_attribute<'a>(
-    die: &Die<'a>,
+    die: &RawDie<'a>,
     attr: gimli::DwAt,
     unit_ref: &UnitRef<'a>,
 ) -> Result<Option<String>> {
@@ -71,7 +71,7 @@ pub fn to_range(mut iter: gimli::RangeIter<DwarfReader>) -> Result<Option<(u64, 
 
 const MAX_DIE_ATTR_LENGTH: usize = 512;
 
-pub fn debug_print_die_entry(die: &Die<'_>) -> String {
+pub fn debug_print_die_entry(die: &RawDie<'_>) -> String {
     let mut attrs = die.attrs();
     let attrs_iter = std::iter::from_fn(|| attrs.next().ok().flatten());
     let attrs = attrs_iter
@@ -90,7 +90,7 @@ pub fn debug_print_die_entry(die: &Die<'_>) -> String {
     format!("{:#x} {} {{\n\t{}\n}}", die.offset().0, die.tag(), attrs)
 }
 
-pub fn pretty_print_die_entry(die: &Die<'_>, unit_ref: &UnitRef<'_>) -> String {
+pub fn pretty_print_die_entry(die: &RawDie<'_>, unit_ref: &UnitRef<'_>) -> String {
     let mut attrs = die.attrs();
     let attrs_iter = std::iter::from_fn(|| attrs.next().ok().flatten());
     let attrs = attrs_iter

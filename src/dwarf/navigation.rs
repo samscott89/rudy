@@ -4,7 +4,7 @@ use gimli::{Unit, UnitSectionOffset};
 use itertools::Itertools;
 
 use super::{
-    CompilationUnitId, DieEntryId,
+    CompilationUnitId, Die,
     loader::DwarfReader,
     utils::{file_entry_to_path, to_range},
 };
@@ -128,7 +128,7 @@ pub fn parse_roots<'db>(db: &'db dyn Db, file_id: FileId<'db>) -> Vec<Root<'db>>
 }
 
 /// Check if an address is within a DIE entry's ranges
-pub fn address_in_entry<'db>(db: &'db dyn Db, relative_address: u64, die: DieEntryId<'db>) -> bool {
+pub fn address_in_entry<'db>(db: &'db dyn Db, relative_address: u64, die: Die<'db>) -> bool {
     die.with_entry_and_unit(db, |entry, unit_ref| {
         let mut ranges = match unit_ref.die_ranges(&entry) {
             Ok(ranges) => ranges,

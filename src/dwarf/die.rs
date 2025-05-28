@@ -4,7 +4,7 @@ use gimli::UnitSectionOffset;
 
 use super::{
     CompilationUnitId,
-    loader::{Die, DwarfReader, Offset, UnitRef},
+    loader::{DwarfReader, Offset, RawDie, UnitRef},
     utils::{file_entry_to_path, parse_die_string_attribute},
 };
 use crate::file::FileId;
@@ -12,13 +12,13 @@ use crate::{database::Db, file::SourceFile};
 
 /// References a specific DWARF debugging information entry
 #[salsa::interned]
-pub struct DieEntryId<'db> {
+pub struct Die<'db> {
     pub file: FileId<'db>,
     pub cu_offset: UnitSectionOffset<usize>,
     pub die_offset: Offset,
 }
 
-impl<'db> DieEntryId<'db> {
+impl<'db> Die<'db> {
     // GROUP 1: Core Identity (Keep - no dependencies)
     pub fn as_path_ref(&self, db: &'db dyn Db) -> String {
         let path = self.file(db).full_path(db);
@@ -35,7 +35,7 @@ impl<'db> DieEntryId<'db> {
     }
 
     // GROUP 2: High-Cohesion Navigation + Basic Attributes (Keep - used together 90% of time)
-    pub fn children(&self, db: &'db dyn Db) -> Vec<DieEntryId<'db>> {
+    pub fn children(&self, db: &'db dyn Db) -> Vec<Die<'db>> {
         let mut children = vec![];
 
         let Some(unit_ref) = self.unit_ref(db) else {
@@ -80,8 +80,8 @@ impl<'db> DieEntryId<'db> {
         children
     }
 
-    pub fn child_die(&self, db: &'db dyn Db, offset: Offset) -> DieEntryId<'db> {
-        DieEntryId::new(db, self.file(db), self.cu_offset(db), offset)
+    pub fn child_die(&self, db: &'db dyn Db, offset: Offset) -> Die<'db> {
+        Die::new(db, self.file(db), self.cu_offset(db), offset)
     }
 
     pub fn tag(&self, db: &'db dyn Db) -> gimli::DwTag {
@@ -121,7 +121,7 @@ impl<'db> DieEntryId<'db> {
 
     // GROUP 5: Low-Level Access (Make private - implementation details)
 
-    pub(super) fn with_entry_and_unit<F: FnOnce(&Die<'_>, &UnitRef<'_>) -> T, T>(
+    pub(super) fn with_entry_and_unit<F: FnOnce(&RawDie<'_>, &UnitRef<'_>) -> T, T>(
         &self,
         db: &'db dyn Db,
         f: F,
@@ -135,13 +135,13 @@ impl<'db> DieEntryId<'db> {
         self.cu(db).unit_ref(db)
     }
 
-    fn with_entry<F: FnOnce(&Die<'_>) -> T, T>(&self, db: &'db dyn Db, f: F) -> Option<T> {
+    fn with_entry<F: FnOnce(&RawDie<'_>) -> T, T>(&self, db: &'db dyn Db, f: F) -> Option<T> {
         let unit_ref = self.unit_ref(db)?;
         let entry = self.entry(db, &unit_ref)?;
         Some(f(&entry))
     }
 
-    fn entry<'a>(&self, db: &'db dyn Db, unit_ref: &'a UnitRef<'db>) -> Option<Die<'a>> {
+    fn entry<'a>(&self, db: &'db dyn Db, unit_ref: &'a UnitRef<'db>) -> Option<RawDie<'a>> {
         let entry = unit_ref
             .entry(self.die_offset(db))
             .inspect_err(|e| {
@@ -153,7 +153,7 @@ impl<'db> DieEntryId<'db> {
 }
 
 /// Get the declaration file for a DIE entry
-pub fn declaration_file<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<SourceFile<'db>> {
+pub fn declaration_file<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<SourceFile<'db>> {
     let decl_file_attr = entry.get_attr(db, gimli::DW_AT_decl_file);
     let Some(gimli::AttributeValue::FileIndex(file_idx)) = decl_file_attr else {
         db.report_critical(format!(

@@ -3,14 +3,14 @@
 use anyhow::Result;
 
 use crate::database::Db;
-use crate::dwarf::{DieEntryId, loader::DwarfReader};
+use crate::dwarf::{Die, loader::DwarfReader};
 use crate::types::FunctionIndexEntry;
 
 /// Get location expression from a DIE entry
 #[salsa::tracked]
 pub fn get_location_expr<'db>(
     db: &'db dyn Db,
-    entry: DieEntryId<'db>,
+    entry: Die<'db>,
     attr: gimli::DwAt,
 ) -> Option<gimli::Expression<DwarfReader>> {
     let Some(location) = entry.get_attr(db, attr) else {
@@ -35,7 +35,7 @@ pub fn get_location_expr<'db>(
 /// Get function frame base register
 fn get_function_frame_base<'db>(
     db: &'db dyn Db,
-    function_entry: DieEntryId<'db>,
+    function_entry: Die<'db>,
     _data_resolver: &dyn crate::DataResolver,
 ) -> Result<gimli::Register> {
     let Some(loc_exp) = get_location_expr(db, function_entry, gimli::DW_AT_frame_base) else {
@@ -72,7 +72,7 @@ fn get_function_frame_base<'db>(
 pub fn resolve_data_location<'db>(
     db: &'db dyn Db,
     function: FunctionIndexEntry<'db>,
-    variable_entry_id: DieEntryId<'db>,
+    variable_entry_id: Die<'db>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Option<u64>> {
     let function_entry = function.die(db);

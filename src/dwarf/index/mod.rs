@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use super::{CompilationUnitId, DieEntryId};
+use super::{CompilationUnitId, Die};
 use crate::file::SourceFile;
 use crate::types::{FunctionIndexEntry, NameId, SymbolIndexEntry, TypeIndexEntry};
 
@@ -25,7 +25,7 @@ pub struct IndexData<'db> {
     pub function_name_to_die: BTreeMap<NameId<'db>, FunctionIndexEntry<'db>>,
     pub symbol_name_to_die: BTreeMap<NameId<'db>, SymbolIndexEntry<'db>>,
     pub type_name_to_die: BTreeMap<NameId<'db>, TypeIndexEntry<'db>>,
-    pub die_to_type_name: BTreeMap<DieEntryId<'db>, NameId<'db>>,
+    pub die_to_type_name: BTreeMap<Die<'db>, NameId<'db>>,
     pub cu_to_base_addr: BTreeMap<CompilationUnitId<'db>, u64>,
     pub address_range_to_cu: Vec<(u64, u64, CompilationUnitId<'db>)>,
     pub address_range_to_function: Vec<(u64, u64, NameId<'db>)>,

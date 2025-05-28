@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::database::Db;
 use crate::dwarf::{
-    DieEntryId,
+    Die,
     navigation::get_roots,
     utils::{debug_print_die_entry, get_string_attr, pretty_print_die_entry},
 };
@@ -18,7 +18,7 @@ pub fn index_types<'db>(
     // map of type name to die entry
     BTreeMap<NameId<'db>, TypeIndexEntry<'db>>,
     // map of offset (entry ID) to type name
-    BTreeMap<DieEntryId<'db>, NameId<'db>>,
+    BTreeMap<Die<'db>, NameId<'db>>,
 ) {
     let Some(dwarf) = db.get_file(file_id).and_then(|f| f.dwarf()) else {
         return Default::default();
@@ -164,7 +164,7 @@ pub fn index_types<'db>(
                     };
                     tracing::debug!(?current_path, tag=%die.tag(), "found type: {name}");
                     let name = NameId::new(db, current_path.clone(), name.clone());
-                    let die_entry = DieEntryId::new(db, file_id, cu_offset, die.offset());
+                    let die_entry = Die::new(db, file_id, cu_offset, die.offset());
                     let existing = name_to_die.insert(name, TypeIndexEntry::new(db, die_entry));
                     if let Some(existing) = existing {
                         tracing::debug!(

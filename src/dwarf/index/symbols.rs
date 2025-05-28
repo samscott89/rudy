@@ -6,7 +6,7 @@ use crate::database::Db;
 use crate::dwarf::{
     navigation::get_roots,
     utils::{get_string_attr_raw, pretty_print_die_entry, to_range},
-    {CompilationUnitId, DieEntryId},
+    {CompilationUnitId, Die},
 };
 use crate::file::FileId;
 use crate::types::{FunctionIndexEntry, NameId, SymbolIndexEntry};
@@ -198,7 +198,7 @@ pub fn index_symbols<'db>(
                             }
                         };
 
-                        let die_entry = DieEntryId::new(db, file_id, cu_offset, die.offset());
+                        let die_entry = Die::new(db, file_id, cu_offset, die.offset());
                         tracing::debug!("got function info for {}", name.as_path(db),);
                         function_name_to_die.insert(name, FunctionIndexEntry::new(db, die_entry));
                         recurse = false;
@@ -225,7 +225,7 @@ pub fn index_symbols<'db>(
 
                     // find the name in the symbols map
                     if let Some((address, name)) = symbols.remove(&*linkage_name_bytes) {
-                        let die_entry = DieEntryId::new(db, file_id, cu_offset, die.offset());
+                        let die_entry = Die::new(db, file_id, cu_offset, die.offset());
                         tracing::debug!(
                             "got function info for {}",
                             name.as_path(db),

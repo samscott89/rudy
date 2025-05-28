@@ -57,18 +57,18 @@ pub fn demangle<'db>(db: &'db dyn Db, sym: Symbol<'db>) -> NameId<'db> {
 
 #[salsa::tracked]
 pub struct FunctionIndexEntry<'db> {
-    pub die: dwarf::DieEntryId<'db>,
+    pub die: dwarf::Die<'db>,
 }
 
 #[salsa::tracked]
 pub struct SymbolIndexEntry<'db> {
     pub address: u64,
-    pub die: dwarf::DieEntryId<'db>,
+    pub die: dwarf::Die<'db>,
 }
 
 #[salsa::tracked]
 pub struct TypeIndexEntry<'db> {
-    pub die: dwarf::DieEntryId<'db>,
+    pub die: dwarf::Die<'db>,
 }
 
 #[salsa::interned]

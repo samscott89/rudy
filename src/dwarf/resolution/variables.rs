@@ -3,7 +3,7 @@
 use crate::data::Def;
 use crate::database::Db;
 use crate::dwarf::die::declaration_file;
-use crate::dwarf::{DieEntryId, resolution::types::resolve_type_offset};
+use crate::dwarf::{Die, resolution::types::resolve_type_offset};
 use crate::file::SourceFile;
 use crate::types::FunctionIndexEntry;
 
@@ -16,7 +16,7 @@ pub struct Variable<'db> {
     pub ty: Def<'db>,
     pub file: SourceFile<'db>,
     pub line: u64,
-    pub origin: DieEntryId<'db>,
+    pub origin: Die<'db>,
 }
 
 /// Resolved variables for a function
@@ -113,7 +113,7 @@ pub fn resolve_function_variables<'db>(
 
 fn resolve_function_parameter_entry<'db>(
     db: &'db dyn Db,
-    entry: DieEntryId<'db>,
+    entry: Die<'db>,
 ) -> Option<Variable<'db>> {
     let name = entry.name(db)?;
 
@@ -123,7 +123,7 @@ fn resolve_function_parameter_entry<'db>(
         return None;
     };
 
-    let type_entry = DieEntryId::new(db, entry.file(db), entry.cu_offset(db), type_offset);
+    let type_entry = Die::new(db, entry.file(db), entry.cu_offset(db), type_offset);
 
     let ty = resolve_type_offset(db, type_entry)?;
 
@@ -133,7 +133,7 @@ fn resolve_function_parameter_entry<'db>(
     Some(Variable::new(db, name, ty, file, line, entry))
 }
 
-fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Variable<'db>> {
+fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Variable<'db>> {
     let name = entry.name(db)?;
 
     let type_offset_val = entry.get_attr(db, gimli::DW_AT_type)?;
@@ -142,7 +142,7 @@ fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Optio
         return None;
     };
 
-    let type_entry = DieEntryId::new(db, entry.file(db), entry.cu_offset(db), type_offset);
+    let type_entry = Die::new(db, entry.file(db), entry.cu_offset(db), type_offset);
 
     let ty = resolve_type_offset(db, type_entry)?;
 

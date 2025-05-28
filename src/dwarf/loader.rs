@@ -1,9 +1,6 @@
 //! DWARF loading and memory management
 
-use std::{
-    ops::Deref,
-    sync::Arc,
-};
+use std::{ops::Deref, sync::Arc};
 
 use gimli::{EndianReader, LittleEndian};
 use object::ObjectSection;
@@ -50,5 +47,5 @@ unsafe impl gimli::CloneStableDeref for OwnedOrBorrowed {}
 pub type DwarfReader = EndianReader<LittleEndian, OwnedOrBorrowed>;
 pub type Dwarf = gimli::Dwarf<DwarfReader>;
 pub type UnitRef<'a> = gimli::UnitRef<'a, DwarfReader>;
-pub type Die<'a> = gimli::DebuggingInformationEntry<'a, 'a, DwarfReader>;
+pub type RawDie<'a> = gimli::DebuggingInformationEntry<'a, 'a, DwarfReader>;
 pub type Offset = gimli::UnitOffset<usize>;

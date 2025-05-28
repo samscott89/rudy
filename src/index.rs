@@ -7,7 +7,9 @@ use object::{Object, ObjectSymbol};
 use crate::database::Db;
 use crate::dwarf;
 use crate::file::{FileId, SourceFile};
-use crate::types::{FunctionIndexEntry, NameId, Symbol, SymbolIndexEntry, TypeIndexEntry, demangle};
+use crate::types::{
+    FunctionIndexEntry, NameId, Symbol, SymbolIndexEntry, TypeIndexEntry, demangle,
+};
 
 /// Build an index of all types + functions (using fully qualified names
 /// that can be extracted from demangled symbols) to their
@@ -23,7 +25,7 @@ pub fn index<'db>(db: &'db dyn Db) -> dwarf::Index<'db> {
     let mut function_name_to_die: BTreeMap<NameId<'_>, FunctionIndexEntry<'_>> = Default::default();
     let mut symbol_name_to_die: BTreeMap<NameId<'_>, SymbolIndexEntry<'_>> = Default::default();
     let mut type_name_to_die: BTreeMap<NameId<'_>, TypeIndexEntry<'_>> = Default::default();
-    let mut die_to_type_name: BTreeMap<dwarf::DieEntryId<'_>, NameId<'_>> = Default::default();
+    let mut die_to_type_name: BTreeMap<dwarf::Die<'_>, NameId<'_>> = Default::default();
     let mut cu_to_base_addr: BTreeMap<dwarf::CompilationUnitId<'_>, u64> = Default::default();
     let mut address_range_to_cu: Vec<(u64, u64, dwarf::CompilationUnitId<'_>)> = Default::default();
     let mut address_range_to_function: Vec<(u64, u64, NameId<'_>)> = Default::default();
