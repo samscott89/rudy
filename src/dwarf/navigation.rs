@@ -8,7 +8,8 @@ use super::{
     loader::DwarfReader,
     utils::{file_entry_to_path, to_range},
 };
-use crate::db::{Db, FileId, file::SourceFile};
+use crate::database::Db;
+use crate::file::{FileId, SourceFile};
 
 /// Root compilation unit information
 #[salsa::tracked]

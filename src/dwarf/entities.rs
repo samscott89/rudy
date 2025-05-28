@@ -7,7 +7,8 @@ use super::{
     utils::parse_die_string_attribute,
 };
 use crate::data::Def;
-use crate::db::{Db, FileId, file::SourceFile};
+use crate::database::Db;
+use crate::file::{FileId, SourceFile};
 
 /// References a specific compilation unit in a DWARF file
 #[salsa::interned]

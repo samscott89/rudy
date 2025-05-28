@@ -1,7 +1,8 @@
 //! Address to location and location to address resolution
 
-use crate::db::{Db, file::SourceFile};
-use crate::db::dwarf::{
+use crate::database::Db;
+use crate::file::SourceFile;
+use crate::dwarf::{
     entities::CompilationUnitId,
     utils::file_entry_to_path,
 };
@@ -69,7 +70,7 @@ pub fn address_to_location<'db>(
 pub fn location_to_address<'db>(
     db: &'db dyn Db,
     cu: CompilationUnitId<'db>,
-    query: crate::db::Position,
+    query: crate::types::Position,
 ) -> Option<(u64, u64)> {
     let file = query.file(db);
     let (dir, file) = file.rsplit_once("/")?;

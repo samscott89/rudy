@@ -1,8 +1,10 @@
 //! Variable resolution from DWARF debugging information
 
 use crate::data::Def;
-use crate::db::{Db, FunctionIndexEntry, file::SourceFile};
-use crate::db::dwarf::{
+use crate::database::Db;
+use crate::file::SourceFile;
+use crate::types::FunctionIndexEntry;
+use crate::dwarf::{
     entities::DieEntryId,
     resolution::types::resolve_type_offset,
 };
@@ -51,7 +53,7 @@ pub fn resolve_function_variables<'db>(
         return ResolvedVariables::new(db, params, locals, globals);
     };
 
-    let index = crate::db::index(db).data(db);
+    let index = crate::index::index(db).data(db);
 
     for (global_symbol, symbol_index) in &index.symbol_name_to_die {
         let symbol_entry = symbol_index.die(db);
@@ -168,7 +170,7 @@ fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Optio
         ));
         return None;
     };
-    let Some(path) = crate::db::dwarf::utils::file_entry_to_path(file, &unit_ref) else {
+    let Some(path) = crate::dwarf::utils::file_entry_to_path(file, &unit_ref) else {
         db.report_critical(format!("Failed to convert file entry to path"));
         return None;
     };

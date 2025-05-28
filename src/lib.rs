@@ -1,16 +1,21 @@
 mod data;
-mod db;
+mod database;
+mod dwarf;
+mod file;
+mod formatting;
+mod index;
+mod query;
+mod types;
 
 #[cfg(test)]
 pub mod tests;
 
 use anyhow::Result;
 use data::Def;
-use db::test_get_def;
 use std::{collections::BTreeMap, fmt};
 
 pub struct DebugInfo {
-    pub db: db::DebugDatabaseImpl,
+    pub db: database::DebugDatabaseImpl,
 }
 
 impl fmt::Debug for DebugInfo {
@@ -77,7 +82,7 @@ pub struct Type {
 
 impl DebugInfo {
     pub fn new(binary_path: &str) -> Result<Self> {
-        let db = db::DebugDatabaseImpl::new(binary_path)?;
+        let db = database::DebugDatabaseImpl::new(binary_path)?;
 
         // load_eh_frame_info(binary_file, &data_arena)?;
 
@@ -121,7 +126,7 @@ impl DebugInfo {
     }
 
     pub fn test_get_shape(&self) -> Def<'_> {
-        test_get_def(&self.db)
+        self.db.test_get_shape().unwrap()
     }
 }
 

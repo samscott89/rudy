@@ -1,7 +1,8 @@
 //! Function resolution and metadata extraction
 
-use crate::db::{Db, FunctionIndexEntry};
-use crate::db::dwarf::{
+use crate::database::Db;
+use crate::types::FunctionIndexEntry;
+use crate::dwarf::{
     entities::DieEntryId,
     utils::to_range,
 };
@@ -87,7 +88,7 @@ pub fn resolve_function<'db>(db: &'db dyn Db, f: FunctionIndexEntry<'db>) -> Opt
     let die = f.die(db);
     let name = die.name(db)?;
     let linkage_name = die.string_attr(db, gimli::DW_AT_linkage_name)?;
-    let index = crate::db::index(db);
+    let index = crate::index::index(db);
     let base_address = index
         .data(db)
         .cu_to_base_addr

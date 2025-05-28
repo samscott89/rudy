@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use salsa::Update;
 
-use crate::db::{Db, NameId, get_def};
+use crate::{database::Db, dwarf::get_def, types::NameId};
 
 #[salsa::tracked]
 pub struct Def<'db> {

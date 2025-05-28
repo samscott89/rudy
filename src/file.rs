@@ -5,7 +5,8 @@ use anyhow::Result;
 use memmap2::Mmap;
 use object::read::archive::ArchiveFile;
 
-use super::{Db, dwarf::Dwarf};
+use crate::database::Db;
+use crate::dwarf::Dwarf;
 
 /// Files loaded and parsed as objects
 ///

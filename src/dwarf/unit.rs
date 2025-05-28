@@ -3,7 +3,8 @@ use std::{hash::Hash, sync::Arc};
 use gimli::{Unit, UnitSectionOffset};
 
 use super::loader::{Dwarf, DwarfReader, UnitRef};
-use crate::db::{Db, FileId};
+use crate::database::Db;
+use crate::file::FileId;
 
 #[derive(Clone, Debug)]
 struct DwarfUnit {

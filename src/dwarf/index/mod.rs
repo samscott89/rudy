@@ -2,7 +2,8 @@
 
 use std::collections::BTreeMap;
 
-use crate::db::{NameId, FunctionIndexEntry, SymbolIndexEntry, TypeIndexEntry, file::SourceFile};
+use crate::types::{NameId, FunctionIndexEntry, SymbolIndexEntry, TypeIndexEntry};
+use crate::file::SourceFile;
 use super::entities::{CompilationUnitId, DieEntryId};
 
 mod symbols;

@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 
 use crate::{
     data::{Def, DefKind, PrimitiveDef},
-    db::Db,
+    database::Db,
 };
 
 use super::{ArrayDef, PointerDef, StdDef, StrSliceDef};
@@ -36,7 +36,7 @@ pub fn read_from_memory<'db>(
         }
         DefKind::Std(std_def) => read_std_from_memory(db, address, std_def, data_resolver),
         DefKind::Alias(name_id) => {
-            let def = crate::db::get_def(db, *name_id)?
+            let def = crate::dwarf::get_def(db, *name_id)?
                 .with_context(|| format!("could not resolve type: {}", name_id.as_path(db)))?;
 
             read_from_memory(db, address, &def, data_resolver)

@@ -1,4 +1,10 @@
-use super::{dwarf::CompilationUnitId, *};
+use std::collections::BTreeMap;
+use std::fmt;
+
+use itertools::Itertools;
+
+use crate::dwarf::{self, CompilationUnitId};
+use crate::types::{FunctionIndexEntry, NameId, SymbolIndexEntry, TypeIndexEntry};
 
 fn normalize_path(path: String) -> String {
     // strip workspace dir

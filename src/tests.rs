@@ -29,7 +29,7 @@ macro_rules! setup {
         let _guard = settings.bind_to_scope();
         let test_name = crate::function_name!();
         let test_name = test_name
-            .strip_prefix("rust_debug_info::")
+            .strip_prefix("rust_debuginfo::")
             .unwrap_or(test_name);
         let test_name = test_name.strip_prefix("tests::").unwrap_or(test_name);
         let _span = tracing::info_span!("test", test_name, $target).entered();

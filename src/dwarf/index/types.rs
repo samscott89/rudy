@@ -2,8 +2,10 @@
 
 use std::collections::BTreeMap;
 
-use crate::db::{Db, FileId, NameId, TypeIndexEntry};
-use crate::db::dwarf::{
+use crate::database::Db;
+use crate::file::FileId;
+use crate::types::{NameId, TypeIndexEntry};
+use crate::dwarf::{
     entities::DieEntryId,
     navigation::get_roots,
     utils::{get_string_attr, pretty_print_die_entry, debug_print_die_entry},

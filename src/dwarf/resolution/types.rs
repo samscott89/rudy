@@ -6,8 +6,9 @@ use crate::data::{
     ArrayDef, Def, DefKind, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef, StructDef,
     StructField, UnsignedIntDef,
 };
-use crate::db::{Db, NameId};
-use crate::db::dwarf::entities::DieEntryId;
+use crate::database::Db;
+use crate::types::NameId;
+use crate::dwarf::entities::DieEntryId;
 
 /// Resolve a primitive type by name
 fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> Def<'db> {
@@ -138,7 +139,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opti
                 db.report_critical(format!("Failed to get pointed type"));
                 return None;
             };
-            let index = crate::db::index(db);
+            let index = crate::index::index(db);
             let canonical_name = index.data(db).die_to_type_name.get(&entry).copied();
             Some(Def::new(
                 db,
@@ -187,7 +188,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opti
                     if let Some((data_ptr_offset, length_offset)) = data_ptr_offset.zip(len_offset)
                     {
                         // we have a string slice
-                        let canonical_name = crate::db::index(db)
+                        let canonical_name = crate::index::index(db)
                             .data(db)
                             .die_to_type_name
                             .get(&entry)
@@ -208,7 +209,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opti
                 }
                 Some(n) if n.starts_with("Option<") => {
                     // this is _probably_ the option type, but let's double check:
-                    let index = crate::db::index(db);
+                    let index = crate::index::index(db);
                     let Some(canonical_name) = index.data(db).die_to_type_name.get(&entry).copied()
                     else {
                         tracing::warn!("failed to get canonical name for option type");
@@ -254,7 +255,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opti
                 db.report_critical(format!("Failed to get pointed type"));
                 return None;
             };
-            let index = crate::db::index(db);
+            let index = crate::index::index(db);
             let canonical_name = index.data(db).die_to_type_name.get(&entry).copied();
 
             // get the child with the size
@@ -300,7 +301,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opt
         // we have a builtin type -- use it
         tracing::debug!("builtin: {builtin_ty:?}");
         builtin_ty
-    } else if let Some(type_name) = crate::db::index(db)
+    } else if let Some(type_name) = crate::index::index(db)
         .data(db)
         .die_to_type_name
         .get(&entry)
@@ -347,7 +348,7 @@ pub fn resolve_type_offset<'db>(
             } else {
                 // we have a struct type and it's _not_ a builtin -- we'll handle it now
 
-                let index = crate::db::index(db);
+                let index = crate::index::index(db);
                 let type_name = index.data(db).die_to_type_name.get(&entry).copied();
                 // get some basic info
                 let name = entry.name(db)?;
@@ -409,4 +410,21 @@ pub fn resolve_type_offset<'db>(
     }
 
     None
+}
+
+pub fn get_def<'db>(db: &'db dyn Db, name: NameId<'db>) -> anyhow::Result<Option<Def<'db>>> {
+    // get the DIE for the name
+    let index = crate::index::index(db);
+    let Some(entry) = index.data(db).type_name_to_die.get(&name) else {
+        tracing::warn!(
+            "could not find type {} in index: {:#?}",
+            name.as_path(db),
+            index.data(db).type_name_to_die
+        );
+        return Ok(None);
+    };
+
+    // resolve the type at the given offset
+    let ty = resolve_type_offset(db, entry.die(db));
+    Ok(ty)
 }
