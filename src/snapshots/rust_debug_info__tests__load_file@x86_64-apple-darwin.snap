@@ -1,0 +1,6 @@
+---
+source: crates/rust_debug_info/src/tests.rs
+expression: parsed
+snapshot_kind: text
+---
+DebugInfo

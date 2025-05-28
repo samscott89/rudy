@@ -1,0 +1,8 @@
+---
+source: crates/rust_debug_info/src/tests.rs
+expression: "resolver.resolve_function(\"function_call\").unwrap()"
+snapshot_kind: text
+---
+ResolvedAddress {
+    address: "0x798f",
+}

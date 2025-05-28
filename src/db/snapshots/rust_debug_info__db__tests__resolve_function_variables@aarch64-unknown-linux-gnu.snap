@@ -1,0 +1,593 @@
+---
+source: crates/rust_debug_info/src/db/tests.rs
+expression: f
+snapshot_kind: text
+---
+(
+    [
+        Variable {
+            name: "x",
+            value: Some(
+                Scalar {
+                    ty: "u64",
+                    value: "21",
+                },
+            ),
+            ty: Some(
+                Type {
+                    name: "u64",
+                },
+            ),
+        },
+    ],
+    [],
+    [
+        Variable {
+            name: "STATIC_TEST_STRUCT",
+            value: Some(
+                Struct {
+                    ty: "TestStruct",
+                    fields: {
+                        "int_field": Scalar {
+                            ty: "u64",
+                            value: "160",
+                        },
+                        "nested": Struct {
+                            ty: "TestStruct",
+                            fields: {
+                                "int_field": Scalar {
+                                    ty: "u64",
+                                    value: "184",
+                                },
+                                "nested": Struct {
+                                    ty: "TestStruct",
+                                    fields: {
+                                        "int_field": Scalar {
+                                            ty: "u64",
+                                            value: "208",
+                                        },
+                                        "nested": Struct {
+                                            ty: "TestStruct",
+                                            fields: {
+                                                "int_field": Scalar {
+                                                    ty: "u64",
+                                                    value: "232",
+                                                },
+                                                "nested": Struct {
+                                                    ty: "TestStruct",
+                                                    fields: {
+                                                        "int_field": Scalar {
+                                                            ty: "u64",
+                                                            value: "0",
+                                                        },
+                                                        "nested": Struct {
+                                                            ty: "TestStruct",
+                                                            fields: {
+                                                                "int_field": Scalar {
+                                                                    ty: "u64",
+                                                                    value: "24",
+                                                                },
+                                                                "nested": Struct {
+                                                                    ty: "TestStruct",
+                                                                    fields: {
+                                                                        "int_field": Scalar {
+                                                                            ty: "u64",
+                                                                            value: "48",
+                                                                        },
+                                                                        "nested": Struct {
+                                                                            ty: "TestStruct",
+                                                                            fields: {
+                                                                                "int_field": Scalar {
+                                                                                    ty: "u64",
+                                                                                    value: "72",
+                                                                                },
+                                                                                "nested": Struct {
+                                                                                    ty: "TestStruct",
+                                                                                    fields: {
+                                                                                        "int_field": Scalar {
+                                                                                            ty: "u64",
+                                                                                            value: "96",
+                                                                                        },
+                                                                                        "nested": Struct {
+                                                                                            ty: "TestStruct",
+                                                                                            fields: {
+                                                                                                "int_field": Scalar {
+                                                                                                    ty: "u64",
+                                                                                                    value: "120",
+                                                                                                },
+                                                                                                "nested": Struct {
+                                                                                                    ty: "TestStruct",
+                                                                                                    fields: {
+                                                                                                        "int_field": Scalar {
+                                                                                                            ty: "u64",
+                                                                                                            value: "144",
+                                                                                                        },
+                                                                                                        "nested": Struct {
+                                                                                                            ty: "TestStruct",
+                                                                                                            fields: {
+                                                                                                                "int_field": Scalar {
+                                                                                                                    ty: "u64",
+                                                                                                                    value: "168",
+                                                                                                                },
+                                                                                                                "nested": Struct {
+                                                                                                                    ty: "TestStruct",
+                                                                                                                    fields: {
+                                                                                                                        "int_field": Scalar {
+                                                                                                                            ty: "u64",
+                                                                                                                            value: "192",
+                                                                                                                        },
+                                                                                                                        "nested": Struct {
+                                                                                                                            ty: "TestStruct",
+                                                                                                                            fields: {
+                                                                                                                                "int_field": Scalar {
+                                                                                                                                    ty: "u64",
+                                                                                                                                    value: "216",
+                                                                                                                                },
+                                                                                                                                "nested": Struct {
+                                                                                                                                    ty: "TestStruct",
+                                                                                                                                    fields: {
+                                                                                                                                        "int_field": Scalar {
+                                                                                                                                            ty: "u64",
+                                                                                                                                            value: "240",
+                                                                                                                                        },
+                                                                                                                                        "nested": Struct {
+                                                                                                                                            ty: "TestStruct",
+                                                                                                                                            fields: {
+                                                                                                                                                "int_field": Scalar {
+                                                                                                                                                    ty: "u64",
+                                                                                                                                                    value: "8",
+                                                                                                                                                },
+                                                                                                                                                "nested": Struct {
+                                                                                                                                                    ty: "TestStruct",
+                                                                                                                                                    fields: {
+                                                                                                                                                        "int_field": Scalar {
+                                                                                                                                                            ty: "u64",
+                                                                                                                                                            value: "32",
+                                                                                                                                                        },
+                                                                                                                                                        "nested": Struct {
+                                                                                                                                                            ty: "TestStruct",
+                                                                                                                                                            fields: {
+                                                                                                                                                                "int_field": Scalar {
+                                                                                                                                                                    ty: "u64",
+                                                                                                                                                                    value: "56",
+                                                                                                                                                                },
+                                                                                                                                                                "nested": Struct {
+                                                                                                                                                                    ty: "TestStruct",
+                                                                                                                                                                    fields: {
+                                                                                                                                                                        "int_field": Scalar {
+                                                                                                                                                                            ty: "u64",
+                                                                                                                                                                            value: "80",
+                                                                                                                                                                        },
+                                                                                                                                                                        "nested": Struct {
+                                                                                                                                                                            ty: "TestStruct",
+                                                                                                                                                                            fields: {
+                                                                                                                                                                                "int_field": Scalar {
+                                                                                                                                                                                    ty: "u64",
+                                                                                                                                                                                    value: "104",
+                                                                                                                                                                                },
+                                                                                                                                                                                "nested": Struct {
+                                                                                                                                                                                    ty: "TestStruct",
+                                                                                                                                                                                    fields: {
+                                                                                                                                                                                        "int_field": Scalar {
+                                                                                                                                                                                            ty: "u64",
+                                                                                                                                                                                            value: "128",
+                                                                                                                                                                                        },
+                                                                                                                                                                                        "nested": Struct {
+                                                                                                                                                                                            ty: "TestStruct",
+                                                                                                                                                                                            fields: {
+                                                                                                                                                                                                "int_field": Scalar {
+                                                                                                                                                                                                    ty: "u64",
+                                                                                                                                                                                                    value: "152",
+                                                                                                                                                                                                },
+                                                                                                                                                                                                "nested": Struct {
+                                                                                                                                                                                                    ty: "TestStruct",
+                                                                                                                                                                                                    fields: {
+                                                                                                                                                                                                        "int_field": Scalar {
+                                                                                                                                                                                                            ty: "u64",
+                                                                                                                                                                                                            value: "176",
+                                                                                                                                                                                                        },
+                                                                                                                                                                                                        "nested": Struct {
+                                                                                                                                                                                                            ty: "TestStruct",
+                                                                                                                                                                                                            fields: {
+                                                                                                                                                                                                                "int_field": Scalar {
+                                                                                                                                                                                                                    ty: "u64",
+                                                                                                                                                                                                                    value: "200",
+                                                                                                                                                                                                                },
+                                                                                                                                                                                                                "nested": Struct {
+                                                                                                                                                                                                                    ty: "TestStruct",
+                                                                                                                                                                                                                    fields: {
+                                                                                                                                                                                                                        "int_field": Scalar {
+                                                                                                                                                                                                                            ty: "u64",
+                                                                                                                                                                                                                            value: "224",
+                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                        "nested": Struct {
+                                                                                                                                                                                                                            ty: "TestStruct",
+                                                                                                                                                                                                                            fields: {
+                                                                                                                                                                                                                                "int_field": Scalar {
+                                                                                                                                                                                                                                    ty: "u64",
+                                                                                                                                                                                                                                    value: "248",
+                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                "nested": Scalar {
+                                                                                                                                                                                                                                    ty: "Option",
+                                                                                                                                                                                                                                    value: "None",
+                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                                "string_field": Scalar {
+                                                                                                                                                                                                                                    ty: "str",
+                                                                                                                                                                                                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                                                                                },
+                                                                                                                                                                                                                            },
+                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                        "string_field": Scalar {
+                                                                                                                                                                                                                            ty: "str",
+                                                                                                                                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                                                                        },
+                                                                                                                                                                                                                    },
+                                                                                                                                                                                                                },
+                                                                                                                                                                                                                "string_field": Scalar {
+                                                                                                                                                                                                                    ty: "str",
+                                                                                                                                                                                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                                                                },
+                                                                                                                                                                                                            },
+                                                                                                                                                                                                        },
+                                                                                                                                                                                                        "string_field": Scalar {
+                                                                                                                                                                                                            ty: "str",
+                                                                                                                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                                                        },
+                                                                                                                                                                                                    },
+                                                                                                                                                                                                },
+                                                                                                                                                                                                "string_field": Scalar {
+                                                                                                                                                                                                    ty: "str",
+                                                                                                                                                                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                                                },
+                                                                                                                                                                                            },
+                                                                                                                                                                                        },
+                                                                                                                                                                                        "string_field": Scalar {
+                                                                                                                                                                                            ty: "str",
+                                                                                                                                                                                            value: "\"p\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                                        },
+                                                                                                                                                                                    },
+                                                                                                                                                                                },
+                                                                                                                                                                                "string_field": Scalar {
+                                                                                                                                                                                    ty: "str",
+                                                                                                                                                                                    value: "\"X\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                                },
+                                                                                                                                                                            },
+                                                                                                                                                                        },
+                                                                                                                                                                        "string_field": Scalar {
+                                                                                                                                                                            ty: "str",
+                                                                                                                                                                            value: "\"@\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                        },
+                                                                                                                                                                    },
+                                                                                                                                                                },
+                                                                                                                                                                "string_field": Scalar {
+                                                                                                                                                                    ty: "str",
+                                                                                                                                                                    value: "\"(\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                                },
+                                                                                                                                                            },
+                                                                                                                                                        },
+                                                                                                                                                        "string_field": Scalar {
+                                                                                                                                                            ty: "str",
+                                                                                                                                                            value: "\"\u{10}\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                                        },
+                                                                                                                                                    },
+                                                                                                                                                },
+                                                                                                                                                "string_field": Scalar {
+                                                                                                                                                    ty: "str",
+                                                                                                                                                    value: "\"\"",
+                                                                                                                                                },
+                                                                                                                                            },
+                                                                                                                                        },
+                                                                                                                                        "string_field": Scalar {
+                                                                                                                                            ty: "str",
+                                                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                        },
+                                                                                                                                    },
+                                                                                                                                },
+                                                                                                                                "string_field": Scalar {
+                                                                                                                                    ty: "str",
+                                                                                                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                },
+                                                                                                                            },
+                                                                                                                        },
+                                                                                                                        "string_field": Scalar {
+                                                                                                                            ty: "str",
+                                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                        },
+                                                                                                                    },
+                                                                                                                },
+                                                                                                                "string_field": Scalar {
+                                                                                                                    ty: "str",
+                                                                                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                },
+                                                                                                            },
+                                                                                                        },
+                                                                                                        "string_field": Scalar {
+                                                                                                            ty: "str",
+                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                        },
+                                                                                                    },
+                                                                                                },
+                                                                                                "string_field": Scalar {
+                                                                                                    ty: "str",
+                                                                                                    value: "\"h\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                },
+                                                                                            },
+                                                                                        },
+                                                                                        "string_field": Scalar {
+                                                                                            ty: "str",
+                                                                                            value: "\"P\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                        },
+                                                                                    },
+                                                                                },
+                                                                                "string_field": Scalar {
+                                                                                    ty: "str",
+                                                                                    value: "\"8\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                },
+                                                                            },
+                                                                        },
+                                                                        "string_field": Scalar {
+                                                                            ty: "str",
+                                                                            value: "\" \0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                        },
+                                                                    },
+                                                                },
+                                                                "string_field": Scalar {
+                                                                    ty: "str",
+                                                                    value: "\"\u{8}\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                },
+                                                            },
+                                                        },
+                                                        "string_field": Scalar {
+                                                            ty: "str",
+                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                        },
+                                                    },
+                                                },
+                                                "string_field": Scalar {
+                                                    ty: "str",
+                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                },
+                                            },
+                                        },
+                                        "string_field": Scalar {
+                                            ty: "str",
+                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                        },
+                                    },
+                                },
+                                "string_field": Scalar {
+                                    ty: "str",
+                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                },
+                            },
+                        },
+                        "string_field": Scalar {
+                            ty: "str",
+                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                        },
+                    },
+                },
+            ),
+            ty: Some(
+                Type {
+                    name: "TestStruct",
+                },
+            ),
+        },
+        Variable {
+            name: "STATIC_FIELD",
+            value: Some(
+                Scalar {
+                    ty: "u64",
+                    value: "200",
+                },
+            ),
+            ty: Some(
+                Type {
+                    name: "u64",
+                },
+            ),
+        },
+        Variable {
+            name: "STRUCTS",
+            value: Some(
+                Array {
+                    ty: "[TestStruct; 1]",
+                    items: [
+                        Struct {
+                            ty: "TestStruct",
+                            fields: {
+                                "int_field": Scalar {
+                                    ty: "u64",
+                                    value: "192",
+                                },
+                                "nested": Struct {
+                                    ty: "TestStruct",
+                                    fields: {
+                                        "int_field": Scalar {
+                                            ty: "u64",
+                                            value: "216",
+                                        },
+                                        "nested": Struct {
+                                            ty: "TestStruct",
+                                            fields: {
+                                                "int_field": Scalar {
+                                                    ty: "u64",
+                                                    value: "240",
+                                                },
+                                                "nested": Struct {
+                                                    ty: "TestStruct",
+                                                    fields: {
+                                                        "int_field": Scalar {
+                                                            ty: "u64",
+                                                            value: "8",
+                                                        },
+                                                        "nested": Struct {
+                                                            ty: "TestStruct",
+                                                            fields: {
+                                                                "int_field": Scalar {
+                                                                    ty: "u64",
+                                                                    value: "32",
+                                                                },
+                                                                "nested": Struct {
+                                                                    ty: "TestStruct",
+                                                                    fields: {
+                                                                        "int_field": Scalar {
+                                                                            ty: "u64",
+                                                                            value: "56",
+                                                                        },
+                                                                        "nested": Struct {
+                                                                            ty: "TestStruct",
+                                                                            fields: {
+                                                                                "int_field": Scalar {
+                                                                                    ty: "u64",
+                                                                                    value: "80",
+                                                                                },
+                                                                                "nested": Struct {
+                                                                                    ty: "TestStruct",
+                                                                                    fields: {
+                                                                                        "int_field": Scalar {
+                                                                                            ty: "u64",
+                                                                                            value: "104",
+                                                                                        },
+                                                                                        "nested": Struct {
+                                                                                            ty: "TestStruct",
+                                                                                            fields: {
+                                                                                                "int_field": Scalar {
+                                                                                                    ty: "u64",
+                                                                                                    value: "128",
+                                                                                                },
+                                                                                                "nested": Struct {
+                                                                                                    ty: "TestStruct",
+                                                                                                    fields: {
+                                                                                                        "int_field": Scalar {
+                                                                                                            ty: "u64",
+                                                                                                            value: "152",
+                                                                                                        },
+                                                                                                        "nested": Struct {
+                                                                                                            ty: "TestStruct",
+                                                                                                            fields: {
+                                                                                                                "int_field": Scalar {
+                                                                                                                    ty: "u64",
+                                                                                                                    value: "176",
+                                                                                                                },
+                                                                                                                "nested": Struct {
+                                                                                                                    ty: "TestStruct",
+                                                                                                                    fields: {
+                                                                                                                        "int_field": Scalar {
+                                                                                                                            ty: "u64",
+                                                                                                                            value: "200",
+                                                                                                                        },
+                                                                                                                        "nested": Struct {
+                                                                                                                            ty: "TestStruct",
+                                                                                                                            fields: {
+                                                                                                                                "int_field": Scalar {
+                                                                                                                                    ty: "u64",
+                                                                                                                                    value: "224",
+                                                                                                                                },
+                                                                                                                                "nested": Struct {
+                                                                                                                                    ty: "TestStruct",
+                                                                                                                                    fields: {
+                                                                                                                                        "int_field": Scalar {
+                                                                                                                                            ty: "u64",
+                                                                                                                                            value: "248",
+                                                                                                                                        },
+                                                                                                                                        "nested": Scalar {
+                                                                                                                                            ty: "Option",
+                                                                                                                                            value: "None",
+                                                                                                                                        },
+                                                                                                                                        "string_field": Scalar {
+                                                                                                                                            ty: "str",
+                                                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                        },
+                                                                                                                                    },
+                                                                                                                                },
+                                                                                                                                "string_field": Scalar {
+                                                                                                                                    ty: "str",
+                                                                                                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                                },
+                                                                                                                            },
+                                                                                                                        },
+                                                                                                                        "string_field": Scalar {
+                                                                                                                            ty: "str",
+                                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                        },
+                                                                                                                    },
+                                                                                                                },
+                                                                                                                "string_field": Scalar {
+                                                                                                                    ty: "str",
+                                                                                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                                },
+                                                                                                            },
+                                                                                                        },
+                                                                                                        "string_field": Scalar {
+                                                                                                            ty: "str",
+                                                                                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                        },
+                                                                                                    },
+                                                                                                },
+                                                                                                "string_field": Scalar {
+                                                                                                    ty: "str",
+                                                                                                    value: "\"p\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                                },
+                                                                                            },
+                                                                                        },
+                                                                                        "string_field": Scalar {
+                                                                                            ty: "str",
+                                                                                            value: "\"X\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                        },
+                                                                                    },
+                                                                                },
+                                                                                "string_field": Scalar {
+                                                                                    ty: "str",
+                                                                                    value: "\"@\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                                },
+                                                                            },
+                                                                        },
+                                                                        "string_field": Scalar {
+                                                                            ty: "str",
+                                                                            value: "\"(\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                        },
+                                                                    },
+                                                                },
+                                                                "string_field": Scalar {
+                                                                    ty: "str",
+                                                                    value: "\"\u{10}\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                                },
+                                                            },
+                                                        },
+                                                        "string_field": Scalar {
+                                                            ty: "str",
+                                                            value: "\"\"",
+                                                        },
+                                                    },
+                                                },
+                                                "string_field": Scalar {
+                                                    ty: "str",
+                                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                                },
+                                            },
+                                        },
+                                        "string_field": Scalar {
+                                            ty: "str",
+                                            value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                        },
+                                    },
+                                },
+                                "string_field": Scalar {
+                                    ty: "str",
+                                    value: "\"�\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\"",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ),
+            ty: Some(
+                Type {
+                    name: "[TestStruct; 1]",
+                },
+            ),
+        },
+    ],
+)
