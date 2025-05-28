@@ -2,12 +2,10 @@
 
 use crate::data::Def;
 use crate::database::Db;
+use crate::dwarf::die::declaration_file;
+use crate::dwarf::{DieEntryId, resolution::types::resolve_type_offset};
 use crate::file::SourceFile;
 use crate::types::FunctionIndexEntry;
-use crate::dwarf::{
-    entities::DieEntryId,
-    resolution::types::resolve_type_offset,
-};
 
 /// Tracked variable information
 #[salsa::tracked]
@@ -48,7 +46,7 @@ pub fn resolve_function_variables<'db>(
     let mut globals = vec![];
 
     // get the file this is declared in
-    let Some(function_decl_file) = die.decl_file(db) else {
+    let Some(function_decl_file) = declaration_file(db, die) else {
         db.report_critical(format!("Failed to get file for function"));
         return ResolvedVariables::new(db, params, locals, globals);
     };
@@ -57,7 +55,7 @@ pub fn resolve_function_variables<'db>(
 
     for (global_symbol, symbol_index) in &index.symbol_name_to_die {
         let symbol_entry = symbol_index.die(db);
-        if symbol_entry.decl_file(db) == Some(function_decl_file) {
+        if declaration_file(db, symbol_entry) == Some(function_decl_file) {
             tracing::debug!(
                 "global symbol in scope: {}:{}",
                 global_symbol.as_path(db),
@@ -129,7 +127,7 @@ fn resolve_function_parameter_entry<'db>(
 
     let ty = resolve_type_offset(db, type_entry)?;
 
-    let file = entry.decl_file(db)?;
+    let file = declaration_file(db, entry)?;
     let line = entry.get_attr(db, gimli::DW_AT_decl_line)?.udata_value()?;
 
     Some(Variable::new(db, name, ty, file, line, entry))

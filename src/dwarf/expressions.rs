@@ -3,11 +3,8 @@
 use anyhow::Result;
 
 use crate::database::Db;
+use crate::dwarf::{DieEntryId, loader::DwarfReader};
 use crate::types::FunctionIndexEntry;
-use crate::dwarf::{
-    entities::DieEntryId,
-    loader::DwarfReader,
-};
 
 /// Get location expression from a DIE entry
 #[salsa::tracked]
@@ -115,7 +112,11 @@ pub fn resolve_data_location<'db>(
                 // We have an address that is relative to where
                 // the data is loaded an need to shift it appropriately
                 let cu = function_entry.cu(db);
-                let base_addr = crate::index::index(db).data(db).cu_to_base_addr.get(&cu).copied();
+                let base_addr = crate::index::index(db)
+                    .data(db)
+                    .cu_to_base_addr
+                    .get(&cu)
+                    .copied();
                 let Some(base_addr) = base_addr else {
                     db.report_critical(format!("Failed to get base address"));
                     return Ok(None);

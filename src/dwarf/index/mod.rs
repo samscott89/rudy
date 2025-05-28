@@ -2,9 +2,9 @@
 
 use std::collections::BTreeMap;
 
-use crate::types::{NameId, FunctionIndexEntry, SymbolIndexEntry, TypeIndexEntry};
+use super::{CompilationUnitId, DieEntryId};
 use crate::file::SourceFile;
-use super::entities::{CompilationUnitId, DieEntryId};
+use crate::types::{FunctionIndexEntry, NameId, SymbolIndexEntry, TypeIndexEntry};
 
 mod symbols;
 mod types;

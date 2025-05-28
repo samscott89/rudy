@@ -4,7 +4,8 @@
 //! from object files and querying it through a salsa database.
 
 // Sub-modules
-mod entities;
+mod cu;
+mod die;
 mod expressions;
 mod index;
 mod loader;
@@ -14,7 +15,8 @@ mod unit;
 mod utils;
 
 // Re-exports
-pub use entities::{CompilationUnitId, DieEntryId};
+pub use cu::CompilationUnitId;
+pub use die::DieEntryId;
 pub use expressions::resolve_data_location;
 pub use index::{Index, IndexData, index_symbols, index_types};
 pub use loader::{Dwarf, load};
@@ -31,4 +33,5 @@ pub use resolution::{
     location_to_address,
     resolve_function,
     resolve_function_variables,
+    resolve_type,
 };

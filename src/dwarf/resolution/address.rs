@@ -1,11 +1,8 @@
 //! Address to location and location to address resolution
 
 use crate::database::Db;
+use crate::dwarf::{CompilationUnitId, utils::file_entry_to_path};
 use crate::file::SourceFile;
-use crate::dwarf::{
-    entities::CompilationUnitId,
-    utils::file_entry_to_path,
-};
 
 /// Resolved source location information
 #[salsa::interned]

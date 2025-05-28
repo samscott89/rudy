@@ -3,13 +3,13 @@
 use std::collections::BTreeMap;
 
 use crate::database::Db;
+use crate::dwarf::{
+    DieEntryId,
+    navigation::get_roots,
+    utils::{debug_print_die_entry, get_string_attr, pretty_print_die_entry},
+};
 use crate::file::FileId;
 use crate::types::{NameId, TypeIndexEntry};
-use crate::dwarf::{
-    entities::DieEntryId,
-    navigation::get_roots,
-    utils::{get_string_attr, pretty_print_die_entry, debug_print_die_entry},
-};
 
 pub fn index_types<'db>(
     db: &'db dyn Db,
@@ -165,8 +165,7 @@ pub fn index_types<'db>(
                     tracing::debug!(?current_path, tag=%die.tag(), "found type: {name}");
                     let name = NameId::new(db, current_path.clone(), name.clone());
                     let die_entry = DieEntryId::new(db, file_id, cu_offset, die.offset());
-                    let existing =
-                        name_to_die.insert(name, TypeIndexEntry::new(db, die_entry));
+                    let existing = name_to_die.insert(name, TypeIndexEntry::new(db, die_entry));
                     if let Some(existing) = existing {
                         tracing::debug!(
                             "Duplicate type name: {} at offset {die_entry:?} and {existing:?}",

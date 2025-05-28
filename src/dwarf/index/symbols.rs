@@ -2,12 +2,12 @@
 
 use std::collections::{BTreeMap, btree_map::Entry};
 
+use crate::database::Db;
 use crate::dwarf::{
-    entities::{CompilationUnitId, DieEntryId},
     navigation::get_roots,
     utils::{get_string_attr_raw, pretty_print_die_entry, to_range},
+    {CompilationUnitId, DieEntryId},
 };
-use crate::database::Db;
 use crate::file::FileId;
 use crate::types::{FunctionIndexEntry, NameId, SymbolIndexEntry};
 

@@ -1,11 +1,8 @@
 //! Function resolution and metadata extraction
 
 use crate::database::Db;
+use crate::dwarf::{DieEntryId, utils::to_range};
 use crate::types::FunctionIndexEntry;
-use crate::dwarf::{
-    entities::DieEntryId,
-    utils::to_range,
-};
 
 /// Function address information
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

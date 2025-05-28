@@ -389,8 +389,5 @@ pub fn test_get_def(db: &dyn Db) -> Def<'_> {
         .expect("should find test struct");
 
     // get its DIE entry + type
-    static_test_struct
-        .die(db)
-        .ty(db)
-        .expect("could not get type")
+    dwarf::resolve_type(db, static_test_struct.die(db)).expect("could not get type")
 }

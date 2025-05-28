@@ -7,8 +7,41 @@ use crate::data::{
     StructField, UnsignedIntDef,
 };
 use crate::database::Db;
+use crate::dwarf::DieEntryId;
 use crate::types::NameId;
-use crate::dwarf::entities::DieEntryId;
+
+/// Resolve the full type for a DIE entry
+pub fn resolve_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
+    let Some(type_offset_val) = entry.get_attr(db, gimli::DW_AT_type) else {
+        db.report_critical(format!("Failed to get type attribute"));
+        return None;
+    };
+
+    let gimli::AttributeValue::UnitRef(type_offset) = type_offset_val else {
+        db.report_critical(format!("Unexpected type offset: {type_offset_val:?}"));
+        tracing::error!(
+            "Unexpected type offset: {type_offset_val:?} for {}",
+            entry.print(db)
+        );
+        return None;
+    };
+
+    let type_entry = entry.child_die(db, type_offset);
+    resolve_type_offset(db, type_entry)
+}
+
+/// Resolve the type for a DIE entry with shallow resolution
+pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
+    let type_offset_val = entry.get_attr(db, gimli::DW_AT_type)?;
+
+    let gimli::AttributeValue::UnitRef(type_offset) = type_offset_val else {
+        db.report_critical(format!("Unexpected type offset: {type_offset_val:?}"));
+        return None;
+    };
+
+    let type_entry = entry.child_die(db, type_offset);
+    shallow_resolve_type(db, type_entry)
+}
 
 /// Resolve a primitive type by name
 fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> Def<'db> {
@@ -90,7 +123,7 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<O
                             gimli::DW_TAG_template_type_parameter => {
                                 // formally, this tells us the type
                                 // of the option generic `T`
-                                some_type = grandchild.shallow_ty(db);
+                                some_type = resolve_type_shallow(db, grandchild);
                             }
                             gimli::DW_TAG_member => {
                                 // formally, this is a reference to the tuple field(s)
@@ -135,7 +168,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opti
             Some(ty)
         }
         gimli::DW_TAG_pointer_type => {
-            let Some(pointed_ty) = entry.shallow_ty(db) else {
+            let Some(pointed_ty) = resolve_type_shallow(db, entry) else {
                 db.report_critical(format!("Failed to get pointed type"));
                 return None;
             };
@@ -251,7 +284,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opti
             //                  DW_AT_name      ("__ARRAY_SIZE_TYPE__")
             //                  DW_AT_byte_size (0x08)
             //                  DW_AT_encoding  (DW_ATE_unsigned)
-            let Some(pointed_ty) = entry.shallow_ty(db) else {
+            let Some(pointed_ty) = resolve_type_shallow(db, entry) else {
                 db.report_critical(format!("Failed to get pointed type"));
                 return None;
             };
@@ -321,10 +354,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Opt
 
 /// Fully resolve a type from a DWARF DIE entry
 #[salsa::tracked]
-pub fn resolve_type_offset<'db>(
-    db: &'db dyn Db,
-    entry: DieEntryId<'db>,
-) -> Option<Def<'db>> {
+pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: DieEntryId<'db>) -> Option<Def<'db>> {
     if let Some(def) = resolve_as_builtin_type(db, entry) {
         return Some(def);
     }

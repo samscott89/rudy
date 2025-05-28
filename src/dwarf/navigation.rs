@@ -4,7 +4,7 @@ use gimli::{Unit, UnitSectionOffset};
 use itertools::Itertools;
 
 use super::{
-    entities::{CompilationUnitId, DieEntryId},
+    CompilationUnitId, DieEntryId,
     loader::DwarfReader,
     utils::{file_entry_to_path, to_range},
 };
