@@ -4,6 +4,7 @@ mod dwarf;
 mod file;
 mod formatting;
 mod index;
+mod outputs;
 mod query;
 mod types;
 
@@ -12,7 +13,10 @@ pub mod tests;
 
 use anyhow::Result;
 use data::TypeDef;
-use std::{collections::BTreeMap, fmt};
+use std::fmt;
+
+// reexport the public types from outputs
+pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable};
 
 pub struct DebugInfo {
     pub db: database::DebugDatabaseImpl,
@@ -31,53 +35,6 @@ fn print_hex(data: &[u8]) -> String {
         hex_string.push_str(&format!("{:02x} ", byte));
     }
     hex_string
-}
-
-pub struct ResolvedAddress {
-    pub address: u64,
-}
-
-impl fmt::Debug for ResolvedAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ResolvedAddress")
-            .field("address", &format!("{:#x}", self.address))
-            .finish()
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct ResolvedLocation {
-    pub function: String,
-    pub file: String,
-    pub line: u64,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Variable {
-    pub name: String,
-    pub value: Option<Value>,
-    pub ty: Option<Type>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Value {
-    Scalar {
-        ty: String,
-        value: String,
-    },
-    Array {
-        ty: String,
-        items: Vec<Value>,
-    },
-    Struct {
-        ty: String,
-        fields: BTreeMap<String, Value>,
-    },
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Type {
-    pub name: String,
 }
 
 impl DebugInfo {
