@@ -48,3 +48,20 @@ pub enum Value {
 pub struct Type {
     pub name: String,
 }
+
+#[derive(PartialEq, Eq, Clone)]
+pub struct ResolvedFunction {
+    pub name: String,
+    pub address: u64,
+    pub params: Vec<Variable>,
+}
+
+impl fmt::Debug for ResolvedFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ResolvedFunction")
+            .field("name", &self.name)
+            .field("address", &format!("{:#x}", self.address))
+            .field("params", &self.params)
+            .finish()
+    }
+}

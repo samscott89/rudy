@@ -1,5 +1,5 @@
 ---
-source: src/tests.rs
+source: tests/mod.rs
 expression: parsed
 snapshot_kind: text
 ---

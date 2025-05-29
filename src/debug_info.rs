@@ -5,9 +5,10 @@ use crate::{
     ResolvedAddress, ResolvedLocation,
     data::TypeDef,
     database::{Db, Diagnostic, handle_diagnostics},
-    dwarf,
+    dwarf::{self, resolve_function_variables},
     file::Binary,
     index,
+    outputs::ResolvedFunction,
     query::{
         find_closest_match, lookup_address, lookup_closest_function, lookup_position, test_get_def,
     },
@@ -66,7 +67,7 @@ impl DebugInfo {
     //     self.db.test_get_shape().unwrap()
     // }
 
-    pub fn resolve_function(&self, function: &str) -> Result<Option<ResolvedAddress>> {
+    pub fn resolve_function(&self, function: &str) -> Result<Option<ResolvedFunction>> {
         let mut split: Vec<String> = function.split("::").map(|s| s.to_owned()).collect();
         let name = split
             .pop()
@@ -97,8 +98,26 @@ impl DebugInfo {
             .copied()
             .unwrap_or(0);
         let address = f.relative_body_address(&self.db);
-        Ok(Some(ResolvedAddress {
+
+        let params = resolve_function_variables(&self.db, self.binary, entry);
+        let diagnostics: Vec<&Diagnostic> =
+            dwarf::resolve_function_variables::accumulated(&self.db, self.binary, entry);
+        handle_diagnostics(&diagnostics)?;
+
+        Ok(Some(ResolvedFunction {
+            name: f.name(&self.db).to_string(),
             address: base_address + address,
+            params: params
+                .params(&self.db)
+                .into_iter()
+                .map(|var| crate::Variable {
+                    name: var.name(&self.db).to_string(),
+                    ty: Some(crate::Type {
+                        name: var.ty(&self.db).display_name(&self.db),
+                    }),
+                    value: None,
+                })
+                .collect(),
         }))
     }
 

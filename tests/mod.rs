@@ -1,4 +1,4 @@
-use super::*;
+use rust_debuginfo::*;
 
 use rstest::rstest;
 use rstest_reuse::{self, *};
@@ -25,6 +25,7 @@ macro_rules! setup {
 
         // get current OS as a prefix
         settings.set_snapshot_suffix($target);
+        settings.set_prepend_module_to_snapshot(false);
 
         let _guard = settings.bind_to_scope();
         let test_name = crate::function_name!();

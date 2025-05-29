@@ -9,9 +9,6 @@ mod outputs;
 mod query;
 mod types;
 
-#[cfg(test)]
-pub mod tests;
-
 use anyhow::Result;
 
 pub use debug_info::DebugInfo;

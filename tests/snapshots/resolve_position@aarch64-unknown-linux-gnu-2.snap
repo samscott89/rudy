@@ -1,8 +1,8 @@
 ---
-source: src/tests.rs
+source: tests/mod.rs
 expression: addrs
 snapshot_kind: text
 ---
 ResolvedAddress {
-    address: "0x1000009d4",
+    address: "0x64d0",
 }

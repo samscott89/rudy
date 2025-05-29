@@ -1,0 +1,22 @@
+---
+source: tests/mod.rs
+expression: "resolver.resolve_function(\"function_call\").unwrap()"
+snapshot_kind: text
+---
+Some(
+    ResolvedFunction {
+        name: "function_call",
+        address: "0x798f",
+        params: [
+            Variable {
+                name: "x",
+                value: None,
+                ty: Some(
+                    Type {
+                        name: "u64",
+                    },
+                ),
+            },
+        ],
+    },
+)

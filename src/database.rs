@@ -111,7 +111,7 @@ enum DiagnosticSeverity {
 pub struct Diagnostic {
     message: String,
     severity: DiagnosticSeverity,
-}
+}   
 
 #[salsa::db]
 #[derive(Clone)]
