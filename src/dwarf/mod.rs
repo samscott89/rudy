@@ -22,16 +22,14 @@ pub use index::{Index, IndexData, index_symbols, index_types};
 pub use loader::{Dwarf, load};
 pub use navigation::{address_in_entry, parse_roots};
 pub use resolution::{
-    // Function resolution
-    Function,
     // Address resolution
     ResolvedLocation,
     // Variable resolution
     Variable,
     address_to_location,
-    get_typedef,
     location_to_address,
     resolve_function,
     resolve_function_variables,
     resolve_type,
+    resolve_type_offset,
 };

@@ -1,4 +1,4 @@
-//! Core types used throughout the debug info system
+//! Internal types for the database.
 
 use itertools::Itertools;
 

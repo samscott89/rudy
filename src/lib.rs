@@ -1,5 +1,6 @@
 mod data;
 mod database;
+mod debug_info;
 mod dwarf;
 mod file;
 mod formatting;
@@ -12,21 +13,10 @@ mod types;
 pub mod tests;
 
 use anyhow::Result;
-use data::TypeDef;
-use std::fmt;
 
+pub use debug_info::DebugInfo;
 // reexport the public types from outputs
 pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable};
-
-pub struct DebugInfo {
-    pub db: database::DebugDatabaseImpl,
-}
-
-impl fmt::Debug for DebugInfo {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DebugInfo").finish()
-    }
-}
 
 #[allow(dead_code)]
 fn print_hex(data: &[u8]) -> String {
@@ -35,56 +25,6 @@ fn print_hex(data: &[u8]) -> String {
         hex_string.push_str(&format!("{:02x} ", byte));
     }
     hex_string
-}
-
-impl DebugInfo {
-    pub fn new(binary_path: &str) -> Result<Self> {
-        let db = database::DebugDatabaseImpl::new(binary_path)?;
-
-        // load_eh_frame_info(binary_file, &data_arena)?;
-
-        let pb = DebugInfo { db };
-        Ok(pb)
-    }
-
-    pub fn resolve_position(
-        &self,
-        file: &str,
-        line: u64,
-        column: Option<u64>,
-    ) -> Option<ResolvedAddress> {
-        self.db.resolve_position(file, line, column).unwrap()
-    }
-
-    pub fn address_to_line(&self, address: u64) -> Option<ResolvedLocation> {
-        self.db.resolve_address_to_location(address).unwrap()
-    }
-
-    pub fn resolve_function(&self, name: &str) -> Option<ResolvedAddress> {
-        let f = self.db.lookup_function(name).unwrap()?;
-        let address = f.function_body_address(&self.db);
-        Some(ResolvedAddress { address })
-    }
-
-    pub fn get_source_lines(&self, _address: u64) -> Vec<String> {
-        todo!()
-    }
-
-    pub fn resolve_variables_at_address(
-        &self,
-        address: u64,
-        data_resolver: &dyn DataResolver,
-    ) -> (Vec<Variable>, Vec<Variable>, Vec<Variable>) {
-        let (locals, params, globals) = self
-            .db
-            .resolve_variables_at_address(address, data_resolver)
-            .unwrap();
-        (locals, params, globals)
-    }
-
-    pub fn test_get_shape(&self) -> TypeDef<'_> {
-        self.db.test_get_shape().unwrap()
-    }
 }
 
 pub trait DataResolver {

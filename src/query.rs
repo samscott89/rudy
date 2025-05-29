@@ -2,19 +2,21 @@
 
 use itertools::Itertools;
 
+use crate::data::TypeDef;
 use crate::database::Db;
 use crate::dwarf;
-use crate::file::SourceFile;
+use crate::file::{Binary, SourceFile};
 use crate::index;
 use crate::types::{Address, FunctionIndexEntry, NameId, Position};
 
 #[salsa::tracked]
 pub fn find_closest_match<'db>(
     db: &'db dyn Db,
+    binary: Binary,
     function_name: NameId<'db>,
 ) -> Option<(NameId<'db>, FunctionIndexEntry<'db>)> {
     // check if exact name exists in index
-    let index = index::index(db);
+    let index = index::build_index(db, binary);
     if let Some(entry) = index.data(db).function_name_to_die.get(&function_name) {
         return Some((function_name, *entry));
     }
@@ -39,12 +41,12 @@ pub fn find_closest_match<'db>(
 }
 
 #[salsa::tracked]
-pub fn lookup_position<'db>(db: &'db dyn Db, query: Position<'db>) -> Option<u64> {
+pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db>) -> Option<u64> {
     let file_name = query.file(db);
     let file = SourceFile::new(db, file_name);
 
     // find compilation units that cover the provided file
-    let index = index::index(db);
+    let index = index::build_index(db, binary);
     let Some(cu_ids) = index.data(db).file_to_cu.get(&file) else {
         tracing::debug!(
             "no compilation units found for file: {} in index {:#?}",
@@ -94,10 +96,11 @@ pub fn lookup_position<'db>(db: &'db dyn Db, query: Position<'db>) -> Option<u64
 #[salsa::tracked]
 pub fn lookup_address<'db>(
     db: &'db dyn Db,
+    binary: Binary,
     address: Address<'db>,
 ) -> Option<dwarf::ResolvedLocation<'db>> {
     let address = address.address(db);
-    let index = index::index(db);
+    let index = index::build_index(db, binary);
     let cu_index = &index.data(db).address_range_to_cu;
     let range_start = cu_index.partition_point(|(start, _, _)| *start < address);
     let range = &cu_index[..range_start];
@@ -138,11 +141,12 @@ pub fn lookup_address<'db>(
 #[salsa::tracked]
 pub fn lookup_closest_function<'db>(
     db: &'db dyn Db,
+    binary: Binary,
     address: Address<'db>,
 ) -> Option<FunctionIndexEntry<'db>> {
     let address = address.address(db);
     tracing::debug!("looking up function for address {address:#x}");
-    let index = index::index(db);
+    let index = index::build_index(db, binary);
     let function_index = &index.data(db).address_range_to_function;
 
     let range_start = function_index.partition_point(|(start, _, _)| *start < address);
@@ -186,4 +190,23 @@ pub fn lookup_closest_function<'db>(
         }
     }
     None
+}
+
+#[salsa::tracked]
+pub fn test_get_def(db: &dyn Db, binary: Binary) -> TypeDef<'_> {
+    let index = index::build_index(db, binary);
+
+    // find the STATIC_TEST_STRUCT global constants
+    let (_, static_test_struct) = index
+        .data(db)
+        .symbol_name_to_die
+        .iter()
+        .find(|(name, _)| {
+            let name = name.name(db);
+            name.contains("STATIC_TEST_STRUCT")
+        })
+        .expect("should find test struct");
+
+    // get its DIE entry + type
+    dwarf::resolve_type(db, static_test_struct.die(db)).expect("could not get type")
 }

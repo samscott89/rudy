@@ -4,7 +4,8 @@ use gimli::UnitSectionOffset;
 
 use super::{
     CompilationUnitId,
-    loader::{DwarfReader, Offset, RawDie, UnitRef},
+    loader::{DwarfReader, Offset, RawDie},
+    unit::UnitRef,
     utils::{file_entry_to_path, parse_die_string_attribute},
 };
 use crate::file::FileId;

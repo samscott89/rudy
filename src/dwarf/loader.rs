@@ -46,6 +46,5 @@ unsafe impl gimli::CloneStableDeref for OwnedOrBorrowed {}
 // shorthand type definitions
 pub type DwarfReader = EndianReader<LittleEndian, OwnedOrBorrowed>;
 pub type Dwarf = gimli::Dwarf<DwarfReader>;
-pub type UnitRef<'a> = gimli::UnitRef<'a, DwarfReader>;
 pub type RawDie<'a> = gimli::DebuggingInformationEntry<'a, 'a, DwarfReader>;
 pub type Offset = gimli::UnitOffset<usize>;

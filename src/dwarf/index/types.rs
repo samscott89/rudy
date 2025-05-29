@@ -20,10 +20,6 @@ pub fn index_types<'db>(
     // map of offset (entry ID) to type name
     BTreeMap<Die<'db>, NameId<'db>>,
 ) {
-    let Some(dwarf) = db.get_file(file_id).and_then(|f| f.dwarf()) else {
-        return Default::default();
-    };
-
     let mut name_to_die = BTreeMap::new();
     let mut die_to_name = BTreeMap::new();
 
@@ -34,10 +30,8 @@ pub fn index_types<'db>(
     let mut current_offset = 0;
     let mut recurse = true;
 
-    for (cu_offset, unit) in roots {
-        let unit_ref = unit.unit_ref(dwarf);
-
-        let Some(mut tree) = unit.entries_tree(None).ok() else {
+    for (cu_offset, unit_ref) in roots {
+        let Some(mut tree) = unit_ref.entries_tree(None).ok() else {
             continue;
         };
         let Some(root) = tree.root().ok() else {
@@ -60,7 +54,7 @@ pub fn index_types<'db>(
             }
         }
 
-        let mut entries = unit.entries();
+        let mut entries = unit_ref.entries();
         loop {
             let die = if recurse {
                 match entries.next_dfs() {

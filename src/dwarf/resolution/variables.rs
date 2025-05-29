@@ -4,7 +4,7 @@ use crate::data::TypeDef;
 use crate::database::Db;
 use crate::dwarf::die::declaration_file;
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
-use crate::file::SourceFile;
+use crate::file::{Binary, SourceFile};
 use crate::types::FunctionIndexEntry;
 
 /// Tracked variable information
@@ -32,6 +32,7 @@ pub struct ResolvedVariables<'db> {
 #[salsa::tracked]
 pub fn resolve_function_variables<'db>(
     db: &'db dyn Db,
+    binary: Binary,
     function: FunctionIndexEntry<'db>,
 ) -> ResolvedVariables<'db> {
     let die = function.die(db);
@@ -51,7 +52,7 @@ pub fn resolve_function_variables<'db>(
         return ResolvedVariables::new(db, params, locals, globals);
     };
 
-    let index = crate::index::index(db).data(db);
+    let index = crate::index::build_index(db, binary).data(db);
 
     for (global_symbol, symbol_index) in &index.symbol_name_to_die {
         let symbol_entry = symbol_index.die(db);

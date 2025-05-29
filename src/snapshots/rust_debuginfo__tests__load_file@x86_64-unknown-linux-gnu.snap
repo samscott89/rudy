@@ -1,5 +1,5 @@
 ---
-source: crates/rust_debug_info/src/tests.rs
+source: src/tests.rs
 expression: parsed
 snapshot_kind: text
 ---

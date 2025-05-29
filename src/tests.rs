@@ -68,6 +68,7 @@ fn test_resolve_position(#[case] target: &str) {
     // should be the position of the `let y = x + 1;` line
     let addrs = resolver
         .resolve_position("examples/simple-test/src/main.rs", 4, None)
+        .unwrap()
         .unwrap();
     insta::assert_debug_snapshot!(addrs);
     assert_eq!(
@@ -87,6 +88,7 @@ fn test_resolve_position(#[case] target: &str) {
     //   Breakpoint 4: where = simple-test`simple_test::main::h8787f5d764ea460c + 20 at simple-test.rs:22:5, address = 0x00000001000041a0``
     let addrs = resolver
         .resolve_position("examples/simple-test/src/main.rs", 16, None)
+        .unwrap()
         .unwrap();
     // address of line 17
     insta::assert_debug_snapshot!(addrs);

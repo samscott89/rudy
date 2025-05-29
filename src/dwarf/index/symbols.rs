@@ -28,12 +28,7 @@ pub fn index_symbols<'db>(
     file_id: FileId<'db>,
     mut symbols: BTreeMap<Vec<u8>, (u64, NameId<'db>)>,
 ) -> FileIndexEntries<'db> {
-    let Some(dwarf) = db.get_file(file_id).and_then(|f| f.dwarf()) else {
-        return Default::default();
-    };
-
     tracing::debug!("indexing symbols for {}", file_id.full_path(db));
-
     let mut function_name_to_die = BTreeMap::new();
     let mut symbol_name_to_die = BTreeMap::new();
     let mut address_range_to_function = Vec::new();
@@ -41,11 +36,10 @@ pub fn index_symbols<'db>(
 
     let roots = get_roots(db, file_id);
 
-    for (cu_offset, unit) in roots {
+    for (cu_offset, unit_ref) in roots {
         let cu = CompilationUnitId::new(db, file_id, cu_offset);
-        let unit_ref = unit.unit_ref(dwarf);
 
-        let Some(mut tree) = unit.entries_tree(None).ok() else {
+        let Some(mut tree) = unit_ref.entries_tree(None).ok() else {
             continue;
         };
         let Some(root) = tree.root().ok() else {
@@ -68,7 +62,7 @@ pub fn index_symbols<'db>(
             }
         }
 
-        let mut entries = unit.entries();
+        let mut entries = unit_ref.entries();
         let mut recurse = true;
 
         loop {

@@ -43,23 +43,17 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
+use dashmap::DashMap;
 use salsa::Accumulator;
 
-use crate::data::TypeDef;
-use crate::dwarf;
-use crate::file::{File, FileId, load_relocatable_file};
-use crate::index;
-use crate::query::{find_closest_match, lookup_address, lookup_closest_function, lookup_position};
-use crate::types::{Address, FunctionIndexEntry, NameId, Position};
+use crate::file::{Binary, FilePath, LoadedFile};
 
-#[cfg(test)]
-mod tests;
+pub(crate) type FileRef<'db> = dashmap::mapref::one::Ref<'db, FilePath, LoadedFile>;
+pub(crate) type MappedRef<'a, T> = dashmap::mapref::one::MappedRef<'a, FilePath, LoadedFile, T>;
 
 #[salsa::db]
 pub trait Db: salsa::Database {
-    fn binary_file(&self) -> &File;
-
     fn report_info(&self, message: String) {
         Diagnostic {
             message,
@@ -94,19 +88,13 @@ pub trait Db: salsa::Database {
 
     fn upcast(&self) -> &dyn Db;
 
-    fn get_file<'db>(&'db self, file: FileId<'db>) -> Option<&'db File> {
-        if file.relocatable(self) {
-            let file = load_relocatable_file(self.upcast(), file)?;
-            let file = file.file(self);
-            if file.error().is_some() {
-                None
-            } else {
-                Some(file)
-            }
-        } else {
-            Some(self.binary_file())
-        }
-    }
+    /// Takes in a path (and optionally, an additional filename to load from an archive)
+    /// and returns a loaded file.
+    ///
+    /// Internally this _should_ use caching to avoid
+    /// reloading the file if it has already been loaded.
+    /// If the file cannot be loaded, it should return an error.
+    fn get_or_load_file(&self, path: FilePath) -> Result<FileRef<'_>>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -120,19 +108,19 @@ enum DiagnosticSeverity {
 }
 
 #[salsa::accumulator]
-struct Diagnostic {
-    pub message: String,
-    pub severity: DiagnosticSeverity,
+pub struct Diagnostic {
+    message: String,
+    severity: DiagnosticSeverity,
 }
 
 #[salsa::db]
 #[derive(Clone)]
 pub struct DebugDatabaseImpl {
     storage: salsa::Storage<Self>,
-    binary_file: Arc<File>,
+    loaded_files: Arc<DashMap<FilePath, LoadedFile>>,
 }
 
-fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
+pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
     let mut err = None;
     for d in diagnostics {
         match d.severity {
@@ -162,200 +150,31 @@ fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
     if let Some(e) = err { Err(e) } else { Ok(()) }
 }
 
-#[salsa::tracked]
-fn initialize<'db>(db: &'db dyn Db) {
-    // Generate the index on startup to save time
-    let _ = index::index(db);
-}
+// #[salsa::tracked]
+// fn initialize<'db>(db: &'db dyn Db) {
+//     // Generate the index on startup to save time
+//     let _ = index::build_index(db);
+// }
 
 impl DebugDatabaseImpl {
-    pub fn new(binary_file: &str) -> Result<Self> {
-        let lof = File::new(binary_file, None);
-        if let Some(e) = lof.error() {
-            return Err(anyhow::anyhow!("{e}"))
-                .with_context(|| format!("Failed to load binary file: {binary_file}"));
-        }
-
+    pub fn new() -> Result<Self> {
         let db = Self {
             storage: salsa::Storage::default(),
-            binary_file: Arc::new(lof),
+            loaded_files: Default::default(),
         };
-        initialize(&db);
         Ok(db)
     }
 
-    pub fn lookup_function(&self, function: &str) -> Result<Option<dwarf::Function>> {
-        let mut split: Vec<String> = function.split("::").map(|s| s.to_owned()).collect();
-        let name = split.pop().unwrap_or_else(|| {
-            self.report_error(format!("Invalid empty input name: {function}",));
-            "<invalid>".to_string()
-        });
-        let module_prefix = split;
-        let function_name = NameId::new(self, module_prefix, name);
+    pub fn analyze_file(&mut self, binary_file: &str) -> Result<Binary> {
+        let path = FilePath::Path(binary_file.to_string());
+        // eagerly load the file to ensure it exists
+        let _file = self.get_or_load_file(path.clone())?;
+        let bin = Binary::new(self, path);
 
-        let Some((_, entry)) = find_closest_match(self, function_name) else {
-            tracing::debug!("no function found for {function}");
-            return Ok(None);
-        };
-        let diagnostics: Vec<&Diagnostic> = find_closest_match::accumulated(self, function_name);
-        handle_diagnostics(&diagnostics)?;
+        crate::index::build_index(self.upcast(), bin.clone());
 
-        let f = dwarf::resolve_function(self, entry);
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function::accumulated(self, entry);
-        handle_diagnostics(&diagnostics)?;
-        Ok(f)
+        Ok(bin)
     }
-
-    pub fn resolve_address_to_location(
-        &self,
-        address: u64,
-    ) -> Result<Option<crate::ResolvedLocation>> {
-        let address = Address::new(self, address);
-        let loc = lookup_address(self, address);
-        let Some(f) = lookup_closest_function(self, address) else {
-            tracing::debug!("no function found for address {:#x}", address.address(self));
-            return Ok(None);
-        };
-        let Some(function) = dwarf::resolve_function(self, f) else {
-            tracing::debug!("failed to resolve function: {f:?}");
-            return Ok(None);
-        };
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function::accumulated(self, f);
-        handle_diagnostics(&diagnostics)?;
-        tracing::debug!("returned function + loc: {f:?} / {loc:?}");
-        Ok(loc.map(|loc| {
-            let file = loc.file(self);
-            crate::ResolvedLocation {
-                function: function.name(self).to_string(),
-                file: file.path(self).clone(),
-                line: loc.line(self),
-            }
-        }))
-    }
-
-    pub fn resolve_position(
-        &self,
-        file: &str,
-        line: u64,
-        column: Option<u64>,
-    ) -> Result<Option<crate::ResolvedAddress>> {
-        let query = Position::new(self, file.to_string(), line, column);
-        let pos = lookup_position(self, query);
-        Ok(pos.map(|address| crate::ResolvedAddress { address }))
-    }
-
-    pub fn resolve_variables_at_address(
-        &self,
-        address: u64,
-        data_resolver: &dyn crate::DataResolver,
-    ) -> Result<(
-        Vec<crate::Variable>,
-        Vec<crate::Variable>,
-        Vec<crate::Variable>,
-    )> {
-        let address = Address::new(self, address);
-        let loc = lookup_address(self, address);
-        let f = lookup_closest_function(self, address);
-        let diagnostics: Vec<&Diagnostic> = lookup_closest_function::accumulated(self, address);
-        handle_diagnostics(&diagnostics)?;
-
-        let Some(f) = f else {
-            tracing::debug!("no function found for address {:#x}", address.address(self));
-            return Ok(Default::default());
-        };
-
-        let vars = dwarf::resolve_function_variables(self, f);
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function_variables::accumulated(self, f);
-        handle_diagnostics(&diagnostics)?;
-
-        let params = vars
-            .params(self)
-            .into_iter()
-            .map(|param| output_variable(self, f, param, data_resolver))
-            .collect::<Result<Vec<_>>>()?;
-        let locals = vars
-            .locals(self)
-            .into_iter()
-            .filter(|var| {
-                // for local variables, we want to make sure the variable
-                // is defined before the current location
-                if let Some(loc) = loc {
-                    loc.line(self) > var.line(self)
-                } else {
-                    // if we don't have a location, we assume the param is valid
-                    true
-                }
-            })
-            .map(|var| output_variable(self, f, var, data_resolver))
-            .collect::<Result<Vec<_>>>()?;
-        let globals = vars
-            .globals(self)
-            .into_iter()
-            .map(|(var, address)| output_global_variable(self, var, address, data_resolver))
-            .collect::<Result<Vec<_>>>()?;
-        Ok((params, locals, globals))
-    }
-
-    pub fn test_get_shape(&self) -> Result<TypeDef<'_>> {
-        let test_struct = test_get_def(self);
-        let diagnostics: Vec<&Diagnostic> = test_get_def::accumulated(self);
-        handle_diagnostics(&diagnostics)?;
-        Ok(test_struct)
-    }
-}
-
-fn output_variable<'db>(
-    db: &'db dyn Db,
-    f: FunctionIndexEntry<'db>,
-    var: dwarf::Variable<'db>,
-    data_resolver: &dyn crate::DataResolver,
-) -> Result<crate::Variable> {
-    let location = dwarf::resolve_data_location(db, f, var.origin(db), data_resolver)?;
-
-    let value = if let Some(addr) = location {
-        Some(crate::data::read_from_memory(
-            db,
-            addr,
-            var.ty(db),
-            data_resolver,
-        )?)
-    } else {
-        None
-    };
-
-    tracing::debug!("variable: {} => {value:?}", var.name(db));
-
-    Ok(crate::Variable {
-        name: var.name(db).to_string(),
-        ty: Some(crate::Type {
-            name: var.ty(db).display_name(db),
-        }),
-        value,
-    })
-}
-
-fn output_global_variable<'db>(
-    db: &'db dyn Db,
-    var: dwarf::Variable<'db>,
-    address: u64,
-    data_resolver: &dyn crate::DataResolver,
-) -> Result<crate::Variable> {
-    let value = Some(crate::data::read_from_memory(
-        db,
-        address,
-        var.ty(db),
-        data_resolver,
-    )?);
-
-    tracing::debug!("variable: {} => {value:?}", var.name(db));
-
-    Ok(crate::Variable {
-        name: var.name(db).to_string(),
-        ty: Some(crate::Type {
-            name: var.ty(db).display_name(db),
-        }),
-        value,
-    })
 }
 
 #[salsa::db]
@@ -367,8 +186,16 @@ impl salsa::Database for DebugDatabaseImpl {
 
 #[salsa::db]
 impl Db for DebugDatabaseImpl {
-    fn binary_file(&self) -> &File {
-        self.binary_file.as_ref()
+    fn get_or_load_file(&self, path: FilePath) -> Result<FileRef<'_>> {
+        if let Some(file) = self.loaded_files.get(&path) {
+            return Ok(file);
+        }
+
+        let file_ref = self
+            .loaded_files
+            .entry(path.clone())
+            .or_try_insert_with(|| LoadedFile::new(path))?;
+        Ok(file_ref.downgrade())
     }
 
     fn upcast(&self) -> &dyn Db {
@@ -376,21 +203,21 @@ impl Db for DebugDatabaseImpl {
     }
 }
 
-#[salsa::tracked]
-pub fn test_get_def(db: &dyn Db) -> TypeDef<'_> {
-    let index = index::index(db);
+// #[salsa::tracked]
+// pub fn test_get_def(db: &dyn Db) -> TypeDef<'_> {
+//     let index = index::build_index(db);
 
-    // find the STATIC_TEST_STRUCT global constants
-    let (_, static_test_struct) = index
-        .data(db)
-        .symbol_name_to_die
-        .iter()
-        .find(|(name, _)| {
-            let name = name.name(db);
-            name.contains("STATIC_TEST_STRUCT")
-        })
-        .expect("should find test struct");
+//     // find the STATIC_TEST_STRUCT global constants
+//     let (_, static_test_struct) = index
+//         .data(db)
+//         .symbol_name_to_die
+//         .iter()
+//         .find(|(name, _)| {
+//             let name = name.name(db);
+//             name.contains("STATIC_TEST_STRUCT")
+//         })
+//         .expect("should find test struct");
 
-    // get its DIE entry + type
-    dwarf::resolve_type(db, static_test_struct.die(db)).expect("could not get type")
-}
+//     // get its DIE entry + type
+//     dwarf::resolve_type(db, static_test_struct.die(db)).expect("could not get type")
+// }

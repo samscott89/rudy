@@ -1,8 +1,10 @@
 ---
-source: crates/rust_debug_info/src/tests.rs
+source: src/tests.rs
 expression: "resolver.resolve_function(\"main\").unwrap()"
 snapshot_kind: text
 ---
-ResolvedAddress {
-    address: "0x7ab8",
-}
+Some(
+    ResolvedAddress {
+        address: "0x7ab8",
+    },
+)

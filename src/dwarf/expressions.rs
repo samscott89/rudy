@@ -4,6 +4,7 @@ use anyhow::Result;
 
 use crate::database::Db;
 use crate::dwarf::{Die, loader::DwarfReader};
+use crate::file::Binary;
 use crate::types::FunctionIndexEntry;
 
 /// Get location expression from a DIE entry
@@ -71,6 +72,7 @@ fn get_function_frame_base<'db>(
 /// Resolve data location for a variable using DWARF expressions
 pub fn resolve_data_location<'db>(
     db: &'db dyn Db,
+    binary: Binary,
     function: FunctionIndexEntry<'db>,
     variable_entry_id: Die<'db>,
     data_resolver: &dyn crate::DataResolver,
@@ -112,7 +114,7 @@ pub fn resolve_data_location<'db>(
                 // We have an address that is relative to where
                 // the data is loaded an need to shift it appropriately
                 let cu = function_entry.cu(db);
-                let base_addr = crate::index::index(db)
+                let base_addr = crate::index::build_index(db, binary)
                     .data(db)
                     .cu_to_base_addr
                     .get(&cu)

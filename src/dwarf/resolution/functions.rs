@@ -75,8 +75,9 @@ pub struct Function<'db> {
     pub name: String,
     #[return_ref]
     pub linkage_name: String,
-    pub base_address: u64,
-    pub function_body_address: u64,
+
+    pub relative_address: u64,
+    pub relative_body_address: u64,
 }
 
 /// Resolve a function index entry to full function information
@@ -85,22 +86,9 @@ pub fn resolve_function<'db>(db: &'db dyn Db, f: FunctionIndexEntry<'db>) -> Opt
     let die = f.die(db);
     let name = die.name(db)?;
     let linkage_name = die.string_attr(db, gimli::DW_AT_linkage_name)?;
-    let index = crate::index::index(db);
-    let base_address = index
-        .data(db)
-        .cu_to_base_addr
-        .get(&die.cu(db))
-        .copied()
-        .unwrap_or(0);
     let FunctionAddressInfo {
         base, prologue_end, ..
     } = function_address(db, die)?;
     let body_address = prologue_end.unwrap_or(base);
-    Some(Function::new(
-        db,
-        name,
-        linkage_name,
-        base_address + base,
-        base_address + body_address,
-    ))
+    Some(Function::new(db, name, linkage_name, base, body_address))
 }

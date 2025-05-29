@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 use salsa::Update;
 
-use crate::{database::Db, dwarf::get_typedef, types::NameId};
+use crate::{database::Db, dwarf::Die};
 
 #[salsa::tracked]
 pub struct TypeDef<'db> {
-    pub name: Option<NameId<'db>>,
+    // pub name: Option<NameId<'db>>,
     #[return_ref]
     pub kind: DefKind<'db>,
 }
@@ -105,11 +105,11 @@ impl<'db> TypeDef<'db> {
             },
             DefKind::Struct(struct_def) => struct_def.name.clone(),
             DefKind::Enum(enum_def) => enum_def.name.clone(),
-            DefKind::Alias(name_id) => {
-                if let Ok(Some(def)) = get_typedef(db, *name_id) {
+            DefKind::Alias(entry) => {
+                if let Some(def) = crate::dwarf::resolve_type_offset(db, *entry) {
                     def.display_name(db)
                 } else {
-                    name_id.as_path(db)
+                    entry.name(db).unwrap_or_default()
                 }
             }
             DefKind::Other { name } => name.to_string(),
@@ -122,8 +122,8 @@ impl<'db> TypeDef<'db> {
             DefKind::Std(std_def) => std_def.size(db),
             DefKind::Struct(struct_def) => Ok(Some(struct_def.size)),
             DefKind::Enum(enum_def) => Ok(Some(enum_def.size)),
-            DefKind::Alias(name) => {
-                if let Some(def) = get_typedef(db, *name)? {
+            DefKind::Alias(entry) => {
+                if let Some(def) = crate::dwarf::resolve_type_offset(db, *entry) {
                     def.size(db)
                 } else {
                     Ok(None)
@@ -159,7 +159,7 @@ pub enum DefKind<'db> {
     /// We use this when we're traversing a type
     /// definition and want to lazily evaluate nested
     /// types.
-    Alias(NameId<'db>),
+    Alias(Die<'db>),
 
     /// Other types not yet supported/handled
     Other { name: String },

@@ -1,111 +1,76 @@
-use core::fmt;
-use std::sync::Arc;
+use std::fmt;
 
 use anyhow::Result;
 use memmap2::Mmap;
+use object::Object;
 use object::read::archive::ArchiveFile;
 
 use crate::database::Db;
 use crate::dwarf::Dwarf;
 
-/// Files loaded and parsed as objects
-///
-/// NOTE: we don't _track_ these because currently we assume that these
-/// are not modified after they are loaded.
-///
-/// In the future, we may want to have a persistent debug session, allowing
-/// for recompiling without recomputing the whole debug session.
-/// But for now, we just load the files once and keep them in memory.
-#[derive(Clone, Debug)]
-pub struct File {
-    path: String,
-    member: Option<String>,
-    loaded: Arc<LoadedObjectFile>,
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub enum FilePath {
+    /// A file path that is not part of an archive
+    Path(String),
+    /// A file path that is part of an archive, with the member name
+    ArchiveMember { path: String, member: String },
 }
 
-impl File {
-    pub fn new(path: &str, member: Option<&str>) -> Self {
-        Self {
-            path: path.to_string(),
-            member: member.map(|s| s.to_string()),
-            loaded: Arc::new(LoadedObjectFile::new(path, member)),
-        }
-    }
-
-    pub fn object(&self) -> Option<&object::File<'static>> {
-        match &*self.loaded {
-            LoadedObjectFile::Loaded { object, .. } => Some(object),
-            LoadedObjectFile::Errored { .. } => None,
-        }
-    }
-
-    pub fn dwarf(&self) -> Option<&Dwarf> {
-        match &*self.loaded {
-            LoadedObjectFile::Loaded { dwarf, .. } => Some(dwarf),
-            LoadedObjectFile::Errored { .. } => None,
-        }
-    }
-
-    pub fn error(&self) -> Option<&str> {
-        match &*self.loaded {
-            LoadedObjectFile::Loaded { .. } => None,
-            LoadedObjectFile::Errored { message } => Some(message),
-        }
-    }
-
-    pub fn file_id<'db>(&self, db: &'db dyn Db) -> FileId<'db> {
-        let relocatable = self.path.ends_with(".o") || self.path.ends_with(".rlib");
-        FileId::new(db, self.path.clone(), self.member.clone(), relocatable)
-    }
-}
-
-impl std::hash::Hash for File {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.path.hash(state);
-    }
-}
-
-impl PartialEq for File {
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
-    }
-}
-
-impl Eq for File {}
-
-enum LoadedObjectFile {
-    Loaded {
-        #[allow(dead_code)]
-        mapped_file: Mmap,
-        object: object::File<'static>,
-        dwarf: Dwarf,
-    },
-    Errored {
-        message: String,
-    },
-}
-
-impl fmt::Debug for LoadedObjectFile {
+impl fmt::Display for FilePath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            LoadedObjectFile::Loaded { .. } => write!(f, "Loaded"),
-            LoadedObjectFile::Errored { message } => write!(f, "Errored: {message}"),
+            FilePath::Path(path) => write!(f, "{}", path),
+            FilePath::ArchiveMember { path, member } => write!(f, "{}({})", path, member),
         }
     }
 }
 
-impl LoadedObjectFile {
-    fn new(path: &str, member: Option<&str>) -> Self {
-        match try_load(path, member) {
-            Ok((mmap, object, dwarf)) => LoadedObjectFile::Loaded {
-                mapped_file: mmap,
-                object,
-                dwarf,
-            },
-            Err(e) => LoadedObjectFile::Errored {
-                message: e.to_string(),
-            },
-        }
+#[salsa::input]
+pub struct Binary {
+    pub file_path: FilePath,
+}
+
+impl Binary {
+    pub fn file_id<'db>(&self, db: &'db dyn Db) -> FileId<'db> {
+        let path = self.file_path(db).to_string();
+        FileId::new(db, path.clone(), None, false)
+    }
+}
+
+pub struct LoadedFile {
+    filepath: FilePath,
+    mapped_file: Mmap,
+    pub object: object::File<'static>,
+    pub dwarf: Dwarf,
+}
+
+impl LoadedFile {
+    pub fn new(path: FilePath) -> Result<Self> {
+        let (file, member) = match &path {
+            FilePath::Path(path) => (path, None),
+            FilePath::ArchiveMember { path, member } => (path, Some(member.as_str())),
+        };
+        let (mapped_file, object, dwarf) = try_load(file, member)?;
+        Ok(LoadedFile {
+            filepath: path,
+            mapped_file,
+            object,
+            dwarf,
+        })
+    }
+
+    pub fn has_debug_symbols(&self) -> bool {
+        self.object.has_debug_symbols()
+    }
+}
+
+impl fmt::Debug for LoadedFile {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LoadedFile")
+            .field("filepath", &self.filepath.to_string())
+            .field("size", &self.mapped_file.len())
+            .field("has_debug_sections", &self.object.has_debug_symbols())
+            .finish()
     }
 }
 
@@ -146,30 +111,6 @@ fn try_load(path: &str, member: Option<&str>) -> Result<(Mmap, object::File<'sta
     Ok((mmap, object, dwarf))
 }
 
-#[salsa::tracked]
-pub struct DebugFile<'db> {
-    id: FileId<'db>,
-    #[return_ref]
-    pub file: File,
-}
-
-#[salsa::tracked]
-pub fn load_relocatable_file<'db>(db: &'db dyn Db, file_id: FileId<'db>) -> Option<DebugFile<'db>> {
-    let path = file_id.path(db);
-    let member = file_id.member(db);
-    let file = File::new(path, member.as_deref());
-    if let Some(e) = file.error() {
-        tracing::error!(
-            "Failed to load relocatable file: {e} - {}",
-            std::backtrace::Backtrace::capture()
-        );
-        db.report_critical(format!("Failed to load relocatable file: {path}: {e}"));
-        None
-    } else {
-        Some(DebugFile::new(db, file_id, file))
-    }
-}
-
 #[salsa::interned]
 pub struct FileId<'db> {
     /// File path
@@ -189,6 +130,18 @@ impl<'db> FileId<'db> {
             format!("{path}({member})")
         } else {
             path.clone()
+        }
+    }
+
+    pub fn filepath(&self, db: &'db dyn Db) -> FilePath {
+        let path = self.path(db).clone();
+        if let Some(member) = self.member(db) {
+            FilePath::ArchiveMember {
+                path,
+                member: member.clone(),
+            }
+        } else {
+            FilePath::Path(path)
         }
     }
 }

@@ -2,9 +2,10 @@
 
 use gimli::UnitSectionOffset;
 
-use super::loader::UnitRef;
 use crate::database::Db;
 use crate::file::FileId;
+
+use super::unit::UnitRef;
 
 /// References a specific compilation unit in a DWARF file
 #[salsa::interned]

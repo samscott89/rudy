@@ -35,9 +35,9 @@ pub fn read_from_memory<'db>(
             })
         }
         DefKind::Std(std_def) => read_std_from_memory(db, address, std_def, data_resolver),
-        DefKind::Alias(name_id) => {
-            let def = crate::dwarf::get_typedef(db, *name_id)?
-                .with_context(|| format!("could not resolve type: {}", name_id.as_path(db)))?;
+        DefKind::Alias(entry) => {
+            let def = crate::dwarf::resolve_type_offset(db, *entry)
+                .with_context(|| format!("could not resolve type: {}", entry.print(db)))?;
 
             read_from_memory(db, address, &def, data_resolver)
         }

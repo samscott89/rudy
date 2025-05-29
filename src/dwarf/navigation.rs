@@ -1,12 +1,12 @@
 //! DWARF tree navigation and traversal functions
 
-use gimli::{Unit, UnitSectionOffset};
+use gimli::UnitSectionOffset;
 use itertools::Itertools;
 
 use super::{
     CompilationUnitId, Die,
-    loader::DwarfReader,
-    utils::{file_entry_to_path, to_range},
+    unit::{UnitRef, get_unit_ref},
+    utils::{file_entry_to_path, get_dwarf, to_range},
 };
 use crate::database::Db;
 use crate::file::{FileId, SourceFile};
@@ -24,8 +24,8 @@ pub struct Root<'db> {
 pub fn get_roots<'db>(
     db: &'db dyn Db,
     file_id: FileId<'db>,
-) -> Vec<(UnitSectionOffset, Unit<DwarfReader>)> {
-    let Some(dwarf) = db.get_file(file_id).and_then(|f| f.dwarf()) else {
+) -> Vec<(UnitSectionOffset, UnitRef<'db>)> {
+    let Some(dwarf) = get_dwarf(db, file_id) else {
         return Default::default();
     };
 
@@ -41,17 +41,11 @@ pub fn get_roots<'db>(
             }
         };
         let cu_offset = header.offset();
-        let Some(unit) = dwarf
-            .unit(header)
-            .inspect_err(|e| {
-                db.report_critical(format!("Failed to parse unit: {e}"));
-            })
-            .ok()
-        else {
-            continue;
+        let unit_ref = match get_unit_ref(db, file_id, cu_offset) {
+            Some(unit_ref) => unit_ref,
+            None => continue,
         };
-
-        roots.push((cu_offset, unit));
+        roots.push((cu_offset, unit_ref));
     }
 
     roots
@@ -60,10 +54,7 @@ pub fn get_roots<'db>(
 /// Parse root compilation units with their metadata
 #[salsa::tracked]
 pub fn parse_roots<'db>(db: &'db dyn Db, file_id: FileId<'db>) -> Vec<Root<'db>> {
-    let Some(file) = db.get_file(file_id) else {
-        return Default::default();
-    };
-    let Some(dwarf) = file.dwarf() else {
+    let Some(dwarf) = get_dwarf(db, file_id) else {
         return Default::default();
     };
 
@@ -80,16 +71,9 @@ pub fn parse_roots<'db>(db: &'db dyn Db, file_id: FileId<'db>) -> Vec<Root<'db>>
             }
         };
         let cu_offset = header.offset();
-        let Some(unit) = dwarf
-            .unit(header)
-            .inspect_err(|e| {
-                db.report_critical(format!("Failed to parse unit: {e}"));
-            })
-            .ok()
-        else {
+        let Some(unit_ref) = get_unit_ref(db, file_id, cu_offset) else {
             continue;
         };
-        let unit_ref = unit.unit_ref(dwarf);
         let addr_range = match unit_ref
             .unit_ranges()
             .map_err(anyhow::Error::from)

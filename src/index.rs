@@ -6,7 +6,7 @@ use object::{Object, ObjectSymbol};
 
 use crate::database::Db;
 use crate::dwarf;
-use crate::file::{FileId, SourceFile};
+use crate::file::{Binary, FileId, SourceFile};
 use crate::types::{
     FunctionIndexEntry, NameId, Symbol, SymbolIndexEntry, TypeIndexEntry, demangle,
 };
@@ -15,11 +15,9 @@ use crate::types::{
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
 #[salsa::tracked(return_ref)]
-pub fn index<'db>(db: &'db dyn Db) -> dwarf::Index<'db> {
-    let binary_file = db.binary_file();
-    let Some(object) = binary_file.object() else {
-        return dwarf::Index::new(db, Default::default());
-    };
+pub fn build_index<'db>(db: &'db dyn Db, binary: Binary) -> dwarf::Index<'db> {
+    let binary_file_id = binary.file_id(db);
+    let binary_path = binary.file_path(db);
 
     // initialize structs
     let mut function_name_to_die: BTreeMap<NameId<'_>, FunctionIndexEntry<'_>> = Default::default();
@@ -34,51 +32,64 @@ pub fn index<'db>(db: &'db dyn Db) -> dwarf::Index<'db> {
 
     let mut names_by_file: HashMap<FileId<'db>, BTreeMap<Vec<u8>, _>> = HashMap::new();
 
-    let object_map = object.object_map();
-    for s in object_map.symbols() {
-        let symbol = Symbol::new(db, s.name());
-        let demangled_name = demangle(db, symbol);
-        let file = s.object(&object_map).path();
-        let file = match std::str::from_utf8(file) {
-            Ok(p) => p,
-            Err(e) => {
-                db.report_critical(format!("Failed to parse object file path: {file:?}: {e}"));
+    // first load the binary file itself to get a list of all symbols and
+    // associated file paths
+    // we need to do this in a block to avoid holding onto the `Ref` (which is a read lock
+    // on the file map)
+    {
+        let Ok(file) = db.get_or_load_file(binary_path.clone()) else {
+            db.report_critical(format!("Failed to load file: {binary_path}"));
+            return dwarf::Index::new(db, Default::default());
+        };
+        let object = &file.object;
+
+        let object_map = object.object_map();
+        for s in object_map.symbols() {
+            let symbol = Symbol::new(db, s.name());
+            let demangled_name = demangle(db, symbol);
+            let file = s.object(&object_map).path();
+            let file = match std::str::from_utf8(file) {
+                Ok(p) => p,
+                Err(e) => {
+                    db.report_critical(format!("Failed to parse object file path: {file:?}: {e}"));
+                    continue;
+                }
+            };
+            let member =
+                s.object(&object_map)
+                    .member()
+                    .and_then(|m| match std::str::from_utf8(m) {
+                        Ok(m) => Some(m.to_string()),
+                        Err(e) => {
+                            db.report_critical(format!(
+                                "Failed to parse object file member: {m:?}: {e}"
+                            ));
+                            None
+                        }
+                    });
+            let file = FileId::new(db, file.to_string(), member, true);
+            names_by_file.entry(file).or_default().insert(
+                // trim the leading `_` character that macos adds when using STAB entries
+                s.name()[1..].to_vec(),
+                (s.address(), demangled_name),
+            );
+        }
+
+        // append names from the root binary (if it has any)
+        for symbol in object.symbols() {
+            let name = symbol.name_bytes().unwrap();
+            if name.is_empty() {
+                tracing::debug!("empty symbol: {symbol:#?}");
                 continue;
             }
-        };
-        let member = s
-            .object(&object_map)
-            .member()
-            .and_then(|m| match std::str::from_utf8(m) {
-                Ok(m) => Some(m.to_string()),
-                Err(e) => {
-                    db.report_critical(format!("Failed to parse object file member: {m:?}: {e}"));
-                    None
-                }
-            });
-        let file = FileId::new(db, file.to_string(), member, true);
-        names_by_file.entry(file).or_default().insert(
-            // trim the leading `_` character that macos adds when using STAB entries
-            s.name()[1..].to_vec(),
-            (s.address(), demangled_name),
-        );
-    }
+            let symbol_name = Symbol::new(db, name);
+            let demangled_name = demangle(db, symbol_name);
 
-    // append names from the root binary (if it has any)
-    for symbol in object.symbols() {
-        let name = symbol.name_bytes().unwrap();
-        if name.is_empty() {
-            tracing::debug!("empty symbol: {symbol:#?}");
-            continue;
+            names_by_file
+                .entry(binary_file_id)
+                .or_default()
+                .insert(name.to_vec(), (symbol.address(), demangled_name));
         }
-        let symbol_name = Symbol::new(db, name);
-        let demangled_name = demangle(db, symbol_name);
-
-        let file = binary_file.file_id(db);
-        names_by_file
-            .entry(file)
-            .or_default()
-            .insert(name.to_vec(), (symbol.address(), demangled_name));
     }
 
     for (file_id, names) in names_by_file {
