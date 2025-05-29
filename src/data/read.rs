@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 
 use crate::{
-    data::{Def, DefKind, PrimitiveDef},
+    data::{DefKind, PrimitiveDef, TypeDef},
     database::Db,
 };
 
@@ -12,7 +12,7 @@ use super::{ArrayDef, PointerDef, StdDef, StrSliceDef};
 pub fn read_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
-    ty: &Def<'db>,
+    ty: &TypeDef<'db>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::Value> {
     tracing::debug!("read_from_memory {address:#x} {}", ty.display_name(db));
@@ -36,7 +36,7 @@ pub fn read_from_memory<'db>(
         }
         DefKind::Std(std_def) => read_std_from_memory(db, address, std_def, data_resolver),
         DefKind::Alias(name_id) => {
-            let def = crate::dwarf::get_def(db, *name_id)?
+            let def = crate::dwarf::get_typedef(db, *name_id)?
                 .with_context(|| format!("could not resolve type: {}", name_id.as_path(db)))?;
 
             read_from_memory(db, address, &def, data_resolver)

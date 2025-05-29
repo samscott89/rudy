@@ -1,6 +1,6 @@
 //! Variable resolution from DWARF debugging information
 
-use crate::data::Def;
+use crate::data::TypeDef;
 use crate::database::Db;
 use crate::dwarf::die::declaration_file;
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
@@ -13,7 +13,7 @@ pub struct Variable<'db> {
     #[return_ref]
     pub name: String,
     #[return_ref]
-    pub ty: Def<'db>,
+    pub ty: TypeDef<'db>,
     pub file: SourceFile<'db>,
     pub line: u64,
     pub origin: Die<'db>,

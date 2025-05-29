@@ -46,7 +46,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use salsa::Accumulator;
 
-use crate::data::Def;
+use crate::data::TypeDef;
 use crate::dwarf;
 use crate::file::{File, FileId, load_relocatable_file};
 use crate::index;
@@ -296,7 +296,7 @@ impl DebugDatabaseImpl {
         Ok((params, locals, globals))
     }
 
-    pub fn test_get_shape(&self) -> Result<Def<'_>> {
+    pub fn test_get_shape(&self) -> Result<TypeDef<'_>> {
         let test_struct = test_get_def(self);
         let diagnostics: Vec<&Diagnostic> = test_get_def::accumulated(self);
         handle_diagnostics(&diagnostics)?;
@@ -377,7 +377,7 @@ impl Db for DebugDatabaseImpl {
 }
 
 #[salsa::tracked]
-pub fn test_get_def(db: &dyn Db) -> Def<'_> {
+pub fn test_get_def(db: &dyn Db) -> TypeDef<'_> {
     let index = index::index(db);
 
     // find the STATIC_TEST_STRUCT global constants

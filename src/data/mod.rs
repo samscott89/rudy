@@ -1,7 +1,7 @@
 //! Functionality for introspecting Rust data types
 
-mod def;
 mod read;
+mod typedef;
 
-pub use def::*;
 pub use read::*;
+pub use typedef::*;

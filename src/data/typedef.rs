@@ -5,16 +5,16 @@ use std::sync::Arc;
 
 use salsa::Update;
 
-use crate::{database::Db, dwarf::get_def, types::NameId};
+use crate::{database::Db, dwarf::get_typedef, types::NameId};
 
 #[salsa::tracked]
-pub struct Def<'db> {
+pub struct TypeDef<'db> {
     pub name: Option<NameId<'db>>,
     #[return_ref]
     pub kind: DefKind<'db>,
 }
 
-impl<'db> Def<'db> {
+impl<'db> TypeDef<'db> {
     pub fn display_name(&self, db: &'db dyn Db) -> String {
         match self.kind(db) {
             DefKind::Primitive(primitive_def) => match primitive_def {
@@ -106,7 +106,7 @@ impl<'db> Def<'db> {
             DefKind::Struct(struct_def) => struct_def.name.clone(),
             DefKind::Enum(enum_def) => enum_def.name.clone(),
             DefKind::Alias(name_id) => {
-                if let Ok(Some(def)) = get_def(db, *name_id) {
+                if let Ok(Some(def)) = get_typedef(db, *name_id) {
                     def.display_name(db)
                 } else {
                     name_id.as_path(db)
@@ -123,7 +123,7 @@ impl<'db> Def<'db> {
             DefKind::Struct(struct_def) => Ok(Some(struct_def.size)),
             DefKind::Enum(enum_def) => Ok(Some(enum_def.size)),
             DefKind::Alias(name) => {
-                if let Some(def) = get_def(db, *name)? {
+                if let Some(def) = get_typedef(db, *name)? {
                     def.size(db)
                 } else {
                     Ok(None)
@@ -235,7 +235,7 @@ impl<'db> PrimitiveDef<'db> {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct ArrayDef<'db> {
-    pub element_type: Arc<Def<'db>>,
+    pub element_type: Arc<TypeDef<'db>>,
     pub length: usize,
 }
 
@@ -245,8 +245,8 @@ pub struct FloatDef {
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct FunctionDef<'db> {
-    pub return_type: Arc<Def<'db>>,
-    pub arg_types: Vec<Arc<Def<'db>>>,
+    pub return_type: Arc<TypeDef<'db>>,
+    pub arg_types: Vec<Arc<TypeDef<'db>>>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct IntDef {
@@ -254,7 +254,7 @@ pub struct IntDef {
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct PointerDef<'db> {
-    pub pointed_type: Arc<Def<'db>>,
+    pub pointed_type: Arc<TypeDef<'db>>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct ReferenceDef<'db> {
@@ -262,11 +262,11 @@ pub struct ReferenceDef<'db> {
     /// (i.e. `&mut T` vs `&T`)
     pub mutable: bool,
 
-    pub pointed_type: Arc<Def<'db>>,
+    pub pointed_type: Arc<TypeDef<'db>>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct SliceDef<'db> {
-    pub element_type: Arc<Def<'db>>,
+    pub element_type: Arc<TypeDef<'db>>,
     pub data_ptr_offset: usize,
     pub length_offset: usize,
     pub size: usize,
@@ -281,7 +281,7 @@ pub struct StrSliceDef {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct TupleDef<'db> {
-    pub element_types: Vec<Arc<Def<'db>>>,
+    pub element_types: Vec<Arc<TypeDef<'db>>>,
     pub alignment: usize,
     pub size: usize,
 }
@@ -347,7 +347,7 @@ impl<'db> StdDef<'db> {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct SmartPtrDef<'db> {
-    pub inner_type: Arc<Def<'db>>,
+    pub inner_type: Arc<TypeDef<'db>>,
     pub variant: SmartPtrVariant,
 }
 
@@ -364,8 +364,8 @@ pub enum SmartPtrVariant {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct MapDef<'db> {
-    pub key_type: Arc<Def<'db>>,
-    pub value_type: Arc<Def<'db>>,
+    pub key_type: Arc<TypeDef<'db>>,
+    pub value_type: Arc<TypeDef<'db>>,
     pub variant: MapVariant,
     pub size: usize,
 }
@@ -379,13 +379,13 @@ pub enum MapVariant {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct OptionDef<'db> {
-    pub inner_type: Arc<Def<'db>>,
+    pub inner_type: Arc<TypeDef<'db>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct ResultDef<'db> {
-    pub ok_type: Arc<Def<'db>>,
-    pub err_type: Arc<Def<'db>>,
+    pub ok_type: Arc<TypeDef<'db>>,
+    pub err_type: Arc<TypeDef<'db>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
@@ -393,7 +393,7 @@ pub struct StringDef;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct VecDef<'db> {
-    pub inner_type: Arc<Def<'db>>,
+    pub inner_type: Arc<TypeDef<'db>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
@@ -407,7 +407,7 @@ pub struct StructDef<'db> {
 pub struct StructField<'db> {
     pub name: String,
     pub offset: usize,
-    pub ty: Arc<Def<'db>>,
+    pub ty: Arc<TypeDef<'db>>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
 pub struct EnumDef<'db> {

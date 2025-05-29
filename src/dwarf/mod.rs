@@ -29,7 +29,7 @@ pub use resolution::{
     // Variable resolution
     Variable,
     address_to_location,
-    get_def,
+    get_typedef,
     location_to_address,
     resolve_function,
     resolve_function_variables,

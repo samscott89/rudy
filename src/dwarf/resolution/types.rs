@@ -3,15 +3,15 @@
 use std::sync::Arc;
 
 use crate::data::{
-    ArrayDef, Def, DefKind, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef, StructDef,
-    StructField, UnsignedIntDef,
+    ArrayDef, DefKind, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef, StructDef,
+    StructField, TypeDef, UnsignedIntDef,
 };
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::types::NameId;
 
 /// Resolve the full type for a DIE entry
-pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
+pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
     let Some(type_offset_val) = entry.get_attr(db, gimli::DW_AT_type) else {
         db.report_critical(format!("Failed to get type attribute"));
         return None;
@@ -31,7 +31,7 @@ pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
-pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
+pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
     let type_offset_val = entry.get_attr(db, gimli::DW_AT_type)?;
 
     let gimli::AttributeValue::UnitRef(type_offset) = type_offset_val else {
@@ -44,16 +44,16 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def
 }
 
 /// Resolve a primitive type by name
-fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> Def<'db> {
+fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> TypeDef<'db> {
     match name.name(db).as_str() {
-        "u64" => Def::new(
+        "u64" => TypeDef::new(
             db,
             Some(name),
             DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 8 })),
         ),
         _ => {
             db.report_critical(format!("unsupported type: {name:?}"));
-            Def::new(
+            TypeDef::new(
                 db,
                 Some(name),
                 DefKind::Other {
@@ -158,7 +158,7 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<OptionDe
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
 /// support "builtin" types -- these are types that we manually resolve rather
 /// than relying on the DWARF info to do so.
-fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
+fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
     match entry.tag(db) {
         gimli::DW_TAG_base_type => {
             // primitive type
@@ -174,7 +174,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<
             };
             let index = crate::index::index(db);
             let canonical_name = index.data(db).die_to_type_name.get(&entry).copied();
-            Some(Def::new(
+            Some(TypeDef::new(
                 db,
                 canonical_name,
                 DefKind::Primitive(PrimitiveDef::Pointer(PointerDef {
@@ -226,7 +226,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<
                             .die_to_type_name
                             .get(&entry)
                             .copied();
-                        return Some(Def::new(
+                        return Some(TypeDef::new(
                             db,
                             canonical_name,
                             DefKind::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
@@ -259,7 +259,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<
                         db.report_critical(format!("Failed to resolve option type"));
                         return None;
                     };
-                    return Some(Def::new(
+                    return Some(TypeDef::new(
                         db,
                         Some(canonical_name),
                         DefKind::Std(StdDef::Option(def)),
@@ -313,7 +313,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<
 
             debug_assert_eq!(lower_bound, 0);
 
-            Some(Def::new(
+            Some(TypeDef::new(
                 db,
                 canonical_name,
                 DefKind::Primitive(PrimitiveDef::Array(ArrayDef {
@@ -329,7 +329,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
-pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
+pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
     let ty = if let Some(builtin_ty) = resolve_as_builtin_type(db, entry) {
         // we have a builtin type -- use it
         tracing::debug!("builtin: {builtin_ty:?}");
@@ -342,7 +342,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def
     {
         tracing::debug!("alias:  {type_name:?}");
         // we'll lazily evaluate this by inserting an alias
-        Def::new(db, None, DefKind::Alias(type_name))
+        TypeDef::new(db, None, DefKind::Alias(type_name))
     } else {
         // not a builtin/primitive and not an alias -- report an error
         // TODO: this might include references which we could totally handle
@@ -354,7 +354,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def
 
 /// Fully resolve a type from a DWARF DIE entry
 #[salsa::tracked]
-pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<'db>> {
+pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
     if let Some(def) = resolve_as_builtin_type(db, entry) {
         return Some(def);
     }
@@ -421,7 +421,7 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<
                         });
                     }
                 }
-                return Some(Def::new(
+                return Some(TypeDef::new(
                     db,
                     type_name,
                     DefKind::Struct(StructDef {
@@ -442,7 +442,10 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Def<
     None
 }
 
-pub fn get_def<'db>(db: &'db dyn Db, name: NameId<'db>) -> anyhow::Result<Option<Def<'db>>> {
+pub fn get_typedef<'db>(
+    db: &'db dyn Db,
+    name: NameId<'db>,
+) -> anyhow::Result<Option<TypeDef<'db>>> {
     // get the DIE for the name
     let index = crate::index::index(db);
     let Some(entry) = index.data(db).type_name_to_die.get(&name) else {

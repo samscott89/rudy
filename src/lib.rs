@@ -11,7 +11,7 @@ mod types;
 pub mod tests;
 
 use anyhow::Result;
-use data::Def;
+use data::TypeDef;
 use std::{collections::BTreeMap, fmt};
 
 pub struct DebugInfo {
@@ -125,7 +125,7 @@ impl DebugInfo {
         (locals, params, globals)
     }
 
-    pub fn test_get_shape(&self) -> Def<'_> {
+    pub fn test_get_shape(&self) -> TypeDef<'_> {
         self.db.test_get_shape().unwrap()
     }
 }
