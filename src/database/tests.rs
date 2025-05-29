@@ -28,7 +28,7 @@ fn test_index(#[case] target: &str) {
     setup!(target);
     let binary_path = binary_path(target);
     DebugDatabaseImpl::new(&binary_path).unwrap().attach(|db| {
-        let index = super::index(db).data(db);
+        let index = crate::index::index(db).data(db);
         insta::assert_debug_snapshot!(index);
     });
 }

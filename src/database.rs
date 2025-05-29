@@ -53,6 +53,9 @@ use crate::index;
 use crate::query::{find_closest_match, lookup_address, lookup_closest_function, lookup_position};
 use crate::types::{Address, FunctionIndexEntry, NameId, Position};
 
+#[cfg(test)]
+mod tests;
+
 #[salsa::db]
 pub trait Db: salsa::Database {
     fn binary_file(&self) -> &File;
