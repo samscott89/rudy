@@ -6,18 +6,86 @@ use object::{Object, ObjectSymbol};
 
 use crate::database::Db;
 use crate::dwarf;
-use crate::file::{Binary, FileId, SourceFile};
+use crate::file::{Binary, DebugFile, File, SourceFile, load};
 use crate::types::{
     FunctionIndexEntry, NameId, Symbol, SymbolIndexEntry, TypeIndexEntry, demangle,
 };
 
+#[salsa::tracked(returns(ref))]
+fn discover_debug_files<'db>(
+    db: &'db dyn Db,
+    binary: File,
+) -> BTreeMap<(String, Option<String>), DebugFile<'db>> {
+    let loaded_file = match load(db, binary) {
+        Ok(file) => file,
+        Err(e) => {
+            db.report_critical(format!("Failed to load binary file: {e}"));
+            return Default::default();
+        }
+    };
+    let object = &loaded_file.object;
+
+    let mut debug_files = BTreeMap::new();
+
+    if object.has_debug_symbols() {
+        // if the main binary has debug symbols, we'll use it direclty
+        debug_files.insert(
+            (binary.path(db).to_string(), None),
+            DebugFile::new(db, binary, false),
+        );
+    }
+
+    // find any debug files associated with the binary
+    let object_map = object.object_map();
+    for obj in object_map.objects() {
+        let file = obj.path();
+        let file = match String::from_utf8(file.to_vec()) {
+            Ok(p) => p,
+            Err(e) => {
+                let lossy_file = String::from_utf8_lossy(file);
+                db.report_warning(format!("ignoring non-UTF8 file: {lossy_file}\n{e}"));
+                continue;
+            }
+        };
+        let member = obj
+            .member()
+            .and_then(|m| match String::from_utf8(m.to_vec()) {
+                Ok(m) => Some(m),
+                Err(e) => {
+                    let lossy_file = String::from_utf8_lossy(m);
+                    db.report_warning(format!(
+                        "ignoring non-UTF8 archive member: {lossy_file}\n{e}"
+                    ));
+                    None
+                }
+            });
+
+        match debug_files.entry((file.clone(), member.clone())) {
+            std::collections::btree_map::Entry::Occupied(_) => continue,
+            std::collections::btree_map::Entry::Vacant(e) => {
+                let file = match File::build(db, file.clone(), member.clone()) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        db.report_critical(format!(
+                            "Failed to load debug file {file} {member:?}: {e}",
+                        ));
+                        continue;
+                    }
+                };
+                e.insert(DebugFile::new(db, file, false));
+            }
+        };
+    }
+
+    debug_files
+}
+
 /// Build an index of all types + functions (using fully qualified names
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
-#[salsa::tracked(return_ref)]
-pub fn build_index<'db>(db: &'db dyn Db, binary: Binary) -> dwarf::Index<'db> {
-    let binary_file_id = binary.file_id(db);
-    let binary_path = binary.file_path(db);
+#[salsa::tracked(returns(ref))]
+pub fn build_index<'db>(db: &'db dyn Db, binary_file: File) -> dwarf::Index<'db> {
+    // let binary_file = binary.file(db);
 
     // initialize structs
     let mut function_name_to_die: BTreeMap<NameId<'_>, FunctionIndexEntry<'_>> = Default::default();
@@ -30,15 +98,18 @@ pub fn build_index<'db>(db: &'db dyn Db, binary: Binary) -> dwarf::Index<'db> {
     let mut file_to_cu: BTreeMap<SourceFile<'_>, Vec<dwarf::CompilationUnitId<'_>>> =
         Default::default();
 
-    let mut names_by_file: HashMap<FileId<'db>, BTreeMap<Vec<u8>, _>> = HashMap::new();
+    let mut names_by_file: HashMap<File, BTreeMap<Vec<u8>, _>> = HashMap::new();
+
+    // first, discover all debug files associated with the binary
+    let debug_files = discover_debug_files(db, binary_file);
 
     // first load the binary file itself to get a list of all symbols and
     // associated file paths
     // we need to do this in a block to avoid holding onto the `Ref` (which is a read lock
     // on the file map)
     {
-        let Ok(file) = db.get_or_load_file(binary_path.clone()) else {
-            db.report_critical(format!("Failed to load file: {binary_path}"));
+        let Ok(file) = load(db, binary_file) else {
+            db.report_critical(format!("Failed to load file: {}", binary_file.path(db)));
             return dwarf::Index::new(db, Default::default());
         };
         let object = &file.object;
@@ -67,8 +138,11 @@ pub fn build_index<'db>(db: &'db dyn Db, binary: Binary) -> dwarf::Index<'db> {
                             None
                         }
                     });
-            let file = FileId::new(db, file.to_string(), member, true);
-            names_by_file.entry(file).or_default().insert(
+            let Some(file) = debug_files.get(&(file.to_string(), member.clone())) else {
+                tracing::debug!("No debug file found {file:?} with member {member:?}");
+                continue;
+            };
+            names_by_file.entry(file.file(db)).or_default().insert(
                 // trim the leading `_` character that macos adds when using STAB entries
                 s.name()[1..].to_vec(),
                 (s.address(), demangled_name),
@@ -86,7 +160,7 @@ pub fn build_index<'db>(db: &'db dyn Db, binary: Binary) -> dwarf::Index<'db> {
             let demangled_name = demangle(db, symbol_name);
 
             names_by_file
-                .entry(binary_file_id)
+                .entry(binary_file)
                 .or_default()
                 .insert(name.to_vec(), (symbol.address(), demangled_name));
         }

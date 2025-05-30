@@ -5,7 +5,7 @@ use crate::dwarf::{CompilationUnitId, utils::file_entry_to_path};
 use crate::file::SourceFile;
 
 /// Resolved source location information
-#[salsa::interned]
+#[salsa::interned(debug)]
 pub struct ResolvedLocation<'db> {
     pub file: SourceFile<'db>,
     pub line: u64,

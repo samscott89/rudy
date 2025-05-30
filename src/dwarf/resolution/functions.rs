@@ -69,11 +69,11 @@ pub fn function_address<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<FunctionA
 }
 
 /// Tracked function information
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct Function<'db> {
-    #[return_ref]
+    #[returns(ref)]
     pub name: String,
-    #[return_ref]
+    #[returns(ref)]
     pub linkage_name: String,
 
     pub relative_address: u64,

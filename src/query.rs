@@ -5,14 +5,14 @@ use itertools::Itertools;
 use crate::data::TypeDef;
 use crate::database::Db;
 use crate::dwarf;
-use crate::file::{Binary, SourceFile};
+use crate::file::{Binary, File, SourceFile};
 use crate::index;
 use crate::types::{Address, FunctionIndexEntry, NameId, Position};
 
 #[salsa::tracked]
 pub fn find_closest_match<'db>(
     db: &'db dyn Db,
-    binary: Binary,
+    binary: File,
     function_name: NameId<'db>,
 ) -> Option<(NameId<'db>, FunctionIndexEntry<'db>)> {
     // check if exact name exists in index
@@ -41,7 +41,7 @@ pub fn find_closest_match<'db>(
 }
 
 #[salsa::tracked]
-pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db>) -> Option<u64> {
+pub fn lookup_position<'db>(db: &'db dyn Db, binary: File, query: Position<'db>) -> Option<u64> {
     let file_name = query.file(db);
     let file = SourceFile::new(db, file_name);
 
@@ -96,7 +96,7 @@ pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db
 #[salsa::tracked]
 pub fn lookup_address<'db>(
     db: &'db dyn Db,
-    binary: Binary,
+    binary: File,
     address: Address<'db>,
 ) -> Option<dwarf::ResolvedLocation<'db>> {
     let address = address.address(db);
@@ -141,7 +141,7 @@ pub fn lookup_address<'db>(
 #[salsa::tracked]
 pub fn lookup_closest_function<'db>(
     db: &'db dyn Db,
-    binary: Binary,
+    binary: File,
     address: Address<'db>,
 ) -> Option<FunctionIndexEntry<'db>> {
     let address = address.address(db);
@@ -193,7 +193,7 @@ pub fn lookup_closest_function<'db>(
 }
 
 #[salsa::tracked]
-pub fn test_get_def(db: &dyn Db, binary: Binary) -> TypeDef<'_> {
+pub fn test_get_def<'db>(db: &'db dyn Db, binary: File) -> TypeDef<'db> {
     let index = index::build_index(db, binary);
 
     // find the STATIC_TEST_STRUCT global constants

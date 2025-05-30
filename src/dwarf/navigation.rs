@@ -9,23 +9,20 @@ use super::{
     utils::{file_entry_to_path, get_dwarf, to_range},
 };
 use crate::database::Db;
-use crate::file::{FileId, SourceFile};
+use crate::file::{File, SourceFile};
 
 /// Root compilation unit information
 #[salsa::tracked]
 pub struct Root<'db> {
     pub cu: CompilationUnitId<'db>,
     pub address_range: (u64, u64),
-    #[return_ref]
+    #[returns(ref)]
     pub files: Vec<SourceFile<'db>>,
 }
 
 /// Get all root compilation units from a file
-pub fn get_roots<'db>(
-    db: &'db dyn Db,
-    file_id: FileId<'db>,
-) -> Vec<(UnitSectionOffset, UnitRef<'db>)> {
-    let Some(dwarf) = get_dwarf(db, file_id) else {
+pub fn get_roots<'db>(db: &'db dyn Db, file: File) -> Vec<(UnitSectionOffset, UnitRef<'db>)> {
+    let Some(dwarf) = get_dwarf(db, file) else {
         return Default::default();
     };
 
@@ -41,7 +38,7 @@ pub fn get_roots<'db>(
             }
         };
         let cu_offset = header.offset();
-        let unit_ref = match get_unit_ref(db, file_id, cu_offset) {
+        let unit_ref = match get_unit_ref(db, file, cu_offset) {
             Some(unit_ref) => unit_ref,
             None => continue,
         };
@@ -53,8 +50,8 @@ pub fn get_roots<'db>(
 
 /// Parse root compilation units with their metadata
 #[salsa::tracked]
-pub fn parse_roots<'db>(db: &'db dyn Db, file_id: FileId<'db>) -> Vec<Root<'db>> {
-    let Some(dwarf) = get_dwarf(db, file_id) else {
+pub fn parse_roots<'db>(db: &'db dyn Db, file: File) -> Vec<Root<'db>> {
+    let Some(dwarf) = get_dwarf(db, file) else {
         return Default::default();
     };
 
@@ -71,7 +68,7 @@ pub fn parse_roots<'db>(db: &'db dyn Db, file_id: FileId<'db>) -> Vec<Root<'db>>
             }
         };
         let cu_offset = header.offset();
-        let Some(unit_ref) = get_unit_ref(db, file_id, cu_offset) else {
+        let Some(unit_ref) = get_unit_ref(db, file, cu_offset) else {
             continue;
         };
         let addr_range = match unit_ref
@@ -88,7 +85,7 @@ pub fn parse_roots<'db>(db: &'db dyn Db, file_id: FileId<'db>) -> Vec<Root<'db>>
                 continue;
             }
         };
-        let die = CompilationUnitId::new(db, file_id, cu_offset);
+        let die = CompilationUnitId::new(db, file, cu_offset);
 
         let referenced_files = unit_ref
             .line_program

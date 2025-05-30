@@ -8,12 +8,12 @@ use crate::dwarf::{
     navigation::get_roots,
     utils::{debug_print_die_entry, get_string_attr, pretty_print_die_entry},
 };
-use crate::file::FileId;
+use crate::file::File;
 use crate::types::{NameId, TypeIndexEntry};
 
 pub fn index_types<'db>(
     db: &'db dyn Db,
-    file_id: FileId<'db>,
+    file: File,
 ) -> (
     // map of type name to die entry
     BTreeMap<NameId<'db>, TypeIndexEntry<'db>>,
@@ -23,7 +23,7 @@ pub fn index_types<'db>(
     let mut name_to_die = BTreeMap::new();
     let mut die_to_name = BTreeMap::new();
 
-    let roots = get_roots(db, file_id);
+    let roots = get_roots(db, file);
 
     let mut current_path = vec![];
     let mut path_depths = vec![];
@@ -158,16 +158,19 @@ pub fn index_types<'db>(
                     };
                     tracing::debug!(?current_path, tag=%die.tag(), "found type: {name}");
                     let name = NameId::new(db, current_path.clone(), name.clone());
-                    let die_entry = Die::new(db, file_id, cu_offset, die.offset());
+                    let die_entry = Die::new(db, file, cu_offset, die.offset());
                     let existing = name_to_die.insert(name, TypeIndexEntry::new(db, die_entry));
                     if let Some(existing) = existing {
                         tracing::debug!(
-                            "Duplicate type name: {} at offset {die_entry:?} and {existing:?}",
-                            name.as_path(db)
+                            "Duplicate type name: {} at offset {die_entry:?} and {}",
+                            name.as_path(db),
+                            existing.die(db).print(db)
                         );
                     }
                     let existing = die_to_name.insert(die_entry, name);
-                    debug_assert!(existing.is_none(), "duplicate die entry: {existing:#?}");
+                    if let Some(existing) = existing {
+                        debug_assert!(false, "duplicate die entry for {}", existing.name(db))
+                    }
 
                     // we don't want to recurse into the children of this type
                     recurse = false;

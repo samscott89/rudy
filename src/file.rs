@@ -1,6 +1,6 @@
 use std::fmt;
+use std::sync::Arc;
 
-use anyhow::Result;
 use memmap2::Mmap;
 use object::Object;
 use object::read::archive::ArchiveFile;
@@ -8,57 +8,57 @@ use object::read::archive::ArchiveFile;
 use crate::database::Db;
 use crate::dwarf::Dwarf;
 
-#[derive(Clone, Debug, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub enum FilePath {
-    /// A file path that is not part of an archive
-    Path(String),
-    /// A file path that is part of an archive, with the member name
-    ArchiveMember { path: String, member: String },
+#[salsa::input(debug)]
+pub struct File {
+    #[returns(ref)]
+    pub path: String,
+    #[returns(ref)]
+    pub member_file: Option<String>,
+    pub mtime: std::time::SystemTime,
+    pub size: u64,
 }
 
-impl fmt::Display for FilePath {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            FilePath::Path(path) => write!(f, "{}", path),
-            FilePath::ArchiveMember { path, member } => write!(f, "{}({})", path, member),
-        }
+impl File {
+    /// Builds the `File` input from a file path and an optional member file name.`
+    pub fn build(db: &dyn Db, path: String, member_file: Option<String>) -> anyhow::Result<File> {
+        let file = std::fs::File::open(&path)?;
+        let metadata = file.metadata()?;
+        let mtime = metadata.modified()?;
+        let size = metadata.len();
+
+        Ok(Self::new(db, path, member_file, mtime, size))
     }
 }
 
-#[salsa::input]
-pub struct Binary {
-    pub file_path: FilePath,
+#[salsa::tracked(debug)]
+pub struct Binary<'db> {
+    pub file: File,
 }
 
-impl Binary {
-    pub fn file_id<'db>(&self, db: &'db dyn Db) -> FileId<'db> {
-        let path = self.file_path(db).to_string();
-        FileId::new(db, path.clone(), None, false)
-    }
+#[salsa::tracked]
+pub struct DebugFile<'db> {
+    /// The underlying file/metadata for this debug file
+    pub file: File,
+    /// Whether this debug file is relocatable
+    /// (i..e it is split from the main binary and can be loaded independently)
+    pub relocatable: bool,
 }
 
 pub struct LoadedFile {
-    filepath: FilePath,
+    filepath: String,
+    file: File,
     mapped_file: Mmap,
     pub object: object::File<'static>,
     pub dwarf: Dwarf,
 }
 
-impl LoadedFile {
-    pub fn new(path: FilePath) -> Result<Self> {
-        let (file, member) = match &path {
-            FilePath::Path(path) => (path, None),
-            FilePath::ArchiveMember { path, member } => (path, Some(member.as_str())),
-        };
-        let (mapped_file, object, dwarf) = try_load(file, member)?;
-        Ok(LoadedFile {
-            filepath: path,
-            mapped_file,
-            object,
-            dwarf,
-        })
+impl PartialEq for LoadedFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.file == other.file
     }
+}
 
+impl LoadedFile {
     pub fn has_debug_symbols(&self) -> bool {
         self.object.has_debug_symbols()
     }
@@ -74,15 +74,18 @@ impl fmt::Debug for LoadedFile {
     }
 }
 
-fn try_load(path: &str, member: Option<&str>) -> Result<(Mmap, object::File<'static>, Dwarf)> {
-    let file = std::fs::File::open(path)?;
-    let mmap = unsafe { memmap2::Mmap::map(&file) }?;
+#[salsa::tracked(returns(ref))]
+pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
+    let path = file.path(db);
+    let member = file.member_file(db);
+    let file_handle = std::fs::File::open(&path)?;
+    let mmap = unsafe { memmap2::Mmap::map(&file_handle) }?;
     let mmap_static_ref = unsafe {
         // SAFETY: we hold onto the Mmap until the end of the program
         // and we ensure it lives long enough
         std::mem::transmute::<&[u8], &'static [u8]>(&*mmap)
     };
-    let object = if let Some(member) = member {
+    let object = if let Some(member) = &member {
         // we need to extract the object file from the archive
         let archive = ArchiveFile::parse(mmap_static_ref)?;
         if let Some(file) = archive.members().find_map(|file| {
@@ -99,55 +102,87 @@ fn try_load(path: &str, member: Option<&str>) -> Result<(Mmap, object::File<'sta
             // in the archive
             object::File::parse(file.data(mmap_static_ref)?)?
         } else {
-            return Err(anyhow::anyhow!(
+            return Err(Error::MemberFileNotFound(format!(
                 "object file {member} not found in archive {path}"
-            ));
+            )));
         }
     } else {
         object::read::File::parse(mmap_static_ref)?
     };
     let dwarf = super::dwarf::load(&object)?;
 
-    Ok((mmap, object, dwarf))
-}
-
-#[salsa::interned]
-pub struct FileId<'db> {
-    /// File path
-    #[return_ref]
-    pub path: String,
-    /// (Optional) when the file is a member of an archive
-    /// this is the name of the member
-    #[return_ref]
-    pub member: Option<String>,
-    pub relocatable: bool,
-}
-
-impl<'db> FileId<'db> {
-    pub fn full_path(&self, db: &'db dyn Db) -> String {
-        let path = self.path(db);
-        if let Some(member) = self.member(db) {
-            format!("{path}({member})")
+    Ok(LoadedFile {
+        filepath: if let Some(member) = member {
+            format!("{path}({member}")
         } else {
-            path.clone()
-        }
-    }
-
-    pub fn filepath(&self, db: &'db dyn Db) -> FilePath {
-        let path = self.path(db).clone();
-        if let Some(member) = self.member(db) {
-            FilePath::ArchiveMember {
-                path,
-                member: member.clone(),
-            }
-        } else {
-            FilePath::Path(path)
-        }
-    }
+            path.to_string()
+        },
+        file,
+        mapped_file: mmap,
+        object,
+        dwarf,
+    })
 }
 
-#[salsa::interned]
+#[salsa::interned(debug)]
+#[derive(PartialOrd, Ord)]
 pub struct SourceFile<'db> {
-    #[return_ref]
+    #[returns(ref)]
     pub path: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum Error {
+    Gimli(gimli::Error),
+    Io(Arc<std::io::Error>),
+    ObjectParseError(object::read::Error),
+    MemberFileNotFound(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Gimli(error) => write!(f, "Gimli error: {error}"),
+            Error::Io(error) => write!(f, "IO Error: {error}",),
+            Error::MemberFileNotFound(e) => write!(f, "Member file not found: {e}"),
+            Error::ObjectParseError(error) => write!(f, "Object parse error: {error}"),
+        }
+    }
+}
+
+impl PartialEq for Error {
+    fn eq(&self, _other: &Self) -> bool {
+        // we'll consider _all_ errors equal for now
+        // since we only really care about if it was an error or not
+        true
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Gimli(error) => Some(error),
+            Error::Io(error) => Some(error.as_ref()),
+            Error::ObjectParseError(error) => Some(error),
+            Error::MemberFileNotFound(_) => None,
+        }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error::Io(Arc::new(err))
+    }
+}
+
+impl From<object::read::Error> for Error {
+    fn from(err: object::read::Error) -> Self {
+        Error::ObjectParseError(err)
+    }
+}
+
+impl From<gimli::Error> for Error {
+    fn from(err: gimli::Error) -> Self {
+        Error::Gimli(err)
+    }
 }

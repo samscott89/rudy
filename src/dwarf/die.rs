@@ -8,13 +8,14 @@ use super::{
     unit::UnitRef,
     utils::{file_entry_to_path, parse_die_string_attribute},
 };
-use crate::file::FileId;
+use crate::file::File;
 use crate::{database::Db, file::SourceFile};
 
 /// References a specific DWARF debugging information entry
-#[salsa::interned]
+#[salsa::interned(debug)]
+#[derive(Ord, PartialOrd)]
 pub struct Die<'db> {
-    pub file: FileId<'db>,
+    pub file: File,
     pub cu_offset: UnitSectionOffset<usize>,
     pub die_offset: Offset,
 }
@@ -22,7 +23,7 @@ pub struct Die<'db> {
 impl<'db> Die<'db> {
     // GROUP 1: Core Identity (Keep - no dependencies)
     pub fn as_path_ref(&self, db: &'db dyn Db) -> String {
-        let path = self.file(db).full_path(db);
+        let path = self.file(db).path(db);
         let cu_offset = match self.cu_offset(db) {
             UnitSectionOffset::DebugInfoOffset(debug_info_offset) => debug_info_offset.0,
             UnitSectionOffset::DebugTypesOffset(debug_types_offset) => debug_types_offset.0,

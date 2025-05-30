@@ -6,7 +6,7 @@ use crate::{
     data::TypeDef,
     database::{Db, Diagnostic, handle_diagnostics},
     dwarf::{self, resolve_function_variables},
-    file::Binary,
+    file::{Binary, File},
     index,
     outputs::ResolvedFunction,
     query::{
@@ -15,20 +15,19 @@ use crate::{
     types::{Address, FunctionIndexEntry, NameId, Position},
 };
 
-pub struct DebugInfo {
-    binary: Binary,
-    db: crate::database::DebugDatabaseImpl,
+pub struct DebugInfo<'db> {
+    binary: crate::file::File,
+    db: &'db crate::database::DebugDatabaseImpl,
 }
 
-impl fmt::Debug for DebugInfo {
+impl<'db> fmt::Debug for DebugInfo<'db> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("DebugInfo").finish()
     }
 }
 
-impl DebugInfo {
-    pub fn new(binary_path: &str) -> Result<Self> {
-        let mut db = crate::database::DebugDatabaseImpl::new()?;
+impl<'db> DebugInfo<'db> {
+    pub fn new(db: &'db crate::database::DebugDatabaseImpl, binary_path: &str) -> Result<Self> {
         let binary = db
             .analyze_file(binary_path)
             .with_context(|| format!("Failed to analyze binary file: {binary_path}"))?;
@@ -43,7 +42,7 @@ impl DebugInfo {
 
     // pub fn resolve_function(&self, name: &str) -> Option<ResolvedAddress> {
     //     let f = self.lookup_function(name).unwrap()?;
-    //     let address = f.relative_body_address(&self.db);
+    //     let address = f.relative_body_address(self.db);
     //     Some(ResolvedAddress { address })
     // }
 
@@ -73,47 +72,47 @@ impl DebugInfo {
             .pop()
             .ok_or_else(|| anyhow::anyhow!("Invalid empty function name: {function}"))?;
         let module_prefix = split;
-        let function_name = NameId::new(&self.db, module_prefix, name);
+        let function_name = NameId::new(self.db, module_prefix, name);
 
-        let Some((_, entry)) = find_closest_match(&self.db, self.binary, function_name) else {
+        let Some((_, entry)) = find_closest_match(self.db, self.binary, function_name) else {
             tracing::debug!("no function found for {function}");
             return Ok(None);
         };
         let diagnostics: Vec<&Diagnostic> =
-            find_closest_match::accumulated(&self.db, self.binary, function_name);
+            find_closest_match::accumulated(self.db, self.binary, function_name);
         handle_diagnostics(&diagnostics)?;
 
-        let Some(f) = dwarf::resolve_function(&self.db, entry) else {
+        let Some(f) = dwarf::resolve_function(self.db, entry) else {
             return Ok(None);
         };
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function::accumulated(&self.db, entry);
+        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function::accumulated(self.db, entry);
         handle_diagnostics(&diagnostics)?;
 
-        let die = entry.die(&self.db);
-        let index = index::build_index(&self.db, self.binary);
+        let die = entry.die(self.db);
+        let index = index::build_index(self.db, self.binary);
         let base_address = index
-            .data(&self.db)
+            .data(self.db)
             .cu_to_base_addr
-            .get(&die.cu(&self.db))
+            .get(&die.cu(self.db))
             .copied()
             .unwrap_or(0);
-        let address = f.relative_body_address(&self.db);
+        let address = f.relative_body_address(self.db);
 
-        let params = resolve_function_variables(&self.db, self.binary, entry);
+        let params = resolve_function_variables(self.db, self.binary, entry);
         let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(&self.db, self.binary, entry);
+            dwarf::resolve_function_variables::accumulated(self.db, self.binary, entry);
         handle_diagnostics(&diagnostics)?;
 
         Ok(Some(ResolvedFunction {
-            name: f.name(&self.db).to_string(),
+            name: f.name(self.db).to_string(),
             address: base_address + address,
             params: params
-                .params(&self.db)
+                .params(self.db)
                 .into_iter()
                 .map(|var| crate::Variable {
-                    name: var.name(&self.db).to_string(),
+                    name: var.name(self.db).to_string(),
                     ty: Some(crate::Type {
-                        name: var.ty(&self.db).display_name(&self.db),
+                        name: var.ty(self.db).display_name(self.db),
                     }),
                     value: None,
                 })
@@ -125,28 +124,28 @@ impl DebugInfo {
         &self,
         address: u64,
     ) -> Result<Option<crate::ResolvedLocation>> {
-        let address = Address::new(&self.db, address);
-        let loc = lookup_address(&self.db, self.binary, address);
-        let Some(f) = lookup_closest_function(&self.db, self.binary, address) else {
+        let address = Address::new(self.db, address);
+        let loc = lookup_address(self.db, self.binary, address);
+        let Some(f) = lookup_closest_function(self.db, self.binary, address) else {
             tracing::debug!(
                 "no function found for address {:#x}",
-                address.address(&self.db)
+                address.address(self.db)
             );
             return Ok(None);
         };
-        let Some(function) = dwarf::resolve_function(&self.db, f) else {
+        let Some(function) = dwarf::resolve_function(self.db, f) else {
             tracing::debug!("failed to resolve function: {f:?}");
             return Ok(None);
         };
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function::accumulated(&self.db, f);
+        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function::accumulated(self.db, f);
         handle_diagnostics(&diagnostics)?;
         tracing::debug!("returned function + loc: {f:?} / {loc:?}");
         Ok(loc.map(|loc| {
-            let file = loc.file(&self.db);
+            let file = loc.file(self.db);
             crate::ResolvedLocation {
-                function: function.name(&self.db).to_string(),
-                file: file.path(&self.db).clone(),
-                line: loc.line(&self.db),
+                function: function.name(self.db).to_string(),
+                file: file.path(self.db).clone(),
+                line: loc.line(self.db),
             }
         }))
     }
@@ -157,8 +156,8 @@ impl DebugInfo {
         line: u64,
         column: Option<u64>,
     ) -> Result<Option<crate::ResolvedAddress>> {
-        let query = Position::new(&self.db, file.to_string(), line, column);
-        let pos = lookup_position(&self.db, self.binary, query);
+        let query = Position::new(self.db, file.to_string(), line, column);
+        let pos = lookup_position(self.db, self.binary, query);
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }
 
@@ -171,57 +170,57 @@ impl DebugInfo {
         Vec<crate::Variable>,
         Vec<crate::Variable>,
     )> {
-        let address = Address::new(&self.db, address);
-        let loc = lookup_address(&self.db, self.binary, address);
-        let f = lookup_closest_function(&self.db, self.binary, address);
+        let address = Address::new(self.db, address);
+        let loc = lookup_address(self.db, self.binary, address);
+        let f = lookup_closest_function(self.db, self.binary, address);
         let diagnostics: Vec<&Diagnostic> =
-            lookup_closest_function::accumulated(&self.db, self.binary, address);
+            lookup_closest_function::accumulated(self.db, self.binary, address);
         handle_diagnostics(&diagnostics)?;
 
         let Some(f) = f else {
             tracing::debug!(
                 "no function found for address {:#x}",
-                address.address(&self.db)
+                address.address(self.db)
             );
             return Ok(Default::default());
         };
 
-        let vars = dwarf::resolve_function_variables(&self.db, self.binary, f);
+        let vars = dwarf::resolve_function_variables(self.db, self.binary, f);
         let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(&self.db, self.binary, f);
+            dwarf::resolve_function_variables::accumulated(self.db, self.binary, f);
         handle_diagnostics(&diagnostics)?;
 
         let params = vars
-            .params(&self.db)
+            .params(self.db)
             .into_iter()
-            .map(|param| output_variable(&self.db, self.binary, f, param, data_resolver))
+            .map(|param| output_variable(self.db, self.binary, f, param, data_resolver))
             .collect::<Result<Vec<_>>>()?;
         let locals = vars
-            .locals(&self.db)
+            .locals(self.db)
             .into_iter()
             .filter(|var| {
                 // for local variables, we want to make sure the variable
                 // is defined before the current location
                 if let Some(loc) = loc {
-                    loc.line(&self.db) > var.line(&self.db)
+                    loc.line(self.db) > var.line(self.db)
                 } else {
                     // if we don't have a location, we assume the param is valid
                     true
                 }
             })
-            .map(|var| output_variable(&self.db, self.binary, f, var, data_resolver))
+            .map(|var| output_variable(self.db, self.binary, f, var, data_resolver))
             .collect::<Result<Vec<_>>>()?;
         let globals = vars
-            .globals(&self.db)
+            .globals(self.db)
             .into_iter()
-            .map(|(var, address)| output_global_variable(&self.db, var, address, data_resolver))
+            .map(|(var, address)| output_global_variable(self.db, var, address, data_resolver))
             .collect::<Result<Vec<_>>>()?;
         Ok((params, locals, globals))
     }
 
     pub fn test_get_shape(&self) -> Result<TypeDef<'_>> {
-        let test_struct = test_get_def(&self.db, self.binary);
-        let diagnostics: Vec<&Diagnostic> = test_get_def::accumulated(&self.db, self.binary);
+        let test_struct = test_get_def(self.db, self.binary);
+        let diagnostics: Vec<&Diagnostic> = test_get_def::accumulated(self.db, self.binary);
         handle_diagnostics(&diagnostics)?;
         Ok(test_struct)
     }
@@ -229,7 +228,7 @@ impl DebugInfo {
 
 fn output_variable<'db>(
     db: &'db dyn Db,
-    binary: Binary,
+    binary: File,
     f: FunctionIndexEntry<'db>,
     var: dwarf::Variable<'db>,
     data_resolver: &dyn crate::DataResolver,

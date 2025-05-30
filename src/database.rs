@@ -41,16 +41,10 @@
 //! in via making the Binary file and all object files inputs -- this way if we recompile the
 //! binary we can recompute which parts of the binary are the same and which are unchanged.
 
-use std::sync::Arc;
-
 use anyhow::Result;
-use dashmap::DashMap;
 use salsa::Accumulator;
 
-use crate::file::{Binary, FilePath, LoadedFile};
-
-pub(crate) type FileRef<'db> = dashmap::mapref::one::Ref<'db, FilePath, LoadedFile>;
-pub(crate) type MappedRef<'a, T> = dashmap::mapref::one::MappedRef<'a, FilePath, LoadedFile, T>;
+use crate::file::{Binary, File};
 
 #[salsa::db]
 pub trait Db: salsa::Database {
@@ -87,14 +81,6 @@ pub trait Db: salsa::Database {
     }
 
     fn upcast(&self) -> &dyn Db;
-
-    /// Takes in a path (and optionally, an additional filename to load from an archive)
-    /// and returns a loaded file.
-    ///
-    /// Internally this _should_ use caching to avoid
-    /// reloading the file if it has already been loaded.
-    /// If the file cannot be loaded, it should return an error.
-    fn get_or_load_file(&self, path: FilePath) -> Result<FileRef<'_>>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -111,13 +97,12 @@ enum DiagnosticSeverity {
 pub struct Diagnostic {
     message: String,
     severity: DiagnosticSeverity,
-}   
+}
 
 #[salsa::db]
 #[derive(Clone)]
 pub struct DebugDatabaseImpl {
     storage: salsa::Storage<Self>,
-    loaded_files: Arc<DashMap<FilePath, LoadedFile>>,
 }
 
 pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
@@ -160,64 +145,26 @@ impl DebugDatabaseImpl {
     pub fn new() -> Result<Self> {
         let db = Self {
             storage: salsa::Storage::default(),
-            loaded_files: Default::default(),
         };
         Ok(db)
     }
 
-    pub fn analyze_file(&mut self, binary_file: &str) -> Result<Binary> {
-        let path = FilePath::Path(binary_file.to_string());
-        // eagerly load the file to ensure it exists
-        let _file = self.get_or_load_file(path.clone())?;
-        let bin = Binary::new(self, path);
+    pub fn analyze_file(&self, binary_file: &str) -> Result<File> {
+        let file = File::build(self, binary_file.to_string(), None)?;
+        // let bin = Binary::new(self, file);
 
-        crate::index::build_index(self.upcast(), bin.clone());
+        // crate::index::build_index(self, bin);
 
-        Ok(bin)
+        Ok(file)
     }
 }
 
 #[salsa::db]
-impl salsa::Database for DebugDatabaseImpl {
-    fn salsa_event(&self, _event: &dyn Fn() -> salsa::Event) {
-        // tracing already prints events, so nothing for us to do
-    }
-}
+impl salsa::Database for DebugDatabaseImpl {}
 
 #[salsa::db]
 impl Db for DebugDatabaseImpl {
-    fn get_or_load_file(&self, path: FilePath) -> Result<FileRef<'_>> {
-        if let Some(file) = self.loaded_files.get(&path) {
-            return Ok(file);
-        }
-
-        let file_ref = self
-            .loaded_files
-            .entry(path.clone())
-            .or_try_insert_with(|| LoadedFile::new(path))?;
-        Ok(file_ref.downgrade())
-    }
-
     fn upcast(&self) -> &dyn Db {
         self
     }
 }
-
-// #[salsa::tracked]
-// pub fn test_get_def(db: &dyn Db) -> TypeDef<'_> {
-//     let index = index::build_index(db);
-
-//     // find the STATIC_TEST_STRUCT global constants
-//     let (_, static_test_struct) = index
-//         .data(db)
-//         .symbol_name_to_die
-//         .iter()
-//         .find(|(name, _)| {
-//             let name = name.name(db);
-//             name.contains("STATIC_TEST_STRUCT")
-//         })
-//         .expect("should find test struct");
-
-//     // get its DIE entry + type
-//     dwarf::resolve_type(db, static_test_struct.die(db)).expect("could not get type")
-// }

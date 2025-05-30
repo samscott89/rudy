@@ -5,11 +5,12 @@ use itertools::Itertools;
 use crate::database::Db;
 use crate::dwarf;
 
-#[salsa::interned]
+#[salsa::interned(debug)]
+#[derive(Ord, PartialOrd)]
 pub struct NameId<'db> {
-    #[return_ref]
+    #[returns(ref)]
     pub path: Vec<String>,
-    #[return_ref]
+    #[returns(ref)]
     pub name: String,
 }
 
@@ -27,7 +28,7 @@ impl<'db> NameId<'db> {
 
 #[salsa::interned]
 pub struct Symbol<'db> {
-    #[return_ref]
+    #[returns(ref)]
     pub name_bytes: Vec<u8>,
 }
 
@@ -55,30 +56,30 @@ pub fn demangle<'db>(db: &'db dyn Db, sym: Symbol<'db>) -> NameId<'db> {
     NameId::new(db, split, name)
 }
 
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct FunctionIndexEntry<'db> {
     pub die: dwarf::Die<'db>,
 }
 
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct SymbolIndexEntry<'db> {
     pub address: u64,
     pub die: dwarf::Die<'db>,
 }
 
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct TypeIndexEntry<'db> {
     pub die: dwarf::Die<'db>,
 }
 
-#[salsa::interned]
+#[salsa::interned(debug)]
 pub struct Position<'db> {
     pub file: String,
     pub line: u64,
     pub column: Option<u64>,
 }
 
-#[salsa::interned]
+#[salsa::interned(debug)]
 pub struct Address<'db> {
     pub address: u64,
 }

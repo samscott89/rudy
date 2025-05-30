@@ -8,7 +8,7 @@ use crate::dwarf::{
     utils::{get_string_attr_raw, pretty_print_die_entry, to_range},
     {CompilationUnitId, Die},
 };
-use crate::file::FileId;
+use crate::file::File;
 use crate::types::{FunctionIndexEntry, NameId, SymbolIndexEntry};
 
 #[derive(Default)]
@@ -25,19 +25,19 @@ pub struct FileIndexEntries<'db> {
 
 pub fn index_symbols<'db>(
     db: &'db dyn Db,
-    file_id: FileId<'db>,
+    file: File,
     mut symbols: BTreeMap<Vec<u8>, (u64, NameId<'db>)>,
 ) -> FileIndexEntries<'db> {
-    tracing::debug!("indexing symbols for {}", file_id.full_path(db));
+    tracing::debug!("indexing symbols for {}", file.path(db));
     let mut function_name_to_die = BTreeMap::new();
     let mut symbol_name_to_die = BTreeMap::new();
     let mut address_range_to_function = Vec::new();
     let mut cu_to_address = BTreeMap::new();
 
-    let roots = get_roots(db, file_id);
+    let roots = get_roots(db, file);
 
     for (cu_offset, unit_ref) in roots {
-        let cu = CompilationUnitId::new(db, file_id, cu_offset);
+        let cu = CompilationUnitId::new(db, file, cu_offset);
 
         let Some(mut tree) = unit_ref.entries_tree(None).ok() else {
             continue;
@@ -140,7 +140,7 @@ pub fn index_symbols<'db>(
                                 let entry = pretty_print_die_entry(die, &unit_ref);
                                 tracing::error!(
                                     "No linkage name attribute: \n{entry} in {}",
-                                    file_id.full_path(db)
+                                    file.path(db)
                                 );
                                 db.report_critical(format!("no linkage name attribute?"));
                                 continue;
@@ -192,7 +192,7 @@ pub fn index_symbols<'db>(
                             }
                         };
 
-                        let die_entry = Die::new(db, file_id, cu_offset, die.offset());
+                        let die_entry = Die::new(db, file, cu_offset, die.offset());
                         tracing::debug!("got function info for {}", name.as_path(db),);
                         function_name_to_die.insert(name, FunctionIndexEntry::new(db, die_entry));
                         recurse = false;
@@ -219,7 +219,7 @@ pub fn index_symbols<'db>(
 
                     // find the name in the symbols map
                     if let Some((address, name)) = symbols.remove(&*linkage_name_bytes) {
-                        let die_entry = Die::new(db, file_id, cu_offset, die.offset());
+                        let die_entry = Die::new(db, file, cu_offset, die.offset());
                         tracing::debug!(
                             "got function info for {}",
                             name.as_path(db),

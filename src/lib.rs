@@ -11,6 +11,7 @@ mod types;
 
 use anyhow::Result;
 
+pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
 // reexport the public types from outputs
 pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable};

@@ -54,7 +54,8 @@ pub fn binary_path(target: &str) -> String {
 fn test_resolve_function(#[case] target: &str) {
     setup!(target);
     let path = binary_path(target);
-    let resolver = DebugInfo::new(&path).unwrap();
+    let db = crate::DebugDb::new().unwrap();
+    let resolver = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(resolver.resolve_function("main").unwrap());
     insta::assert_debug_snapshot!(resolver.resolve_function("function_call").unwrap());
@@ -64,7 +65,8 @@ fn test_resolve_function(#[case] target: &str) {
 fn test_resolve_position(#[case] target: &str) {
     setup!(target);
     let path = binary_path(target);
-    let resolver = DebugInfo::new(&path).unwrap();
+    let db = crate::DebugDb::new().unwrap();
+    let resolver = DebugInfo::new(&db, &path).unwrap();
 
     // should be the position of the `let y = x + 1;` line
     let addrs = resolver
@@ -126,7 +128,8 @@ fn test_load_file(#[case] target: &str) {
     setup!(target);
 
     let path = binary_path(target);
-    let parsed = DebugInfo::new(&path).unwrap();
+    let db = crate::DebugDb::new().unwrap();
+    let parsed = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(parsed);
 }

@@ -4,22 +4,18 @@ use anyhow::Result;
 use gimli::Reader;
 use itertools::Itertools;
 
-use crate::file::FileId;
+use crate::file::File;
 
 use super::{
     loader::{DwarfReader, RawDie},
     unit::UnitRef,
 };
 
-pub(super) type DwarfRef<'a> = crate::database::MappedRef<'a, super::Dwarf>;
+// pub(super) type DwarfRef<'a> = crate::database::MappedRef<'a, super::Dwarf>;
 
-pub fn get_dwarf<'db>(
-    db: &'db dyn crate::database::Db,
-    file_id: FileId<'db>,
-) -> Option<DwarfRef<'db>> {
-    let path = file_id.filepath(db);
-    let file = db.get_or_load_file(path).ok()?;
-    Some(file.map(|f| &f.dwarf))
+pub fn get_dwarf<'db>(db: &'db dyn crate::database::Db, file: File) -> Option<&'db super::Dwarf> {
+    let loaded = crate::file::load(db, file).as_ref().ok()?;
+    Some(&loaded.dwarf)
 }
 
 pub fn get_string_attr_raw<'a>(

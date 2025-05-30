@@ -4,15 +4,15 @@ use crate::data::TypeDef;
 use crate::database::Db;
 use crate::dwarf::die::declaration_file;
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
-use crate::file::{Binary, SourceFile};
+use crate::file::{Binary, File, SourceFile};
 use crate::types::FunctionIndexEntry;
 
 /// Tracked variable information
 #[salsa::tracked]
 pub struct Variable<'db> {
-    #[return_ref]
+    #[returns(ref)]
     pub name: String,
-    #[return_ref]
+    #[returns(ref)]
     pub ty: TypeDef<'db>,
     pub file: SourceFile<'db>,
     pub line: u64,
@@ -32,14 +32,14 @@ pub struct ResolvedVariables<'db> {
 #[salsa::tracked]
 pub fn resolve_function_variables<'db>(
     db: &'db dyn Db,
-    binary: Binary,
+    binary: File,
     function: FunctionIndexEntry<'db>,
 ) -> ResolvedVariables<'db> {
     let die = function.die(db);
     tracing::debug!(
         "resolving function variables for `{}` in {}",
         die.name(db).unwrap(),
-        die.cu(db).file(db).full_path(db)
+        die.cu(db).file(db).path(db)
     );
 
     let mut params = vec![];

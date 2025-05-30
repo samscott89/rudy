@@ -7,10 +7,10 @@ use salsa::Update;
 
 use crate::{database::Db, dwarf::Die};
 
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct TypeDef<'db> {
     // pub name: Option<NameId<'db>>,
-    #[return_ref]
+    #[returns(ref)]
     pub kind: DefKind<'db>,
 }
 
@@ -134,7 +134,7 @@ impl<'db> TypeDef<'db> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum DefKind<'db> {
     /// Language-specific primitive types from `core::primitive`
     /// (e.g. `i32`, `f64`, etc.)
@@ -166,7 +166,7 @@ pub enum DefKind<'db> {
 }
 
 /// From the Rust standard library:
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum PrimitiveDef<'db> {
     Array(ArrayDef<'db>),
     Bool(()),
@@ -233,30 +233,30 @@ impl<'db> PrimitiveDef<'db> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ArrayDef<'db> {
     pub element_type: Arc<TypeDef<'db>>,
     pub length: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct FloatDef {
     pub size: usize,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct FunctionDef<'db> {
     pub return_type: Arc<TypeDef<'db>>,
     pub arg_types: Vec<Arc<TypeDef<'db>>>,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct IntDef {
     pub size: usize,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct PointerDef<'db> {
     pub pointed_type: Arc<TypeDef<'db>>,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ReferenceDef<'db> {
     /// Is this a mutable reference?
     /// (i.e. `&mut T` vs `&T`)
@@ -264,7 +264,7 @@ pub struct ReferenceDef<'db> {
 
     pub pointed_type: Arc<TypeDef<'db>>,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SliceDef<'db> {
     pub element_type: Arc<TypeDef<'db>>,
     pub data_ptr_offset: usize,
@@ -272,30 +272,30 @@ pub struct SliceDef<'db> {
     pub size: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StrSliceDef {
     pub data_ptr_offset: usize,
     pub length_offset: usize,
     pub size: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct TupleDef<'db> {
     pub element_types: Vec<Arc<TypeDef<'db>>>,
     pub alignment: usize,
     pub size: usize,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct UnitDef;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct UnsignedIntDef {
     /// Size in bytes
     /// (e.g. 1 for u8, 2 for u16, etc.)
     pub size: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum StdDef<'db> {
     SmartPtr(SmartPtrDef<'db>),
     Map(MapDef<'db>),
@@ -345,13 +345,13 @@ impl<'db> StdDef<'db> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SmartPtrDef<'db> {
     pub inner_type: Arc<TypeDef<'db>>,
     pub variant: SmartPtrVariant,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum SmartPtrVariant {
     Rc,
     Arc,
@@ -362,7 +362,7 @@ pub enum SmartPtrVariant {
     UnsafeCell,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct MapDef<'db> {
     pub key_type: Arc<TypeDef<'db>>,
     pub value_type: Arc<TypeDef<'db>>,
@@ -370,46 +370,46 @@ pub struct MapDef<'db> {
     pub size: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum MapVariant {
     HashMap,
     BTreeMap,
     IndexMap,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct OptionDef<'db> {
     pub inner_type: Arc<TypeDef<'db>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ResultDef<'db> {
     pub ok_type: Arc<TypeDef<'db>>,
     pub err_type: Arc<TypeDef<'db>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StringDef;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct VecDef<'db> {
     pub inner_type: Arc<TypeDef<'db>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StructDef<'db> {
     pub name: String,
     pub size: usize,
     pub alignment: usize,
     pub fields: Vec<StructField<'db>>,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StructField<'db> {
     pub name: String,
     pub offset: usize,
     pub ty: Arc<TypeDef<'db>>,
 }
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumDef<'db> {
     pub name: String,
     pub repr: EnumRepr,
@@ -417,31 +417,31 @@ pub struct EnumDef<'db> {
     pub size: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum EnumRepr {
     C,
     Rust,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum EnumVariant<'db> {
     Unit(EnumUnitVariant),
     Tuple(EnumTupleVariant<'db>),
     Struct(EnumStructVariant<'db>),
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumUnitVariant {
     pub name: String,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumTupleVariant<'db> {
     pub name: String,
     pub fields: Vec<StructField<'db>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, PartialOrd, Ord, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumStructVariant<'db> {
     pub name: String,
     pub fields: Vec<StructField<'db>>,
