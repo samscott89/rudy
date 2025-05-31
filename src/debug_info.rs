@@ -17,6 +17,7 @@ use crate::{
 
 pub struct DebugInfo<'db> {
     binary: crate::file::Binary,
+    debug_files: Vec<crate::file::DebugFile>,
     db: &'db crate::database::DebugDatabaseImpl,
 }
 
@@ -28,11 +29,18 @@ impl<'db> fmt::Debug for DebugInfo<'db> {
 
 impl<'db> DebugInfo<'db> {
     pub fn new(db: &'db crate::database::DebugDatabaseImpl, binary_path: &str) -> Result<Self> {
-        let binary = db
+        let (binary, debug_files) = db
             .analyze_file(binary_path)
             .with_context(|| format!("Failed to analyze binary file: {binary_path}"))?;
 
-        let pb = Self { db, binary };
+        let pb = Self {
+            db,
+            binary,
+            debug_files,
+        };
+
+        // TODO(Sam): set up a file watcher if the binary and/or debug files change
+
         Ok(pb)
     }
 

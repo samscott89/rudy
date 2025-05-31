@@ -44,7 +44,10 @@
 use anyhow::Result;
 use salsa::Accumulator;
 
-use crate::file::{Binary, File};
+use crate::{
+    file::{Binary, DebugFile, File},
+    index::discover_debug_files,
+};
 
 #[salsa::db]
 pub trait Db: salsa::Database {
@@ -149,13 +152,17 @@ impl DebugDatabaseImpl {
         Ok(db)
     }
 
-    pub fn analyze_file(&self, binary_file: &str) -> Result<Binary> {
+    pub fn analyze_file(&self, binary_file: &str) -> Result<(Binary, Vec<DebugFile>)> {
         let file = File::build(self, binary_file.to_string(), None)?;
         let bin = Binary::new(self, file);
+        let debug_files = discover_debug_files(self, bin)
+            .values()
+            .copied()
+            .collect::<Vec<_>>();
 
         // crate::index::build_index(self, bin);
 
-        Ok(bin)
+        Ok((bin, debug_files))
     }
 }
 

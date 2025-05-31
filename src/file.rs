@@ -35,8 +35,8 @@ pub struct Binary {
     pub file: File,
 }
 
-#[salsa::tracked]
-pub struct DebugFile<'db> {
+#[salsa::input(debug)]
+pub struct DebugFile {
     /// The underlying file/metadata for this debug file
     pub file: File,
     /// Whether this debug file is relocatable

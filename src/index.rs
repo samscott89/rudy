@@ -12,10 +12,10 @@ use crate::types::{
 };
 
 #[salsa::tracked(returns(ref))]
-fn discover_debug_files<'db>(
+pub fn discover_debug_files<'db>(
     db: &'db dyn Db,
     binary: Binary,
-) -> BTreeMap<(String, Option<String>), DebugFile<'db>> {
+) -> BTreeMap<(String, Option<String>), DebugFile> {
     let binary_file = binary.file(db);
     let loaded_file = match load(db, binary_file) {
         Ok(file) => file,
