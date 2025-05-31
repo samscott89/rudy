@@ -15,6 +15,13 @@ use crate::{
     types::{Address, FunctionIndexEntry, NameId, Position},
 };
 
+/// Main interface for accessing debug information from binary files.
+/// 
+/// `DebugInfo` provides methods to resolve addresses to source locations,
+/// look up function information, and inspect variables at runtime.
+/// 
+/// The struct holds a reference to the debug database and manages the
+/// binary file and associated debug files.
 pub struct DebugInfo<'db> {
     binary: crate::file::Binary,
     debug_files: Vec<crate::file::DebugFile>,
@@ -28,6 +35,25 @@ impl<'db> fmt::Debug for DebugInfo<'db> {
 }
 
 impl<'db> DebugInfo<'db> {
+    /// Creates a new `DebugInfo` instance for analyzing a binary file.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `db` - Reference to the debug database
+    /// * `binary_path` - Path to the binary file to analyze
+    /// 
+    /// # Returns
+    /// 
+    /// A `DebugInfo` instance or an error if the binary cannot be loaded
+    /// 
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// use rust_debuginfo::{DebugDb, DebugInfo};
+    /// 
+    /// let db = DebugDb::new().unwrap();
+    /// let debug_info = DebugInfo::new(&db, "/path/to/binary").unwrap();
+    /// ```
     pub fn new(db: &'db crate::database::DebugDatabaseImpl, binary_path: &str) -> Result<Self> {
         let (binary, debug_files) = db
             .analyze_file(binary_path)
@@ -44,6 +70,26 @@ impl<'db> DebugInfo<'db> {
         Ok(pb)
     }
 
+    /// Resolves a memory address to its source location.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `address` - The memory address to resolve
+    /// 
+    /// # Returns
+    /// 
+    /// The source location if found, or `None` if the address cannot be resolved
+    /// 
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo};
+    /// # let db = DebugDb::new().unwrap();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// if let Some(location) = debug_info.address_to_line(0x12345) {
+    ///     println!("Address 0x12345 is at {}:{}", location.file, location.line);
+    /// }
+    /// ```
     pub fn address_to_line(&self, address: u64) -> Option<ResolvedLocation> {
         self.resolve_address_to_location(address).unwrap()
     }
@@ -74,6 +120,28 @@ impl<'db> DebugInfo<'db> {
     //     self.db.test_get_shape().unwrap()
     // }
 
+    /// Resolves a function name to its debug information.
+    /// 
+    /// The function name can include module paths using `::` separators.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `function` - The function name to resolve (e.g., "main" or "module::function")
+    /// 
+    /// # Returns
+    /// 
+    /// The resolved function information if found, or `None` if not found
+    /// 
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo};
+    /// # let db = DebugDb::new().unwrap();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// if let Some(func) = debug_info.resolve_function("main").unwrap() {
+    ///     println!("Function 'main' is at address {:#x}", func.address);
+    /// }
+    /// ```
     pub fn resolve_function(&self, function: &str) -> Result<Option<ResolvedFunction>> {
         let mut split: Vec<String> = function.split("::").map(|s| s.to_owned()).collect();
         let name = split
@@ -128,6 +196,17 @@ impl<'db> DebugInfo<'db> {
         }))
     }
 
+    /// Resolves a memory address to its source location with error handling.
+    /// 
+    /// Similar to `address_to_line` but provides detailed error information.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `address` - The memory address to resolve
+    /// 
+    /// # Returns
+    /// 
+    /// The source location if found, or `None` if the address cannot be resolved
     pub fn resolve_address_to_location(
         &self,
         address: u64,
@@ -158,6 +237,28 @@ impl<'db> DebugInfo<'db> {
         }))
     }
 
+    /// Resolves a source file position to a memory address.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `file` - The source file path
+    /// * `line` - The line number in the source file
+    /// * `column` - Optional column number
+    /// 
+    /// # Returns
+    /// 
+    /// The memory address if the position can be resolved
+    /// 
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo};
+    /// # let db = DebugDb::new().unwrap();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// if let Some(addr) = debug_info.resolve_position("src/main.rs", 42, None).unwrap() {
+    ///     println!("Line 42 of src/main.rs is at address {:#x}", addr.address);
+    /// }
+    /// ```
     pub fn resolve_position(
         &self,
         file: &str,
@@ -169,6 +270,41 @@ impl<'db> DebugInfo<'db> {
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }
 
+    /// Resolves variables visible at a given memory address.
+    /// 
+    /// This method returns three categories of variables:
+    /// - Function parameters
+    /// - Local variables
+    /// - Global variables
+    /// 
+    /// # Arguments
+    /// 
+    /// * `address` - The memory address to inspect
+    /// * `data_resolver` - Interface for reading memory and register values
+    /// 
+    /// # Returns
+    /// 
+    /// A tuple of (parameters, locals, globals)
+    /// 
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, DataResolver};
+    /// # struct MyResolver;
+    /// # impl DataResolver for MyResolver {
+    /// #     fn base_address(&self) -> u64 { 0 }
+    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// # }
+    /// # let db = DebugDb::new().unwrap();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let resolver = MyResolver;
+    /// let (params, locals, globals) = debug_info
+    ///     .resolve_variables_at_address(0x12345, &resolver)
+    ///     .unwrap();
+    /// println!("Found {} parameters, {} locals, {} globals", 
+    ///          params.len(), locals.len(), globals.len());
+    /// ```
     pub fn resolve_variables_at_address(
         &self,
         address: u64,

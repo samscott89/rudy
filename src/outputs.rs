@@ -2,6 +2,8 @@
 
 use std::{collections::BTreeMap, fmt};
 
+/// A resolved memory address from a source location.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedAddress {
     pub address: u64,
 }
@@ -14,6 +16,7 @@ impl fmt::Debug for ResolvedAddress {
     }
 }
 
+/// Source location information resolved from a memory address.
 #[derive(Debug, PartialEq, Clone)]
 pub struct ResolvedLocation {
     pub function: String,
@@ -21,6 +24,7 @@ pub struct ResolvedLocation {
     pub line: u64,
 }
 
+/// A variable with its type and optionally its runtime value.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Variable {
     pub name: String,
@@ -28,6 +32,7 @@ pub struct Variable {
     pub ty: Option<Type>,
 }
 
+/// A value read from memory, supporting scalars, arrays, and structs.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Value {
     Scalar {
@@ -44,11 +49,13 @@ pub enum Value {
     },
 }
 
+/// Type information for a variable or field.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Type {
     pub name: String,
 }
 
+/// A resolved function with its address and parameter information.
 #[derive(PartialEq, Eq, Clone)]
 pub struct ResolvedFunction {
     pub name: String,

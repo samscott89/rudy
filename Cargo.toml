@@ -1,7 +1,16 @@
 [package]
-name = "rust_debuginfo"
-version = "0.1.0"
+name = "rust-debuginfo"
+version = "0.0.1"
 edition = "2024"
+authors = ["Sam Scott"]
+description = "A user-friendly library for interacting with debugging information of Rust compiled artifacts using DWARF"
+repository = "https://github.com/samscott89/rust_debuginfo"
+documentation = "https://docs.rs/rust-debuginfo"
+homepage = "https://github.com/samscott89/rust_debuginfo"
+license = "MIT"
+readme = "README.md"
+keywords = ["debug", "dwarf", "debuginfo", "debugging", "rust"]
+categories = ["debugging", "development-tools", "parser-implementations"]
 
 [dependencies]
 anyhow = "1.0.97"

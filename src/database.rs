@@ -145,6 +145,17 @@ pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
 // }
 
 impl DebugDatabaseImpl {
+    /// Creates a new debug database instance.
+    /// 
+    /// The database manages the loading and caching of debug information from binary files.
+    /// 
+    /// # Examples
+    /// 
+    /// ```no_run
+    /// use rust_debuginfo::DebugDb;
+    /// 
+    /// let db = DebugDb::new().expect("Failed to create database");
+    /// ```
     pub fn new() -> Result<Self> {
         let db = Self {
             storage: salsa::Storage::default(),
@@ -152,15 +163,13 @@ impl DebugDatabaseImpl {
         Ok(db)
     }
 
-    pub fn analyze_file(&self, binary_file: &str) -> Result<(Binary, Vec<DebugFile>)> {
+    pub(crate) fn analyze_file(&self, binary_file: &str) -> Result<(Binary, Vec<DebugFile>)> {
         let file = File::build(self, binary_file.to_string(), None)?;
         let bin = Binary::new(self, file);
         let debug_files = discover_debug_files(self, bin)
             .values()
             .copied()
             .collect::<Vec<_>>();
-
-        // crate::index::build_index(self, bin);
 
         Ok((bin, debug_files))
     }
