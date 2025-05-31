@@ -2,11 +2,11 @@ use anyhow::{Context, Result};
 use std::fmt;
 
 use crate::{
-    ResolvedAddress, ResolvedLocation,
+    ResolvedLocation,
     data::TypeDef,
     database::{Db, Diagnostic, handle_diagnostics},
     dwarf::{self, resolve_function_variables},
-    file::{Binary, File},
+    file::Binary,
     index,
     outputs::ResolvedFunction,
     query::{
@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub struct DebugInfo<'db> {
-    binary: crate::file::File,
+    binary: crate::file::Binary,
     db: &'db crate::database::DebugDatabaseImpl,
 }
 
@@ -228,7 +228,7 @@ impl<'db> DebugInfo<'db> {
 
 fn output_variable<'db>(
     db: &'db dyn Db,
-    binary: File,
+    binary: Binary,
     f: FunctionIndexEntry<'db>,
     var: dwarf::Variable<'db>,
     data_resolver: &dyn crate::DataResolver,

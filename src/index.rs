@@ -14,9 +14,10 @@ use crate::types::{
 #[salsa::tracked(returns(ref))]
 fn discover_debug_files<'db>(
     db: &'db dyn Db,
-    binary: File,
+    binary: Binary,
 ) -> BTreeMap<(String, Option<String>), DebugFile<'db>> {
-    let loaded_file = match load(db, binary) {
+    let binary_file = binary.file(db);
+    let loaded_file = match load(db, binary_file) {
         Ok(file) => file,
         Err(e) => {
             db.report_critical(format!("Failed to load binary file: {e}"));
@@ -30,8 +31,8 @@ fn discover_debug_files<'db>(
     if object.has_debug_symbols() {
         // if the main binary has debug symbols, we'll use it direclty
         debug_files.insert(
-            (binary.path(db).to_string(), None),
-            DebugFile::new(db, binary, false),
+            (binary_file.path(db).to_string(), None),
+            DebugFile::new(db, binary_file, false),
         );
     }
 
@@ -84,8 +85,8 @@ fn discover_debug_files<'db>(
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
 #[salsa::tracked(returns(ref))]
-pub fn build_index<'db>(db: &'db dyn Db, binary_file: File) -> dwarf::Index<'db> {
-    // let binary_file = binary.file(db);
+pub fn build_index<'db>(db: &'db dyn Db, binary: Binary) -> dwarf::Index<'db> {
+    let binary_file = binary.file(db);
 
     // initialize structs
     let mut function_name_to_die: BTreeMap<NameId<'_>, FunctionIndexEntry<'_>> = Default::default();
@@ -101,7 +102,7 @@ pub fn build_index<'db>(db: &'db dyn Db, binary_file: File) -> dwarf::Index<'db>
     let mut names_by_file: HashMap<File, BTreeMap<Vec<u8>, _>> = HashMap::new();
 
     // first, discover all debug files associated with the binary
-    let debug_files = discover_debug_files(db, binary_file);
+    let debug_files = discover_debug_files(db, binary);
 
     // first load the binary file itself to get a list of all symbols and
     // associated file paths

@@ -149,13 +149,13 @@ impl DebugDatabaseImpl {
         Ok(db)
     }
 
-    pub fn analyze_file(&self, binary_file: &str) -> Result<File> {
+    pub fn analyze_file(&self, binary_file: &str) -> Result<Binary> {
         let file = File::build(self, binary_file.to_string(), None)?;
-        // let bin = Binary::new(self, file);
+        let bin = Binary::new(self, file);
 
         // crate::index::build_index(self, bin);
 
-        Ok(file)
+        Ok(bin)
     }
 }
 

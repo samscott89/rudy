@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::database::Db;
 use crate::dwarf::{Die, loader::DwarfReader};
-use crate::file::{Binary, File};
+use crate::file::Binary;
 use crate::types::FunctionIndexEntry;
 
 /// Get location expression from a DIE entry
@@ -72,7 +72,7 @@ fn get_function_frame_base<'db>(
 /// Resolve data location for a variable using DWARF expressions
 pub fn resolve_data_location<'db>(
     db: &'db dyn Db,
-    binary: File,
+    binary: Binary,
     function: FunctionIndexEntry<'db>,
     variable_entry_id: Die<'db>,
     data_resolver: &dyn crate::DataResolver,

@@ -30,8 +30,8 @@ impl File {
     }
 }
 
-#[salsa::tracked(debug)]
-pub struct Binary<'db> {
+#[salsa::input(debug)]
+pub struct Binary {
     pub file: File,
 }
 
@@ -55,12 +55,6 @@ pub struct LoadedFile {
 impl PartialEq for LoadedFile {
     fn eq(&self, other: &Self) -> bool {
         self.file == other.file
-    }
-}
-
-impl LoadedFile {
-    pub fn has_debug_symbols(&self) -> bool {
-        self.object.has_debug_symbols()
     }
 }
 
