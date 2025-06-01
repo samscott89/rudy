@@ -13,7 +13,7 @@ pub use symbols::index_symbols;
 pub use types::index_types;
 
 /// Pre-computed index for fast lookups
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct Index<'db> {
     #[returns(ref)]
     pub data: IndexData<'db>,

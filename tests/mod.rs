@@ -19,12 +19,14 @@ macro_rules! function_name {
 
 #[macro_export]
 macro_rules! setup {
-    ($target:ident) => {
+    ($($target:ident)?) => {
         let _ = tracing_subscriber::fmt::try_init();
         let mut settings = insta::Settings::clone_current();
 
         // get current OS as a prefix
-        settings.set_snapshot_suffix($target);
+        $(
+            settings.set_snapshot_suffix($target);
+        )?
         settings.set_prepend_module_to_snapshot(false);
 
         let _guard = settings.bind_to_scope();
@@ -33,7 +35,7 @@ macro_rules! setup {
             .strip_prefix("rust_debuginfo::")
             .unwrap_or(test_name);
         let test_name = test_name.strip_prefix("tests::").unwrap_or(test_name);
-        let _span = tracing::info_span!("test", test_name, $target).entered();
+        let _span = tracing::info_span!("test", test_name, $($target)?).entered();
     };
 }
 
@@ -132,4 +134,41 @@ fn test_load_file(#[case] target: &str) {
     let parsed = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(parsed);
+}
+
+#[test]
+fn test_generated_benchmarks() {
+    setup!();
+
+    if !std::fs::exists("benches/test_binaries/medium").unwrap() {
+        panic!(
+            "Please run `cargo run --bin generate_test_binaries` to generate the test binaries first."
+        );
+    }
+
+    let db = DebugDb::new().unwrap();
+    let path = "benches/test_binaries/medium";
+    let debug_info = DebugInfo::new(&db, path).unwrap();
+
+    insta::assert_debug_snapshot!(debug_info);
+
+    // resolve functions
+    insta::assert_debug_snapshot!(debug_info.resolve_function("main").unwrap());
+    insta::assert_debug_snapshot!(
+        debug_info
+            .resolve_function("TestStruct0::method_0")
+            .unwrap()
+    );
+    insta::assert_debug_snapshot!(
+        debug_info
+            .resolve_function("TestStruct1::method_1")
+            .unwrap()
+    );
+
+    // resolve positions
+    let addrs = debug_info
+        .resolve_position("benches/test_binaries/medium.rs", 4, None)
+        .unwrap()
+        .unwrap();
+    insta::assert_debug_snapshot!(addrs);
 }

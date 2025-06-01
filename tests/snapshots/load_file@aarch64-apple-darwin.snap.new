@@ -1,7 +1,7 @@
 ---
 source: tests/mod.rs
+assertion_line: 136
 expression: parsed
-snapshot_kind: text
 ---
 DebugInfo {
     debug_files: [
@@ -172,8 +172,8 @@ DebugInfo {
         [salsa id]: Id(3400),
         data: IndexData {
             function_name_to_die: {
-                "<&T as core::fmt::Debug>::fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2b776",
-                "<&T as core::fmt::Display>::fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2c14b",
+                "<&T as core::fmt::Debug>::fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib:0x0:0x157f2",
+                "<&T as core::fmt::Display>::fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib:0x0:0x16202",
                 "<&mut T as core::fmt::Display>::fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2cabd",
                 "<&str as core::str::pattern::Pattern>::is_contained_in": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2cb0d",
                 "<() as std::process::Termination>::report": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.02w827gv4vgd2yygwphklyhbn.rcgu.o:0x0:0x39",
@@ -205,10 +205,10 @@ DebugInfo {
                 "addr2line::unit::ResUnit<R>::find_function_or_location": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x98201",
                 "addr2line::unit::ResUnit<R>::find_function_or_location::{{closure}}": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x98732",
                 "alloc::collections::btree::map::IntoIter<K,V,A>::dying_next": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x92ff",
-                "alloc::raw_vec::RawVec<T,A>::grow_one": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0xb678",
-                "alloc::raw_vec::RawVecInner<A>::reserve::do_reserve_and_handle": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0xc2f6",
+                "alloc::raw_vec::RawVec<T,A>::grow_one": "$RUSTLIB/aarch64-apple-darwin/lib/liballoc-4dcacaba2763a32f.rlib:0x0:0x19ef",
+                "alloc::raw_vec::RawVecInner<A>::reserve::do_reserve_and_handle": "$RUSTLIB/aarch64-apple-darwin/lib/liballoc-4dcacaba2763a32f.rlib:0x0:0x1c1f",
                 "alloc::raw_vec::capacity_overflow": "$RUSTLIB/aarch64-apple-darwin/lib/liballoc-4dcacaba2763a32f.rlib:0x0:0x1bda",
-                "alloc::raw_vec::finish_grow": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0xc25e",
+                "alloc::raw_vec::finish_grow": "$RUSTLIB/aarch64-apple-darwin/lib/liballoc-4dcacaba2763a32f.rlib:0x0:0x1d1e",
                 "alloc::sync::Arc<T,A>::drop_slow": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0xee45",
                 "core::cell::once::OnceCell<T>::try_init": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x33baa",
                 "core::char::methods::<impl char>::escape_debug_ext": "$RUSTLIB/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib:0x0:0x1afc4",
@@ -216,7 +216,7 @@ DebugInfo {
                 "core::fmt::Arguments::new_v1": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.36mbjza3mgmq6zuwd4rrc5y9v.rcgu.o:0x0:0x60",
                 "core::fmt::Formatter::pad_integral::write_prefix": "$RUSTLIB/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib:0x0:0x1566e",
                 "core::fmt::Write::write_char": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2c706",
-                "core::fmt::Write::write_fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2ca17",
+                "core::fmt::Write::write_fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib:0x0:0x14786",
                 "core::fmt::num::<impl core::fmt::Debug for i32>::fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2ba0d",
                 "core::fmt::num::<impl core::fmt::Debug for usize>::fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2bb51",
                 "core::fmt::num::imp::<impl u32>::_fmt": "$RUSTLIB/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib:0x0:0x11f5a",
@@ -225,7 +225,7 @@ DebugInfo {
                 "core::ops::function::FnOnce::call_once": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x54a",
                 "core::ops::function::FnOnce::call_once{{vtable.shim}}": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x4c6",
                 "core::panic::PanicPayload::as_str": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x2df70",
-                "core::panicking::assert_failed": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x34310",
+                "core::panicking::assert_failed": "$RUSTLIB/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib:0x0:0x21027",
                 "core::ptr::drop_in_place<(usize,std::backtrace_rs::symbolize::gimli::Mapping)>": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x1c7ed",
                 "core::ptr::drop_in_place<<alloc::collections::btree::map::IntoIter<K,V,A> as core::ops::drop::Drop>::drop::DropGuard<u64,core::result::Result<alloc::sync::Arc<gimli::read::abbrev::Abbreviations>,gimli::read::Error>,alloc::alloc::Global>>": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x16740",
                 "core::ptr::drop_in_place<[core::option::Option<core::option::Option<std::backtrace_rs::symbolize::gimli::Mapping>>]>": "$RUSTLIB/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib:0x0:0x146ed",
@@ -388,7 +388,7 @@ DebugInfo {
                 "&[core::fmt::rt::Placeholder]": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.36mbjza3mgmq6zuwd4rrc5y9v.rcgu.o:0x0:0x3b5",
                 "&mut dyn core::fmt::Write": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.91jiuthqunb6lnrnppj1hnofh.rcgu.o:0x0:0x27d",
                 "&str": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x716",
-                "()": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x999",
+                "()": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x98",
                 "<std::rt::lang_start::{closure_env#0}<()> as core::ops::function::Fn<()>>::{vtable_type}": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x3d",
                 "__ARRAY_SIZE_TYPE__": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x9b4",
                 "alloc::alloc::Global": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x95c",
@@ -415,17 +415,17 @@ DebugInfo {
                 "core::ptr::unique::Unique<u8>": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x48b",
                 "core::result::Result<(), core::fmt::Error>": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.91jiuthqunb6lnrnppj1hnofh.rcgu.o:0x0:0x189",
                 "dyn core::fmt::Write": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.91jiuthqunb6lnrnppj1hnofh.rcgu.o:0x0:0x2a4",
-                "i32": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x9a0",
+                "i32": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x21c",
                 "isize": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x249",
                 "simple_test::TestStruct": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x6e8",
-                "std::process::ExitCode": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.02w827gv4vgd2yygwphklyhbn.rcgu.o:0x0:0x64",
-                "std::rt::lang_start::{closure_env#0}<()>": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x975",
-                "std::sys::process::unix::common::ExitCode": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.02w827gv4vgd2yygwphklyhbn.rcgu.o:0x0:0x8e",
+                "std::process::ExitCode": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x1da",
+                "std::rt::lang_start::{closure_env#0}<()>": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0xb5",
+                "std::sys::process::unix::common::ExitCode": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x1a6",
                 "u16": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.91jiuthqunb6lnrnppj1hnofh.rcgu.o:0x0:0x276",
                 "u32": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.91jiuthqunb6lnrnppj1hnofh.rcgu.o:0x0:0x26f",
                 "u64": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x6dc",
-                "u8": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x73d",
-                "usize": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.8a0ndn00jwzpbcrfy88kou75x.rcgu.o:0x0:0x744",
+                "u8": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x215",
+                "usize": "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.69u53axv4y2soyyh9vbrak94x.rcgu.o:0x0:0x9f",
             },
             cu_to_base_addr: {
                 "$OUT_DIR/deps/simple_test-9c75c5177b58c59d.02w827gv4vgd2yygwphklyhbn.rcgu.o:0x0": "0x100000888",

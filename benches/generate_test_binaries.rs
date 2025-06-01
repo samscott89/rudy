@@ -108,6 +108,7 @@ fn main() {
     );
 
     for i in 0..num_structs.min(10) {
+        let meth = i % functions_per_struct; // Cycle through methods
         code.push_str(&format!(
             r#"
     {{
@@ -121,7 +122,7 @@ fn main() {
         total += s.id;
         
         // Call a method to ensure it's in the binary
-        let _ = s.method_0({i});
+        let _ = s.method_{meth}({i});
     }}
 "#,
         ));

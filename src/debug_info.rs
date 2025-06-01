@@ -16,10 +16,10 @@ use crate::{
 };
 
 /// Main interface for accessing debug information from binary files.
-/// 
+///
 /// `DebugInfo` provides methods to resolve addresses to source locations,
 /// look up function information, and inspect variables at runtime.
-/// 
+///
 /// The struct holds a reference to the debug database and manages the
 /// binary file and associated debug files.
 pub struct DebugInfo<'db> {
@@ -30,27 +30,32 @@ pub struct DebugInfo<'db> {
 
 impl<'db> fmt::Debug for DebugInfo<'db> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("DebugInfo").finish()
+        salsa::attach(self.db, || {
+            f.debug_struct("DebugInfo")
+                .field("debug_files", &self.debug_files)
+                .field("index", crate::index::build_index(self.db, self.binary))
+                .finish()
+        })
     }
 }
 
 impl<'db> DebugInfo<'db> {
     /// Creates a new `DebugInfo` instance for analyzing a binary file.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `db` - Reference to the debug database
     /// * `binary_path` - Path to the binary file to analyze
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A `DebugInfo` instance or an error if the binary cannot be loaded
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// use rust_debuginfo::{DebugDb, DebugInfo};
-    /// 
+    ///
     /// let db = DebugDb::new().unwrap();
     /// let debug_info = DebugInfo::new(&db, "/path/to/binary").unwrap();
     /// ```
@@ -71,17 +76,17 @@ impl<'db> DebugInfo<'db> {
     }
 
     /// Resolves a memory address to its source location.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `address` - The memory address to resolve
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The source location if found, or `None` if the address cannot be resolved
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// # use rust_debuginfo::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new().unwrap();
@@ -121,19 +126,19 @@ impl<'db> DebugInfo<'db> {
     // }
 
     /// Resolves a function name to its debug information.
-    /// 
+    ///
     /// The function name can include module paths using `::` separators.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `function` - The function name to resolve (e.g., "main" or "module::function")
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The resolved function information if found, or `None` if not found
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// # use rust_debuginfo::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new().unwrap();
@@ -197,15 +202,15 @@ impl<'db> DebugInfo<'db> {
     }
 
     /// Resolves a memory address to its source location with error handling.
-    /// 
+    ///
     /// Similar to `address_to_line` but provides detailed error information.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `address` - The memory address to resolve
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The source location if found, or `None` if the address cannot be resolved
     pub fn resolve_address_to_location(
         &self,
@@ -238,19 +243,19 @@ impl<'db> DebugInfo<'db> {
     }
 
     /// Resolves a source file position to a memory address.
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `file` - The source file path
     /// * `line` - The line number in the source file
     /// * `column` - Optional column number
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// The memory address if the position can be resolved
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// # use rust_debuginfo::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new().unwrap();
@@ -271,23 +276,23 @@ impl<'db> DebugInfo<'db> {
     }
 
     /// Resolves variables visible at a given memory address.
-    /// 
+    ///
     /// This method returns three categories of variables:
     /// - Function parameters
     /// - Local variables
     /// - Global variables
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `address` - The memory address to inspect
     /// * `data_resolver` - Interface for reading memory and register values
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// A tuple of (parameters, locals, globals)
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// # use rust_debuginfo::{DebugDb, DebugInfo, DataResolver};
     /// # struct MyResolver;
@@ -302,7 +307,7 @@ impl<'db> DebugInfo<'db> {
     /// let (params, locals, globals) = debug_info
     ///     .resolve_variables_at_address(0x12345, &resolver)
     ///     .unwrap();
-    /// println!("Found {} parameters, {} locals, {} globals", 
+    /// println!("Found {} parameters, {} locals, {} globals",
     ///          params.len(), locals.len(), globals.len());
     /// ```
     pub fn resolve_variables_at_address(

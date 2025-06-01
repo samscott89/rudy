@@ -4,7 +4,6 @@
 
 use anyhow::Result;
 use rust_debuginfo::{DataResolver, DebugDb, DebugInfo};
-use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 struct DummyResolver;

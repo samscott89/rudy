@@ -28,7 +28,10 @@ pub fn function_address<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<FunctionA
         let (start, end) = match to_range(ranges) {
             Ok(Some((start, end))) => (start, end),
             Ok(None) => {
-                db.report_critical(format!("No address range found for function"));
+                db.report_critical(format!(
+                    "No address range found for function: {}",
+                    die.print(db)
+                ));
                 return None;
             }
             Err(e) => {

@@ -1,0 +1,6 @@
+---
+source: tests/mod.rs
+expression: "debug_info.resolve_function(\"TestStruct1::method_1\").unwrap()"
+snapshot_kind: text
+---
+None

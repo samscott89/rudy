@@ -146,14 +146,14 @@ pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
 
 impl DebugDatabaseImpl {
     /// Creates a new debug database instance.
-    /// 
+    ///
     /// The database manages the loading and caching of debug information from binary files.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```no_run
     /// use rust_debuginfo::DebugDb;
-    /// 
+    ///
     /// let db = DebugDb::new().expect("Failed to create database");
     /// ```
     pub fn new() -> Result<Self> {
@@ -170,6 +170,9 @@ impl DebugDatabaseImpl {
             .values()
             .copied()
             .collect::<Vec<_>>();
+
+        // warm the index
+        let _ = crate::index::build_index(self, bin);
 
         Ok((bin, debug_files))
     }

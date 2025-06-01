@@ -3,29 +3,25 @@
 //! Run with: cargo bench --bench comparison
 
 use anyhow::Result;
-use rust_debuginfo::{DebugDb, DebugInfo};
+use rust_debuginfo::{DebugDb, DebugInfo, ResolvedLocation};
 use std::io::Write;
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-/// Test addresses to resolve (these would be real addresses from your binary)
-const TEST_ADDRESSES: &[u64] = &[
-    0x100001000,
-    0x100002000,
-    0x100003000,
-    0x100004000,
-    0x100005000,
-    0x100006000,
-    0x100007000,
-    0x100008000,
-    0x100009000,
-    0x10000a000,
+/// Function names to look up - these match what we generate in test binaries
+const TEST_FUNCTIONS: &[&str] = &[
+    "main",
+    "TestStruct0::method_0",
+    "TestStruct1::method_1",
+    "TestStruct2::method_2",
+    "TestStruct4::method_4",
 ];
 
 #[derive(Debug)]
 struct BenchmarkResult {
     name: String,
-    cold_start: Duration,
+    init_only: Duration,  // Time to just load/attach, no queries
+    cold_start: Duration, // Time to first query result
     warm_queries: Duration,
     memory_mb: f64,
 }
@@ -33,54 +29,113 @@ struct BenchmarkResult {
 fn main() -> Result<()> {
     let binary_path = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "./target/debug/rust_debuginfo".to_string());
+        .unwrap_or_else(|| "./benches/test_binaries/medium".to_string());
 
     println!("Benchmarking with binary: {}", binary_path);
     println!("================================================\n");
 
+    // First, find addresses for our test functions
+    let test_addresses = find_test_addresses(&binary_path)?;
+    if test_addresses.is_empty() {
+        return Err(anyhow::anyhow!("No test functions found in binary"));
+    }
+
+    println!(
+        "Found {} test functions to benchmark\n",
+        test_addresses.len()
+    );
+
     // Run benchmarks
-    let rust_debuginfo_result = benchmark_rust_debuginfo(&binary_path)?;
-    let lldb_python_result = benchmark_lldb_python(&binary_path)?;
-    let lldb_cli_result = benchmark_lldb_cli(&binary_path)?;
+    let rust_debuginfo_result = benchmark_rust_debuginfo(&binary_path, &test_addresses)?;
+    let lldb_python_result = benchmark_lldb_python(&binary_path, &test_addresses)?;
+    let lldb_cli_result = benchmark_lldb_cli(&binary_path, &test_addresses)?;
 
     // Print results
-    print_results(&[rust_debuginfo_result, lldb_python_result, lldb_cli_result]);
+    print_results(
+        &[rust_debuginfo_result, lldb_python_result, lldb_cli_result],
+        test_addresses.len(),
+    );
 
     Ok(())
 }
 
-fn benchmark_rust_debuginfo(binary_path: &str) -> Result<BenchmarkResult> {
-    println!("Benchmarking rust-debuginfo...");
-
-    // Cold start - time to first query
-    let cold_start_begin = Instant::now();
+fn find_test_addresses(binary_path: &str) -> Result<Vec<(u64, String)>> {
     let db = DebugDb::new()?;
     let debug_info = DebugInfo::new(&db, binary_path)?;
 
-    // First query
-    let _first_result = debug_info.address_to_line(TEST_ADDRESSES[0]);
+    let mut addresses = Vec::new();
+
+    for func_name in TEST_FUNCTIONS {
+        match debug_info.resolve_function(func_name)? {
+            Some(func) => {
+                println!("  Found {} at {:#x}", func_name, func.address);
+                addresses.push((func.address, func_name.to_string()));
+            }
+            None => {
+                println!("  Warning: {} not found", func_name);
+            }
+        }
+    }
+
+    Ok(addresses)
+}
+
+fn benchmark_rust_debuginfo(
+    binary_path: &str,
+    test_addresses: &[(u64, String)],
+) -> Result<BenchmarkResult> {
+    println!("Benchmarking rust-debuginfo...");
+
+    // Init only - just load the binary, no queries
+    let init_start = Instant::now();
+    let db = DebugDb::new()?;
+    let debug_info = DebugInfo::new(&db, binary_path)?;
+    let init_only = init_start.elapsed();
+
+    // Cold start - time to first query
+    let cold_start_begin = Instant::now();
+    let first_result = debug_info.address_to_line(test_addresses[0].0);
     let cold_start = cold_start_begin.elapsed();
+
+    // Validate first result
+    if let Some(loc) = first_result {
+        println!(
+            "  First query validated: {} -> {}:{}",
+            test_addresses[0].1, loc.file, loc.line
+        );
+    }
 
     // Warm queries - benefit from caching
     let warm_start = Instant::now();
-    for &addr in TEST_ADDRESSES {
-        let _ = debug_info.address_to_line(addr);
+    let mut found = 0;
+    for (addr, _name) in test_addresses {
+        if debug_info.address_to_line(*addr).is_some() {
+            found += 1;
+        }
     }
     let warm_queries = warm_start.elapsed();
+    println!("  Resolved {}/{} addresses", found, test_addresses.len());
 
-    // Measure memory (approximate)
+    // Measure memory after all operations
     let memory_mb = get_process_memory_mb();
 
     Ok(BenchmarkResult {
         name: "rust-debuginfo".to_string(),
+        init_only,
         cold_start,
         warm_queries,
         memory_mb,
     })
 }
 
-fn benchmark_lldb_python(binary_path: &str) -> Result<BenchmarkResult> {
+fn benchmark_lldb_python(
+    binary_path: &str,
+    test_addresses: &[(u64, String)],
+) -> Result<BenchmarkResult> {
     println!("Benchmarking LLDB Python API...");
+
+    // Extract just the addresses
+    let addrs: Vec<u64> = test_addresses.iter().map(|(a, _)| *a).collect();
 
     // Create Python script
     let python_script = format!(
@@ -92,30 +147,40 @@ import os
 
 binary_path = "{}"
 addresses = {}
+names = {}
 
-# Cold start
-cold_start = time.time()
+# Init only - just create target
+init_start = time.time()
 debugger = lldb.SBDebugger.Create()
 target = debugger.CreateTarget(binary_path)
+init_time = time.time() - init_start
 
-# First query
+# Cold start - time to first query
+cold_start = time.time()
 addr = target.ResolveLoadAddress(addresses[0])
 sym = addr.GetSymbol()
+line_entry = addr.GetLineEntry()
+if line_entry.IsValid():
+    print(f"VALIDATION: {{names[0]}} -> {{line_entry.GetFileSpec().GetFilename()}}:{{line_entry.GetLine()}}")
 cold_time = time.time() - cold_start
 
 # Warm queries
 warm_start = time.time()
-for addr_val in addresses:
+found = 0
+for i, addr_val in enumerate(addresses):
     addr = target.ResolveLoadAddress(addr_val)
     sym = addr.GetSymbol()
-    # Get line info
     line_entry = addr.GetLineEntry()
+    if line_entry.IsValid():
+        found += 1
 warm_time = time.time() - warm_start
+print(f"FOUND:{{found}}/{{len(addresses)}}")
 
 # Memory usage
 process = psutil.Process(os.getpid())
 memory_mb = process.memory_info().rss / 1024 / 1024
 
+print(f"INIT_ONLY:{{init_time}}")
 print(f"COLD_START:{{cold_time}}")
 print(f"WARM_QUERIES:{{warm_time}}")
 print(f"MEMORY_MB:{{memory_mb}}")
@@ -123,7 +188,11 @@ print(f"MEMORY_MB:{{memory_mb}}")
 lldb.SBDebugger.Destroy(debugger)
 "#,
         binary_path,
-        format!("{:?}", TEST_ADDRESSES)
+        format!("{:?}", addrs),
+        format!(
+            "{:?}",
+            test_addresses.iter().map(|(_, n)| n).collect::<Vec<_>>()
+        )
     );
 
     // get lldb path
@@ -151,32 +220,60 @@ lldb.SBDebugger.Destroy(debugger)
 
     // Parse results
     let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Print validation info if present
+    if let Some(validation) = stdout.lines().find(|l| l.starts_with("VALIDATION:")) {
+        println!(
+            "  First query validated: {}",
+            validation.trim_start_matches("VALIDATION:")
+        );
+    }
+    if let Some(found) = stdout.lines().find(|l| l.starts_with("FOUND:")) {
+        println!("  Resolved {}", found.trim_start_matches("FOUND:"));
+    }
+
+    let init_only = parse_duration(&stdout, "INIT_ONLY:")?;
     let cold_start = parse_duration(&stdout, "COLD_START:")?;
     let warm_queries = parse_duration(&stdout, "WARM_QUERIES:")?;
     let memory_mb = parse_float(&stdout, "MEMORY_MB:")?;
 
     Ok(BenchmarkResult {
         name: "LLDB Python API".to_string(),
+        init_only,
         cold_start,
         warm_queries,
         memory_mb,
     })
 }
 
-fn benchmark_lldb_cli(binary_path: &str) -> Result<BenchmarkResult> {
+fn benchmark_lldb_cli(
+    binary_path: &str,
+    test_addresses: &[(u64, String)],
+) -> Result<BenchmarkResult> {
     println!("Benchmarking LLDB CLI...");
 
     // Create batch commands
     let mut commands = vec![format!("target create {}", binary_path)];
-    for addr in TEST_ADDRESSES {
+    for (addr, _name) in test_addresses {
         commands.push(format!("image lookup -a {:#x}", addr));
     }
     commands.push("quit".to_string());
     let batch_commands = commands.join("\n");
 
-    // Cold start - includes LLDB startup
-    let cold_start_begin = Instant::now();
+    // Init only - just create target
+    let init_start = Instant::now();
     let _output = Command::new("lldb")
+        .arg("-b")
+        .arg("-o")
+        .arg(&commands[0])
+        .arg("-o")
+        .arg("quit")
+        .output()?;
+    let init_only = init_start.elapsed();
+
+    // Cold start - includes first query
+    let cold_start_begin = Instant::now();
+    let output = Command::new("lldb")
         .arg("-b")
         .arg("-o")
         .arg(&commands[0])
@@ -185,7 +282,13 @@ fn benchmark_lldb_cli(binary_path: &str) -> Result<BenchmarkResult> {
         .arg("-o")
         .arg("quit")
         .output()?;
-    let cold_start = cold_start_begin.elapsed();
+    let cold_start = cold_start_begin.elapsed() - init_only; // Subtract init time
+
+    // Quick validation check
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    if output_str.contains("Summary:") {
+        println!("  First query validated (found symbol info)");
+    }
 
     // Warm queries - run all queries in one session
     let warm_start = Instant::now();
@@ -208,6 +311,7 @@ fn benchmark_lldb_cli(binary_path: &str) -> Result<BenchmarkResult> {
 
     Ok(BenchmarkResult {
         name: "LLDB CLI".to_string(),
+        init_only,
         cold_start,
         warm_queries,
         memory_mb,
@@ -232,19 +336,63 @@ fn parse_float(output: &str, prefix: &str) -> Result<f64> {
 }
 
 fn get_process_memory_mb() -> f64 {
-    // Simple approximation - in real benchmark use proper memory measurement
+    // Get current process memory usage
+    #[cfg(target_os = "macos")]
+    {
+        use std::mem;
+        use std::os::raw::c_int;
+
+        #[repr(C)]
+        struct RUsage {
+            ru_utime: [i64; 2],
+            ru_stime: [i64; 2],
+            ru_maxrss: i64, // Maximum resident set size in bytes on macOS
+            _rest: [i64; 14],
+        }
+
+        unsafe extern "C" {
+            fn getrusage(who: c_int, usage: *mut RUsage) -> c_int;
+        }
+
+        const RUSAGE_SELF: c_int = 0;
+        let mut usage: RUsage = unsafe { mem::zeroed() };
+
+        if unsafe { getrusage(RUSAGE_SELF, &mut usage) } == 0 {
+            // On macOS, ru_maxrss is in bytes
+            return usage.ru_maxrss as f64 / 1024.0 / 1024.0;
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // On Linux, read from /proc/self/status
+        if let Ok(status) = std::fs::read_to_string("/proc/self/status") {
+            for line in status.lines() {
+                if line.starts_with("VmRSS:") {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 2 {
+                        if let Ok(kb) = parts[1].parse::<f64>() {
+                            return kb / 1024.0; // Convert KB to MB
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback
     0.0
 }
 
 fn format_duration(dur: &Duration) -> String {
     if dur.as_millis() == 0 {
-        format!("{:>8.2} ms", (dur.as_micros() as f64) / 1000f64)
+        format!("{:>8.3} ms", (dur.as_micros() as f64) / 1000f64)
     } else {
-        format!("{:>8.2} ms", dur.as_millis())
+        format!("{:>8.3} ms", dur.as_millis())
     }
 }
 
-fn print_results(results: &[BenchmarkResult]) {
+fn print_results(results: &[BenchmarkResult], num_test_addresses: usize) {
     println!("\n📊 Benchmark Results");
     println!("===================\n");
 
@@ -253,11 +401,12 @@ fn print_results(results: &[BenchmarkResult]) {
 
     for result in results {
         println!("📦 {}", result.name);
-        println!("  Cold start:    {}", format_duration(&result.cold_start));
+        println!("  Init only:     {}", format_duration(&result.init_only));
+        println!("  First query:   {}", format_duration(&result.cold_start));
         println!(
             "  Warm queries:  {} ({:.1} ms/query)",
             format_duration(&result.warm_queries),
-            result.warm_queries.as_millis() as f64 / TEST_ADDRESSES.len() as f64
+            result.warm_queries.as_millis() as f64 / num_test_addresses as f64
         );
         if result.memory_mb > 0.0 {
             println!("  Memory usage:  {:>8.1} MB", result.memory_mb);
@@ -265,11 +414,17 @@ fn print_results(results: &[BenchmarkResult]) {
 
         // Show speedup vs baseline
         if result.name != baseline.name {
+            let init_speedup = baseline.init_only.as_secs_f64() / result.init_only.as_secs_f64();
             let cold_speedup = baseline.cold_start.as_secs_f64() / result.cold_start.as_secs_f64();
             let warm_speedup =
                 baseline.warm_queries.as_secs_f64() / result.warm_queries.as_secs_f64();
 
             println!("\n  vs rust-debuginfo:");
+            if init_speedup > 1.0 {
+                println!("    Init: {:.1}x faster ✅", init_speedup);
+            } else {
+                println!("    Init: {:.1}x slower ❌", 1.0 / init_speedup);
+            }
             if cold_speedup > 1.0 {
                 println!("    Cold: {:.1}x faster ✅", cold_speedup);
             } else {
