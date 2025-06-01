@@ -1,10 +1,10 @@
 //! Variable resolution from DWARF debugging information
 
-use crate::data::TypeDef;
 use crate::database::Db;
 use crate::dwarf::die::declaration_file;
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
 use crate::file::{Binary, SourceFile};
+use crate::typedef::TypeDef;
 use crate::types::FunctionIndexEntry;
 
 /// Tracked variable information

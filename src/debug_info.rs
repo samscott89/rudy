@@ -3,7 +3,6 @@ use std::fmt;
 
 use crate::{
     ResolvedLocation,
-    data::TypeDef,
     database::{Db, Diagnostic, handle_diagnostics},
     dwarf::{self, resolve_function_variables},
     file::Binary,
@@ -12,6 +11,7 @@ use crate::{
     query::{
         find_closest_match, lookup_address, lookup_closest_function, lookup_position, test_get_def,
     },
+    typedef::TypeDef,
     types::{Address, FunctionIndexEntry, NameId, Position},
 };
 

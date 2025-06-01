@@ -2,11 +2,11 @@
 
 use itertools::Itertools;
 
-use crate::data::TypeDef;
 use crate::database::Db;
 use crate::dwarf;
 use crate::file::{Binary, SourceFile};
 use crate::index;
+use crate::typedef::TypeDef;
 use crate::types::{Address, FunctionIndexEntry, NameId, Position};
 
 #[salsa::tracked]

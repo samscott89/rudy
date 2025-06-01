@@ -36,6 +36,7 @@ mod formatting;
 mod index;
 mod outputs;
 mod query;
+mod typedef;
 mod types;
 
 // re-exports

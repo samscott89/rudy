@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use crate::data::{
+use crate::database::Db;
+use crate::dwarf::Die;
+use crate::typedef::{
     ArrayDef, DefKind, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef, StructDef,
     StructField, TypeDef, UnsignedIntDef,
 };
-use crate::database::Db;
-use crate::dwarf::Die;
 use crate::types::NameId;
 
 /// Resolve the full type for a DIE entry

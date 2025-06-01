@@ -1,4 +1,4 @@
-//! Functionality for introspecting Rust data types
+//! Definition of types in the Rust language.
 
 use anyhow::Result;
 use std::sync::Arc;
