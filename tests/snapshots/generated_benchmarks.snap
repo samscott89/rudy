@@ -90,48 +90,11 @@ DebugInfo {
             name_to_file: {
                 NameId {
                     path: [
-                        "std",
-                        "rt",
-                    ],
-                    name: "lang_start",
-                }: DebugFile {
-                    [salsa id]: Id(800),
-                    file: File {
-                        [salsa id]: Id(1),
-                        path: "/Users/sam/work/rust_debuginfo/benches/test_binaries/medium.medium.b63b38f5b684d51-cgu.0.rcgu.o",
-                        member_file: None,
-                        mtime: SystemTime {
-                            tv_sec: 1748794982,
-                            tv_nsec: 474594838,
-                        },
-                        size: 183000,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [],
-                    name: "core",
-                }: DebugFile {
-                    [salsa id]: Id(803),
-                    file: File {
-                        [salsa id]: Id(4),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/liballoc-4dcacaba2763a32f.rlib",
-                        member_file: Some(
-                            "alloc-4dcacaba2763a32f.alloc.b2f5842f192e62d9-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226307,
-                            tv_nsec: 538550820,
-                        },
-                        size: 6916528,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
                         "core",
+                        "fmt",
+                        "{impl#73}",
                     ],
-                    name: "fmt",
+                    name: "fmt<str>",
                 }: DebugFile {
                     [salsa id]: Id(803),
                     file: File {
@@ -152,8 +115,9 @@ DebugInfo {
                     path: [
                         "core",
                         "fmt",
+                        "{impl#73}",
                     ],
-                    name: "{impl#73}",
+                    name: "fmt<usize>",
                 }: DebugFile {
                     [salsa id]: Id(803),
                     file: File {
@@ -173,43 +137,23 @@ DebugInfo {
                 NameId {
                     path: [
                         "core",
+                        "fmt",
+                        "{impl#73}",
                     ],
-                    name: "num",
+                    name: "fmt<core::option::Option<usize>>",
                 }: DebugFile {
-                    [salsa id]: Id(804),
+                    [salsa id]: Id(803),
                     file: File {
-                        [salsa id]: Id(5),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib",
+                        [salsa id]: Id(4),
+                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/liballoc-4dcacaba2763a32f.rlib",
                         member_file: Some(
-                            "core-cb0c9cf4eb38587d.core.7ef867844175194f-cgu.0.rcgu.o",
+                            "alloc-4dcacaba2763a32f.alloc.b2f5842f192e62d9-cgu.0.rcgu.o",
                         ),
                         mtime: SystemTime {
                             tv_sec: 1748226307,
-                            tv_nsec: 418322285,
+                            tv_nsec: 538550820,
                         },
-                        size: 45548928,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
-                        "core",
-                        "num",
-                    ],
-                    name: "dec2flt",
-                }: DebugFile {
-                    [salsa id]: Id(804),
-                    file: File {
-                        [salsa id]: Id(5),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libcore-cb0c9cf4eb38587d.rlib",
-                        member_file: Some(
-                            "core-cb0c9cf4eb38587d.core.7ef867844175194f-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226307,
-                            tv_nsec: 418322285,
-                        },
-                        size: 45548928,
+                        size: 6916528,
                     },
                     relocatable: false,
                 },
@@ -218,8 +162,10 @@ DebugInfo {
                         "core",
                         "num",
                         "dec2flt",
+                        "decimal_seq",
+                        "DecimalSeq",
                     ],
-                    name: "decimal_seq",
+                    name: "left_shift",
                 }: DebugFile {
                     [salsa id]: Id(804),
                     file: File {
@@ -242,8 +188,9 @@ DebugInfo {
                         "num",
                         "dec2flt",
                         "decimal_seq",
+                        "DecimalSeq",
                     ],
-                    name: "DecimalSeq",
+                    name: "right_shift",
                 }: DebugFile {
                     [salsa id]: Id(804),
                     file: File {
@@ -263,30 +210,9 @@ DebugInfo {
                 NameId {
                     path: [
                         "core",
-                    ],
-                    name: "ptr",
-                }: DebugFile {
-                    [salsa id]: Id(802),
-                    file: File {
-                        [salsa id]: Id(3),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libpanic_unwind-2fb98e436afedaee.rlib",
-                        member_file: Some(
-                            "panic_unwind-2fb98e436afedaee.panic_unwind.b3d259e86e13da9c-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226307,
-                            tv_nsec: 420708087,
-                        },
-                        size: 37304,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
-                        "core",
                         "ptr",
                     ],
-                    name: "const_ptr",
+                    name: "drop_in_place<alloc::boxed::Box<panic_unwind::imp::Exception, alloc::alloc::Global>>",
                 }: DebugFile {
                     [salsa id]: Id(802),
                     file: File {
@@ -300,163 +226,16 @@ DebugInfo {
                             tv_nsec: 420708087,
                         },
                         size: 37304,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
-                        "core",
-                        "ptr",
-                        "const_ptr",
-                    ],
-                    name: "{impl#0}",
-                }: DebugFile {
-                    [salsa id]: Id(802),
-                    file: File {
-                        [salsa id]: Id(3),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libpanic_unwind-2fb98e436afedaee.rlib",
-                        member_file: Some(
-                            "panic_unwind-2fb98e436afedaee.panic_unwind.b3d259e86e13da9c-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226307,
-                            tv_nsec: 420708087,
-                        },
-                        size: 37304,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [],
-                    name: "alloc",
-                }: DebugFile {
-                    [salsa id]: Id(801),
-                    file: File {
-                        [salsa id]: Id(2),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib",
-                        member_file: Some(
-                            "std-087e3eb6eb18e200.std.dece160403b877c5-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226306,
-                            tv_nsec: 573397746,
-                        },
-                        size: 16001440,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
-                        "alloc",
-                    ],
-                    name: "collections",
-                }: DebugFile {
-                    [salsa id]: Id(801),
-                    file: File {
-                        [salsa id]: Id(2),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib",
-                        member_file: Some(
-                            "std-087e3eb6eb18e200.std.dece160403b877c5-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226306,
-                            tv_nsec: 573397746,
-                        },
-                        size: 16001440,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
-                        "alloc",
-                        "collections",
-                    ],
-                    name: "btree",
-                }: DebugFile {
-                    [salsa id]: Id(801),
-                    file: File {
-                        [salsa id]: Id(2),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib",
-                        member_file: Some(
-                            "std-087e3eb6eb18e200.std.dece160403b877c5-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226306,
-                            tv_nsec: 573397746,
-                        },
-                        size: 16001440,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
-                        "alloc",
-                        "collections",
-                        "btree",
-                    ],
-                    name: "navigate",
-                }: DebugFile {
-                    [salsa id]: Id(801),
-                    file: File {
-                        [salsa id]: Id(2),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib",
-                        member_file: Some(
-                            "std-087e3eb6eb18e200.std.dece160403b877c5-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226306,
-                            tv_nsec: 573397746,
-                        },
-                        size: 16001440,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [
-                        "alloc",
-                        "collections",
-                        "btree",
-                        "navigate",
-                    ],
-                    name: "LazyLeafRange",
-                }: DebugFile {
-                    [salsa id]: Id(801),
-                    file: File {
-                        [salsa id]: Id(2),
-                        path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/lib/libstd-087e3eb6eb18e200.rlib",
-                        member_file: Some(
-                            "std-087e3eb6eb18e200.std.dece160403b877c5-cgu.0.rcgu.o",
-                        ),
-                        mtime: SystemTime {
-                            tv_sec: 1748226306,
-                            tv_nsec: 573397746,
-                        },
-                        size: 16001440,
-                    },
-                    relocatable: false,
-                },
-                NameId {
-                    path: [],
-                    name: "std",
-                }: DebugFile {
-                    [salsa id]: Id(800),
-                    file: File {
-                        [salsa id]: Id(1),
-                        path: "/Users/sam/work/rust_debuginfo/benches/test_binaries/medium.medium.b63b38f5b684d51-cgu.0.rcgu.o",
-                        member_file: None,
-                        mtime: SystemTime {
-                            tv_sec: 1748794982,
-                            tv_nsec: 474594838,
-                        },
-                        size: 183000,
                     },
                     relocatable: false,
                 },
                 NameId {
                     path: [
                         "std",
+                        "rt",
+                        "lang_start",
                     ],
-                    name: "rt",
+                    name: "{closure#0}<()>",
                 }: DebugFile {
                     [salsa id]: Id(800),
                     file: File {
@@ -473,15 +252,7 @@ DebugInfo {
                 },
             },
             source_to_file: {},
-            base_address: {
-                NameId {
-                    path: [
-                        "std",
-                        "rt",
-                    ],
-                    name: "lang_start",
-                }: 4294969728,
-            },
+            base_address: {},
             address_info: AddressTree {
                 root: None,
             },

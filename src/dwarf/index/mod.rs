@@ -2,23 +2,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::loader::RawDie;
+use super::Die;
+use super::loader::{Offset, RawDie};
 use super::unit::UnitRef;
-use super::utils::{get_lang_attr, get_string_attr, get_string_attr_raw, to_range};
+use super::utils::{get_lang_attr, get_string_attr, pretty_print_die_entry, to_range};
 use super::visitor::{DieVisitor, DieWalker, walk_file};
-use super::{CompilationUnitId, Die};
 use crate::address_tree::AddressTree;
 use crate::database::Db;
-use crate::dwarf::navigation::get_roots;
-use crate::dwarf::utils::pretty_print_die_entry;
-use crate::file::{DebugFile, File, SourceFile};
+use crate::dwarf::resolution::{FunctionDeclarationType, get_declaration_type};
+use crate::file::{DebugFile, SourceFile};
 use crate::types::NameId;
-
-// mod symbols;
-// mod types;
-
-// pub use symbols::index_symbols;
-// pub use types::index_types;
 
 /// Pre-computed index for fast lookups
 #[salsa::tracked(debug)]
@@ -36,6 +29,7 @@ pub struct FileIndexData<'db> {
     pub types: BTreeMap<NameId<'db>, TypeIndexEntry<'db>>,
     pub sources: BTreeSet<SourceFile<'db>>,
     pub function_addresses: AddressTree<'db>,
+    function_declarations: BTreeMap<Offset, NameId<'db>>,
 }
 
 #[salsa::tracked(debug)]
@@ -109,126 +103,123 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         entry: RawDie<'a>,
         unit_ref: UnitRef<'a>,
     ) {
-        let Some(function_name) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
-            .ok()
-            .flatten()
-        else {
-            tracing::debug!(
-                "No function name found for entry: {}",
-                pretty_print_die_entry(&entry, &unit_ref)
-            );
-            return;
-        };
-        let linkage_name = get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref)
-            .ok()
-            .flatten();
+        let function_declaration_type = get_declaration_type(walker.db, &entry, &unit_ref);
 
-        let name = NameId::new(
-            walker.db,
-            walker.visitor.current_path.clone(),
-            function_name.clone(),
-        );
+        match function_declaration_type {
+            FunctionDeclarationType::Closure => {
+                // skip for now
+                return;
+            }
+            FunctionDeclarationType::ClassMethodDeclaration | FunctionDeclarationType::Function => {
+                let Some(function_name) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
+                    .ok()
+                    .flatten()
+                else {
+                    tracing::debug!(
+                        "No function name found for entry: {}",
+                        pretty_print_die_entry(&entry, &unit_ref)
+                    );
+                    return;
+                };
+                let linkage_name = get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref)
+                    .ok()
+                    .flatten();
 
-        // find the name in the functions map
-        let relative_address_range = match unit_ref
-            .die_ranges(&entry)
-            .map_err(anyhow::Error::from)
-            .and_then(to_range)
-        {
-            Ok(Some((start, end))) => Some((start, end)),
-            Ok(None) => None,
-            Err(e) => {
-                walker
-                    .db
-                    .report_critical(format!("Failed to get ranges: {e}"));
-                None
+                let name = NameId::new(
+                    walker.db,
+                    walker.visitor.current_path.clone(),
+                    function_name.clone(),
+                );
+
+                // find the name in the functions map
+                let relative_address_range = match unit_ref
+                    .die_ranges(&entry)
+                    .map_err(anyhow::Error::from)
+                    .and_then(to_range)
+                {
+                    Ok(Some((start, end))) => Some((start, end)),
+                    Ok(None) => None,
+                    Err(e) => {
+                        walker
+                            .db
+                            .report_critical(format!("Failed to get ranges: {e}"));
+                        None
+                    }
+                };
+
+                let existing = walker.visitor.data.functions.insert(
+                    name,
+                    FunctionIndexEntry {
+                        declaration_die: walker.get_die(entry),
+                        relative_address_range,
+                        linkage_name,
+                        specification_die: None,
+                    },
+                );
+
+                debug_assert!(
+                    existing.is_none(),
+                    "Duplicate function declaration: {}",
+                    name.as_path(walker.db),
+                );
+            }
+            FunctionDeclarationType::ClassMethodImplementation(declaration_offset) => {
+                let name = walker
+                    .visitor
+                    .data
+                    .function_declarations
+                    .get(&declaration_offset)
+                    .cloned();
+                if let Some(name) = name {
+                    let spec_die = walker.get_die(entry.clone());
+                    if let Some(declaration) = walker.visitor.data.functions.get_mut(&name) {
+                        // this is an implementation of a class method
+                        // we can update the existing entry with the implementation DIE
+                        declaration.specification_die = Some(spec_die);
+
+                        // find the name in the functions map
+                        let relative_address_range = match unit_ref
+                            .die_ranges(&entry)
+                            .map_err(anyhow::Error::from)
+                            .and_then(to_range)
+                        {
+                            Ok(Some((start, end))) => Some((start, end)),
+                            Ok(None) => None,
+                            Err(e) => {
+                                walker
+                                    .db
+                                    .report_critical(format!("Failed to get ranges: {e}"));
+                                None
+                            }
+                        };
+                        if let Some(relative_address_range) = relative_address_range {
+                            // update the relative address range
+                            declaration
+                                .relative_address_range
+                                .get_or_insert(relative_address_range);
+                        } else {
+                            tracing::debug!(
+                                "No address range found for function: {}",
+                                pretty_print_die_entry(&entry, &unit_ref)
+                            );
+                        }
+                    } else {
+                        tracing::debug!(
+                            "No function declaration found for offset: {declaration_offset:?}"
+                        );
+                    }
+                } else {
+                    tracing::debug!(
+                        "No function declaration found for offset: {declaration_offset:?}"
+                    );
+                }
+            }
+            FunctionDeclarationType::InlinedFunction
+            | FunctionDeclarationType::InlinedFunctionImplementation(_) => {
+                // skip inlined functions for now
+                return;
             }
         };
-
-        walker.visitor.data.functions.insert(
-            name,
-            FunctionIndexEntry {
-                declaration_die: walker.get_die(entry),
-                relative_address_range,
-                linkage_name: None,
-                specification_die: None,
-            },
-        );
-
-        // // skip if it references some other type?
-        // if die
-        //     .attr_value(gimli::DW_AT_specification)
-        //     .is_ok_and(|v| v.is_some())
-        // {
-        //     continue;
-        // }
-
-        // if die
-        //     .attr_value(gimli::DW_AT_abstract_origin)
-        //     .is_ok_and(|v| v.is_some())
-        // {
-        //     continue;
-        // }
-
-        // if die
-        //     .attr_value(gimli::DW_AT_external)
-        //     .is_ok_and(|v| v.is_some())
-        // {
-        //     // external symbol -- skip
-        //     continue;
-        // }
-        // if die
-        //     .attr_value(gimli::DW_AT_prototyped)
-        //     .is_ok_and(|v| v.is_some())
-        // {
-        //     // external symbol -- skip
-        //     continue;
-        // }
-
-        // // TODO: future cases to handle:
-        // // 1. DW_AT_declaration = Flag(true)
-        // //    - we have an _incomplete_ declaration of a function
-        // //      and need to find what completes it
-        // // 2. DW_AT_specification = Flag(true)
-        // //    - we have a function that is defined in another
-        // //      compilation unit, and we need to find that unit
-        // // 3. DW_AT_inline = Inline(DW_INL_inlined)
-        // //    - An inlined function
-        // let linkage_name_bytes =
-        //     match get_string_attr_raw(die, gimli::DW_AT_linkage_name, &unit_ref) {
-        //         Ok(Some(name)) => name,
-        //         Ok(None) => {
-        //             let entry = pretty_print_die_entry(die, &unit_ref);
-        //             tracing::error!("No linkage name attribute: \n{entry} in {}", file.path(db));
-        //             db.report_critical(format!("no linkage name attribute?"));
-        //             continue;
-        //         }
-        //         Err(e) => {
-        //             db.report_critical(format!("Failed to get linkage name attribute: {e}"));
-        //             continue;
-        //         }
-        //     };
-
-        // // find the name in the functions map
-        // match unit_ref
-        //     .die_ranges(die)
-        //     .map_err(anyhow::Error::from)
-        //     .and_then(to_range)
-        // {
-        //     Ok(Some((start, end))) => {
-        //         address_range_to_function.push((start, end, name));
-        //     }
-        //     Ok(None) => {}
-        //     Err(e) => {
-        //         db.report_critical(format!("Failed to get ranges: {e}"));
-        //         continue;
-        //     }
-        // };
-
-        // let die_entry = Die::new(db, file, cu_offset, die.offset());
-        // tracing::debug!("got function info for {}", name.as_path(db),);
-        // function_name_to_die.insert(name, FunctionIndexEntry::new(db, die_entry));
-        // recurse = false;
     }
 }
 

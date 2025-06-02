@@ -50,11 +50,10 @@ pub fn resolve_function_variables<'db>(
         db.report_critical(format!("Failed to get file for function"));
         return ResolvedVariables::new(db, params, locals, globals);
     };
-    todo!();
 
-    // let index = crate::index::build_index(db, binary).data(db);
+    // let index = crate::index::debug_index(db, binary).data(db);
 
-    // for (global_symbol, symbol_index) in &index.symbol_name_to_die {
+    // for (global_symbol, symbol_index) in &index. {
     //     let symbol_entry = symbol_index.die(db);
     //     if declaration_file(db, symbol_entry) == Some(function_decl_file) {
     //         tracing::debug!(

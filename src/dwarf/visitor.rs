@@ -122,6 +122,10 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         self.walk_generic_children();
     }
 
+    pub fn walk_function(&mut self) {
+        self.walk_generic_children();
+    }
+
     // pub fn walk_namespace(&mut self, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
     //     if let Some(mut tree) = self
     //         .unit_ref
@@ -269,8 +273,9 @@ pub trait DieVisitor<'db>: Sized {
     fn visit_function<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
+        _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_function();
     }
 
     /// Visit a struct type

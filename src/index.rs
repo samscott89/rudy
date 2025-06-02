@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 
-use object::Object;
+use object::{Object, ObjectSymbol};
 
 use crate::address_tree::{AddressTree, FunctionAddressInfo};
 use crate::database::Db;
@@ -146,7 +146,7 @@ impl<'db> IndexData<'db> {
                 let file_path = file.file(db).path(db);
                 if existing_file_path != file_path {
                     tracing::warn!(
-                        "Function {} found in multiple files: {existing_file_path} and {file_path}",
+                        "Symbol {} found in multiple files: {existing_file_path} and {file_path}",
                         name.name(db),
                     );
                 }
@@ -198,9 +198,26 @@ fn get_symbol_map<'db>(
             return Default::default();
         }
     };
-    let object = &loaded_file.object;
 
-    let mut map = BTreeMap::new();
+    let mut map: BTreeMap<NameId<'_>, (u64, String, Option<String>)> = BTreeMap::new();
+
+    // find symbols in the main binary file
+    let object = &loaded_file.object;
+    for s in object.symbols() {
+        let name = match s.name_bytes() {
+            Ok(name) => name,
+            Err(e) => {
+                db.report_error(format!("Failed to parse symbol name: {e}"));
+                continue;
+            }
+        };
+        let symbol = Symbol::new(db, name);
+        let demangled_name = demangle(db, symbol);
+        map.insert(
+            demangled_name,
+            (s.address(), binary_file.path(db).to_string(), None),
+        );
+    }
 
     // find the symbol in the object file
     let object_map = object.object_map();
@@ -259,6 +276,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     let mut address_info = Vec::new();
 
     for ((path, member), debug_file) in debug_files.iter() {
+        // let is_relocatable = debug_file.relocatable(db);
         let file = debug_file.file(db);
         let indexed = dwarf::build_file_index(db, *debug_file).data(db);
         for name in indexed
@@ -266,16 +284,18 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             .keys()
             .chain(indexed.types.keys())
             .chain(indexed.symbols.keys())
-            .chain(indexed.modules.keys())
         {
             data.insert(db, name.clone(), *debug_file);
+
+            // if the debug file is relocatable, we need to
+            // find the symbol address in the binary
             if let Some((address, symbol_path, symbol_member)) = symbol_map.get(name) {
                 if symbol_path != path || symbol_member != member {
                     db.report_warning(format!(
-                        "Symbol {} found in file {} with address {address:#x} but also in binary with different path or member: {path} {member:?}",
-                        name.as_path(db),
-                        file.path(db),
-                    ));
+                            "Symbol {} found in file {} with address {address:#x} but also in binary with different path or member: {path} {member:?}",
+                            name.as_path(db),
+                            file.path(db),
+                        ));
                 } else {
                     data.set_symbol_address(db, name.clone(), *address);
                 }
@@ -289,14 +309,15 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
                 // function does not have a valid address range
                 continue;
             };
+
             // insert the address range information for the function
             if let Some((base_address, symbol_path, symbol_member)) = symbol_map.get(name) {
                 if symbol_path != path || symbol_member != member {
                     db.report_warning(format!(
-                        "Function {} found in file {} with address {base_address:#x} but also in binary with different path or member: {path} {member:?}",
-                        name.as_path(db),
-                        file.path(db),
-                    ));
+                            "Function {} found in file {} with address {base_address:#x} but also in binary with different path or member: {path} {member:?}",
+                            name.as_path(db),
+                            file.path(db),
+                        ));
                 } else {
                     address_info.push(FunctionAddressInfo {
                         start: *base_address,

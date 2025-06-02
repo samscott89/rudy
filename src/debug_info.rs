@@ -4,8 +4,7 @@ use std::fmt;
 use crate::{
     ResolvedLocation,
     database::{Db, Diagnostic, handle_diagnostics},
-    dwarf::{self, Die, FunctionIndexEntry, resolve_function_variables},
-    file::Binary,
+    dwarf::{self, Die, resolve_function_variables},
     index,
     outputs::ResolvedFunction,
     query::{lookup_address, lookup_closest_function, lookup_position, test_get_def},
@@ -153,7 +152,7 @@ impl<'db> DebugInfo<'db> {
         let module_prefix = split;
         let function_name = NameId::new(self.db, module_prefix, name);
 
-        let Some((name, file)) = index::find_closest_function(self.db, self.binary, function_name)
+        let Some((name, _)) = index::find_closest_function(self.db, self.binary, function_name)
         else {
             tracing::debug!("no function found for {function}");
             return Ok(None);
@@ -177,9 +176,12 @@ impl<'db> DebugInfo<'db> {
         let base_address = index
             .data(self.db)
             .base_address
-            .get(&function_name)
+            .get(&name)
             .copied()
-            .unwrap_or_default();
+            .with_context(|| {
+                tracing::debug!(?name, "{:#?}", index.data(self.db).base_address);
+                "Failed to get base address for function"
+            })?;
         let address = f.relative_body_address(self.db);
 
         let params = resolve_function_variables(self.db, self.binary, fie.declaration_die);

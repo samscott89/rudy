@@ -1,10 +1,8 @@
 //! Query functions for looking up debug information
 
-use itertools::Itertools;
-
 use crate::database::Db;
-use crate::dwarf::{self, FunctionIndexEntry};
-use crate::file::{Binary, DebugFile, SourceFile};
+use crate::dwarf::{self};
+use crate::file::{Binary, SourceFile};
 use crate::index::{self, find_all_by_address};
 use crate::typedef::TypeDef;
 use crate::types::{Address, NameId, Position};
