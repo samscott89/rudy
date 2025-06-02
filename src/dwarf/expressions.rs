@@ -5,7 +5,8 @@ use anyhow::Result;
 use crate::database::Db;
 use crate::dwarf::{Die, loader::DwarfReader};
 use crate::file::Binary;
-use crate::types::FunctionIndexEntry;
+
+use super::FunctionIndexEntry;
 
 /// Get location expression from a DIE entry
 #[salsa::tracked]
@@ -72,17 +73,16 @@ fn get_function_frame_base<'db>(
 /// Resolve data location for a variable using DWARF expressions
 pub fn resolve_data_location<'db>(
     db: &'db dyn Db,
-    binary: Binary,
-    function: FunctionIndexEntry<'db>,
+    function: Die<'db>,
+    base_address: u64,
     variable_entry_id: Die<'db>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Option<u64>> {
-    let function_entry = function.die(db);
     let Some(expr) = get_location_expr(db, variable_entry_id, gimli::DW_AT_location) else {
         return Ok(None);
     };
 
-    let Some(unit_ref) = function_entry.unit_ref(db) else {
+    let Some(unit_ref) = function.unit_ref(db) else {
         return Ok(None);
     };
 
@@ -98,7 +98,7 @@ pub fn resolve_data_location<'db>(
             }
             gimli::EvaluationResult::RequiresFrameBase => {
                 // get the frame base from the enclosing function
-                let reg = get_function_frame_base(db, function_entry, data_resolver)?.0;
+                let reg = get_function_frame_base(db, function, data_resolver)?.0;
                 let frame_base = data_resolver.get_register(reg as usize)?;
                 tracing::debug!("register: {reg} = {frame_base:#x}");
 
@@ -113,17 +113,7 @@ pub fn resolve_data_location<'db>(
             gimli::EvaluationResult::RequiresRelocatedAddress(addr) => {
                 // We have an address that is relative to where
                 // the data is loaded an need to shift it appropriately
-                let cu = function_entry.cu(db);
-                let base_addr = crate::index::build_index(db, binary)
-                    .data(db)
-                    .cu_to_base_addr
-                    .get(&cu)
-                    .copied();
-                let Some(base_addr) = base_addr else {
-                    db.report_critical(format!("Failed to get base address"));
-                    return Ok(None);
-                };
-                let relocated_addr = base_addr + addr;
+                let relocated_addr = base_address + addr;
 
                 tracing::debug!("relocated address: {addr:#x} -> {relocated_addr:#x}",);
                 result = eval.resume_with_relocated_address(relocated_addr)?;

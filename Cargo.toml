@@ -15,7 +15,6 @@ categories = ["debugging", "development-tools", "parser-implementations"]
 [dependencies]
 anyhow = "1.0.97"
 chalk-ir = "0.100.0"
-dashmap = "*"
 gimli = { version = "0.31.1", default-features = false, features = [
     "std",
     "read",

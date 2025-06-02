@@ -33,7 +33,7 @@ pub fn get_roots<'db>(db: &'db dyn Db, file: File) -> Vec<(UnitSectionOffset, Un
             Ok(Some(header)) => header,
             Ok(None) => break,
             Err(e) => {
-                db.report_critical(format!("Failed to parse unit: {e}"));
+                db.report_error(format!("Failed to parse unit: {e}"));
                 continue;
             }
         };

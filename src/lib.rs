@@ -27,12 +27,12 @@
 //! }
 //! ```
 
+mod address_tree;
 mod data;
 mod database;
 mod debug_info;
 mod dwarf;
 mod file;
-mod formatting;
 mod index;
 mod outputs;
 mod query;

@@ -7,18 +7,23 @@
 mod cu;
 mod die;
 mod expressions;
+mod formatting;
 mod index;
 mod loader;
 mod navigation;
 mod resolution;
 mod unit;
 mod utils;
+mod visitor;
 
 // Re-exports
 pub use cu::CompilationUnitId;
 pub use die::Die;
 pub use expressions::resolve_data_location;
-pub use index::{Index, IndexData, index_symbols, index_types};
+pub use index::{
+    FileIndex, FileIndexData, FunctionIndexEntry, ModuleIndexEntry, SymbolIndexEntry,
+    TypeIndexEntry, build_file_index,
+};
 pub use loader::{Dwarf, load};
 pub use navigation::{address_in_entry, parse_roots};
 pub use resolution::{

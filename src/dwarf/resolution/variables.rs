@@ -1,11 +1,11 @@
 //! Variable resolution from DWARF debugging information
 
 use crate::database::Db;
+use crate::dwarf::FunctionIndexEntry;
 use crate::dwarf::die::declaration_file;
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
 use crate::file::{Binary, SourceFile};
 use crate::typedef::TypeDef;
-use crate::types::FunctionIndexEntry;
 
 /// Tracked variable information
 #[salsa::tracked]
@@ -33,9 +33,8 @@ pub struct ResolvedVariables<'db> {
 pub fn resolve_function_variables<'db>(
     db: &'db dyn Db,
     binary: Binary,
-    function: FunctionIndexEntry<'db>,
+    die: Die<'db>,
 ) -> ResolvedVariables<'db> {
-    let die = function.die(db);
     tracing::debug!(
         "resolving function variables for `{}` in {}",
         die.name(db).unwrap(),
@@ -51,24 +50,25 @@ pub fn resolve_function_variables<'db>(
         db.report_critical(format!("Failed to get file for function"));
         return ResolvedVariables::new(db, params, locals, globals);
     };
+    todo!();
 
-    let index = crate::index::build_index(db, binary).data(db);
+    // let index = crate::index::build_index(db, binary).data(db);
 
-    for (global_symbol, symbol_index) in &index.symbol_name_to_die {
-        let symbol_entry = symbol_index.die(db);
-        if declaration_file(db, symbol_entry) == Some(function_decl_file) {
-            tracing::debug!(
-                "global symbol in scope: {}:{}",
-                global_symbol.as_path(db),
-                symbol_entry.print(db)
-            );
-            let Some(var) = resolve_variable_entry(db, symbol_entry) else {
-                db.report_critical(format!("Failed to parse parameter entry"));
-                continue;
-            };
-            globals.push((var, symbol_index.address(db)));
-        }
-    }
+    // for (global_symbol, symbol_index) in &index.symbol_name_to_die {
+    //     let symbol_entry = symbol_index.die(db);
+    //     if declaration_file(db, symbol_entry) == Some(function_decl_file) {
+    //         tracing::debug!(
+    //             "global symbol in scope: {}:{}",
+    //             global_symbol.as_path(db),
+    //             symbol_entry.print(db)
+    //         );
+    //         let Some(var) = resolve_variable_entry(db, symbol_entry) else {
+    //             db.report_critical(format!("Failed to parse parameter entry"));
+    //             continue;
+    //         };
+    //         globals.push((var, symbol_index.address(db)));
+    //     }
+    // }
 
     // recurse function to find params + locals
     for child in die.children(db) {

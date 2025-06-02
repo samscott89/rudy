@@ -75,7 +75,7 @@ pub trait Db: salsa::Database {
         .accumulate(self);
     }
     fn report_error(&self, message: String) {
-        tracing::error!("{message}");
+        tracing::warn!("{message}");
         Diagnostic {
             message,
             severity: DiagnosticSeverity::Error,
@@ -172,7 +172,7 @@ impl DebugDatabaseImpl {
             .collect::<Vec<_>>();
 
         // warm the index
-        let _ = crate::index::build_index(self, bin);
+        let _ = crate::index::debug_index(self, bin);
 
         Ok((bin, debug_files))
     }

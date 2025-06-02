@@ -1,15 +1,15 @@
 //! Index building for fast debug info lookups
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 
-use object::{Object, ObjectSymbol};
+use object::Object;
 
+use crate::address_tree::{AddressTree, FunctionAddressInfo};
 use crate::database::Db;
-use crate::dwarf;
+use crate::dwarf::{self, FunctionIndexEntry, ModuleIndexEntry, SymbolIndexEntry, TypeIndexEntry};
 use crate::file::{Binary, DebugFile, File, SourceFile, load};
-use crate::types::{
-    FunctionIndexEntry, NameId, Symbol, SymbolIndexEntry, TypeIndexEntry, demangle,
-};
+use crate::types::{NameId, Symbol, demangle};
 
 #[salsa::tracked(returns(ref))]
 pub fn discover_debug_files<'db>(
@@ -81,133 +81,296 @@ pub fn discover_debug_files<'db>(
     debug_files
 }
 
+#[salsa::tracked(debug)]
+pub struct Index<'db> {
+    #[returns(ref)]
+    pub data: IndexData<'db>,
+}
+
+impl<'db> Index<'db> {
+    pub fn lookup_function(
+        &self,
+        db: &'db dyn Db,
+        name: NameId<'db>,
+    ) -> Option<(DebugFile, FunctionIndexEntry<'db>)> {
+        let file = self.data(db).name_to_file.get(&name)?;
+        let indexed = dwarf::build_file_index(db, *file).data(db);
+        indexed
+            .functions
+            .get(&name)
+            .cloned()
+            .map(|entry| (*file, entry))
+    }
+    pub fn lookup_symbol(
+        &self,
+        db: &'db dyn Db,
+        name: NameId<'db>,
+    ) -> Option<SymbolIndexEntry<'db>> {
+        let file = self.data(db).name_to_file.get(&name)?;
+        let indexed = dwarf::build_file_index(db, *file).data(db);
+        indexed.symbols.get(&name).cloned()
+    }
+    pub fn lookup_module(
+        &self,
+        db: &'db dyn Db,
+        name: NameId<'db>,
+    ) -> Option<ModuleIndexEntry<'db>> {
+        let file = self.data(db).name_to_file.get(&name)?;
+        let indexed = dwarf::build_file_index(db, *file).data(db);
+        indexed.modules.get(&name).cloned()
+    }
+    pub fn lookup_type(&self, db: &'db dyn Db, name: NameId<'db>) -> Option<TypeIndexEntry<'db>> {
+        let file = self.data(db).name_to_file.get(&name)?;
+        let indexed = dwarf::build_file_index(db, *file).data(db);
+        indexed.types.get(&name).cloned()
+    }
+}
+
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct IndexData<'db> {
+    pub name_to_file: BTreeMap<NameId<'db>, DebugFile>,
+    pub source_to_file: BTreeMap<SourceFile<'db>, Vec<DebugFile>>,
+    pub base_address: BTreeMap<NameId<'db>, u64>,
+    pub address_info: AddressTree<'db>,
+}
+
+impl<'db> IndexData<'db> {
+    fn insert(&mut self, db: &dyn Db, name: NameId<'db>, file: DebugFile) {
+        // insert the file into the index
+        match self.name_to_file.entry(name) {
+            Entry::Occupied(mut e) => {
+                // if the file already exists, we need to check if the
+                // base address is the same
+                let existing_file = e.get_mut();
+                let existing_file_path = existing_file.file(db).path(db);
+                let file_path = file.file(db).path(db);
+                if existing_file_path != file_path {
+                    tracing::warn!(
+                        "Function {} found in multiple files: {existing_file_path} and {file_path}",
+                        name.name(db),
+                    );
+                }
+            }
+            Entry::Vacant(e) => {
+                e.insert(file);
+            }
+        }
+    }
+
+    fn set_symbol_address(&mut self, db: &dyn Db, name: NameId<'db>, address: u64) {
+        // insert the file into the index
+        match self.base_address.entry(name) {
+            Entry::Occupied(mut e) => {
+                // if the file already exists, we need to check if the
+                // base address is the same
+                let existing_file = e.get_mut();
+                if *existing_file != address {
+                    tracing::warn!(
+                        "Function {} has different base addresses: {existing_file:#x} and {address:#x}",
+                        name.name(db)
+                    );
+                }
+            }
+            Entry::Vacant(e) => {
+                e.insert(address);
+            }
+        }
+    }
+}
+
+unsafe impl salsa::Update for IndexData<'_> {
+    unsafe fn maybe_update(_: *mut Self, _: Self) -> bool {
+        // IndexData should never change after creation
+        todo!()
+    }
+}
+
+#[salsa::tracked(returns(ref))]
+fn get_symbol_map<'db>(
+    db: &'db dyn Db,
+    binary: Binary,
+) -> BTreeMap<NameId<'db>, (u64, String, Option<String>)> {
+    let binary_file = binary.file(db);
+    let loaded_file = match load(db, binary_file) {
+        Ok(file) => file,
+        Err(e) => {
+            db.report_critical(format!("Failed to load binary file: {e}"));
+            return Default::default();
+        }
+    };
+    let object = &loaded_file.object;
+
+    let mut map = BTreeMap::new();
+
+    // find the symbol in the object file
+    let object_map = object.object_map();
+    for s in object_map.symbols() {
+        let symbol = Symbol::new(db, s.name());
+        let demangled_name = demangle(db, symbol);
+        let file = s.object(&object_map).path();
+        let file = match std::str::from_utf8(file) {
+            Ok(p) => p,
+            Err(e) => {
+                db.report_critical(format!("Failed to parse object file path: {file:?}: {e}"));
+                continue;
+            }
+        };
+        let member = s
+            .object(&object_map)
+            .member()
+            .and_then(|m| match std::str::from_utf8(m) {
+                Ok(m) => Some(m.to_string()),
+                Err(e) => {
+                    db.report_critical(format!("Failed to parse object file member: {m:?}: {e}"));
+                    None
+                }
+            });
+
+        map.insert(
+            demangled_name,
+            (s.address(), file.to_string(), member.clone()),
+        );
+    }
+
+    map
+}
+
 /// Build an index of all types + functions (using fully qualified names
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
 #[salsa::tracked(returns(ref))]
-pub fn build_index<'db>(db: &'db dyn Db, binary: Binary) -> dwarf::Index<'db> {
-    let binary_file = binary.file(db);
+pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
+    // Builds a complete index of all debug information in the binary.
+    // Note that today this works by scanning _all_ referenced debug files
+    // and building an index for each file.
+    // In the future, we may want to optimize this by only indexing
+    // debug files _if_ they are known to contain relevant information
+    // where relevant would be something like "references source files
+    // that we care about"
 
-    // initialize structs
-    let mut function_name_to_die: BTreeMap<NameId<'_>, FunctionIndexEntry<'_>> = Default::default();
-    let mut symbol_name_to_die: BTreeMap<NameId<'_>, SymbolIndexEntry<'_>> = Default::default();
-    let mut type_name_to_die: BTreeMap<NameId<'_>, TypeIndexEntry<'_>> = Default::default();
-    let mut die_to_type_name: BTreeMap<dwarf::Die<'_>, NameId<'_>> = Default::default();
-    let mut cu_to_base_addr: BTreeMap<dwarf::CompilationUnitId<'_>, u64> = Default::default();
-    let mut address_range_to_cu: Vec<(u64, u64, dwarf::CompilationUnitId<'_>)> = Default::default();
-    let mut address_range_to_function: Vec<(u64, u64, NameId<'_>)> = Default::default();
-    let mut file_to_cu: BTreeMap<SourceFile<'_>, Vec<dwarf::CompilationUnitId<'_>>> =
-        Default::default();
+    // get symbols from the binary file
+    let symbol_map = get_symbol_map(db, binary);
 
-    let mut names_by_file: HashMap<File, BTreeMap<Vec<u8>, _>> = HashMap::new();
-
-    // first, discover all debug files associated with the binary
+    // discover all debug files associated with the binary
     let debug_files = discover_debug_files(db, binary);
 
-    // first load the binary file itself to get a list of all symbols and
-    // associated file paths
-    // we need to do this in a block to avoid holding onto the `Ref` (which is a read lock
-    // on the file map)
-    {
-        let Ok(file) = load(db, binary_file) else {
-            db.report_critical(format!("Failed to load file: {}", binary_file.path(db)));
-            return dwarf::Index::new(db, Default::default());
-        };
-        let object = &file.object;
+    // index each files and aggregate into a shared index
+    let mut data = IndexData::default();
+    let mut address_info = Vec::new();
 
-        let object_map = object.object_map();
-        for s in object_map.symbols() {
-            let symbol = Symbol::new(db, s.name());
-            let demangled_name = demangle(db, symbol);
-            let file = s.object(&object_map).path();
-            let file = match std::str::from_utf8(file) {
-                Ok(p) => p,
-                Err(e) => {
-                    db.report_critical(format!("Failed to parse object file path: {file:?}: {e}"));
-                    continue;
+    for ((path, member), debug_file) in debug_files.iter() {
+        let file = debug_file.file(db);
+        let indexed = dwarf::build_file_index(db, *debug_file).data(db);
+        for name in indexed
+            .functions
+            .keys()
+            .chain(indexed.types.keys())
+            .chain(indexed.symbols.keys())
+            .chain(indexed.modules.keys())
+        {
+            data.insert(db, name.clone(), *debug_file);
+            if let Some((address, symbol_path, symbol_member)) = symbol_map.get(name) {
+                if symbol_path != path || symbol_member != member {
+                    db.report_warning(format!(
+                        "Symbol {} found in file {} with address {address:#x} but also in binary with different path or member: {path} {member:?}",
+                        name.as_path(db),
+                        file.path(db),
+                    ));
+                } else {
+                    data.set_symbol_address(db, name.clone(), *address);
                 }
+            }
+        }
+
+        // we handle functions separately because they have
+        // address *range* information that we want to index
+        for (name, entry) in &indexed.functions {
+            let Some((start, end)) = entry.relative_address_range else {
+                // function does not have a valid address range
+                continue;
             };
-            let member =
-                s.object(&object_map)
-                    .member()
-                    .and_then(|m| match std::str::from_utf8(m) {
-                        Ok(m) => Some(m.to_string()),
-                        Err(e) => {
-                            db.report_critical(format!(
-                                "Failed to parse object file member: {m:?}: {e}"
-                            ));
-                            None
-                        }
+            // insert the address range information for the function
+            if let Some((base_address, symbol_path, symbol_member)) = symbol_map.get(name) {
+                if symbol_path != path || symbol_member != member {
+                    db.report_warning(format!(
+                        "Function {} found in file {} with address {base_address:#x} but also in binary with different path or member: {path} {member:?}",
+                        name.as_path(db),
+                        file.path(db),
+                    ));
+                } else {
+                    address_info.push(FunctionAddressInfo {
+                        start: *base_address,
+                        end: base_address + end - start,
+                        file: *debug_file,
+                        name: *name,
                     });
-            let Some(file) = debug_files.get(&(file.to_string(), member.clone())) else {
-                tracing::debug!("No debug file found {file:?} with member {member:?}");
-                continue;
-            };
-            names_by_file.entry(file.file(db)).or_default().insert(
-                // trim the leading `_` character that macos adds when using STAB entries
-                s.name()[1..].to_vec(),
-                (s.address(), demangled_name),
-            );
+                }
+            } else {
+                // function not linked in binary -- this is fine
+            }
         }
 
-        // append names from the root binary (if it has any)
-        for symbol in object.symbols() {
-            let name = symbol.name_bytes().unwrap();
-            if name.is_empty() {
-                tracing::debug!("empty symbol: {symbol:#?}");
-                continue;
-            }
-            let symbol_name = Symbol::new(db, name);
-            let demangled_name = demangle(db, symbol_name);
-
-            names_by_file
-                .entry(binary_file)
+        for source in &indexed.sources {
+            // insert the source file into the index
+            data.source_to_file
+                .entry(source.clone())
                 .or_default()
-                .insert(name.to_vec(), (symbol.address(), demangled_name));
+                .push(*debug_file);
         }
     }
 
-    for (file_id, names) in names_by_file {
-        let file_entries = dwarf::index_symbols(db, file_id, names);
+    // turn address info into an interval tree
+    data.address_info = AddressTree::new(address_info);
 
-        function_name_to_die.extend(file_entries.function_name_to_die);
-        symbol_name_to_die.extend(file_entries.symbol_name_to_die);
-        address_range_to_function.extend(file_entries.address_range_to_function);
-        cu_to_base_addr.extend(file_entries.cu_to_base_addr);
+    Index::new(db, data)
+}
 
-        let (name_to_die, die_to_name) = dwarf::index_types(db, file_id);
-        type_name_to_die.extend(name_to_die);
-        die_to_type_name.extend(die_to_name);
+#[salsa::tracked]
+pub fn find_closest_function<'db>(
+    db: &'db dyn Db,
+    binary: Binary,
+    function_name: NameId<'db>,
+) -> Option<(NameId<'db>, DebugFile)> {
+    // check if exact name exists in index
+    let index = debug_index(db, binary);
 
-        let roots = dwarf::parse_roots(db, file_id);
-        for root in roots {
-            let cu = root.cu(db);
-            if let Some(base_addr) = cu_to_base_addr.get(&root.cu(db)) {
-                let (start, end) = root.address_range(db);
-                address_range_to_cu.push((base_addr + start, base_addr + end, cu));
-            }
+    // if we get a direct match, return it
+    if let Some((file, _)) = index.lookup_function(db, function_name) {
+        return Some((function_name, file));
+    }
 
-            for file in root.files(db) {
-                file_to_cu.entry(*file).or_default().push(cu)
+    // otherwise, find the closest match by scanning the index
+    let name = function_name.name(db);
+    let module_prefix = function_name.path(db);
+
+    let index_data = index.data(db);
+    for (indexed_name, entry) in index_data.name_to_file.iter() {
+        // check if the name matches and the path ends with the module prefix
+        if indexed_name.name(db) == name
+            && indexed_name.path(db).ends_with(module_prefix.as_slice())
+        {
+            // get the function from the relevant index
+            let indexed = dwarf::build_file_index(db, *entry).data(db);
+            if indexed.functions.contains_key(indexed_name) {
+                return Some((*indexed_name, *entry));
+            } else {
+                db.report_warning(format!(
+                    "Function {} found in file {} but not in index",
+                    indexed_name.as_path(db),
+                    entry.file(db).path(db)
+                ));
             }
         }
     }
+    None
+}
 
-    // sort the lists
-    address_range_to_function.sort_unstable();
-    address_range_to_cu.sort_unstable();
+pub fn find_all_by_address<'db>(
+    db: &'db dyn Db,
+    binary: Binary,
+    address: u64,
+) -> Vec<&'db FunctionAddressInfo<'db>> {
+    let index = debug_index(db, binary).data(db);
 
-    dwarf::Index::new(
-        db,
-        dwarf::IndexData {
-            function_name_to_die,
-            symbol_name_to_die,
-            type_name_to_die,
-            die_to_type_name,
-            cu_to_base_addr,
-            address_range_to_cu,
-            address_range_to_function,
-            file_to_cu,
-        },
-    )
+    index.address_info.query_address(address)
 }

@@ -3,7 +3,6 @@
 use itertools::Itertools;
 
 use crate::database::Db;
-use crate::dwarf;
 
 #[salsa::interned(debug)]
 #[derive(Ord, PartialOrd)]
@@ -54,22 +53,6 @@ pub fn demangle<'db>(db: &'db dyn Db, sym: Symbol<'db>) -> NameId<'db> {
         "<invalid>".to_string()
     });
     NameId::new(db, split, name)
-}
-
-#[salsa::tracked(debug)]
-pub struct FunctionIndexEntry<'db> {
-    pub die: dwarf::Die<'db>,
-}
-
-#[salsa::tracked(debug)]
-pub struct SymbolIndexEntry<'db> {
-    pub address: u64,
-    pub die: dwarf::Die<'db>,
-}
-
-#[salsa::tracked(debug)]
-pub struct TypeIndexEntry<'db> {
-    pub die: dwarf::Die<'db>,
 }
 
 #[salsa::interned(debug)]

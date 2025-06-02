@@ -19,20 +19,13 @@ pub struct FileIndexEntries<'db> {
     pub symbol_name_to_die: BTreeMap<NameId<'db>, SymbolIndexEntry<'db>>,
     /// list of function names with their address ranges
     pub address_range_to_function: Vec<(u64, u64, NameId<'db>)>,
-    /// map of base address to compilation unit
-    pub cu_to_base_addr: BTreeMap<CompilationUnitId<'db>, u64>,
 }
 
-pub fn index_symbols<'db>(
-    db: &'db dyn Db,
-    file: File,
-    mut symbols: BTreeMap<Vec<u8>, (u64, NameId<'db>)>,
-) -> FileIndexEntries<'db> {
+pub fn index_symbols<'db>(db: &'db dyn Db, file: File) -> FileIndexEntries<'db> {
     tracing::debug!("indexing symbols for {}", file.path(db));
     let mut function_name_to_die = BTreeMap::new();
     let mut symbol_name_to_die = BTreeMap::new();
     let mut address_range_to_function = Vec::new();
-    let mut cu_to_address = BTreeMap::new();
 
     let roots = get_roots(db, file);
 
@@ -154,49 +147,25 @@ pub fn index_symbols<'db>(
                         };
 
                     // find the name in the functions map
-                    if let Some((absolute_function_addr, name)) =
-                        symbols.remove(&*linkage_name_bytes)
+                    match unit_ref
+                        .die_ranges(die)
+                        .map_err(anyhow::Error::from)
+                        .and_then(to_range)
                     {
-                        match unit_ref
-                            .die_ranges(die)
-                            .map_err(anyhow::Error::from)
-                            .and_then(to_range)
-                        {
-                            Ok(Some((start, end))) => {
-                                // if we haven't yet set it, we know the
-                                // start of the absolute text section now
-                                match cu_to_address.entry(cu) {
-                                    Entry::Vacant(e) => {
-                                        if let Some(base_addr) =
-                                            absolute_function_addr.checked_sub(start)
-                                        {
-                                            e.insert(base_addr);
-                                        } else {
-                                            db.report_critical(format!("start is greater than absolute function address: {start:#x} > {absolute_function_addr:#x} for {}", name.as_path(db)));
-                                        }
-                                    }
-                                    Entry::Occupied(_) => {
-                                        // nothing to do
-                                    }
-                                }
+                        Ok(Some((start, end))) => {
+                            address_range_to_function.push((start, end, name));
+                        }
+                        Ok(None) => {}
+                        Err(e) => {
+                            db.report_critical(format!("Failed to get ranges: {e}"));
+                            continue;
+                        }
+                    };
 
-                                // convert to absolute addresses and push into vec
-                                let abs_start = absolute_function_addr;
-                                let abs_end = absolute_function_addr + (end - start);
-                                address_range_to_function.push((abs_start, abs_end, name));
-                            }
-                            Ok(None) => {}
-                            Err(e) => {
-                                db.report_critical(format!("Failed to get ranges: {e}"));
-                                continue;
-                            }
-                        };
-
-                        let die_entry = Die::new(db, file, cu_offset, die.offset());
-                        tracing::debug!("got function info for {}", name.as_path(db),);
-                        function_name_to_die.insert(name, FunctionIndexEntry::new(db, die_entry));
-                        recurse = false;
-                    }
+                    let die_entry = Die::new(db, file, cu_offset, die.offset());
+                    tracing::debug!("got function info for {}", name.as_path(db),);
+                    function_name_to_die.insert(name, FunctionIndexEntry::new(db, die_entry));
+                    recurse = false;
                 }
                 gimli::DW_TAG_variable => {
                     // this is public/global variable

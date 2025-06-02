@@ -1,8 +1,10 @@
 //! Function resolution and metadata extraction
 
 use crate::database::Db;
+use crate::dwarf::FunctionIndexEntry;
 use crate::dwarf::{Die, utils::to_range};
-use crate::types::FunctionIndexEntry;
+use crate::file::DebugFile;
+use crate::types::NameId;
 
 /// Function address information
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -84,9 +86,9 @@ pub struct Function<'db> {
 }
 
 /// Resolve a function index entry to full function information
+/// TODO: use both declaration + specification dies?
 #[salsa::tracked]
-pub fn resolve_function<'db>(db: &'db dyn Db, f: FunctionIndexEntry<'db>) -> Option<Function<'db>> {
-    let die = f.die(db);
+pub fn resolve_function<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<Function<'db>> {
     let name = die.name(db)?;
     let linkage_name = die.string_attr(db, gimli::DW_AT_linkage_name)?;
     let FunctionAddressInfo {

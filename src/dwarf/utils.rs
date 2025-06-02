@@ -30,6 +30,19 @@ pub fn get_string_attr_raw<'a>(
     Ok(Some(value))
 }
 
+pub fn get_lang_attr<'a>(
+    die: &RawDie<'a>,
+    _unit_ref: &UnitRef<'a>,
+) -> Result<Option<gimli::DwLang>> {
+    let attr = die.attr(gimli::DW_AT_language)?;
+    let Some(attr) = attr else { return Ok(None) };
+    let value = attr.value();
+    let gimli::AttributeValue::Language(lang) = value else {
+        return Ok(None);
+    };
+    Ok(Some(lang))
+}
+
 pub fn get_string_attr<'a>(
     die: &RawDie<'a>,
     attr: gimli::DwAt,
