@@ -1,5 +1,9 @@
 //! Address to location and location to address resolution
 
+use std::borrow::Borrow;
+
+use gimli::Reader;
+
 use crate::database::Db;
 use crate::dwarf::navigation::get_roots;
 use crate::dwarf::{CompilationUnitId, utils::file_entry_to_path};
@@ -71,7 +75,8 @@ pub fn location_to_address<'db>(
     query: crate::types::Position,
 ) -> Option<(u64, u64)> {
     let file = query.file(db);
-    let (dir, file) = file.rsplit_once("/")?;
+    let file = file.path(db);
+    // let (dir, file) = file.rsplit_once("/")?;
     let target_line = query.line(db);
     let _target_column = query.column(db);
 
@@ -79,7 +84,12 @@ pub fn location_to_address<'db>(
     // let mut min_col_distance = u64::MAX;
     let mut closest_address: Option<u64> = None;
 
-    for (_, unit_ref) in get_roots(db, debug_file.file(db)) {
+    tracing::info!(
+        "searching for `{file}:{target_line}` in `{}`",
+        debug_file.file(db).path(db)
+    );
+
+    for (section_offset, unit_ref) in get_roots(db, debug_file.file(db)) {
         let Some(line_program) = unit_ref.line_program.clone() else {
             return None;
         };
@@ -93,18 +103,24 @@ pub fn location_to_address<'db>(
                 .iter()
                 .enumerate()
                 .find_map(|(idx, f)| {
-                    let dir_bytes = unit_ref.attr_string(f.directory(header)?).ok()?;
-                    let path_bytes = unit_ref.attr_string(f.path_name()).ok()?;
-                    if &*dir_bytes == dir.as_bytes() && &*path_bytes == file.as_bytes() {
-                        // files start at index 1
-                        Some(idx as u64 + 1)
+                    let Some(file_path) = file_entry_to_path(f, &unit_ref) else {
+                        tracing::debug!("failed to convert file entry to path");
+                        return None;
+                    };
+                    tracing::trace!("checking file `{file_path}` against target `{file}`");
+                    if &file_path == file {
+                        Some(idx as u64 + 1) // +1 because file indices are 1-based
                     } else {
                         None
                     }
                 })
         else {
-            tracing::warn!("could not find target file {file} in line program");
-            return None;
+            tracing::trace!(
+                "could not find target file `{file}` in line program for {:#x} in file {}",
+                section_offset.as_debug_info_offset().unwrap().0,
+                debug_file.file(db).path(db)
+            );
+            continue;
         };
 
         tracing::debug!("searching for target file: {target_file_idx}");
@@ -120,7 +136,7 @@ pub fn location_to_address<'db>(
 
                     if row.file_index() == target_file_idx {
                         let Some(line) = row.line() else {
-                            tracing::debug!("no line info");
+                            tracing::trace!("no line info: {:#x}", row.address());
                             continue;
                         };
 
@@ -137,7 +153,7 @@ pub fn location_to_address<'db>(
                             }
                         }
                     } else {
-                        tracing::debug!("row in the wrong file");
+                        tracing::trace!("row in the wrong file");
                     }
                 }
                 Ok(None) => break,

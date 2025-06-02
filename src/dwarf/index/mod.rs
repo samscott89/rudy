@@ -1,13 +1,16 @@
 //! DWARF indexing functionality for fast lookups
 
+use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::Die;
 use super::loader::{Offset, RawDie};
 use super::unit::UnitRef;
-use super::utils::{get_lang_attr, get_string_attr, pretty_print_die_entry, to_range};
+use super::utils::{
+    file_entry_to_path, get_lang_attr, get_string_attr, pretty_print_die_entry, to_range,
+};
 use super::visitor::{DieVisitor, DieWalker, walk_file};
-use crate::address_tree::AddressTree;
+use crate::address_tree::{AddressTree, FunctionAddressInfo};
 use crate::database::Db;
 use crate::dwarf::resolution::{FunctionDeclarationType, get_declaration_type};
 use crate::file::{DebugFile, SourceFile};
@@ -46,6 +49,12 @@ pub struct FunctionIndexEntry<'db> {
     pub relative_address_range: Option<(u64, u64)>,
     pub linkage_name: Option<String>,
     pub specification_die: Option<Die<'db>>,
+    /// Sometimes we'll find the same definition mulitple times
+    /// in the same file due to compilation units
+    ///
+    /// For now, we'll just store the alternate locations
+    /// although we'll probably need to do something else
+    pub alternate_locations: Vec<Die<'db>>,
 }
 
 #[salsa::tracked(debug)]
@@ -68,12 +77,30 @@ unsafe impl salsa::Update for FileIndexData<'_> {
 #[derive(Default)]
 struct FileIndexBuilder<'db> {
     current_path: Vec<String>,
+    function_addresses: Vec<(u64, u64, NameId<'db>)>,
     data: FileIndexData<'db>,
 }
 
 impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
     fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
         if is_rust_cu(walker.db, &die, &unit_ref) {
+            // get all referenced files
+            let files = unit_ref
+                .line_program
+                .as_ref()
+                .map(|lp| {
+                    lp.header()
+                        .file_names()
+                        .iter()
+                        .flat_map(|f| {
+                            file_entry_to_path(f, &unit_ref)
+                                .map(|path| SourceFile::new(walker.db, path))
+                        })
+                        .collect::<BTreeSet<_>>()
+                })
+                .unwrap_or_default();
+            walker.visitor.data.sources.extend(files);
+
             walker.walk_cu();
         }
     }
@@ -99,13 +126,27 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         walker.visitor.current_path.pop();
     }
 
+    fn visit_struct<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        entry: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        // also need to push the struct name to the current path
+        // for name resolution
+        let struct_name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
+            .unwrap()
+            .unwrap();
+        walker.visitor.current_path.push(struct_name.clone());
+        walker.walk_struct();
+        walker.visitor.current_path.pop();
+    }
+
     fn visit_function<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         entry: RawDie<'a>,
         unit_ref: UnitRef<'a>,
     ) {
         let function_declaration_type = get_declaration_type(walker.db, &entry, &unit_ref);
-
         match function_declaration_type {
             FunctionDeclarationType::Closure => {
                 // skip for now
@@ -138,7 +179,13 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                     .map_err(anyhow::Error::from)
                     .and_then(to_range)
                 {
-                    Ok(Some((start, end))) => Some((start, end)),
+                    Ok(Some((start, end))) => {
+                        walker
+                            .visitor
+                            .function_addresses
+                            .push((start, end, name.clone()));
+                        Some((start, end))
+                    }
                     Ok(None) => None,
                     Err(e) => {
                         walker
@@ -148,21 +195,29 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                     }
                 };
 
-                let existing = walker.visitor.data.functions.insert(
-                    name,
-                    FunctionIndexEntry {
-                        declaration_die: walker.get_die(entry),
-                        relative_address_range,
-                        linkage_name,
-                        specification_die: None,
-                    },
-                );
+                let die = walker.get_die(entry.clone());
+                match walker.visitor.data.functions.entry(name) {
+                    Entry::Vacant(vacant_entry) => {
+                        vacant_entry.insert(FunctionIndexEntry {
+                            declaration_die: die,
+                            relative_address_range,
+                            linkage_name,
+                            specification_die: None,
+                            alternate_locations: vec![],
+                        });
+                    }
+                    Entry::Occupied(occupied_entry) => {
+                        occupied_entry.into_mut().alternate_locations.push(die);
+                    }
+                }
+                walker
+                    .visitor
+                    .data
+                    .function_declarations
+                    .insert(entry.offset(), name.clone());
 
-                debug_assert!(
-                    existing.is_none(),
-                    "Duplicate function declaration: {}",
-                    name.as_path(walker.db),
-                );
+                // _ZN42_$LT$$RF$T$u20$as$u20$core..fmt..Debug$GT$3fmt17h17559c8d3719ef99E
+                // _ZN44_$LT$$RF$T$u20$as$u20$core..fmt..Display$GT$3fmt17hfd46ad2ce46e94c4E
             }
             FunctionDeclarationType::ClassMethodImplementation(declaration_offset) => {
                 let name = walker
@@ -234,198 +289,30 @@ pub fn build_file_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileInde
     let mut builder = FileIndexBuilder::default();
     walk_file(db, file, &mut builder);
 
-    // for (cu_offset, unit_ref) in &roots {
-    // }
+    let FileIndexBuilder {
+        function_addresses,
+        mut data,
+        ..
+    } = builder;
 
-    // let mut current_path = vec![];
-    // let mut path_depths = vec![];
-    // let mut current_offset = 0;
+    let function_addresses = function_addresses
+        .into_iter()
+        .map(|(start, end, name)| FunctionAddressInfo {
+            start,
+            end,
+            name,
+            // super redundant -- maybe we can remove somehow?
+            file: debug_file,
+        })
+        .collect();
+    data.function_addresses = AddressTree::new(function_addresses);
 
-    // // at times we'll know that there's no need to recurse further into the tree
-    // // so we can skip the `next_dfs` call and just continue with the next sibling
-    // let mut continue_recursing = true;
+    tracing::trace!(
+        "Indexed file data: {data:#?} for file: {}",
+        debug_file.file(db).path(db)
+    );
 
-    // for (cu_offset, unit_ref) in roots {
-    //     let mut tree = match { unit_ref.entries_tree(None) } {
-    //         Ok(tree) => tree,
-    //         Err(e) => {
-    //             db.report_error(format!("Failed to get entries tree: {e}"));
-    //             continue;
-    //         }
-    //     };
-    //     let root = match tree.root() {
-    //         Ok(root) => root,
-    //         Err(e) => {
-    //             db.report_error(format!("Failed to get root entry: {e}"));
-    //             continue;
-    //         }
-    //     };
-    //     let root = root.entry();
-    //     if !is_rust_cu(db, root, &unit_ref) {
-    //         continue;
-    //     }
-
-    //     let mut entries = unit_ref.entries();
-    //     loop {
-    //         let die = if continue_recursing {
-    //             match entries.next_dfs() {
-    //                 Ok(Some((offset, die))) => {
-    //                     current_offset += offset;
-    //                     die
-    //                 }
-    //                 Ok(None) => break,
-    //                 Err(e) => {
-    //                     db.report_critical(format!("Failed to get entry: {e}"));
-    //                     continue;
-    //                 }
-    //             }
-    //         } else {
-    //             // continue recursing
-    //             continue_recursing = true;
-    //             match entries.next_sibling() {
-    //                 Ok(Some(die)) => {
-    //                     // current offset stays the same
-    //                     die
-    //                 }
-    //                 Ok(None) => {
-    //                     // we've run out of siblings, but we might still have
-    //                     // another parent (which `next_dfs` will check)
-    //                     continue;
-    //                 }
-    //                 Err(e) => {
-    //                     db.report_critical(format!("Failed to get entry: {e}"));
-    //                     continue;
-    //                 }
-    //             }
-    //         };
-
-    //         // check if we need to pop one or many paths from the stack
-    //         loop {
-    //             match path_depths.last() {
-    //                 None => {
-    //                     // we're at the root
-    //                     break;
-    //                 }
-    //                 Some(d) if *d < current_offset => {
-    //                     // we're at a child of the top namespace visited
-    //                     break;
-    //                 }
-    //                 _ => {
-    //                     // we're at a sibling or parent of the current offset
-    //                     // pop the last path
-    //                     current_path.pop();
-    //                     path_depths.pop();
-    //                 }
-    //             }
-    //         }
-
-    //         match die.tag() {
-    //             gimli::DW_TAG_namespace => {
-    //                 let name = match get_string_attr(die, gimli::DW_AT_name, &unit_ref) {
-    //                     Ok(Some(name)) => name,
-    //                     Ok(None) => {
-    //                         db.report_critical(format!("Failed to get namespace name"));
-    //                         continue;
-    //                     }
-    //                     Err(e) => {
-    //                         db.report_critical(format!("Failed to get namespace name: {e}"));
-    //                         continue;
-    //                     }
-    //                 };
-    //                 tracing::debug!(
-    //                     ?current_path,
-    //                     ?path_depths,
-    //                     "got namespace: {name} at offset {current_offset}"
-    //                 );
-    //                 current_path.push(name);
-    //                 path_depths.push(current_offset);
-    //             }
-
-    //             gimli::DW_TAG_pointer_type | gimli::DW_TAG_array_type => {
-    //                 // these are composite types that we don't want to
-    //                 // index by name (we'll handle these dynamically on lookup)
-    //                 continue_recursing = false;
-    //             }
-
-    //             gimli::DW_TAG_base_type
-    //             | gimli::DW_TAG_structure_type
-    //             | gimli::DW_TAG_union_type
-    //             | gimli::DW_TAG_enumeration_type
-    //             | gimli::DW_TAG_atomic_type
-    //             | gimli::DW_TAG_const_type => {
-    //                 let name = match get_string_attr(die, gimli::DW_AT_name, &unit_ref) {
-    //                     Ok(Some(name)) => name,
-    //                     Ok(None) => {
-    //                         db.report_critical(format!(
-    //                             "No type name found for entry: {}",
-    //                             debug_print_die_entry(die)
-    //                         ));
-    //                         continue;
-    //                     }
-    //                     Err(e) => {
-    //                         db.report_critical(format!("Failed to get type name: {e}"));
-    //                         continue;
-    //                     }
-    //                 };
-    //                 tracing::debug!(?current_path, tag=%die.tag(), "found type: {name}");
-    //                 let name = NameId::new(db, current_path.clone(), name.clone());
-    //                 let die_entry = Die::new(db, file, cu_offset, die.offset());
-    //                 let existing = name_to_die.insert(name, TypeIndexEntry::new(db, die_entry));
-    //                 if let Some(existing) = existing {
-    //                     tracing::debug!(
-    //                         "Duplicate type name: {} at offset {die_entry:?} and {}",
-    //                         name.as_path(db),
-    //                         existing.die(db).print(db)
-    //                     );
-    //                 }
-    //                 let existing = die_to_name.insert(die_entry, name);
-    //                 if let Some(existing) = existing {
-    //                     debug_assert!(false, "duplicate die entry for {}", existing.name(db))
-    //                 }
-
-    //                 // we don't want to recurse into the children of this type
-    //                 continue_recursing = false;
-    //             }
-    //             _ => {
-    //                 // ignore
-    //             }
-    //         }
-    //     }
-    // }
-
-    // let mut names_by_file: BTreeMap<File, BTreeMap<Vec<u8>, _>> = BTreeMap::new();
-
-    // for (file_id, names) in names_by_file {
-    //     let file_entries = super::index_symbols(db, file_id, names);
-
-    //     function_name_to_die.extend(file_entries.function_name_to_die);
-    //     symbol_name_to_die.extend(file_entries.symbol_name_to_die);
-    //     address_range_to_function.extend(file_entries.address_range_to_function);
-    //     cu_to_base_addr.extend(file_entries.cu_to_base_addr);
-
-    //     let (name_to_die, die_to_name) = super::index_types(db, file_id);
-    //     type_name_to_die.extend(name_to_die);
-    //     die_to_type_name.extend(die_to_name);
-
-    //     let roots = super::parse_roots(db, file_id);
-    //     for root in roots {
-    //         let cu = root.cu(db);
-    //         if let Some(base_addr) = cu_to_base_addr.get(&root.cu(db)) {
-    //             let (start, end) = root.address_range(db);
-    //             address_range_to_cu.push((base_addr + start, base_addr + end, cu));
-    //         }
-
-    //         for file in root.files(db) {
-    //             file_to_cu.entry(*file).or_default().push(cu)
-    //         }
-    //     }
-    // }
-
-    // // sort the lists
-    // address_range_to_function.sort_unstable();
-    // address_range_to_cu.sort_unstable();
-
-    super::FileIndex::new(db, builder.data)
+    super::FileIndex::new(db, data)
 }
 
 fn is_rust_cu(db: &dyn Db, root: &RawDie<'_>, unit_ref: &UnitRef<'_>) -> bool {

@@ -2,7 +2,7 @@
 
 use itertools::Itertools;
 
-use crate::database::Db;
+use crate::{database::Db, file::SourceFile};
 
 #[salsa::interned(debug)]
 #[derive(Ord, PartialOrd)]
@@ -57,7 +57,7 @@ pub fn demangle<'db>(db: &'db dyn Db, sym: Symbol<'db>) -> NameId<'db> {
 
 #[salsa::interned(debug)]
 pub struct Position<'db> {
-    pub file: String,
+    pub file: SourceFile<'db>,
     pub line: u64,
     pub column: Option<u64>,
 }

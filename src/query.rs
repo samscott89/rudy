@@ -2,15 +2,14 @@
 
 use crate::database::Db;
 use crate::dwarf::{self};
-use crate::file::{Binary, SourceFile};
+use crate::file::Binary;
 use crate::index::{self, find_all_by_address};
 use crate::typedef::TypeDef;
 use crate::types::{Address, NameId, Position};
 
 #[salsa::tracked]
 pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db>) -> Option<u64> {
-    let file_name = query.file(db);
-    let file = SourceFile::new(db, file_name);
+    let file = query.file(db);
 
     // find compilation units that cover the provided file
     let index = index::debug_index(db, binary).data(db);
@@ -49,7 +48,7 @@ pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db
                 for f in matching_functions {
                     let relative_start = f.start;
                     if let Some(abs_start) = index.base_address.get(&f.name) {
-                        let addr = addr + relative_start - abs_start;
+                        let addr = addr + abs_start - relative_start;
                         tracing::debug!(
                             "found closest match at {addr:#x} for address {addr:#x} in file {debug_file:?}"
                         );

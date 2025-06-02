@@ -1,12 +1,10 @@
 ---
 source: tests/mod.rs
-expression: "debug_info.resolve_function(\"main\").unwrap()"
+expression: "debug_info.resolve_function(\"main\").unwrap().unwrap()"
 snapshot_kind: text
 ---
-Some(
-    ResolvedFunction {
-        name: "main",
-        address: "0x10000408c",
-        params: [],
-    },
-)
+ResolvedFunction {
+    name: "main",
+    address: "0x10000762c",
+    params: [],
+}

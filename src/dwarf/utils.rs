@@ -7,6 +7,7 @@ use itertools::Itertools;
 use crate::file::File;
 
 use super::{
+    CompilationUnitId,
     loader::{DwarfReader, RawDie},
     unit::UnitRef,
 };
@@ -66,17 +67,50 @@ pub fn parse_die_string_attribute<'a>(
     Ok(Some(value.to_string()?.into_owned()))
 }
 
-pub fn file_entry_to_path(f: &gimli::FileEntry<DwarfReader>, unit_ref: &UnitRef) -> Option<String> {
-    let lp = unit_ref.line_program.as_ref()?;
+pub fn file_entry_to_path<'db>(
+    f: &gimli::FileEntry<DwarfReader>,
+    unit_ref: &UnitRef<'db>,
+) -> Option<String> {
+    let lp = unit_ref
+        .line_program
+        .as_ref()
+        .expect("Line program should be present");
     let header = lp.header();
-    let dir = f.directory(header)?;
-    let dir = unit_ref.attr_string(dir).ok()?;
-    let path = unit_ref.attr_string(f.path_name()).ok()?;
-    Some(format!(
-        "{}/{}",
-        dir.to_string().ok()?,
-        path.to_string().ok()?
-    ))
+    let dir = f
+        .directory(header)
+        .and_then(|d| unit_ref.attr_string(d).ok());
+    let dir = dir.as_ref().and_then(|d| d.to_string().ok());
+    let path = unit_ref
+        .attr_string(f.path_name())
+        .inspect_err(|e| {
+            tracing::debug!("Failed to convert path to string: {e}");
+        })
+        .ok()?;
+    let path = path
+        .to_string()
+        .inspect_err(|e| {
+            tracing::debug!("Failed to convert path to string: {e}");
+        })
+        .ok()?;
+
+    if let Some(d) = dir {
+        if !d.starts_with("/") {
+            // this is a relative path, so we need to prepend the current working directory
+            let compilation_dir = unit_ref.comp_dir.as_ref().map_or_else(
+                || "/".to_string(),
+                |d| {
+                    d.to_string()
+                        .ok()
+                        .map_or_else(|| "/".to_string(), |d| d.into_owned())
+                },
+            );
+            Some(format!("{compilation_dir}/{d}/{path}"))
+        } else {
+            Some(format!("{d}/{path}"))
+        }
+    } else {
+        Some(path.to_string())
+    }
 }
 
 pub fn to_range(mut iter: gimli::RangeIter<DwarfReader>) -> Result<Option<(u64, u64)>> {

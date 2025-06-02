@@ -52,6 +52,18 @@ pub fn binary_path(target: &str) -> String {
     format!("{workspace_dir}target/{target}/debug-test/simple-test")
 }
 
+pub fn platform_source_file(target: &str, file: &str) -> String {
+    match target {
+        "aarch64-unknown-linux-gnu" | "x86_64-unknown-linux-gnu" => {
+            format!("/app/{file}")
+        }
+        "aarch64-apple-darwin" | "x86_64-apple-darwin" => {
+            format!("/Users/sam/work/tardis/{file}")
+        }
+        _ => panic!("Unsupported target: {target}"),
+    }
+}
+
 #[apply(binary_target)]
 fn test_resolve_function(#[case] target: &str) {
     setup!(target);
@@ -70,9 +82,11 @@ fn test_resolve_position(#[case] target: &str) {
     let db = crate::DebugDb::new().unwrap();
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
+    let platform_file = platform_source_file(target, "examples/simple-test/src/main.rs");
+
     // should be the position of the `let y = x + 1;` line
     let addrs = resolver
-        .resolve_position("examples/simple-test/src/main.rs", 4, None)
+        .resolve_position(&platform_file, 4, None)
         .unwrap()
         .unwrap();
     insta::assert_debug_snapshot!(addrs);
@@ -80,7 +94,7 @@ fn test_resolve_position(#[case] target: &str) {
         resolver.address_to_line(addrs.address).unwrap(),
         ResolvedLocation {
             function: "function_call".to_string(),
-            file: "examples/simple-test/src/main.rs".to_string(),
+            file: platform_file.clone(),
             line: 4,
         }
     );
@@ -92,7 +106,7 @@ fn test_resolve_position(#[case] target: &str) {
     //   (lldb) b simple-test.rs:21
     //   Breakpoint 4: where = simple-test`simple_test::main::h8787f5d764ea460c + 20 at simple-test.rs:22:5, address = 0x00000001000041a0``
     let addrs = resolver
-        .resolve_position("examples/simple-test/src/main.rs", 16, None)
+        .resolve_position(&platform_file, 16, None)
         .unwrap()
         .unwrap();
     // address of line 17
@@ -102,7 +116,7 @@ fn test_resolve_position(#[case] target: &str) {
         resolver.address_to_line(addrs.address).unwrap(),
         ResolvedLocation {
             function: "main".to_string(),
-            file: "examples/simple-test/src/main.rs".to_string(),
+            file: platform_file.clone(),
             // This is right: it resolves to the next line cause
             // that's closest line that has an instruction
             line: 17,
@@ -114,7 +128,7 @@ fn test_resolve_position(#[case] target: &str) {
     //     resolver.address_to_line(0x100003948).unwrap(),
     //     ResolvedLocation {
     //         function: "main".to_string(),
-    //         file: "examples/simple-test/src/main.rs".to_string(),
+    //         file: platform_file.clone(),
     //         // TODO(Sam): this is wrong. This should be line 18
     //         // based on the output of LLDB.
     //         // this is currently pointing to the end of the function rather
@@ -153,21 +167,35 @@ fn test_generated_benchmarks() {
     insta::assert_debug_snapshot!(debug_info);
 
     // resolve functions
-    insta::assert_debug_snapshot!(debug_info.resolve_function("main").unwrap());
+    insta::assert_debug_snapshot!(debug_info.resolve_function("main").unwrap().unwrap());
     insta::assert_debug_snapshot!(
         debug_info
             .resolve_function("TestStruct0::method_0")
+            .unwrap()
             .unwrap()
     );
     insta::assert_debug_snapshot!(
         debug_info
             .resolve_function("TestStruct1::method_1")
             .unwrap()
+            .unwrap()
     );
+
+    let f = debug_info
+        .resolve_function("TestStruct0::method_0")
+        .unwrap()
+        .unwrap();
+
+    // resolve the address of the function
+    let location = debug_info
+        .resolve_address_to_location(f.address)
+        .unwrap()
+        .unwrap();
+    insta::assert_debug_snapshot!(location);
 
     // resolve positions
     let addrs = debug_info
-        .resolve_position("benches/test_binaries/medium.rs", 4, None)
+        .resolve_position("benches/test_binaries/medium.rs", location.line, None)
         .unwrap()
         .unwrap();
     insta::assert_debug_snapshot!(addrs);

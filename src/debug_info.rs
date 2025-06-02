@@ -283,7 +283,32 @@ impl<'db> DebugInfo<'db> {
         line: u64,
         column: Option<u64>,
     ) -> Result<Option<crate::ResolvedAddress>> {
-        let query = Position::new(self.db, file.to_string(), line, column);
+        let index = crate::index::debug_index(self.db, self.binary).data(self.db);
+
+        let source_file = crate::file::SourceFile::new(self.db, file);
+
+        let file = if index.source_to_file.contains_key(&source_file) {
+            // already indexed file, so we can use it directly
+            source_file
+        } else {
+            // otherwise, we need to find the file in the index
+            if let Some(source_file) = index
+                .source_to_file
+                .keys()
+                .find(|f| f.path(self.db).ends_with(&file))
+            {
+                tracing::debug!(
+                    "found file `{file}` in debug index as `{}`",
+                    source_file.path(self.db)
+                );
+                source_file.clone()
+            } else {
+                tracing::warn!("file `{file}` not found in debug index");
+                return Ok(None);
+            }
+        };
+
+        let query = Position::new(self.db, file, line, column);
         let pos = lookup_position(self.db, self.binary, query);
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }

@@ -222,7 +222,16 @@ fn get_symbol_map<'db>(
     // find the symbol in the object file
     let object_map = object.object_map();
     for s in object_map.symbols() {
-        let symbol = Symbol::new(db, s.name());
+        let name_bytes = s.name();
+        if name_bytes.is_empty() {
+            // skip empty symbols
+            continue;
+        }
+        let symbol = Symbol::new(
+            db,
+            // trim the leading `_` character that macos adds when using STAB entries
+            &name_bytes[1..],
+        );
         let demangled_name = demangle(db, symbol);
         let file = s.object(&object_map).path();
         let file = match std::str::from_utf8(file) {
@@ -310,6 +319,11 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         // address *range* information that we want to index
         for (name, entry) in &indexed.functions {
             let Some((start, end)) = entry.relative_address_range else {
+                tracing::trace!(
+                    "Function {} in file {} does not have a valid address range",
+                    name.as_path(db),
+                    file.path(db),
+                );
                 // function does not have a valid address range
                 continue;
             };
