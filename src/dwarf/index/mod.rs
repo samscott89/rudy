@@ -96,6 +96,7 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         );
         walker.visitor.current_path.push(module_name);
         walker.walk_namespace();
+        walker.visitor.current_path.pop();
     }
 
     fn visit_function<'a>(

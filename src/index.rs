@@ -249,6 +249,8 @@ fn get_symbol_map<'db>(
         );
     }
 
+    tracing::trace!("Symbols found in binary: {map:#?}",);
+
     map
 }
 
@@ -270,6 +272,8 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
 
     // discover all debug files associated with the binary
     let debug_files = discover_debug_files(db, binary);
+
+    tracing::trace!("Debug files found: {debug_files:#?}",);
 
     // index each files and aggregate into a shared index
     let mut data = IndexData::default();
@@ -328,6 +332,11 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
                 }
             } else {
                 // function not linked in binary -- this is fine
+                tracing::trace!(
+                    "Function {} found in file {} but not linked in binary",
+                    name.as_path(db),
+                    file.path(db),
+                );
             }
         }
 
