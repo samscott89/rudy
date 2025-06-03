@@ -24,6 +24,7 @@ pub enum FunctionDeclarationType {
         #[allow(dead_code)]
         inlined: bool,
     },
+    InlinedFunctionImplementation(Offset),
 }
 
 /// Infer what kind of declaration this DIE represents
@@ -112,13 +113,23 @@ pub fn get_declaration_type<'db>(
         return FunctionDeclarationType::ClassMethodImplementation(offset);
     }
 
+    if let Some(gimli::AttributeValue::UnitRef(offset)) = die
+        .attr(gimli::DW_AT_abstract_origin)
+        .ok()
+        .flatten()
+        .map(|v| v.value())
+    {
+        return FunctionDeclarationType::InlinedFunctionImplementation(offset);
+    }
+
     if let Ok(Some(name)) = get_string_attr(die, gimli::DW_AT_name, &unit_ref) {
         if name.starts_with("{closure#") {
             return FunctionDeclarationType::Closure;
         }
     } else {
         tracing::error!(
-            "No name attribute for function. What is this? {}",
+            "No name attribute for function at {:#010x}. What is this? {}",
+            unit_ref.header.offset().as_debug_info_offset().unwrap().0 + die.offset().0,
             pretty_print_die_entry(die, unit_ref)
         );
     }

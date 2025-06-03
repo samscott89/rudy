@@ -101,6 +101,10 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                 .unwrap_or_default();
             walker.visitor.data.sources.extend(files);
 
+            tracing::trace!(
+                "walking cu: {:#010x}",
+                unit_ref.header.offset().as_debug_info_offset().unwrap().0
+            );
             walker.walk_cu();
         }
     }
@@ -235,30 +239,34 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                         declaration.specification_die = Some(spec_die);
 
                         // find the name in the functions map
-                        let relative_address_range = match unit_ref
-                            .die_ranges(&entry)
-                            .map_err(anyhow::Error::from)
-                            .and_then(to_range)
-                        {
-                            Ok(Some((start, end))) => Some((start, end)),
-                            Ok(None) => None,
-                            Err(e) => {
+                        if declaration.relative_address_range.is_none() {
+                            let relative_address_range = match unit_ref
+                                .die_ranges(&entry)
+                                .map_err(anyhow::Error::from)
+                                .and_then(to_range)
+                            {
+                                Ok(Some((start, end))) => Some((start, end)),
+                                Ok(None) => None,
+                                Err(e) => {
+                                    walker
+                                        .db
+                                        .report_critical(format!("Failed to get ranges: {e}"));
+                                    None
+                                }
+                            };
+                            if let Some((start, end)) = relative_address_range {
                                 walker
-                                    .db
-                                    .report_critical(format!("Failed to get ranges: {e}"));
-                                None
+                                    .visitor
+                                    .function_addresses
+                                    .push((start, end, name.clone()));
+                                // update the relative address range
+                                declaration.relative_address_range.replace((start, end));
+                            } else {
+                                tracing::debug!(
+                                    "No address range found for function: {}",
+                                    pretty_print_die_entry(&entry, &unit_ref)
+                                );
                             }
-                        };
-                        if let Some(relative_address_range) = relative_address_range {
-                            // update the relative address range
-                            declaration
-                                .relative_address_range
-                                .get_or_insert(relative_address_range);
-                        } else {
-                            tracing::debug!(
-                                "No address range found for function: {}",
-                                pretty_print_die_entry(&entry, &unit_ref)
-                            );
                         }
                     } else {
                         tracing::debug!(
@@ -270,6 +278,13 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                         "No function declaration found for offset: {declaration_offset:?}"
                     );
                 }
+            }
+            FunctionDeclarationType::InlinedFunctionImplementation(offset) => {
+                // not handling for now
+                tracing::trace!(
+                    "Skipping inlined function implementation: at offset {:#010x}",
+                    offset.0
+                );
             }
         };
     }
@@ -283,6 +298,7 @@ pub fn build_file_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileInde
     let file = debug_file.file(db);
 
     let mut builder = FileIndexBuilder::default();
+    tracing::info!("Indexing file: {}", file.path(db));
     walk_file(db, file, &mut builder);
 
     let FileIndexBuilder {

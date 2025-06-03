@@ -21,6 +21,13 @@ pub enum Error {
                                 // MemberFileNotFound(String),
 }
 
+unsafe impl salsa::Update for Error {
+    unsafe fn maybe_update(old_pointer: *mut Self, new_value: Self) -> bool {
+        unsafe { *old_pointer = new_value };
+        true
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

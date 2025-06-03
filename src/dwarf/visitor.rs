@@ -239,8 +239,8 @@ pub trait DieVisitor<'db>: Sized {
             gimli::DW_TAG_variable => Self::visit_variable(walker, die, unit_ref),
             gimli::DW_TAG_base_type => Self::visit_base_type(walker, die, unit_ref),
             _ => {
-                tracing::warn!(
-                    "Unhandled DIE tag: {:?} at offset {:#x}",
+                tracing::debug!(
+                    "Unhandled DIE tag: {} at offset {:#x}",
                     die.tag(),
                     die.offset().0
                 );

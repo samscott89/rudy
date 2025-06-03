@@ -1,6 +1,29 @@
 ---
 source: tests/mod.rs
-expression: "debug_info.resolve_function(\"TestStruct1::method_1\").unwrap()"
+expression: "debug_info.resolve_function(\"TestStruct0::method_0\").unwrap().unwrap()"
 snapshot_kind: text
 ---
-None
+ResolvedFunction {
+    name: "medium::TestStruct0::method_0",
+    address: "0x100003310",
+    params: [
+        Variable {
+            name: "self",
+            value: None,
+            ty: Some(
+                Type {
+                    name: "*TestStruct0",
+                },
+            ),
+        },
+        Variable {
+            name: "param",
+            value: None,
+            ty: Some(
+                Type {
+                    name: "i32",
+                },
+            ),
+        },
+    ],
+}

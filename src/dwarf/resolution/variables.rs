@@ -38,9 +38,8 @@ pub fn resolve_function_variables<'db>(
     die: Die<'db>,
 ) -> Result<ResolvedVariables<'db>> {
     tracing::debug!(
-        "resolving function variables for `{}` in {}",
-        die.name(db).unwrap(),
-        die.cu(db).file(db).path(db)
+        "{}",
+        die.format_with_location(db, "resolving function variables")
     );
 
     let mut params = vec![];
@@ -88,13 +87,13 @@ fn resolve_function_parameter_entry<'db>(
 ) -> Result<Variable<'db>> {
     let Some(name) = entry.name(db) else {
         return Err(entry
-            .format_error(db, "Failed to get parameter name")
+            .format_with_location(db, "Failed to get parameter name")
             .into());
     };
 
     let Some(type_entry) = entry.get_unit_ref(db, gimli::DW_AT_type)? else {
         return Err(entry
-            .format_error(db, "Failed to get type for parameter")
+            .format_with_location(db, "Failed to get type for parameter")
             .into());
     };
 
@@ -102,7 +101,7 @@ fn resolve_function_parameter_entry<'db>(
 
     let Some(file) = declaration_file(db, entry) else {
         return Err(entry
-            .format_error(db, "Failed to get declaration file for parameter")
+            .format_with_location(db, "Failed to get declaration file for parameter")
             .into());
     };
     let Some(line) = entry
@@ -110,7 +109,7 @@ fn resolve_function_parameter_entry<'db>(
         .and_then(|v| v.udata_value())
     else {
         return Err(entry
-            .format_error(db, "Failed to get declaration line for parameter")
+            .format_with_location(db, "Failed to get declaration line for parameter")
             .into());
     };
 
@@ -119,12 +118,14 @@ fn resolve_function_parameter_entry<'db>(
 
 fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Variable<'db>> {
     let Some(name) = entry.name(db) else {
-        return Err(entry.format_error(db, "Failed to get variable name").into());
+        return Err(entry
+            .format_with_location(db, "Failed to get variable name")
+            .into());
     };
 
     let Some(type_entry) = entry.get_unit_ref(db, gimli::DW_AT_type)? else {
         return Err(entry
-            .format_error(db, "Failed to get type for parameter")
+            .format_with_location(db, "Failed to get type for parameter")
             .into());
     };
 
@@ -132,7 +133,7 @@ fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Varia
 
     let Some(file) = declaration_file(db, entry) else {
         return Err(entry
-            .format_error(db, "Failed to get declaration file for parameter")
+            .format_with_location(db, "Failed to get declaration file for parameter")
             .into());
     };
     let Some(line) = entry
@@ -140,7 +141,7 @@ fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Varia
         .and_then(|v| v.udata_value())
     else {
         return Err(entry
-            .format_error(db, "Failed to get declaration line for parameter")
+            .format_with_location(db, "Failed to get declaration line for parameter")
             .into());
     };
     Ok(Variable::new(db, name, ty, file, line, entry))

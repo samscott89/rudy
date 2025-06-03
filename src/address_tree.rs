@@ -1,11 +1,33 @@
+use std::fmt;
+
 use crate::{file::DebugFile, types::NameId};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FunctionAddressInfo<'db> {
     pub start: u64,
     pub end: u64,
     pub file: DebugFile,
     pub name: NameId<'db>,
+}
+
+impl fmt::Debug for FunctionAddressInfo<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        salsa::with_attached_database(|db| {
+            let file_path = self.file.file(db).path(db);
+            f.debug_struct("FunctionAddressInfo")
+                .field("start", &self.start)
+                .field("end", &self.end)
+                .field("file", &file_path)
+                .field("name", &self.name.as_path(db))
+                .finish()
+        })
+        .unwrap_or_else(|| {
+            f.debug_struct("FunctionAddressInfo")
+                .field("start", &self.start)
+                .field("end", &self.end)
+                .finish()
+        })
+    }
 }
 
 impl<'db> FunctionAddressInfo<'db> {
@@ -99,6 +121,11 @@ impl<'db> AddressTree<'db> {
         if let Some(ref root_node) = self.root {
             Self::query_address_recursive(root_node, address, &mut result);
         }
+
+        if result.is_empty() {
+            tracing::debug!("No function found for address {address} in {self:#?}");
+        }
+
         result
     }
 

@@ -1,8 +1,10 @@
 ---
 source: tests/mod.rs
-expression: addrs
+expression: location
 snapshot_kind: text
 ---
-ResolvedAddress {
-    address: "0x100003560",
+ResolvedLocation {
+    function: "medium::TestStruct0::method_0",
+    file: "/Users/sam/work/rust_debuginfo/benches/test_binaries/medium.rs",
+    line: 17,
 }

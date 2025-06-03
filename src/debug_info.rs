@@ -177,9 +177,10 @@ impl<'db> DebugInfo<'db> {
             .lookup_function(self.db, name)
             .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
 
-        let params = resolve_function_variables(self.db, fie.declaration_die)?;
+        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
+        let params = resolve_function_variables(self.db, function_die)?;
         let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(self.db, fie.declaration_die);
+            dwarf::resolve_function_variables::accumulated(self.db, function_die);
         handle_diagnostics(&diagnostics)?;
 
         Ok(Some(ResolvedFunction {
@@ -357,9 +358,11 @@ impl<'db> DebugInfo<'db> {
             return Ok(Default::default());
         };
 
-        let vars = dwarf::resolve_function_variables(self.db, fie.declaration_die)?;
+        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
+
+        let vars = dwarf::resolve_function_variables(self.db, function_die)?;
         let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(self.db, fie.declaration_die);
+            dwarf::resolve_function_variables::accumulated(self.db, function_die);
         handle_diagnostics(&diagnostics)?;
 
         let base_addr = *crate::index::debug_index(self.db, self.binary)

@@ -14,7 +14,10 @@ pub struct NameId<'db> {
 }
 
 impl<'db> NameId<'db> {
-    pub fn as_path(&self, db: &'db dyn Db) -> String {
+    pub fn as_path<Db>(&self, db: &'db Db) -> String
+    where
+        Db: salsa::Database + ?Sized,
+    {
         let name = self.name(db);
         let path = self.path(db).iter().join("::");
         if path.is_empty() {

@@ -83,9 +83,9 @@ impl<'db> Die<'db> {
         children
     }
 
-    pub fn format_error<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
+    pub fn format_with_location<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
         format!(
-            "{} for {:#x} in {}",
+            "{} for {:#010x} in {}",
             message.as_ref(),
             self.die_offset(db).0,
             self.file(db).path(db)
@@ -98,7 +98,7 @@ impl<'db> Die<'db> {
                 ok.map(|unit_offset| Die::new(db, self.file(db), self.cu_offset(db), unit_offset))
             })
         })
-        .with_context(|| self.format_error(db, "Failed to get DIE entry"))?
+        .with_context(|| self.format_with_location(db, "Failed to get DIE entry"))?
     }
 
     pub fn tag(&self, db: &'db dyn Db) -> gimli::DwTag {
