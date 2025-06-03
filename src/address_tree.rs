@@ -165,6 +165,7 @@ impl<'db> AddressTree<'db> {
         }
     }
 
+    #[allow(dead_code)]
     /// Finds all functions in the tree that overlap with the given address range.
     pub fn query_address_range(
         &'db self,

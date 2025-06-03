@@ -106,7 +106,7 @@ impl<'db> TypeDef<'db> {
             DefKind::Struct(struct_def) => struct_def.name.clone(),
             DefKind::Enum(enum_def) => enum_def.name.clone(),
             DefKind::Alias(entry) => {
-                if let Some(def) = crate::dwarf::resolve_type_offset(db, *entry) {
+                if let Ok(def) = crate::dwarf::resolve_type_offset(db, *entry) {
                     def.display_name(db)
                 } else {
                     entry.name(db).unwrap_or_default()
@@ -123,7 +123,7 @@ impl<'db> TypeDef<'db> {
             DefKind::Struct(struct_def) => Ok(Some(struct_def.size)),
             DefKind::Enum(enum_def) => Ok(Some(enum_def.size)),
             DefKind::Alias(entry) => {
-                if let Some(def) = crate::dwarf::resolve_type_offset(db, *entry) {
+                if let Ok(def) = crate::dwarf::resolve_type_offset(db, *entry) {
                     def.size(db)
                 } else {
                     Ok(None)

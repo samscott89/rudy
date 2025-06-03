@@ -152,7 +152,8 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                 // skip for now
                 return;
             }
-            FunctionDeclarationType::ClassMethodDeclaration | FunctionDeclarationType::Function => {
+            FunctionDeclarationType::ClassMethodDeclaration
+            | FunctionDeclarationType::Function { .. } => {
                 let Some(function_name) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
                     .ok()
                     .flatten()
@@ -269,11 +270,6 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                         "No function declaration found for offset: {declaration_offset:?}"
                     );
                 }
-            }
-            FunctionDeclarationType::InlinedFunction
-            | FunctionDeclarationType::InlinedFunctionImplementation(_) => {
-                // skip inlined functions for now
-                return;
             }
         };
     }

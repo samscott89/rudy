@@ -5,8 +5,8 @@ snapshot_kind: text
 ---
 Some(
     ResolvedFunction {
-        name: "main",
-        address: "0xcc2c",
+        name: "simple_test::main",
+        address: "0x660c",
         params: [],
     },
 )

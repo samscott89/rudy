@@ -4,7 +4,7 @@ use gimli::UnitSectionOffset;
 use itertools::Itertools;
 
 use super::{
-    CompilationUnitId, Die,
+    CompilationUnitId,
     unit::{UnitRef, get_unit_ref},
     utils::{file_entry_to_path, get_dwarf, to_range},
 };
@@ -106,34 +106,4 @@ pub fn parse_roots<'db>(db: &'db dyn Db, file: File) -> Vec<Root<'db>> {
     }
 
     roots
-}
-
-/// Check if an address is within a DIE entry's ranges
-pub fn address_in_entry<'db>(db: &'db dyn Db, relative_address: u64, die: Die<'db>) -> bool {
-    die.with_entry_and_unit(db, |entry, unit_ref| {
-        let mut ranges = match unit_ref.die_ranges(&entry) {
-            Ok(ranges) => ranges,
-            Err(e) => {
-                db.report_critical(format!("Failed to get ranges: {e}"));
-                return false;
-            }
-        };
-        loop {
-            match ranges.next() {
-                Ok(Some(range)) => {
-                    tracing::debug!("checking range ({:#x}, {:#x})", range.begin, range.end);
-                    if relative_address >= range.begin && relative_address <= range.end {
-                        return true;
-                    }
-                }
-                // we've checked all range, and none matched
-                Ok(None) => return false,
-                Err(e) => {
-                    db.report_critical(format!("Failed to parse ranges: {e}"));
-                    continue;
-                }
-            }
-        }
-    })
-    .unwrap_or(false)
 }

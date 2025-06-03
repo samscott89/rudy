@@ -157,44 +157,34 @@ impl<'db> DebugInfo<'db> {
             tracing::debug!("no function found for {function}");
             return Ok(None);
         };
-        let diagnostics: Vec<&Diagnostic> =
-            index::find_closest_function::accumulated(self.db, self.binary, function_name);
-        handle_diagnostics(&diagnostics)?;
 
-        let (_, fie) = crate::index::debug_index(self.db, self.binary)
-            .lookup_function(self.db, name)
-            .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
+        let debug_data = index::debug_index(self.db, self.binary).data(self.db);
 
-        let Some(f) = dwarf::resolve_function(self.db, fie.declaration_die) else {
-            return Ok(None);
-        };
-        let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function::accumulated(self.db, fie.declaration_die);
-        handle_diagnostics(&diagnostics)?;
-
-        let index = index::debug_index(self.db, self.binary);
-        let base_address = index
-            .data(self.db)
+        let base_address = debug_data
             .base_address
             .get(&name)
             .copied()
             .with_context(|| {
-                tracing::debug!(?name, "{:#?}", index.data(self.db).base_address);
+                tracing::debug!(?name, "{:#?}", debug_data.base_address);
                 "Failed to get base address for function"
             })?;
-        let address = f.relative_body_address(self.db);
 
-        let params = resolve_function_variables(self.db, self.binary, fie.declaration_die);
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function_variables::accumulated(
-            self.db,
-            self.binary,
-            fie.declaration_die,
-        );
+        let diagnostics: Vec<&Diagnostic> =
+            index::find_closest_function::accumulated(self.db, self.binary, function_name);
+        handle_diagnostics(&diagnostics)?;
+
+        let (_debug_file, fie) = crate::index::debug_index(self.db, self.binary)
+            .lookup_function(self.db, name)
+            .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
+
+        let params = resolve_function_variables(self.db, fie.declaration_die)?;
+        let diagnostics: Vec<&Diagnostic> =
+            dwarf::resolve_function_variables::accumulated(self.db, fie.declaration_die);
         handle_diagnostics(&diagnostics)?;
 
         Ok(Some(ResolvedFunction {
-            name: f.name(self.db).to_string(),
-            address: base_address + address,
+            name: name.as_path(self.db),
+            address: base_address,
             params: params
                 .params(self.db)
                 .into_iter()
@@ -234,21 +224,10 @@ impl<'db> DebugInfo<'db> {
             return Ok(None);
         };
 
-        let (_, fie) = crate::index::debug_index(self.db, self.binary)
-            .lookup_function(self.db, name)
-            .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
-        let f = fie.declaration_die;
-        let Some(function) = dwarf::resolve_function(self.db, f) else {
-            tracing::debug!("failed to resolve function: {f:?}");
-            return Ok(None);
-        };
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function::accumulated(self.db, f);
-        handle_diagnostics(&diagnostics)?;
-        tracing::debug!("returned function + loc: {f:?} / {loc:?}");
         Ok(loc.map(|loc| {
             let file = loc.file(self.db);
             crate::ResolvedLocation {
-                function: function.name(self.db).to_string(),
+                function: name.as_path(self.db),
                 file: file.path(self.db).clone(),
                 line: loc.line(self.db),
             }
@@ -378,12 +357,9 @@ impl<'db> DebugInfo<'db> {
             return Ok(Default::default());
         };
 
-        let vars = dwarf::resolve_function_variables(self.db, self.binary, fie.declaration_die);
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function_variables::accumulated(
-            self.db,
-            self.binary,
-            fie.declaration_die,
-        );
+        let vars = dwarf::resolve_function_variables(self.db, fie.declaration_die)?;
+        let diagnostics: Vec<&Diagnostic> =
+            dwarf::resolve_function_variables::accumulated(self.db, fie.declaration_die);
         handle_diagnostics(&diagnostics)?;
 
         let base_addr = *crate::index::debug_index(self.db, self.binary)
@@ -428,12 +404,13 @@ impl<'db> DebugInfo<'db> {
                 )
             })
             .collect::<Result<Vec<_>>>()?;
-        let globals = vars
-            .globals(self.db)
-            .into_iter()
-            .map(|(var, address)| output_global_variable(self.db, var, address, data_resolver))
-            .collect::<Result<Vec<_>>>()?;
-        Ok((params, locals, globals))
+        // TODO: handle globals
+        // let globals = vars
+        //     .globals(self.db)
+        //     .into_iter()
+        //     .map(|(var, address)| output_global_variable(self.db, var, address, data_resolver))
+        //     .collect::<Result<Vec<_>>>()?;
+        Ok((params, locals, vec![]))
     }
 
     pub fn test_get_shape(&self) -> Result<TypeDef<'_>> {
@@ -476,6 +453,7 @@ fn output_variable<'db>(
     })
 }
 
+#[allow(dead_code)]
 fn output_global_variable<'db>(
     db: &'db dyn Db,
     var: dwarf::Variable<'db>,

@@ -93,7 +93,7 @@ fn test_resolve_position(#[case] target: &str) {
     assert_eq!(
         resolver.address_to_line(addrs.address).unwrap(),
         ResolvedLocation {
-            function: "function_call".to_string(),
+            function: "simple_test::function_call".to_string(),
             file: platform_file.clone(),
             line: 4,
         }
@@ -115,7 +115,7 @@ fn test_resolve_position(#[case] target: &str) {
     assert_eq!(
         resolver.address_to_line(addrs.address).unwrap(),
         ResolvedLocation {
-            function: "main".to_string(),
+            function: "simple_test::main".to_string(),
             file: platform_file.clone(),
             // This is right: it resolves to the next line cause
             // that's closest line that has an instruction
@@ -200,3 +200,5 @@ fn test_generated_benchmarks() {
         .unwrap();
     insta::assert_debug_snapshot!(addrs);
 }
+
+// TODO: add a test that we correctly resolve inlined functions

@@ -7,12 +7,9 @@ use itertools::Itertools;
 use crate::file::File;
 
 use super::{
-    CompilationUnitId,
-    loader::{DwarfReader, RawDie},
+    loader::{DwarfReader, Offset, RawDie},
     unit::UnitRef,
 };
-
-// pub(super) type DwarfRef<'a> = crate::database::MappedRef<'a, super::Dwarf>;
 
 pub fn get_dwarf<'db>(db: &'db dyn crate::database::Db, file: File) -> Option<&'db super::Dwarf> {
     let loaded = crate::file::load(db, file).as_ref().ok()?;
@@ -53,6 +50,20 @@ pub fn get_string_attr<'a>(
     let Some(value) = value else { return Ok(None) };
     let value = value.to_string()?;
     Ok(Some(value.into_owned()))
+}
+
+pub fn get_unit_ref_attr<'a>(die: &RawDie<'a>, attr: gimli::DwAt) -> Result<Option<Offset>> {
+    let Some(value) = die.attr_value(attr)? else {
+        return Ok(None);
+    };
+    if let gimli::AttributeValue::UnitRef(offset) = value {
+        Ok(Some(offset))
+    } else {
+        anyhow::bail!(
+            "Expected UnitRef attribute for {:#x}, got {value:?}",
+            die.offset().0,
+        );
+    }
 }
 
 pub fn parse_die_string_attribute<'a>(
@@ -129,25 +140,6 @@ pub fn to_range(mut iter: gimli::RangeIter<DwarfReader>) -> Result<Option<(u64, 
 }
 
 const MAX_DIE_ATTR_LENGTH: usize = 512;
-
-pub fn debug_print_die_entry(die: &RawDie<'_>) -> String {
-    let mut attrs = die.attrs();
-    let attrs_iter = std::iter::from_fn(|| attrs.next().ok().flatten());
-    let attrs = attrs_iter
-        .map(|a| {
-            let name = a.name();
-            let value = a.value();
-
-            let string_value = format!("{value:?}");
-            if string_value.len() > MAX_DIE_ATTR_LENGTH {
-                format!("{name}: {}..", &string_value[..MAX_DIE_ATTR_LENGTH])
-            } else {
-                format!("{name}: {string_value}")
-            }
-        })
-        .join(",\n\t");
-    format!("{:#x} {} {{\n\t{}\n}}", die.offset().0, die.tag(), attrs)
-}
 
 pub fn pretty_print_die_entry(die: &RawDie<'_>, unit_ref: &UnitRef<'_>) -> String {
     let mut attrs = die.attrs();

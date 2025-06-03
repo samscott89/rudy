@@ -1,10 +1,8 @@
+use super::Die;
 use super::loader::{DwarfReader, RawDie};
 use super::unit::UnitRef;
-use super::{CompilationUnitId, Die};
 use crate::database::Db;
-use crate::dwarf::utils::pretty_print_die_entry;
 use crate::file::File;
-use gimli::DebuggingInformationEntry;
 
 /// Walker that drives the visitor through the DIE tree
 pub struct DieWalker<'a, 'db, V> {
@@ -192,12 +190,6 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
 
         // walk the siblings at this depth
         while let Some(next) = self.next_sibling() {
-            // tracing::trace!(
-            //     "Visiting DIE: {:#x} {} {}",
-            //     next.offset().0,
-            //     next.tag(),
-            //     pretty_print_die_entry(&next, &self.unit_ref)
-            // );
             // continue walking siblings
             V::visit_die(self, next, self.unit_ref.clone());
         }
@@ -220,111 +212,6 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
     pub fn walk_struct(&mut self) {
         self.walk_children();
     }
-
-    // pub fn walk_namespace(&mut self, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
-    //     if let Some(mut tree) = self
-    //         .unit_ref
-    //         .entries_tree(Some(die.die_offset()))
-    //         .inspect_err(|e| {
-    //             self.db
-    //                 .report_critical(format!("Failed to parse child nodes: {e}"));
-    //         })
-    //         .ok()
-    //     {
-    //         let Some(tree_root) = tree
-    //             .root()
-    //             .inspect_err(|e| {
-    //                 self.db
-    //                     .report_critical(format!("Failed to parse child nodes: {e}"));
-    //             })
-    //             .ok()
-    //         else {
-    //             return;
-    //         };
-
-    //         for child in tree_root.children() {
-    //             let child_die = RawDie::new(self.db, die.file(), die.cu_offset(), child.offset());
-    //             self.visitor.visit_namespace(self.db, &child_die, &child);
-    //         }
-    //     }
-
-    //     // let Some(mut tree) = self
-    //     //     .unit_ref
-    //     //     .entries_tree(Some(self.die_offset(db)))
-    //     //     .inspect_err(|e| {
-    //     //         db.report_critical(format!("Failed to parse child nodes: {e}"));
-    //     //     })
-    //     //     .ok()
-    //     // else {
-    //     //     return children;
-    //     // };
-    // }
-
-    // /// Walk a compilation unit with the given visitor
-    // pub fn walk_unit(
-    //     &self,
-    //     unit: CompilationUnitId<'a>,
-    //     visitor: &mut V,
-    // ) -> Result<(), gimli::Error> {
-    //     let unit_ref = unit.unit_ref(self.db).ok_or(gimli::Error::InvalidInput)?;
-    //     let file = unit.file(self.db);
-    //     let cu_offset = unit.offset(self.db);
-
-    //     let mut entries = unit_ref.entries();
-    //     self.walk_entries(&mut entries, &unit_ref, file, cu_offset, visitor, 0)
-    // }
-
-    // /// Internal recursive walker
-    // fn walk_entries(
-    //     &self,
-    //     entries: &mut gimli::EntriesCursor<'_>,
-    //     unit_ref: UnitRef<'_>,
-    //     file: crate::file::File,
-    //     cu_offset: gimli::DebugInfoOffset,
-    //     visitor: &mut V,
-    //     depth: usize,
-    // ) -> Result<(), gimli::Error> {
-    //     loop {
-    //         let Some((_, entry)) = entries.next_dfs()? else {
-    //             break;
-    //         };
-
-    //         // Create Die handle
-    //         let die = Die::new(self.db, file, cu_offset, entry.offset());
-
-    //         // Visit the DIE
-    //         let control = visitor.visit_die(self.db, &die, &entry);
-
-    //         match control {
-    //             VisitorControl::Continue => {
-    //                 if entry.has_children() {
-    //                     visitor.enter_scope(self.db, &die, &entry);
-    //                     // Continue traversal - next_dfs will handle children
-    //                 }
-    //             }
-    //             VisitorControl::SkipChildren => {
-    //                 // Skip to next sibling
-    //                 entries.skip_attributes()?;
-    //                 while entries.current().is_some() && entries.current().unwrap().1 > depth {
-    //                     entries.next_dfs()?;
-    //                 }
-    //             }
-    //             VisitorControl::Break => {
-    //                 return Ok(());
-    //             }
-    //         }
-
-    //         // Check if we're leaving a scope
-    //         if let Some((next_depth, _)) = entries.current() {
-    //             if next_depth < depth && depth > 0 {
-    //                 // We're about to leave this scope
-    //                 visitor.leave_scope(self.db, &die, &entry);
-    //             }
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
 }
 
 /// Visitor trait for walking DWARF DIE trees
@@ -383,7 +270,7 @@ pub trait DieVisitor<'db>: Sized {
     fn visit_struct<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
+        _unit_ref: UnitRef<'a>,
     ) {
         walker.walk_children();
     }
@@ -392,7 +279,7 @@ pub trait DieVisitor<'db>: Sized {
     fn visit_enum<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
+        _unit_ref: UnitRef<'a>,
     ) {
         walker.walk_children();
     }
@@ -401,7 +288,7 @@ pub trait DieVisitor<'db>: Sized {
     fn visit_variable<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
+        _unit_ref: UnitRef<'a>,
     ) {
         walker.walk_children();
     }
@@ -410,16 +297,10 @@ pub trait DieVisitor<'db>: Sized {
     fn visit_base_type<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
+        _unit_ref: UnitRef<'a>,
     ) {
         walker.walk_children();
     }
-
-    // /// Called when entering a new scope (before visiting children)
-    // fn enter_scope(walker: &mut DieWalker<'a, 'db, Self>, _entry: RawDie<'a>, unit_ref: UnitRef<'a>) {}
-
-    // /// Called when leaving a scope (after visiting children)
-    // fn leave_scope(walker: &mut DieWalker<'a, 'db, Self>, _entry: RawDie<'a>, unit_ref: UnitRef<'a>) {}
 }
 
 #[cfg(test)]
@@ -449,10 +330,6 @@ mod test {
             unit_ref: crate::dwarf::unit::UnitRef<'a>,
         ) {
             let offset = die.offset().0;
-            // if offset > 0x000000a6 {
-            //     // Skip entries after a certain offset for testing
-            //     return;
-            // }
             let padding = std::iter::repeat(" ")
                 .take(2 * walker.current_depth as usize)
                 .join("");
@@ -485,8 +362,6 @@ mod test {
             .try_init();
         let db = crate::database::DebugDatabaseImpl::new().unwrap();
         // Load a test DWARF file
-        // db.analyze_file("benches/test_binaries/small")
-
         let file = super::File::build(
             &db,
             "benches/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
@@ -576,19 +451,5 @@ mod test {
         // Check that we visited the expected entries
         assert!(!visitor.functions.is_empty(), "No functions were visited");
         insta::assert_snapshot!(visitor.functions.join("\n"));
-
-        // let file = super::File::build(
-        //     &db,
-        //     "benches/test_binaries/medium.medium.b63b38f5b684d51-cgu.0.rcgu.o".to_string(),
-        //     None,
-        // )
-        // .unwrap();
-        // let mut visitor = ModuleFunctionVisitor::default();
-
-        // super::walk_file(&db, file, &mut visitor);
-
-        // // Check that we visited the expected entries
-        // assert!(!visitor.functions.is_empty(), "No functions were visited");
-        // insta::assert_snapshot!(visitor.functions.join("\n"));
     }
 }

@@ -4,7 +4,7 @@ expression: "debug_info.resolve_function(\"main\").unwrap().unwrap()"
 snapshot_kind: text
 ---
 ResolvedFunction {
-    name: "main",
-    address: "0x10000762c",
+    name: "medium::main",
+    address: "0x100003e28",
     params: [],
 }

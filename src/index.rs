@@ -101,6 +101,7 @@ impl<'db> Index<'db> {
             .cloned()
             .map(|entry| (*file, entry))
     }
+    #[allow(dead_code)]
     pub fn lookup_symbol(
         &self,
         db: &'db dyn Db,
@@ -110,6 +111,7 @@ impl<'db> Index<'db> {
         let indexed = dwarf::build_file_index(db, *file).data(db);
         indexed.symbols.get(&name).cloned()
     }
+    #[allow(dead_code)]
     pub fn lookup_module(
         &self,
         db: &'db dyn Db,
@@ -119,6 +121,7 @@ impl<'db> Index<'db> {
         let indexed = dwarf::build_file_index(db, *file).data(db);
         indexed.modules.get(&name).cloned()
     }
+    #[allow(dead_code)]
     pub fn lookup_type(&self, db: &'db dyn Db, name: NameId<'db>) -> Option<TypeIndexEntry<'db>> {
         let file = self.data(db).name_to_file.get(&name)?;
         let indexed = dwarf::build_file_index(db, *file).data(db);

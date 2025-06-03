@@ -4,9 +4,6 @@ use anyhow::Result;
 
 use crate::database::Db;
 use crate::dwarf::{Die, loader::DwarfReader};
-use crate::file::Binary;
-
-use super::FunctionIndexEntry;
 
 /// Get location expression from a DIE entry
 #[salsa::tracked]

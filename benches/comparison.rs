@@ -3,7 +3,7 @@
 //! Run with: cargo bench --bench comparison
 
 use anyhow::Result;
-use rust_debuginfo::{DebugDb, DebugInfo, ResolvedLocation};
+use rust_debuginfo::{DebugDb, DebugInfo};
 use std::io::Write;
 use std::process::Command;
 use std::time::{Duration, Instant};

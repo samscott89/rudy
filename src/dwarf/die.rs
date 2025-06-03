@@ -1,12 +1,13 @@
 //! Core DWARF entity types and their navigation methods
 
+use anyhow::{Context, Result};
 use gimli::UnitSectionOffset;
 
 use super::{
     CompilationUnitId,
     loader::{DwarfReader, Offset, RawDie},
     unit::UnitRef,
-    utils::{file_entry_to_path, parse_die_string_attribute},
+    utils::{file_entry_to_path, get_unit_ref_attr, parse_die_string_attribute},
 };
 use crate::file::File;
 use crate::{database::Db, file::SourceFile};
@@ -68,7 +69,7 @@ impl<'db> Die<'db> {
             match child_nodes.next() {
                 Ok(Some(child)) => {
                     let child_offset = child.entry().offset();
-                    let child_die = self.child_die(db, child_offset);
+                    let child_die = Die::new(db, self.file(db), self.cu_offset(db), child_offset);
                     children.push(child_die);
                 }
                 Ok(None) => break,
@@ -82,8 +83,22 @@ impl<'db> Die<'db> {
         children
     }
 
-    pub fn child_die(&self, db: &'db dyn Db, offset: Offset) -> Die<'db> {
-        Die::new(db, self.file(db), self.cu_offset(db), offset)
+    pub fn format_error<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
+        format!(
+            "{} for {:#x} in {}",
+            message.as_ref(),
+            self.die_offset(db).0,
+            self.file(db).path(db)
+        )
+    }
+
+    pub fn get_unit_ref(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<Option<Die<'db>>> {
+        self.with_entry_and_unit(db, |entry, _| {
+            get_unit_ref_attr(entry, attr).map(|ok| {
+                ok.map(|unit_offset| Die::new(db, self.file(db), self.cu_offset(db), unit_offset))
+            })
+        })
+        .with_context(|| self.format_error(db, "Failed to get DIE entry"))?
     }
 
     pub fn tag(&self, db: &'db dyn Db) -> gimli::DwTag {

@@ -10,36 +10,23 @@ use crate::typedef::{
 };
 use crate::types::NameId;
 
+use anyhow::Context;
+
+type Result<T> = std::result::Result<T, super::Error>;
+
 /// Resolve the full type for a DIE entry
-pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
-    let Some(type_offset_val) = entry.get_attr(db, gimli::DW_AT_type) else {
-        db.report_critical(format!("Failed to get type attribute"));
-        return None;
-    };
-
-    let gimli::AttributeValue::UnitRef(type_offset) = type_offset_val else {
-        db.report_critical(format!("Unexpected type offset: {type_offset_val:?}"));
-        tracing::error!(
-            "Unexpected type offset: {type_offset_val:?} for {}",
-            entry.print(db)
-        );
-        return None;
-    };
-
-    let type_entry = entry.child_die(db, type_offset);
+pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+    let type_entry = entry
+        .get_unit_ref(db, gimli::DW_AT_type)?
+        .with_context(|| entry.format_error(db, "Failed to get type entry"))?;
     resolve_type_offset(db, type_entry)
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
-pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
-    let type_offset_val = entry.get_attr(db, gimli::DW_AT_type)?;
-
-    let gimli::AttributeValue::UnitRef(type_offset) = type_offset_val else {
-        db.report_critical(format!("Unexpected type offset: {type_offset_val:?}"));
-        return None;
-    };
-
-    let type_entry = entry.child_die(db, type_offset);
+pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+    let type_entry = entry
+        .get_unit_ref(db, gimli::DW_AT_type)?
+        .with_context(|| entry.format_error(db, "Failed to get type entry"))?;
     shallow_resolve_type(db, type_entry)
 }
 
@@ -65,13 +52,11 @@ fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> TypeDef<'d
 }
 
 /// Resolve Option type structure
-fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<OptionDef<'db>> {
+fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDef<'db>> {
     // we have an option type -- but we still need to get the inner
     // type and we should double check the layout
 
     tracing::debug!("option: {}", entry.print(db));
-
-    let mut some_type = None;
 
     for child in entry.children(db) {
         tracing::debug!("option child: {}", child.print(db));
@@ -107,7 +92,9 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<OptionDe
                             }
                         }
                         t => {
-                            panic!("unexpected tag: {t}: {}", grandchild.print(db))
+                            return Err(grandchild
+                                .format_error(db, format!("unexpected tag: {t}"))
+                                .into());
                         }
                     }
                 }
@@ -123,7 +110,9 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<OptionDe
                             gimli::DW_TAG_template_type_parameter => {
                                 // formally, this tells us the type
                                 // of the option generic `T`
-                                some_type = resolve_type_shallow(db, grandchild);
+                                return Ok(OptionDef {
+                                    inner_type: Arc::new(resolve_type_shallow(db, grandchild)?),
+                                });
                             }
                             gimli::DW_TAG_member => {
                                 // formally, this is a reference to the tuple field(s)
@@ -138,42 +127,100 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<OptionDe
                                 )
                             }
                             t => {
-                                panic!("unexpected tag: {t}: {}", grandchild.print(db))
+                                return Err(grandchild
+                                    .format_error(db, format!("unexpected tag: {t}"))
+                                    .into());
                             }
                         }
                     }
                 }
             }
             t => {
-                panic!("unexpected tag: {t}: {}", entry.print(db))
+                return Err(entry
+                    .format_error(db, format!("unexpected tag: {t}"))
+                    .into());
             }
         }
     }
 
-    some_type.map(|t| OptionDef {
-        inner_type: Arc::new(t),
-    })
+    // if we got here, then we should have found the inner type
+    Err(entry.format_error(db, "failed to find option type").into())
+}
+
+fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+    let Some(size) = entry
+        .get_attr(db, gimli::DW_AT_byte_size)
+        .and_then(|attr| attr.udata_value())
+    else {
+        return Err(entry.format_error(db, "struct size not found").into());
+    };
+    let mut data_ptr_offset = None;
+    let mut length_offset = None;
+
+    for child in entry.children(db) {
+        if child.tag(db) == gimli::DW_TAG_member {
+            let Some(name) = child.name(db) else {
+                continue;
+            };
+            if name == "data_ptr" {
+                if let Some(offset) = child
+                    .get_attr(db, gimli::DW_AT_data_member_location)
+                    .and_then(|attr| attr.udata_value().map(|v| v as usize))
+                {
+                    data_ptr_offset = Some(offset);
+                } else {
+                    return Err(child
+                        .format_error(db, "could not read data_ptr offset")
+                        .into());
+                }
+            } else if name == "length" {
+                if let Some(offset) = child
+                    .get_attr(db, gimli::DW_AT_data_member_location)
+                    .and_then(|attr| attr.udata_value().map(|v| v as usize))
+                {
+                    length_offset = Some(offset);
+                } else {
+                    return Err(child
+                        .format_error(db, "could not read length offset")
+                        .into());
+                }
+            }
+        }
+    }
+
+    let Some(data_ptr_offset) = data_ptr_offset else {
+        return Err(entry.format_error(db, "data_ptr offset not found").into());
+    };
+    let Some(length_offset) = length_offset else {
+        return Err(entry.format_error(db, "length offset not found").into());
+    };
+    Ok(TypeDef::new(
+        db,
+        // canonical_name,
+        DefKind::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
+            data_ptr_offset,
+            length_offset,
+            size: size as usize,
+        })),
+    ))
 }
 
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
 /// support "builtin" types -- these are types that we manually resolve rather
 /// than relying on the DWARF info to do so.
-fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
-    match entry.tag(db) {
+fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef<'db>>> {
+    Ok(match entry.tag(db) {
         gimli::DW_TAG_base_type => {
             // primitive type
-            let name = entry.name(db)?;
+            let Some(name) = entry.name(db) else {
+                return Err(entry.format_error(db, "type name not found").into());
+            };
             let name_id = NameId::new(db, vec![], name);
             let ty = resolve_primitive_type(db, name_id);
             Some(ty)
         }
         gimli::DW_TAG_pointer_type => {
-            let Some(pointed_ty) = resolve_type_shallow(db, entry) else {
-                db.report_critical(format!("Failed to get pointed type"));
-                return None;
-            };
-            // let index = crate::index::build_index(db);
-            // let canonical_name = index.data(db).die_to_type_name.get(&entry).copied();
+            let pointed_ty = resolve_type_shallow(db, entry)?;
             Some(TypeDef::new(
                 db,
                 // canonical_name,
@@ -184,88 +231,27 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Type
         }
         gimli::DW_TAG_structure_type => {
             match entry.name(db) {
-                Some(n) if n == "&str" => {
-                    let Some(size) = entry
-                        .get_attr(db, gimli::DW_AT_byte_size)
-                        .and_then(|attr| attr.udata_value())
-                    else {
-                        db.report_critical(format!("Failed to get size"));
-                        return None;
-                    };
-                    let mut data_ptr_offset = None;
-                    let mut len_offset = None;
-
-                    for child in entry.children(db) {
-                        if child.tag(db) == gimli::DW_TAG_member {
-                            let Some(name) = child.name(db) else {
-                                continue;
-                            };
-                            if name == "data_ptr" {
-                                data_ptr_offset = Some(
-                                    child
-                                        .get_attr(db, gimli::DW_AT_data_member_location)?
-                                        .udata_value()?
-                                        as usize,
-                                );
-                            } else if name == "length" {
-                                len_offset = Some(
-                                    child
-                                        .get_attr(db, gimli::DW_AT_data_member_location)?
-                                        .udata_value()?
-                                        as usize,
-                                );
-                            }
-                        }
-                    }
-
-                    if let Some((data_ptr_offset, length_offset)) = data_ptr_offset.zip(len_offset)
-                    {
-                        // we have a string slice
-                        // let canonical_name = crate::index::build_index(db)
-                        //     .data(db)
-                        //     .die_to_type_name
-                        //     .get(&entry)
-                        //     .copied();
-                        return Some(TypeDef::new(
-                            db,
-                            // canonical_name,
-                            DefKind::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
-                                data_ptr_offset,
-                                length_offset,
-                                size: size as usize,
-                            })),
-                        ));
-                    } else {
-                        db.report_critical(format!("Failed to find data/len offsets"));
-                        return None;
-                    }
-                }
+                Some(n) if n == "&str" => Some(resolve_str_type(db, entry)?),
                 Some(n) if n.starts_with("Option<") => {
-                    // this is _probably_ the option type, but let's double check:
-                    // let index = crate::index::build_index(db);
-                    // let Some(canonical_name) = index.data(db).die_to_type_name.get(&entry).copied()
-                    // else {
-                    //     tracing::warn!("failed to get canonical name for option type");
-                    //     return None;
-                    // };
-                    // if !matches!(&canonical_name.path(db)[..], [p0, p1] if p0 == "core" && p1 == "option")
-                    // {
-                    //     tracing::debug!("this is _not_ the option type from core");
-                    //     return None;
-                    // }
-
-                    let def = resolve_option_type(db, entry);
-                    let Some(def) = def else {
-                        db.report_critical(format!("Failed to resolve option type"));
-                        return None;
-                    };
-                    return Some(TypeDef::new(
+                    // this is _probably_ the option type, but would be good to double check
+                    let def = resolve_option_type(db, entry)?;
+                    Some(TypeDef::new(
                         db,
                         // Some(canonical_name),
                         DefKind::Std(StdDef::Option(def)),
-                    ));
+                    ))
                 }
-                _ => None,
+                Some(n) => {
+                    tracing::trace!(
+                        "not handled as a builtin: {n} {}",
+                        entry.format_error(db, "")
+                    );
+                    None
+                }
+                _ => {
+                    tracing::trace!("{}", entry.format_error(db, "no name found for struct"));
+                    None
+                }
             }
         }
         gimli::DW_TAG_array_type => {
@@ -284,12 +270,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Type
             //                  DW_AT_name      ("__ARRAY_SIZE_TYPE__")
             //                  DW_AT_byte_size (0x08)
             //                  DW_AT_encoding  (DW_ATE_unsigned)
-            let Some(pointed_ty) = resolve_type_shallow(db, entry) else {
-                db.report_critical(format!("Failed to get pointed type"));
-                return None;
-            };
-            // let index = crate::index::build_index(db);
-            // let canonical_name = index.data(db).die_to_type_name.get(&entry).copied();
+            let pointed_ty = resolve_type_shallow(db, entry)?;
 
             // get the child with the size
             let children = entry.children(db);
@@ -297,8 +278,9 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Type
                 .iter()
                 .find(|child| child.tag(db) == gimli::DW_TAG_subrange_type)
             else {
-                tracing::warn!("no size child found for array");
-                return None;
+                return Err(entry
+                    .format_error(db, "array type does not have a size child")
+                    .into());
             };
 
             let count = size_child
@@ -322,36 +304,43 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Type
                 })),
             ))
         }
-        _ => None,
-    }
+        t => {
+            tracing::trace!(
+                "not handled as a builtin: {t} {}",
+                entry.format_error(db, "")
+            );
+            None
+        }
+    })
 }
 
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
-pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
-    let ty = if let Some(builtin_ty) = resolve_as_builtin_type(db, entry) {
-        // we have a builtin type -- use it
-        tracing::debug!("builtin: {builtin_ty:?}");
-        builtin_ty
-    } else {
-        TypeDef::new(db, DefKind::Alias(entry))
-    };
-    Some(ty)
+pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+    Ok(
+        if let Some(builtin_ty) = resolve_as_builtin_type(db, entry)? {
+            // we have a builtin type -- use it
+            tracing::debug!("builtin: {builtin_ty:?}");
+            builtin_ty
+        } else {
+            TypeDef::new(db, DefKind::Alias(entry))
+        },
+    )
 }
 
 /// Fully resolve a type from a DWARF DIE entry
 #[salsa::tracked]
-pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<TypeDef<'db>> {
-    if let Some(def) = resolve_as_builtin_type(db, entry) {
-        return Some(def);
+pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+    if let Some(def) = resolve_as_builtin_type(db, entry)? {
+        return Ok(def);
     }
 
-    match entry.tag(db) {
+    Ok(match entry.tag(db) {
         gimli::DW_TAG_base_type => {
             // unhandled primitive type
-            db.report_critical(format!("Primitive type not handled: {}", entry.print(db)));
-            return None;
+            tracing::debug!("unhandled primitive type: {}", entry.print(db));
+            return Err(entry.format_error(db, "Primitive type not handled").into());
         }
         gimli::DW_TAG_structure_type => {
             // DWARF info says struct, but in practice this could also be an enum
@@ -362,16 +351,28 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Type
                 .any(|c| c.tag(db) == gimli::DW_TAG_variant_part);
 
             if is_enum {
-                todo!("handle enums")
+                return Err(entry.format_error(db, "enums are not yet supported").into());
             } else {
                 // we have a struct type and it's _not_ a builtin -- we'll handle it now
 
                 // let index = crate::index::build_index(db);
                 // let type_name = index.data(db).die_to_type_name.get(&entry).copied();
                 // get some basic info
-                let name = entry.name(db)?;
-                let size = entry.get_attr(db, gimli::DW_AT_byte_size)?.udata_value()?;
-                let alignment = entry.get_attr(db, gimli::DW_AT_alignment)?.udata_value()?;
+                let Some(name) = entry.name(db) else {
+                    return Err(entry.format_error(db, "name not found for struct").into());
+                };
+                let Some(size) = entry
+                    .get_attr(db, gimli::DW_AT_byte_size)
+                    .and_then(|v| v.udata_value())
+                else {
+                    return Err(entry.format_error(db, "struct size not found").into());
+                };
+                let Some(alignment) = entry
+                    .get_attr(db, gimli::DW_AT_alignment)
+                    .and_then(|v| v.udata_value())
+                else {
+                    return Err(entry.format_error(db, "struct alignment not found").into());
+                };
 
                 // iterate children to get fields
                 let mut fields = vec![];
@@ -393,23 +394,21 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Type
                         continue;
                     };
 
-                    let type_offset_val = child.get_attr(db, gimli::DW_AT_type)?;
-                    let gimli::AttributeValue::UnitRef(type_offset) = type_offset_val else {
-                        db.report_critical(format!("Unexpected type offset: {type_offset_val:?}"));
-                        return None;
+                    let Some(type_entry) = child.get_unit_ref(db, gimli::DW_AT_type)? else {
+                        return Err(child
+                            .format_error(db, format!("failed to get type for `{field_name}`"))
+                            .into());
                     };
 
-                    let type_entry = child.child_die(db, type_offset);
+                    let ty = shallow_resolve_type(db, type_entry)?;
 
-                    if let Some(ty) = shallow_resolve_type(db, type_entry) {
-                        fields.push(StructField {
-                            name: field_name,
-                            offset: offset as usize,
-                            ty: Arc::new(ty),
-                        });
-                    }
+                    fields.push(StructField {
+                        name: field_name,
+                        offset: offset as usize,
+                        ty: Arc::new(ty),
+                    });
                 }
-                return Some(TypeDef::new(
+                TypeDef::new(
                     db,
                     // type_name,
                     DefKind::Struct(StructDef {
@@ -418,14 +417,25 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<Type
                         size: size as usize,
                         alignment: alignment as usize,
                     }),
-                ));
+                )
             }
         }
         t => {
-            db.report_critical(format!("unsupported type: {}", entry.print(db)));
-            tracing::debug!("unsupported type entry: {t}: {entry:#?}");
+            return Err(entry
+                .format_error(db, format!("unsupported type: {t}"))
+                .into());
         }
-    }
-
-    None
+    })
 }
+
+// impl From<std::io::Error> for Error {
+//     fn from(err: std::io::Error) -> Self {
+//         Error::Io(Arc::new(err))
+//     }
+// }
+
+// impl From<object::read::Error> for Error {
+//     fn from(err: object::read::Error) -> Self {
+//         Error::ObjectParseError(err)
+//     }
+// }

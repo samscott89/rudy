@@ -1,9 +1,5 @@
 //! Address to location and location to address resolution
 
-use std::borrow::Borrow;
-
-use gimli::Reader;
-
 use crate::database::Db;
 use crate::dwarf::navigation::get_roots;
 use crate::dwarf::{CompilationUnitId, utils::file_entry_to_path};
