@@ -5,8 +5,8 @@ use std::sync::Arc;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::typedef::{
-    ArrayDef, DefKind, IntDef, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef, StructDef,
-    StructField, TypeDef, UnsignedIntDef,
+    ArrayDef, DefKind, FloatDef, IntDef, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef,
+    StructDef, StructField, TypeDef, UnsignedIntDef,
 };
 use crate::types::NameId;
 
@@ -32,28 +32,39 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 
 /// Resolve a primitive type by name
 fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> TypeDef<'db> {
-    match name.name(db).as_str() {
-        "u64" => TypeDef::new(
-            db,
-            // Some(name),
-            DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 8 })),
-        ),
-        "i32" => TypeDef::new(
-            db,
-            // Some(name),
-            DefKind::Primitive(PrimitiveDef::Int(IntDef { size: 4 })),
-        ),
+    use PrimitiveDef::*;
+    let primitive_def = match name.name(db).as_str() {
+        "u8" => UnsignedInt(UnsignedIntDef { size: 1 }),
+        "u16" => UnsignedInt(UnsignedIntDef { size: 2 }),
+        "u32" => UnsignedInt(UnsignedIntDef { size: 4 }),
+        "u64" => UnsignedInt(UnsignedIntDef { size: 8 }),
+        "i8" => Int(IntDef { size: 1 }),
+        "i16" => Int(IntDef { size: 2 }),
+        "i32" => Int(IntDef { size: 4 }),
+        "i64" => Int(IntDef { size: 8 }),
+        "usize" => UnsignedInt(UnsignedIntDef {
+            // TODO(Sam): this should be `target_pointer_width` from the target triple
+            size: std::mem::size_of::<usize>(),
+        }),
+        "isize" => Int(IntDef {
+            size: std::mem::size_of::<isize>(),
+        }),
+        "f32" => Float(FloatDef { size: 4 }),
+        "f64" => Float(FloatDef { size: 8 }),
+        "bool" => Bool(()),
+        "char" => Char(()),
+
         _ => {
             db.report_critical(format!("unsupported type: {name:?}"));
-            TypeDef::new(
+            return TypeDef::new(
                 db,
-                // Some(name),
                 DefKind::Other {
                     name: name.as_path(db),
                 },
-            )
+            );
         }
-    }
+    };
+    TypeDef::new(db, DefKind::Primitive(primitive_def))
 }
 
 /// Resolve Option type structure

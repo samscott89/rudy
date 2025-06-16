@@ -198,7 +198,7 @@ fn test_generated_benchmarks(#[case] target: &str) {
 
     // resolve positions
     let addrs = debug_info
-        .resolve_position(&path, location.line, None)
+        .resolve_position(&format!("{target}.rs"), location.line, None)
         .unwrap()
         .unwrap();
     insta::assert_debug_snapshot!(addrs);
