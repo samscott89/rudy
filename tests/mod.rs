@@ -150,19 +150,22 @@ fn test_load_file(#[case] target: &str) {
     insta::assert_debug_snapshot!(parsed);
 }
 
-#[test]
-fn test_generated_benchmarks() {
-    setup!();
+#[rstest]
+#[case("small")]
+#[case("medium")]
+#[case("large")]
+fn test_generated_benchmarks(#[case] target: &str) {
+    setup!(target);
+    let path = format!("benches/test_binaries/{target}");
 
-    if !std::fs::exists("benches/test_binaries/medium").unwrap() {
+    if !std::fs::exists(&path).unwrap() {
         panic!(
             "Please run `cargo run --bin generate_test_binaries` to generate the test binaries first."
         );
     }
 
     let db = DebugDb::new().unwrap();
-    let path = "benches/test_binaries/medium";
-    let debug_info = DebugInfo::new(&db, path).unwrap();
+    let debug_info = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(debug_info);
 
@@ -195,7 +198,7 @@ fn test_generated_benchmarks() {
 
     // resolve positions
     let addrs = debug_info
-        .resolve_position("benches/test_binaries/medium.rs", location.line, None)
+        .resolve_position(&path, location.line, None)
         .unwrap()
         .unwrap();
     insta::assert_debug_snapshot!(addrs);
