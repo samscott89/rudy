@@ -156,7 +156,7 @@ fn test_load_file(#[case] target: &str) {
 #[case("large")]
 fn test_generated_benchmarks(#[case] target: &str) {
     setup!(target);
-    let path = format!("benches/test_binaries/{target}");
+    let path = format!("bin/test_binaries/{target}");
 
     if !std::fs::exists(&path).unwrap() {
         panic!(

@@ -5,6 +5,6 @@ snapshot_kind: text
 ---
 ResolvedLocation {
     function: "small::TestStruct0::method_0",
-    file: "/Users/sam/work/rust_debuginfo/rust-debuginfo/benches/test_binaries/small.rs",
+    file: "/Users/sam/work/rust_debuginfo/rust-debuginfo/bin/test_binaries/small.rs",
     line: 17,
 }

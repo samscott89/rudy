@@ -1,4 +1,4 @@
 target/
 Cargo.lock
 notes/
-rust-debuginfo/benches/test_binaries/
+rust-debuginfo/bin/test_binaries/

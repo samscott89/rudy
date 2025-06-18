@@ -11,7 +11,7 @@ cargo run --release --bin generate_test_binaries
 
 echo -e "\n🏃 Running benchmarks...\n"
 
-for binary in benches/test_binaries/{small,medium,large}; do
+for binary in bin/test_binaries/{small,medium,large}; do
     if [ -f "$binary" ]; then
         echo "=========================================="
         echo "Benchmarking: $(basename $binary)"

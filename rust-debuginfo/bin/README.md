@@ -14,7 +14,7 @@ This directory contains performance benchmarks comparing rust-debuginfo with LLD
    ```bash
    cargo run --bin generate_test_binaries
    ```
-   This creates test binaries of varying sizes in `benches/test_binaries/`.
+   This creates test binaries of varying sizes in `bin/test_binaries/`.
 
 ## Running Benchmarks
 
@@ -33,7 +33,7 @@ cargo run --release --bin comparison [binary_path]
 ### Full Benchmark Suite
 Run all benchmarks on test binaries:
 ```bash
-./benches/run_all.sh
+./bin/run_all.sh
 ```
 
 ## Benchmark Types
@@ -72,7 +72,7 @@ Run all benchmarks on test binaries:
 
 ## Adding New Benchmarks
 
-1. Create a new file in `benches/`
+1. Create a new file in `bin/`
 2. Add specific operations to measure
 3. Use consistent timing methodology:
    ```rust

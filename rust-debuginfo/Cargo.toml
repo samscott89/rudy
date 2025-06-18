@@ -32,20 +32,16 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter", "time"] }
 
 
 [[bin]]
-name = "comparison"
-path = "benches/comparison.rs"
-benches = false
+name = "bench_comparison"
+path = "bin/bench_comparison.rs"
 
 [[bin]]
-name = "operations"
-path = "benches/operations.rs"
-benches = false
+name = "bench_operations"
+path = "bin/bench_operations.rs"
 
 [[bin]]
 name = "generate_test_binaries"
-path = "benches/generate_test_binaries.rs"
-benches = false
-
+path = "bin/generate_test_binaries.rs"
 
 [dev-dependencies]
 insta = "1.42.2"

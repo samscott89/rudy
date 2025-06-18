@@ -364,7 +364,7 @@ mod test {
         // Load a test DWARF file
         let file = super::File::build(
             &db,
-            "benches/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
+            "bin/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
             None,
         )
         .unwrap();
@@ -380,7 +380,7 @@ mod test {
 
         let file = super::File::build(
             &db,
-            "benches/test_binaries/medium.medium.b63b38f5b684d51-cgu.0.rcgu.o".to_string(),
+            "bin/test_binaries/medium.medium.b63b38f5b684d51-cgu.0.rcgu.o".to_string(),
             None,
         )
         .unwrap();
@@ -436,11 +436,11 @@ mod test {
             .try_init();
         let db = crate::database::DebugDatabaseImpl::new();
         // Load a test DWARF file
-        // db.analyze_file("benches/test_binaries/small")
+        // db.analyze_file("bin/test_binaries/small")
 
         let file = super::File::build(
             &db,
-            "benches/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
+            "bin/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
             None,
         )
         .unwrap();

@@ -29,7 +29,7 @@ struct BenchmarkResult {
 fn main() -> Result<()> {
     let binary_path = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "./benches/test_binaries/medium".to_string());
+        .unwrap_or_else(|| "./bin/test_binaries/medium".to_string());
 
     println!("Benchmarking with binary: {}", binary_path);
     println!("================================================\n");

@@ -10,14 +10,14 @@ fn main() -> std::io::Result<()> {
     println!("🔨 Generating test binaries...\n");
 
     // Create test directory
-    fs::create_dir_all("rust-debuginfo/benches/test_binaries")?;
+    fs::create_dir_all("rust-debuginfo/bin/test_binaries")?;
 
     // Generate small, medium, and large test programs
     generate_test_binary("small", 10, 5)?;
     generate_test_binary("medium", 100, 20)?;
     generate_test_binary("large", 500, 50)?;
 
-    println!("\n✅ Test binaries generated in rust-debuginfo/benches/test_binaries/");
+    println!("\n✅ Test binaries generated in rust-debuginfo/bin/test_binaries/");
 
     Ok(())
 }
@@ -143,7 +143,7 @@ fn main() {
     );
 
     // Write source file
-    let src_path = format!("rust-debuginfo/benches/test_binaries/{}.rs", name);
+    let src_path = format!("rust-debuginfo/bin/test_binaries/{}.rs", name);
     let mut file = fs::File::create(&src_path)?;
     file.write_all(code.as_bytes())?;
 
@@ -159,7 +159,7 @@ fn main() {
             "-C",
             "debuginfo=2", // Full debug info
             "-o",
-            &format!("rust-debuginfo/benches/test_binaries/{}", name),
+            &format!("rust-debuginfo/bin/test_binaries/{}", name),
         ])
         .output()
         .expect("Failed to execute rustc");
@@ -181,7 +181,7 @@ fn main() {
             "-C",
             "debuginfo=2", // Full debug info
             "-o",
-            &format!("rust-debuginfo/benches/test_binaries/{}_release", name),
+            &format!("rust-debuginfo/bin/test_binaries/{}_release", name),
         ])
         .output()
         .expect("Failed to execute rustc");
