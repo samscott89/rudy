@@ -2,6 +2,7 @@
 name = "rdi-lldb"
 version = "0.1.0"
 edition = "2024"
+default-run = "rdi-lldb-server"
 
 [dependencies]
 rust-debuginfo = { workspace = true }

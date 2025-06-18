@@ -86,7 +86,7 @@ fn handle_connection(session_id: usize, stream: std::net::TcpStream, db: DebugDb
             session
         }
         _ => {
-            return Err(anyhow!("Invalid message: {message:?}"));
+            return Err(anyhow!("Invalid message, expected init: {message:?}"));
         }
     };
 
