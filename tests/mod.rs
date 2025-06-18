@@ -68,7 +68,7 @@ pub fn platform_source_file(target: &str, file: &str) -> String {
 fn test_resolve_function(#[case] target: &str) {
     setup!(target);
     let path = binary_path(target);
-    let db = crate::DebugDb::new().unwrap();
+    let db = crate::DebugDb::new();
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(resolver.resolve_function("main").unwrap());
@@ -79,7 +79,7 @@ fn test_resolve_function(#[case] target: &str) {
 fn test_resolve_position(#[case] target: &str) {
     setup!(target);
     let path = binary_path(target);
-    let db = crate::DebugDb::new().unwrap();
+    let db = crate::DebugDb::new();
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
     let platform_file = platform_source_file(target, "examples/simple-test/src/main.rs");
@@ -144,7 +144,7 @@ fn test_load_file(#[case] target: &str) {
     setup!(target);
 
     let path = binary_path(target);
-    let db = crate::DebugDb::new().unwrap();
+    let db = crate::DebugDb::new();
     let parsed = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(parsed);
@@ -164,7 +164,7 @@ fn test_generated_benchmarks(#[case] target: &str) {
         );
     }
 
-    let db = DebugDb::new().unwrap();
+    let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(debug_info);

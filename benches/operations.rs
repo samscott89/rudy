@@ -28,14 +28,14 @@ fn main() -> Result<()> {
     println!("=====================================\n");
 
     // Create database once
-    let db = DebugDb::new()?;
+    let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, &binary)?;
 
     // Benchmark different operations
     benchmark_cold_start(&binary)?;
     benchmark_address_resolution(&debug_info)?;
     benchmark_function_lookup(&debug_info)?;
-    benchmark_variable_resolution(&debug_info)?;
+    // benchmark_variable_resolution(&debug_info)?;
     benchmark_incremental_benefit(&binary)?;
 
     Ok(())
@@ -49,7 +49,7 @@ fn benchmark_cold_start(binary: &str) -> Result<()> {
 
     for i in 0..5 {
         let start = Instant::now();
-        let db = DebugDb::new()?;
+        let db = DebugDb::new();
         let _debug_info = DebugInfo::new(&db, binary)?;
         let elapsed = start.elapsed();
         times.push(elapsed);
@@ -171,7 +171,7 @@ fn benchmark_incremental_benefit(binary: &str) -> Result<()> {
     println!("----------------------------------");
 
     // Simulate multiple debugging sessions
-    let db = DebugDb::new()?;
+    let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, binary)?;
 
     // Common addresses accessed across "sessions"

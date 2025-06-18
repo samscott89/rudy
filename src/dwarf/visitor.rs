@@ -360,7 +360,7 @@ mod test {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::from_default_env())
             .try_init();
-        let db = crate::database::DebugDatabaseImpl::new().unwrap();
+        let db = crate::database::DebugDatabaseImpl::new();
         // Load a test DWARF file
         let file = super::File::build(
             &db,
@@ -434,7 +434,7 @@ mod test {
         let _ = tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::from_default_env())
             .try_init();
-        let db = crate::database::DebugDatabaseImpl::new().unwrap();
+        let db = crate::database::DebugDatabaseImpl::new();
         // Load a test DWARF file
         // db.analyze_file("benches/test_binaries/small")
 

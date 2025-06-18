@@ -60,7 +60,7 @@ fn main() -> Result<()> {
 }
 
 fn find_test_addresses(binary_path: &str) -> Result<Vec<(u64, String)>> {
-    let db = DebugDb::new()?;
+    let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, binary_path)?;
 
     let mut addresses = Vec::new();
@@ -88,7 +88,7 @@ fn benchmark_rust_debuginfo(
 
     // Init only - just load the binary, no queries
     let init_start = Instant::now();
-    let db = DebugDb::new()?;
+    let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, binary_path)?;
     let init_only = init_start.elapsed();
 

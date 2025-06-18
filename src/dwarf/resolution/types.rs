@@ -6,7 +6,7 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::typedef::{
     ArrayDef, DefKind, FloatDef, IntDef, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef,
-    StructDef, StructField, TypeDef, UnsignedIntDef,
+    StructDef, StructField, TypeDef, UnitDef, UnsignedIntDef,
 };
 use crate::types::NameId;
 
@@ -53,6 +53,7 @@ fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> TypeDef<'d
         "f64" => Float(FloatDef { size: 8 }),
         "bool" => Bool(()),
         "char" => Char(()),
+        "()" => Unit(UnitDef),
 
         _ => {
             db.report_critical(format!("unsupported type: {name:?}"));

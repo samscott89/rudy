@@ -156,11 +156,10 @@ impl DebugDatabaseImpl {
     ///
     /// let db = DebugDb::new().expect("Failed to create database");
     /// ```
-    pub fn new() -> Result<Self> {
-        let db = Self {
+    pub fn new() -> Self {
+        Self {
             storage: salsa::Storage::default(),
-        };
-        Ok(db)
+        }
     }
 
     pub(crate) fn analyze_file(&self, binary_file: &str) -> Result<(Binary, Vec<DebugFile>)> {

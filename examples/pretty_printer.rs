@@ -1,5 +1,5 @@
 //! Memory address pretty-printer example
-//! 
+//!
 //! This example demonstrates how to use rust-debuginfo to resolve memory addresses
 //! to their types and pretty-print structured data.
 
@@ -32,7 +32,7 @@ impl DataResolver for MemorySnapshot {
 
 fn print_value(value: &Value, indent: usize) {
     let indent_str = " ".repeat(indent);
-    
+
     match value {
         Value::Scalar { ty, value } => {
             println!("{}{}: {}", indent_str, ty, value);
@@ -68,11 +68,11 @@ fn main() -> Result<()> {
     }
 
     let binary_path = &args[1];
-    let address = u64::from_str_radix(args[2].trim_start_matches("0x"), 16)
-        .expect("Invalid address format");
+    let address =
+        u64::from_str_radix(args[2].trim_start_matches("0x"), 16).expect("Invalid address format");
 
     // Create debug database and load binary
-    let db = DebugDb::new()?;
+    let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, binary_path)?;
 
     // Resolve the address to a source location
@@ -93,7 +93,11 @@ fn main() -> Result<()> {
     if !params.is_empty() {
         println!("Parameters:");
         for var in &params {
-            println!("  {} ({})", var.name, var.ty.as_ref().map_or("?", |t| &t.name));
+            println!(
+                "  {} ({})",
+                var.name,
+                var.ty.as_ref().map_or("?", |t| &t.name)
+            );
             if let Some(value) = &var.value {
                 print_value(value, 4);
             }
@@ -104,7 +108,11 @@ fn main() -> Result<()> {
     if !locals.is_empty() {
         println!("Local variables:");
         for var in &locals {
-            println!("  {} ({})", var.name, var.ty.as_ref().map_or("?", |t| &t.name));
+            println!(
+                "  {} ({})",
+                var.name,
+                var.ty.as_ref().map_or("?", |t| &t.name)
+            );
             if let Some(value) = &var.value {
                 print_value(value, 4);
             }
@@ -115,7 +123,11 @@ fn main() -> Result<()> {
     if !globals.is_empty() {
         println!("Global variables:");
         for var in &globals {
-            println!("  {} ({})", var.name, var.ty.as_ref().map_or("?", |t| &t.name));
+            println!(
+                "  {} ({})",
+                var.name,
+                var.ty.as_ref().map_or("?", |t| &t.name)
+            );
             if let Some(value) = &var.value {
                 print_value(value, 4);
             }
