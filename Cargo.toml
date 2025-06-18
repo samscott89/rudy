@@ -1,49 +1,11 @@
-[package]
-name = "rust-debuginfo"
-version = "0.0.1"
-edition = "2024"
-authors = ["Sam Scott"]
-description = "A user-friendly library for interacting with debugging information of Rust compiled artifacts using DWARF"
-repository = "https://github.com/samscott89/rust_debuginfo"
-documentation = "https://docs.rs/rust-debuginfo"
-homepage = "https://github.com/samscott89/rust_debuginfo"
-license = "MIT"
-readme = "README.md"
-keywords = ["debug", "dwarf", "debuginfo", "debugging", "rust"]
-categories = ["debugging", "development-tools", "parser-implementations"]
+[workspace]
+members = ["rdi-lldb", "rust-debuginfo"]
+resolver = "3"
 
-[dependencies]
-anyhow = "1.0.97"
-chalk-ir = "0.100.0"
-gimli = { version = "0.31.1", default-features = false, features = [
-    "std",
-    "read",
-    "endian-reader",
-] }
-itertools = "0.14.0"
-memmap2 = "0.9.5"
-object = { git = "https://github.com/gimli-rs/object", rev = "a74579249e21ab8fcd3a86be588de336f18297cb" }
-rustc-demangle = "0.1"
-salsa = "0.22.0"
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0"
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter", "time"] }
+[workspace.dependencies]
+rust-debuginfo = { path = "rust-debuginfo" }
 
 
-[[bin]]
-name = "comparison"
-path = "benches/comparison.rs"
-
-[[bin]]
-name = "operations"
-path = "benches/operations.rs"
-
-[[bin]]
-name = "generate_test_binaries"
-path = "benches/generate_test_binaries.rs"
-
-[dev-dependencies]
-insta = "1.42.2"
-rstest = "0.25"
-rstest_reuse = { version = "0.7" }
+[profile.dev.package]
+insta.opt-level = 3
+similar.opt-level = 3

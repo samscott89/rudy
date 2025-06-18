@@ -1,0 +1,10 @@
+---
+source: rust-debuginfo/tests/mod.rs
+expression: location
+snapshot_kind: text
+---
+ResolvedLocation {
+    function: "medium::TestStruct0::method_0",
+    file: "/Users/sam/work/rust_debuginfo/rust-debuginfo/benches/test_binaries/medium.rs",
+    line: 17,
+}
