@@ -6,93 +6,82 @@ This module provides the `rdi` command for LLDB with advanced expression evaluat
 and pretty printing capabilities powered by rust-debuginfo.
 """
 
+from io import TextIOWrapper
 import json
-import lldb
+
+# ignore lldb since it doesn't have type hints
+import lldb  # type: ignore
 import os
 import socket
 import subprocess
-import threading
 import time
 from typing import Optional
 
 
 # Configuration
-RDI_HOST = os.environ.get('RDI_HOST', '127.0.0.1')
-RDI_PORT = int(os.environ.get('RDI_PORT', '9001'))
+RDI_HOST = os.environ.get("RDI_HOST", "127.0.0.1")
+RDI_PORT = int(os.environ.get("RDI_PORT", "9001"))
+RDI_DEBUG = os.environ.get("RDI_DEBUG", "1").lower() in ("1", "true", "on", "yes")
+
+
+def debug_print(msg: str):
+    """Print debug message if debug mode is enabled"""
+    if RDI_DEBUG:
+        print(f"[DEBUG] {msg}")
 
 
 class RdiConnection:
     """Manages connection to the RDI-LLDB server"""
-    
-    def __init__(self, host=RDI_HOST, port=RDI_PORT):
+
+    file: TextIOWrapper
+
+    def __init__(
+        self,
+        binary_path: str,
+        host=RDI_HOST,
+        port=RDI_PORT,
+    ):
+        """Connect to server and initialize session"""
         self.host = host
         self.port = port
-        self.sock = None
-        self.file = None
-        self.request_id = 0
-    
-    @property
-    def is_connected(self) -> bool:
-        """Check if we have a valid connection"""
-        return self.sock is not None and self.file is not None
-        
-    def connect(self, binary_path: str):
-        """Connect to server and initialize session"""
-        if self.is_connected:
-            raise RuntimeError("Already connected")
-            
-        print(f"[DEBUG] Connecting to {self.host}:{self.port}")
+        debug_print(f"Connecting to {self.host}:{self.port}")
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((self.host, self.port))
-        self.file = self.sock.makefile('rw')
-        
+        self.file = self.sock.makefile("rw")
+
         # Send init message
-        init_msg = {
-            "type": "Init",
-            "binary_path": binary_path
-        }
-        print(f"[DEBUG] Sending init message: {init_msg}")
+        init_msg = {"type": "Init", "binary_path": binary_path}
+        debug_print(f"Sending init message: {init_msg}")
         self._send_message(init_msg)
-        print("[DEBUG] Connected and init sent")
-    
+        debug_print("Connected and init sent")
+        self.request_id = 0
+
     def _send_message(self, msg):
         """Send a message to the server"""
-        if not self.is_connected:
-            raise RuntimeError("Not connected to server")
-            
-        msg_json = json.dumps(msg) + '\n'
+        msg_json = json.dumps(msg) + "\n"
         self.file.write(msg_json)
         self.file.flush()
-    
+
     def _read_message(self):
         """Read a message from the server"""
-        if not self.is_connected:
-            raise RuntimeError("Not connected to server")
-            
+
         line = self.file.readline().strip()
         if not line:
             raise ConnectionError("Server closed connection")
         return json.loads(line)
-    
+
     def send_command(self, cmd: str, args: list, debugger) -> dict:
         """Send a command and handle event loop"""
-        if not self.is_connected:
-            raise RuntimeError("Not connected to server")
-        
+
         self.request_id += 1
-        msg = {
-            "type": "Command",
-            "id": self.request_id,
-            "cmd": cmd,
-            "args": args
-        }
-        
+        msg = {"type": "Command", "id": self.request_id, "cmd": cmd, "args": args}
+
         self._send_message(msg)
-        
+
         # Event loop - handle events until we get a final response
         while True:
             response = self._read_message()
-            
+
             if response.get("type") == "Event":
                 # Handle event request from server
                 event_response = self._handle_event(response, debugger)
@@ -101,12 +90,12 @@ class RdiConnection:
                 return response
             else:
                 raise RuntimeError(f"Unknown response type: {response.get('type')}")
-    
+
     def _handle_event(self, event_msg: dict, debugger) -> dict:
         """Handle an event request from the server"""
         event_id = event_msg.get("id", 0)
         event = event_msg.get("event")
-        
+
         try:
             target = debugger.GetSelectedTarget()
             if not target:
@@ -114,18 +103,18 @@ class RdiConnection:
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "Error",
-                    "message": "No target selected"
+                    "message": "No target selected",
                 }
-            
+
             process = target.GetProcess()
             if not process:
                 return {
-                    "type": "EventResponse", 
+                    "type": "EventResponse",
                     "id": event_id,
                     "event": "Error",
-                    "message": "No process"
+                    "message": "No process",
                 }
-            
+
             if event == "ReadMemory":
                 return self._handle_read_memory(event_msg, process, event_id)
             elif event == "ReadRegister":
@@ -140,57 +129,61 @@ class RdiConnection:
                 return {
                     "type": "EventResponse",
                     "id": event_id,
-                    "event": "Error", 
-                    "message": f"Unknown event type: {event}"
+                    "event": "Error",
+                    "message": f"Unknown event type: {event}",
                 }
-                
+
         except Exception as e:
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "Error",
-                "message": f"Event handling error: {e}"
+                "message": f"Event handling error: {e}",
             }
-    
+
     def _handle_read_memory(self, event_msg: dict, process, event_id: int) -> dict:
         """Handle ReadMemory event"""
         address_str = event_msg.get("address", "0x0")
         size = event_msg.get("size", 0)
-        
+
         try:
             # Parse hex address
-            address = int(address_str, 16) if address_str.startswith("0x") else int(address_str)
-            
+            address = (
+                int(address_str, 16)
+                if address_str.startswith("0x")
+                else int(address_str)
+            )
+
             # Read memory
             error = lldb.SBError()
             data = process.ReadMemory(address, size, error)
-            
+
             if error.Success():
                 return {
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "MemoryData",
-                    "data": list(data)  # Convert bytes to list of ints
+                    "data": list(data),  # Convert bytes to list of ints
                 }
             else:
                 return {
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "Error",
-                    "message": f"Memory read failed: {error.GetCString()}"
+                    "message": f"Memory read failed: {error.GetCString()}",
                 }
         except Exception as e:
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "Error",
-                "message": f"Memory read error: {e}"
+                "message": f"Memory read error: {e}",
             }
-    
+
     def _handle_read_register(self, event_msg: dict, process, event_id: int) -> dict:
         """Handle ReadRegister event"""
         reg_name = event_msg.get("name", "")
-        
+
         try:
             thread = process.GetSelectedThread()
             if not thread:
@@ -198,18 +191,18 @@ class RdiConnection:
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "Error",
-                    "message": "No selected thread"
+                    "message": "No selected thread",
                 }
-            
+
             frame = thread.GetSelectedFrame()
             if not frame:
                 return {
                     "type": "EventResponse",
-                    "id": event_id, 
+                    "id": event_id,
                     "event": "Error",
-                    "message": "No selected frame"
+                    "message": "No selected frame",
                 }
-            
+
             # Find register
             registers = frame.GetRegisters()
             for reg_set in registers:
@@ -219,24 +212,24 @@ class RdiConnection:
                             "type": "EventResponse",
                             "id": event_id,
                             "event": "RegisterData",
-                            "value": reg.GetValue()
+                            "value": reg.GetValue(),
                         }
-            
+
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "Error",
-                "message": f"Register '{reg_name}' not found"
+                "message": f"Register '{reg_name}' not found",
             }
-            
+
         except Exception as e:
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "Error",
-                "message": f"Register read error: {e}"
+                "message": f"Register read error: {e}",
             }
-    
+
     def _handle_get_frame_info(self, process, event_id: int) -> dict:
         """Handle GetFrameInfo event"""
         try:
@@ -246,39 +239,39 @@ class RdiConnection:
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "Error",
-                    "message": "No selected thread"
+                    "message": "No selected thread",
                 }
-            
+
             frame = thread.GetSelectedFrame()
             if not frame:
                 return {
                     "type": "EventResponse",
                     "id": event_id,
-                    "event": "Error", 
-                    "message": "No selected frame"
+                    "event": "Error",
+                    "message": "No selected frame",
                 }
-            
+
             pc = frame.GetPC()
             sp = frame.GetSP()
             fp = frame.GetFP()
-            
+
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "FrameInfo",
                 "pc": f"0x{pc:x}",
                 "sp": f"0x{sp:x}",
-                "fp": f"0x{fp:x}"
+                "fp": f"0x{fp:x}",
             }
-            
+
         except Exception as e:
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "Error",
-                "message": f"Frame info error: {e}"
+                "message": f"Frame info error: {e}",
             }
-    
+
     def _handle_get_thread_info(self, process, event_id: int) -> dict:
         """Handle GetThreadInfo event"""
         try:
@@ -288,39 +281,41 @@ class RdiConnection:
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "Error",
-                    "message": "No selected thread"
+                    "message": "No selected thread",
                 }
-            
+
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "ThreadInfo",
                 "tid": thread.GetThreadID(),
-                "name": thread.GetName() or None
+                "name": thread.GetName() or None,
             }
-            
+
         except Exception as e:
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "Error",
-                "message": f"Thread info error: {e}"
+                "message": f"Thread info error: {e}",
             }
-    
-    def _handle_evaluate_expression(self, event_msg: dict, target, event_id: int) -> dict:
+
+    def _handle_evaluate_expression(
+        self, event_msg: dict, target, event_id: int
+    ) -> dict:
         """Handle EvaluateLLDBExpression event"""
         expr = event_msg.get("expr", "")
-        
+
         try:
             # Use LLDB's expression evaluator
             result = target.EvaluateExpression(expr)
-            
+
             if result.IsValid():
                 return {
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "ExpressionResult",
-                    "value": str(result.GetValue() or result.GetSummary() or "")
+                    "value": str(result.GetValue() or result.GetSummary() or ""),
                 }
             else:
                 error = result.GetError()
@@ -328,29 +323,27 @@ class RdiConnection:
                     "type": "EventResponse",
                     "id": event_id,
                     "event": "Error",
-                    "message": f"Expression evaluation failed: {error.GetCString() if error else 'Unknown error'}"
+                    "message": f"Expression evaluation failed: {error.GetCString() if error else 'Unknown error'}",
                 }
-                
+
         except Exception as e:
             return {
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "Error",
-                "message": f"Expression evaluation error: {e}"
+                "message": f"Expression evaluation error: {e}",
             }
-    
-    def close(self):
+
+    def __del__(self):
         """Close the connection"""
-        if self.file:
-            try:
-                self.file.close()
-            except:
-                pass
-            self.file = None
+        try:
+            self.file.close()
+        except Exception as _:
+            pass
         if self.sock:
             try:
                 self.sock.close()
-            except:
+            except Exception as _:
                 pass
             self.sock = None
 
@@ -368,7 +361,8 @@ def _ensure_server_running() -> bool:
         result = sock.connect_ex((RDI_HOST, RDI_PORT))
         sock.close()
         return result == 0
-    except:
+    except Exception as e:
+        print(f"Error checking server status: {e}")
         return False
 
 
@@ -376,26 +370,36 @@ def _start_server() -> bool:
     """Start the RDI server if not running"""
     if _ensure_server_running():
         return True
-    
+
     try:
         # Try to start the server (TODO: should look for binary in PATH)
         print(f"Starting RDI server on {RDI_HOST}:{RDI_PORT}...")
         subprocess.Popen(
-            ["cargo", "run", "-p", "rdi-lldb", "--bin", "rdi-lldb-server", "--", "--port", str(RDI_PORT)],
+            [
+                "cargo",
+                "run",
+                "-p",
+                "rdi-lldb",
+                "--bin",
+                "rdi-lldb-server",
+                "--",
+                "--port",
+                str(RDI_PORT),
+            ],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         )
-        
+
         # Wait a bit for server to start
         for _ in range(10):
             time.sleep(0.5)
             if _ensure_server_running():
                 print("RDI server started successfully")
                 return True
-        
+
         print("Failed to start RDI server")
         return False
-        
+
     except Exception as e:
         print(f"Error starting server: {e}")
         return False
@@ -404,46 +408,45 @@ def _start_server() -> bool:
 def _get_connection(debugger) -> Optional[RdiConnection]:
     """Get or create connection to RDI server"""
     global _connection
-    
+
     # Get current executable path
     target = debugger.GetSelectedTarget()
     if not target:
         print("No target selected")
         return None
-    
+
     executable = target.GetExecutable()
     if not executable:
         print("No executable in target")
         return None
-    
+
     binary_path = executable.GetDirectory() + "/" + executable.GetFilename()
-    print(f"[DEBUG] Binary path: {binary_path}")
-    
+    debug_print(f"Binary path: {binary_path}")
+
     # Check if we have a valid connection
-    if _connection and _connection.is_connected:
-        print("[DEBUG] Reusing existing connection")
+    if _connection:
+        debug_print("Reusing existing connection")
         return _connection
-    
-    print("[DEBUG] Need new connection")
-    
+
+    debug_print("Need new connection")
+
     # Ensure server is running
     if not _ensure_server_running():
-        print("[DEBUG] Server not running, starting...")
+        debug_print("Server not running, starting...")
         if not _start_server():
             return None
     else:
-        print("[DEBUG] Server already running")
-    
+        debug_print("Server already running")
+
     # Create new connection
-    print("[DEBUG] Creating new RdiConnection...")
-    _connection = RdiConnection()
-    print(f"[DEBUG] Calling connect with: {binary_path}")
+    debug_print("Creating new RdiConnection...")
+    debug_print(f"Calling connect with: {binary_path}")
     try:
-        _connection.connect(binary_path)
-        print("[DEBUG] Connection successful")
+        _connection = RdiConnection(binary_path)
+        debug_print("Connection successful")
         return _connection
     except Exception as e:
-        print(f"[DEBUG] Connection failed: {e}")
+        debug_print(f"Connection failed: {e}")
         _connection = None
         return None
 
@@ -458,27 +461,27 @@ def rdi_command(debugger, command, result, internal_dict):
         print("  print <expression> - Pretty print a Rust expression")
         print("  status            - Show RDI server status")
         return
-    
+
     subcommand = args[0]
     cmd_args = args[1:]
-    
+
     if subcommand == "status":
         if _ensure_server_running():
             print(f"RDI server is running on {RDI_HOST}:{RDI_PORT}")
         else:
             print("RDI server is not running")
         return
-    
+
     # Get connection
     conn = _get_connection(debugger)
     if not conn:
         print("Failed to connect to RDI server")
         return
-    
+
     # Send command
     try:
         response = conn.send_command(subcommand, cmd_args, debugger)
-        
+
         # Handle response
         if response.get("type") == "Complete":
             result_data = response.get("result", {})
@@ -497,8 +500,8 @@ def rdi_command(debugger, command, result, internal_dict):
 
 def __lldb_init_module(debugger, internal_dict):
     """Initialize the RDI-LLDB module"""
-    debugger.HandleCommand('command script add -f rdi_lldb.rdi_command rdi')
-    
+    debugger.HandleCommand("command script add -f rdi_lldb.rdi_command rdi")
+
     print("RDI-LLDB extension loaded!")
     print("Available commands:")
     print("  rdi eval <expression>  - Evaluate Rust expressions")
@@ -506,7 +509,7 @@ def __lldb_init_module(debugger, internal_dict):
     print("  rdi status            - Check server status")
     print("")
     print(f"Server: {RDI_HOST}:{RDI_PORT}")
-    
+
     # Check server status
     if _ensure_server_running():
         print("✓ RDI server is already running")
