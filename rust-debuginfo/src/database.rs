@@ -41,6 +41,8 @@
 //! in via making the Binary file and all object files inputs -- this way if we recompile the
 //! binary we can recompute which parts of the binary are the same and which are unchanged.
 
+use std::fmt::Debug;
+
 use anyhow::Result;
 use salsa::Accumulator;
 
@@ -108,6 +110,18 @@ pub struct DebugDatabaseImpl {
     storage: salsa::Storage<Self>,
 }
 
+pub struct DebugDbRef {
+    handle: salsa::StorageHandle<DebugDatabaseImpl>,
+}
+
+impl DebugDbRef {
+    pub fn get_db(self) -> DebugDatabaseImpl {
+        DebugDatabaseImpl {
+            storage: self.handle.into_storage(),
+        }
+    }
+}
+
 pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
     let mut err = None;
     for d in diagnostics {
@@ -163,6 +177,8 @@ impl DebugDatabaseImpl {
     }
 
     pub(crate) fn analyze_file(&self, binary_file: &str) -> Result<(Binary, Vec<DebugFile>)> {
+        // TODO: we should do some deduplication here to see if we've already loaded
+        // this file. We can do thy by checking file path, size, mtime, etc.
         let file = File::build(self, binary_file.to_string(), None)?;
         let bin = Binary::new(self, file);
         let debug_files = discover_debug_files(self, bin)
@@ -174,6 +190,12 @@ impl DebugDatabaseImpl {
         let _ = crate::index::debug_index(self, bin);
 
         Ok((bin, debug_files))
+    }
+
+    pub fn get_sync_ref(&self) -> DebugDbRef {
+        DebugDbRef {
+            handle: self.storage.clone().into_zalsa_handle(),
+        }
     }
 }
 
