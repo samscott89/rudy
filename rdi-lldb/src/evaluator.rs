@@ -63,16 +63,16 @@ fn evaluate_variable(
 ) -> Result<EvaluationState> {
     // TODO: Actually look up the variable in debug info
     // For now, just return a placeholder
-    
+
     // In a real implementation, this would:
     // 1. Use context.debug_info to find variables at context.pc
     // 2. Look for a variable with the given name
     // 3. Get its type and location (register or memory)
     // 4. Return NeedEvent to read the value
     // 5. In the continuation, format the value based on its type
-    
+
     Ok(EvaluationState::Complete(EvalResult {
-        value: format!("<variable '{}' at 0x{:x}>", name, context.pc),
+        value: format!("<variable '{}' at {:#x}>", name, context.pc),
         type_name: "Unknown".to_string(),
         pretty: format!("{} = <not yet implemented>", name),
     }))

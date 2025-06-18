@@ -44,7 +44,7 @@ pub enum ServerMessage {
 pub enum EventRequest {
     /// Read memory at address
     ReadMemory {
-        address: String, // hex string like "0x12345678"
+        address: u64,
         size: usize,
     },
     /// Read register value
@@ -65,13 +65,13 @@ pub enum EventResponseData {
     MemoryData { data: Vec<u8> },
     /// Register read result
     RegisterData {
-        value: String, // hex string
+        value: u64,
     },
     /// Frame information
     FrameInfo {
-        pc: String, // program counter (hex)
-        sp: String, // stack pointer (hex)
-        fp: String, // frame pointer (hex)
+        pc: u64, // program counter
+        sp: u64, // stack pointer
+        fp: u64, // frame pointer
     },
     /// Thread information
     ThreadInfo { tid: u64, name: Option<String> },
@@ -103,7 +103,7 @@ mod tests {
         let msg = ServerMessage::Event {
             id: 1,
             event: EventRequest::ReadMemory {
-                address: "0x12345678".to_string(),
+                address: 0x12345678,
                 size: 8,
             },
         };

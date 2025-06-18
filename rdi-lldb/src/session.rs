@@ -111,13 +111,6 @@ impl<'db> DebugSession<'db> {
                         // This is the initial GetFrameInfo response
                         match data {
                             EventResponseData::FrameInfo { pc, sp, fp } => {
-                                // Parse the hex strings to u64
-                                let pc = u64::from_str_radix(&pc.trim_start_matches("0x"), 16)
-                                    .map_err(|e| anyhow!("Invalid PC value: {}", e))?;
-                                let sp = u64::from_str_radix(&sp.trim_start_matches("0x"), 16)
-                                    .map_err(|e| anyhow!("Invalid SP value: {}", e))?;
-                                let fp = u64::from_str_radix(&fp.trim_start_matches("0x"), 16)
-                                    .map_err(|e| anyhow!("Invalid FP value: {}", e))?;
                                 
                                 // Create evaluation context
                                 let context = EvalContext {

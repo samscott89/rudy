@@ -143,17 +143,10 @@ class RdiConnection:
 
     def _handle_read_memory(self, event_msg: dict, process, event_id: int) -> dict:
         """Handle ReadMemory event"""
-        address_str = event_msg.get("address", "0x0")
+        address = event_msg.get("address", 0)
         size = event_msg.get("size", 0)
 
         try:
-            # Parse hex address
-            address = (
-                int(address_str, 16)
-                if address_str.startswith("0x")
-                else int(address_str)
-            )
-
             # Read memory
             error = lldb.SBError()
             data = process.ReadMemory(address, size, error)
@@ -208,11 +201,14 @@ class RdiConnection:
             for reg_set in registers:
                 for reg in reg_set:
                     if reg.GetName() == reg_name:
+                        # Convert register value to integer
+                        reg_value = int(reg.GetValueAsUnsigned())
+
                         return {
                             "type": "EventResponse",
                             "id": event_id,
                             "event": "RegisterData",
-                            "value": reg.GetValue(),
+                            "value": reg_value,
                         }
 
             return {
@@ -259,9 +255,9 @@ class RdiConnection:
                 "type": "EventResponse",
                 "id": event_id,
                 "event": "FrameInfo",
-                "pc": f"0x{pc:x}",
-                "sp": f"0x{sp:x}",
-                "fp": f"0x{fp:x}",
+                "pc": pc,
+                "sp": sp,
+                "fp": fp,
             }
 
         except Exception as e:
