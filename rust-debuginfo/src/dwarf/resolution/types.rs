@@ -4,15 +4,125 @@ use std::sync::Arc;
 
 use crate::database::Db;
 use crate::dwarf::Die;
+use crate::dwarf::index::get_die_name;
 use crate::typedef::{
-    ArrayDef, DefKind, FloatDef, IntDef, OptionDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef,
-    StructDef, StructField, TypeDef, UnitDef, UnsignedIntDef,
+    ArrayDef, DefKind, FloatDef, IntDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
+    StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef, UnitDef, UnsignedIntDef,
+    VecDef,
 };
 use crate::types::NameId;
 
 use anyhow::Context;
 
 type Result<T> = std::result::Result<T, super::Error>;
+
+/// Standard library type identifiers with their resolver functions
+struct StdTypeInfo {
+    /// Type name patterns to match against
+    patterns: &'static [&'static str],
+    /// Function to resolve this type
+    resolver: for<'db> fn(&'db dyn Db, Die<'db>) -> Result<TypeDef<'db>>,
+}
+
+static STD_TYPES: &[StdTypeInfo] = &[
+    StdTypeInfo {
+        patterns: &["&str"],
+        resolver: |db, entry| Ok(resolve_str_type(db, entry)?),
+    },
+    StdTypeInfo {
+        patterns: &["Option<", "core::option::Option<", "std::option::Option<"],
+        resolver: |db, entry| {
+            let def = resolve_option_type(db, entry)?;
+            Ok(TypeDef::new(db, DefKind::Std(StdDef::Option(def))))
+        },
+    },
+    StdTypeInfo {
+        patterns: &["String", "alloc::string::String", "std::string::String"],
+        resolver: |db, entry| {
+            let def = resolve_string_type(db, entry)?;
+            Ok(TypeDef::new(db, DefKind::Std(StdDef::String(def))))
+        },
+    },
+    StdTypeInfo {
+        patterns: &["Vec<", "alloc::vec::Vec<", "std::vec::Vec<"],
+        resolver: |db, entry| {
+            let def = resolve_vec_type(db, entry)?;
+            Ok(TypeDef::new(db, DefKind::Std(StdDef::Vec(def))))
+        },
+    },
+    StdTypeInfo {
+        patterns: &[
+            "HashMap<",
+            "std::collections::HashMap<",
+            "std::collections::hash::map::HashMap<",
+        ],
+        resolver: |db, entry| {
+            let def = resolve_map_type(db, entry)?;
+            Ok(TypeDef::new(db, DefKind::Std(StdDef::Map(def))))
+        },
+    },
+];
+
+/// Systematically identify standard library types
+fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef<'db>>> {
+    let Some(fq_name) = get_die_name(db, entry) else {
+        return Ok(None);
+    };
+
+    tracing::info!("fully-qualified type name: {}", fq_name.as_path(db));
+
+    Ok(None)
+}
+
+/// Resolve String type
+fn resolve_string_type<'db>(_db: &'db dyn Db, _entry: Die<'db>) -> Result<StringDef> {
+    // For String, we don't need to extract the element type since it's always u8
+    Ok(StringDef {})
+}
+
+/// Resolve Vec type
+fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef<'db>> {
+    // Extract the element type from the first template parameter
+    // This is a simplified implementation - in reality we'd need to parse the template params
+    let children = entry.children(db);
+
+    // Look for the first field which should be the vec's buffer
+    for child in children {
+        if let Some(field_type) = child.get_unit_ref(db, gimli::DW_AT_type).ok().flatten() {
+            let element_type = resolve_type_shallow(db, field_type)?;
+            return Ok(VecDef {
+                inner_type: Arc::new(element_type),
+            });
+        }
+    }
+
+    // Fallback - create a Vec<u8> if we can't determine the type
+    let u8_type = TypeDef::new(
+        db,
+        DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 })),
+    );
+    Ok(VecDef {
+        inner_type: Arc::new(u8_type),
+    })
+}
+
+/// Resolve HashMap type
+fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef<'db>> {
+    // Extract key and value types from template parameters
+    // This is a simplified implementation
+    let _children = entry.children(db);
+
+    // For now, create a default HashMap<String, String>
+    // In reality, we'd parse the template parameters
+    let string_type = TypeDef::new(db, DefKind::Std(StdDef::String(StringDef {})));
+
+    Ok(MapDef {
+        key_type: Arc::new(string_type.clone()),
+        value_type: Arc::new(string_type),
+        variant: MapVariant::HashMap,
+        size: std::mem::size_of::<std::collections::HashMap<String, String>>(),
+    })
+}
 
 /// Resolve the full type for a DIE entry
 pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
@@ -255,30 +365,26 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
             ))
         }
         gimli::DW_TAG_structure_type => {
-            match entry.name(db) {
-                Some(n) if n == "&str" => Some(resolve_str_type(db, entry)?),
-                Some(n) if n.starts_with("Option<") => {
-                    // this is _probably_ the option type, but would be good to double check
-                    let def = resolve_option_type(db, entry)?;
-                    Some(TypeDef::new(
-                        db,
-                        // Some(canonical_name),
-                        DefKind::Std(StdDef::Option(def)),
-                    ))
-                }
-                Some(n) => {
-                    tracing::trace!(
-                        "not handled as a builtin: {n} {}",
-                        entry.format_with_location(db, "")
-                    );
-                    None
-                }
-                _ => {
-                    tracing::trace!(
-                        "{}",
-                        entry.format_with_location(db, "no name found for struct")
-                    );
-                    None
+            // Try to identify standard library types systematically
+            if let Some(std_type) = identify_std_type(db, entry)? {
+                Some(std_type)
+            } else {
+                // Not a recognized standard type, return None to handle as regular struct
+                match entry.name(db) {
+                    Some(n) => {
+                        tracing::trace!(
+                            "not handled as a builtin: {n} {}",
+                            entry.format_with_location(db, "")
+                        );
+                        None
+                    }
+                    _ => {
+                        tracing::trace!(
+                            "{}",
+                            entry.format_with_location(db, "no name found for struct")
+                        );
+                        None
+                    }
                 }
             }
         }

@@ -32,6 +32,7 @@ pub struct FileIndexData<'db> {
     pub types: BTreeMap<NameId<'db>, TypeIndexEntry<'db>>,
     pub sources: BTreeSet<SourceFile<'db>>,
     pub function_addresses: AddressTree<'db>,
+    pub die_to_name: BTreeMap<Die<'db>, NameId<'db>>,
     function_declarations: BTreeMap<Offset, NameId<'db>>,
 }
 
@@ -81,6 +82,11 @@ struct FileIndexBuilder<'db> {
     data: FileIndexData<'db>,
 }
 
+pub fn get_die_name<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<&'db NameId<'db>> {
+    let debug_file_index = debug_file_index(db, die.file(db));
+    debug_file_index.data(db).die_to_name.get(&die)
+}
+
 impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
     fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
         if is_rust_cu(walker.db, &die, &unit_ref) {
@@ -117,14 +123,18 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         let module_name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
             .unwrap()
             .unwrap();
-        walker.visitor.data.modules.insert(
-            NameId::new(
-                walker.db,
-                walker.visitor.current_path.clone(),
-                module_name.clone(),
-            ),
-            ModuleIndexEntry::new(walker.db, walker.get_die(entry)),
+        let die = walker.get_die(entry);
+        let name = NameId::new(
+            walker.db,
+            walker.visitor.current_path.clone(),
+            module_name.clone(),
         );
+        walker
+            .visitor
+            .data
+            .modules
+            .insert(name, ModuleIndexEntry::new(walker.db, die));
+        walker.visitor.data.die_to_name.insert(die, name);
         walker.visitor.current_path.push(module_name);
         walker.walk_namespace();
         walker.visitor.current_path.pop();
@@ -201,6 +211,11 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                 };
 
                 let die = walker.get_die(entry.clone());
+                walker
+                    .visitor
+                    .data
+                    .die_to_name
+                    .insert(die.clone(), name.clone());
                 match walker.visitor.data.functions.entry(name) {
                     Entry::Vacant(vacant_entry) => {
                         vacant_entry.insert(FunctionIndexEntry {
@@ -294,12 +309,12 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
 #[salsa::tracked(returns(ref))]
-pub fn build_file_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileIndex<'db> {
+pub fn debug_file_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileIndex<'db> {
     let file = debug_file.file(db);
 
     let mut builder = FileIndexBuilder::default();
     tracing::info!("Indexing file: {}", file.path(db));
-    walk_file(db, file, &mut builder);
+    walk_file(db, debug_file, &mut builder);
 
     let FileIndexBuilder {
         function_addresses,

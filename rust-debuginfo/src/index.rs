@@ -94,7 +94,7 @@ impl<'db> Index<'db> {
         name: NameId<'db>,
     ) -> Option<(DebugFile, FunctionIndexEntry<'db>)> {
         let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::build_file_index(db, *file).data(db);
+        let indexed = dwarf::debug_file_index(db, *file).data(db);
         indexed
             .functions
             .get(&name)
@@ -108,7 +108,7 @@ impl<'db> Index<'db> {
         name: NameId<'db>,
     ) -> Option<SymbolIndexEntry<'db>> {
         let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::build_file_index(db, *file).data(db);
+        let indexed = dwarf::debug_file_index(db, *file).data(db);
         indexed.symbols.get(&name).cloned()
     }
     #[allow(dead_code)]
@@ -118,13 +118,13 @@ impl<'db> Index<'db> {
         name: NameId<'db>,
     ) -> Option<ModuleIndexEntry<'db>> {
         let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::build_file_index(db, *file).data(db);
+        let indexed = dwarf::debug_file_index(db, *file).data(db);
         indexed.modules.get(&name).cloned()
     }
     #[allow(dead_code)]
     pub fn lookup_type(&self, db: &'db dyn Db, name: NameId<'db>) -> Option<TypeIndexEntry<'db>> {
         let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::build_file_index(db, *file).data(db);
+        let indexed = dwarf::debug_file_index(db, *file).data(db);
         indexed.types.get(&name).cloned()
     }
 }
@@ -294,7 +294,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     for ((path, member), debug_file) in debug_files.iter() {
         // let is_relocatable = debug_file.relocatable(db);
         let file = debug_file.file(db);
-        let indexed = dwarf::build_file_index(db, *debug_file).data(db);
+        let indexed = dwarf::debug_file_index(db, *debug_file).data(db);
         for name in indexed
             .functions
             .keys()
@@ -397,7 +397,7 @@ pub fn find_closest_function<'db>(
             && indexed_name.path(db).ends_with(module_prefix.as_slice())
         {
             // get the function from the relevant index
-            let indexed = dwarf::build_file_index(db, *entry).data(db);
+            let indexed = dwarf::debug_file_index(db, *entry).data(db);
             if indexed.functions.contains_key(indexed_name) {
                 return Some((*indexed_name, *entry));
             } else {

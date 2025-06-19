@@ -2,7 +2,7 @@ use super::Die;
 use super::loader::{DwarfReader, RawDie};
 use super::unit::UnitRef;
 use crate::database::Db;
-use crate::file::File;
+use crate::file::DebugFile;
 
 /// Walker that drives the visitor through the DIE tree
 pub struct DieWalker<'a, 'db, V> {
@@ -10,7 +10,7 @@ pub struct DieWalker<'a, 'db, V> {
     pub visitor: &'a mut V,
 
     /// The file being walked
-    pub file: File,
+    pub file: DebugFile,
     /// The compilation unit being walked
     unit_offset: gimli::UnitSectionOffset<usize>,
     pub unit_ref: &'a UnitRef<'a>,
@@ -26,8 +26,12 @@ pub struct DieWalker<'a, 'db, V> {
     depth: isize,
 }
 
-pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(db: &'db dyn Db, file: File, visitor: &'a mut V) {
-    tracing::trace!("Walking DWARF for file: {}", file.path(db));
+pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
+    db: &'db dyn Db,
+    file: DebugFile,
+    visitor: &'a mut V,
+) {
+    tracing::trace!("Walking DWARF for file: {}", file.file(db).path(db));
     // Get the root compilation units for this file
     let roots = super::navigation::get_roots(db, file);
 
@@ -308,7 +312,7 @@ mod test {
     use itertools::Itertools;
     use tracing_subscriber::EnvFilter;
 
-    use crate::dwarf::utils::get_string_attr;
+    use crate::{dwarf::utils::get_string_attr, file::File};
 
     struct TestVisitor {
         pub visited: Vec<String>,
@@ -362,12 +366,13 @@ mod test {
             .try_init();
         let db = crate::database::DebugDatabaseImpl::new();
         // Load a test DWARF file
-        let file = super::File::build(
+        let file = File::build(
             &db,
             "bin/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
             None,
         )
         .unwrap();
+        let file = super::DebugFile::new(&db, file, true);
         let mut visitor = TestVisitor {
             visited: Vec::new(),
         };
@@ -378,12 +383,13 @@ mod test {
         assert!(!visitor.visited.is_empty(), "No entries were visited");
         insta::assert_snapshot!(visitor.visited.join("\n"));
 
-        let file = super::File::build(
+        let file = File::build(
             &db,
             "bin/test_binaries/medium.medium.b63b38f5b684d51-cgu.0.rcgu.o".to_string(),
             None,
         )
         .unwrap();
+        let file = super::DebugFile::new(&db, file, true);
         let mut visitor = TestVisitor {
             visited: Vec::new(),
         };
@@ -438,12 +444,13 @@ mod test {
         // Load a test DWARF file
         // db.analyze_file("bin/test_binaries/small")
 
-        let file = super::File::build(
+        let file = File::build(
             &db,
             "bin/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
             None,
         )
         .unwrap();
+        let file = super::DebugFile::new(&db, file, true);
         let mut visitor = ModuleFunctionVisitor::default();
 
         super::walk_file(&db, file, &mut visitor);

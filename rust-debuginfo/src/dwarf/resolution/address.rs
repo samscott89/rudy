@@ -85,7 +85,7 @@ pub fn location_to_address<'db>(
         debug_file.file(db).path(db)
     );
 
-    for (section_offset, unit_ref) in get_roots(db, debug_file.file(db)) {
+    for (section_offset, unit_ref) in get_roots(db, debug_file) {
         let Some(line_program) = unit_ref.line_program.clone() else {
             return None;
         };

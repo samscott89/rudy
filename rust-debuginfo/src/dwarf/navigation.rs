@@ -8,8 +8,8 @@ use super::{
     unit::{UnitRef, get_unit_ref},
     utils::{file_entry_to_path, get_dwarf, to_range},
 };
-use crate::database::Db;
-use crate::file::{File, SourceFile};
+use crate::file::SourceFile;
+use crate::{database::Db, file::DebugFile};
 
 /// Root compilation unit information
 #[salsa::tracked]
@@ -21,8 +21,8 @@ pub struct Root<'db> {
 }
 
 /// Get all root compilation units from a file
-pub fn get_roots<'db>(db: &'db dyn Db, file: File) -> Vec<(UnitSectionOffset, UnitRef<'db>)> {
-    let Some(dwarf) = get_dwarf(db, file) else {
+pub fn get_roots<'db>(db: &'db dyn Db, file: DebugFile) -> Vec<(UnitSectionOffset, UnitRef<'db>)> {
+    let Some(dwarf) = get_dwarf(db, file.file(db)) else {
         return Default::default();
     };
 
@@ -50,8 +50,8 @@ pub fn get_roots<'db>(db: &'db dyn Db, file: File) -> Vec<(UnitSectionOffset, Un
 
 /// Parse root compilation units with their metadata
 #[salsa::tracked]
-pub fn parse_roots<'db>(db: &'db dyn Db, file: File) -> Vec<Root<'db>> {
-    let Some(dwarf) = get_dwarf(db, file) else {
+pub fn parse_roots<'db>(db: &'db dyn Db, file: DebugFile) -> Vec<Root<'db>> {
+    let Some(dwarf) = get_dwarf(db, file.file(db)) else {
         return Default::default();
     };
 

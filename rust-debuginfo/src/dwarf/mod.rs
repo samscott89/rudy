@@ -21,7 +21,7 @@ pub use die::Die;
 pub use expressions::resolve_data_location;
 pub use index::{
     FileIndex, FunctionIndexEntry, ModuleIndexEntry, SymbolIndexEntry, TypeIndexEntry,
-    build_file_index,
+    debug_file_index,
 };
 pub use loader::{Dwarf, load};
 pub use resolution::{
