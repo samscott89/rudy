@@ -7,8 +7,7 @@ use crate::{
     dwarf::{self, Die, resolve_function_variables},
     index,
     outputs::ResolvedFunction,
-    query::{lookup_address, lookup_closest_function, lookup_position, test_get_def},
-    typedef::TypeDef,
+    query::{lookup_address, lookup_closest_function, lookup_position},
     types::{Address, NameId, Position},
 };
 
@@ -146,12 +145,7 @@ impl<'db> DebugInfo<'db> {
     /// }
     /// ```
     pub fn resolve_function(&self, function: &str) -> Result<Option<ResolvedFunction>> {
-        let mut split: Vec<String> = function.split("::").map(|s| s.to_owned()).collect();
-        let name = split
-            .pop()
-            .ok_or_else(|| anyhow::anyhow!("Invalid empty function name: {function}"))?;
-        let module_prefix = split;
-        let function_name = NameId::new(self.db, module_prefix, name);
+        let function_name = NameId::parse_string(function, self.db);
 
         let Some((name, _)) = index::find_closest_function(self.db, self.binary, function_name)
         else {
@@ -415,13 +409,6 @@ impl<'db> DebugInfo<'db> {
         //     .map(|(var, address)| output_global_variable(self.db, var, address, data_resolver))
         //     .collect::<Result<Vec<_>>>()?;
         Ok((params, locals, vec![]))
-    }
-
-    pub fn test_get_shape(&self) -> Result<TypeDef<'_>> {
-        let test_struct = test_get_def(self.db, self.binary);
-        let diagnostics: Vec<&Diagnostic> = test_get_def::accumulated(self.db, self.binary);
-        handle_diagnostics(&diagnostics)?;
-        Ok(test_struct)
     }
 }
 

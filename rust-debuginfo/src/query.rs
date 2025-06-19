@@ -4,7 +4,6 @@ use crate::database::Db;
 use crate::dwarf::{self};
 use crate::file::Binary;
 use crate::index::{self, find_all_by_address};
-use crate::typedef::TypeDef;
 use crate::types::{Address, NameId, Position};
 
 #[salsa::tracked]
@@ -113,28 +112,4 @@ pub fn lookup_closest_function<'db>(
         .into_iter()
         .map(|fai| fai.name.clone())
         .next()
-}
-
-#[salsa::tracked]
-pub fn test_get_def<'db>(db: &'db dyn Db, binary: Binary) -> TypeDef<'db> {
-    let index = index::debug_index(db, binary);
-
-    // find the STATIC_TEST_STRUCT global constants
-    let static_test_struct = index
-        .data(db)
-        .name_to_file
-        .iter()
-        .find_map(|(name, f)| {
-            let struct_name = name.name(db);
-            if struct_name.contains("STATIC_TEST_STRUCT") {
-                let indexed_file = dwarf::debug_file_index(db, *f);
-                indexed_file.data(db).types.get(name).cloned()
-            } else {
-                None
-            }
-        })
-        .expect("should find test struct");
-
-    // get its DIE entry + type
-    dwarf::resolve_type(db, static_test_struct.die(db)).expect("could not get type")
 }

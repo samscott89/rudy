@@ -3,6 +3,8 @@
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 
+use itertools::Itertools;
+
 use super::Die;
 use super::loader::{Offset, RawDie};
 use super::unit::UnitRef;
@@ -26,10 +28,10 @@ pub struct FileIndex<'db> {
 /// Index data structure containing all mappings
 #[derive(Default, Hash, PartialEq, Debug)]
 pub struct FileIndexData<'db> {
-    pub modules: BTreeMap<NameId<'db>, ModuleIndexEntry<'db>>,
+    pub modules: BTreeMap<NameId<'db>, Vec<ModuleIndexEntry<'db>>>,
     pub functions: BTreeMap<NameId<'db>, FunctionIndexEntry<'db>>,
-    pub symbols: BTreeMap<NameId<'db>, SymbolIndexEntry<'db>>,
-    pub types: BTreeMap<NameId<'db>, TypeIndexEntry<'db>>,
+    pub symbols: BTreeMap<NameId<'db>, Vec<SymbolIndexEntry<'db>>>,
+    pub types: BTreeMap<NameId<'db>, Vec<TypeIndexEntry<'db>>>,
     pub sources: BTreeSet<SourceFile<'db>>,
     pub function_addresses: AddressTree<'db>,
     pub die_to_name: BTreeMap<Die<'db>, NameId<'db>>,
@@ -84,7 +86,20 @@ struct FileIndexBuilder<'db> {
 
 pub fn get_die_name<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<&'db NameId<'db>> {
     let debug_file_index = debug_file_index(db, die.file(db));
-    debug_file_index.data(db).die_to_name.get(&die)
+    let res = debug_file_index.data(db).die_to_name.get(&die);
+    if res.is_none() {
+        let index = debug_file_index
+            .data(db)
+            .die_to_name
+            .iter()
+            .map(|(k, v)| format!("{:#x}: {}", k.die_offset(db).0, v.path(db).join("::")))
+            .join("\n");
+        tracing::debug!(
+            "No name found for DIE: {:#x}\nIndex:\n{index}",
+            die.die_offset(db).0
+        );
+    }
+    res
 }
 
 impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
@@ -124,16 +139,18 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
             .unwrap()
             .unwrap();
         let die = walker.get_die(entry);
-        let name = NameId::new(
-            walker.db,
+        let name = NameId::parse_string_in_module(
             walker.visitor.current_path.clone(),
-            module_name.clone(),
+            &module_name,
+            walker.db,
         );
         walker
             .visitor
             .data
             .modules
-            .insert(name, ModuleIndexEntry::new(walker.db, die));
+            .entry(name)
+            .or_default()
+            .push(ModuleIndexEntry::new(walker.db, die));
         walker.visitor.data.die_to_name.insert(die, name);
         walker.visitor.current_path.push(module_name);
         walker.walk_namespace();
@@ -150,6 +167,20 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         let struct_name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
             .unwrap()
             .unwrap();
+        let name = NameId::parse_string_in_module(
+            walker.visitor.current_path.clone(),
+            &struct_name,
+            walker.db,
+        );
+        let die = walker.get_die(entry);
+        walker
+            .visitor
+            .data
+            .types
+            .entry(name)
+            .or_default()
+            .push(TypeIndexEntry::new(walker.db, die));
+        walker.visitor.data.die_to_name.insert(die, name.clone());
         walker.visitor.current_path.push(struct_name.clone());
         walker.walk_struct();
         walker.visitor.current_path.pop();
@@ -181,11 +212,10 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                 let linkage_name = get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref)
                     .ok()
                     .flatten();
-
-                let name = NameId::new(
-                    walker.db,
+                let name = NameId::parse_string_in_module(
                     walker.visitor.current_path.clone(),
-                    function_name.clone(),
+                    &function_name,
+                    walker.db,
                 );
 
                 // find the name in the functions map

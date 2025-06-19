@@ -4,7 +4,7 @@ expression: ty
 snapshot_kind: text
 ---
 TypeDef {
-    [salsa id]: Id(a801),
+    [salsa id]: Id(bc01),
     kind: Struct(
         StructDef {
             name: "String",
@@ -15,7 +15,7 @@ TypeDef {
                     name: "vec",
                     offset: 0,
                     ty: TypeDef {
-                        [salsa id]: Id(a800),
+                        [salsa id]: Id(bc00),
                         kind: Alias(
                             Die {
                                 file: DebugFile {

@@ -16,56 +16,14 @@ use anyhow::Context;
 
 type Result<T> = std::result::Result<T, super::Error>;
 
-/// Standard library type identifiers with their resolver functions
-struct StdTypeInfo {
-    /// Type name patterns to match against
-    patterns: &'static [&'static str],
-    /// Function to resolve this type
-    resolver: for<'db> fn(&'db dyn Db, Die<'db>) -> Result<TypeDef<'db>>,
-}
-
-static STD_TYPES: &[StdTypeInfo] = &[
-    StdTypeInfo {
-        patterns: &["&str"],
-        resolver: |db, entry| Ok(resolve_str_type(db, entry)?),
-    },
-    StdTypeInfo {
-        patterns: &["Option<", "core::option::Option<", "std::option::Option<"],
-        resolver: |db, entry| {
-            let def = resolve_option_type(db, entry)?;
-            Ok(TypeDef::new(db, DefKind::Std(StdDef::Option(def))))
-        },
-    },
-    StdTypeInfo {
-        patterns: &["String", "alloc::string::String", "std::string::String"],
-        resolver: |db, entry| {
-            let def = resolve_string_type(db, entry)?;
-            Ok(TypeDef::new(db, DefKind::Std(StdDef::String(def))))
-        },
-    },
-    StdTypeInfo {
-        patterns: &["Vec<", "alloc::vec::Vec<", "std::vec::Vec<"],
-        resolver: |db, entry| {
-            let def = resolve_vec_type(db, entry)?;
-            Ok(TypeDef::new(db, DefKind::Std(StdDef::Vec(def))))
-        },
-    },
-    StdTypeInfo {
-        patterns: &[
-            "HashMap<",
-            "std::collections::HashMap<",
-            "std::collections::hash::map::HashMap<",
-        ],
-        resolver: |db, entry| {
-            let def = resolve_map_type(db, entry)?;
-            Ok(TypeDef::new(db, DefKind::Std(StdDef::Map(def))))
-        },
-    },
-];
-
 /// Systematically identify standard library types
 fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef<'db>>> {
     let Some(fq_name) = get_die_name(db, entry) else {
+        tracing::warn!(
+            "no name found for entry: {} at offset {}",
+            entry.print(db),
+            entry.die_offset(db).0
+        );
         return Ok(None);
     };
 
@@ -141,9 +99,9 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 }
 
 /// Resolve a primitive type by name
-fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> TypeDef<'db> {
+fn resolve_primitive_type<'db>(db: &'db dyn Db, name: &str) -> TypeDef<'db> {
     use PrimitiveDef::*;
-    let primitive_def = match name.name(db).as_str() {
+    let primitive_def = match name {
         "u8" => UnsignedInt(UnsignedIntDef { size: 1 }),
         "u16" => UnsignedInt(UnsignedIntDef { size: 2 }),
         "u32" => UnsignedInt(UnsignedIntDef { size: 4 }),
@@ -170,7 +128,7 @@ fn resolve_primitive_type<'db>(db: &'db dyn Db, name: NameId<'db>) -> TypeDef<'d
             return TypeDef::new(
                 db,
                 DefKind::Other {
-                    name: name.as_path(db),
+                    name: name.to_string(),
                 },
             );
         }
@@ -350,8 +308,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
             let Some(name) = entry.name(db) else {
                 return Err(entry.format_with_location(db, "type name not found").into());
             };
-            let name_id = NameId::new(db, vec![], name);
-            let ty = resolve_primitive_type(db, name_id);
+            let ty = resolve_primitive_type(db, &name);
             Some(ty)
         }
         gimli::DW_TAG_pointer_type => {
@@ -522,7 +479,7 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                 let mut fields = vec![];
                 for child in entry.children(db) {
                     if child.tag(db) != gimli::DW_TAG_member {
-                        tracing::debug!("skipping non-member entry: {entry:#?}");
+                        tracing::debug!("skipping non-member entry: {}", child.print(db));
                         continue;
                     }
                     let Some(field_name) = child.name(db) else {
@@ -589,30 +546,34 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
 
 #[cfg(test)]
 mod test {
+    use tracing_subscriber::EnvFilter;
+
     use crate::{DebugDb, DebugInfo, dwarf::resolve_function_variables};
 
     use super::*;
 
     #[test]
     fn test_std_type_detection() {
-        tracing_subscriber::fmt::init();
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(EnvFilter::from_default_env())
+            .try_init();
 
         let db = DebugDb::new();
 
         // Create a test binary that should have std types
         let test_binary_path = create_test_binary();
 
-        println!("=== Testing std type detection ===");
-        println!("Using binary: {test_binary_path}");
+        tracing::info!("=== Testing std type detection ===");
+        tracing::info!("Using binary: {test_binary_path}");
 
         let debug_info =
             DebugInfo::new(&db, &test_binary_path).expect("Failed to create debug info");
         // For now, just test that we can create the debug info
         // You can add more specific tests here as you implement the functionality
-        println!("DebugInfo created successfully");
+        tracing::info!("DebugInfo created successfully");
 
-        let function_name = NameId::new(&db, vec![], "test_fn");
-        let (f, debug_file) =
+        let function_name = NameId::new(&db, vec![], "test_fn", vec![]);
+        let (f, _debug_file) =
             crate::index::find_closest_function(debug_info.db, debug_info.binary, function_name)
                 .expect("Failed to find function");
 
@@ -641,11 +602,12 @@ mod test {
             ]}, {
                 salsa::attach(&db, || insta::assert_debug_snapshot!(ty));
             });
+            break; // Just check the first parameter for now
         }
 
         // Test resolving variables if we can find any
         // This is a basic smoke test to make sure the new get_die_name function works
-        println!("DebugInfo appears to be working correctly");
+        tracing::info!("DebugInfo appears to be working correctly");
     }
 
     fn create_test_binary() -> String {

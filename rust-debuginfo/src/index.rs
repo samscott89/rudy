@@ -101,32 +101,32 @@ impl<'db> Index<'db> {
             .cloned()
             .map(|entry| (*file, entry))
     }
-    #[allow(dead_code)]
-    pub fn lookup_symbol(
-        &self,
-        db: &'db dyn Db,
-        name: NameId<'db>,
-    ) -> Option<SymbolIndexEntry<'db>> {
-        let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::debug_file_index(db, *file).data(db);
-        indexed.symbols.get(&name).cloned()
-    }
-    #[allow(dead_code)]
-    pub fn lookup_module(
-        &self,
-        db: &'db dyn Db,
-        name: NameId<'db>,
-    ) -> Option<ModuleIndexEntry<'db>> {
-        let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::debug_file_index(db, *file).data(db);
-        indexed.modules.get(&name).cloned()
-    }
-    #[allow(dead_code)]
-    pub fn lookup_type(&self, db: &'db dyn Db, name: NameId<'db>) -> Option<TypeIndexEntry<'db>> {
-        let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::debug_file_index(db, *file).data(db);
-        indexed.types.get(&name).cloned()
-    }
+    // #[allow(dead_code)]
+    // pub fn lookup_symbol(
+    //     &self,
+    //     db: &'db dyn Db,
+    //     name: NameId<'db>,
+    // ) -> Option<SymbolIndexEntry<'db>> {
+    //     let file = self.data(db).name_to_file.get(&name)?;
+    //     let indexed = dwarf::debug_file_index(db, *file).data(db);
+    //     indexed.symbols.get(&name).cloned()
+    // }
+    // #[allow(dead_code)]
+    // pub fn lookup_module(
+    //     &self,
+    //     db: &'db dyn Db,
+    //     name: NameId<'db>,
+    // ) -> Option<ModuleIndexEntry<'db>> {
+    //     let file = self.data(db).name_to_file.get(&name)?;
+    //     let indexed = dwarf::debug_file_index(db, *file).data(db);
+    //     indexed.modules.get(&name).cloned()
+    // }
+    // #[allow(dead_code)]
+    // pub fn lookup_type(&self, db: &'db dyn Db, name: NameId<'db>) -> Option<TypeIndexEntry<'db>> {
+    //     let file = self.data(db).name_to_file.get(&name)?;
+    //     let indexed = dwarf::debug_file_index(db, *file).data(db);
+    //     indexed.types.get(&name).cloned()
+    // }
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
@@ -148,7 +148,7 @@ impl<'db> IndexData<'db> {
                 let existing_file_path = existing_file.file(db).path(db);
                 let file_path = file.file(db).path(db);
                 if existing_file_path != file_path {
-                    tracing::warn!(
+                    tracing::debug!(
                         "Symbol {} found in multiple files: {existing_file_path} and {file_path}",
                         name.name(db),
                     );
@@ -307,11 +307,11 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             // find the symbol address in the binary
             if let Some((address, symbol_path, symbol_member)) = symbol_map.get(name) {
                 if symbol_path != path || symbol_member != member {
-                    db.report_warning(format!(
-                            "Symbol {} found in file {} with address {address:#x} but also in binary with different path or member: {path} {member:?}",
-                            name.as_path(db),
-                            file.path(db),
-                        ));
+                    tracing::debug!(
+                        "Symbol {} found in file {} with address {address:#x} but also in binary with different path or member: {path} {member:?}",
+                        name.as_path(db),
+                        file.path(db),
+                    );
                 } else {
                     data.set_symbol_address(db, name.clone(), *address);
                 }
@@ -334,11 +334,11 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             // insert the address range information for the function
             if let Some((base_address, symbol_path, symbol_member)) = symbol_map.get(name) {
                 if symbol_path != path || symbol_member != member {
-                    db.report_warning(format!(
-                            "Function {} found in file {} with address {base_address:#x} but also in binary with different path or member: {path} {member:?}",
-                            name.as_path(db),
-                            file.path(db),
-                        ));
+                    tracing::debug!(
+                        "Function {} found in file {} with address {base_address:#x} but also in binary with different path or member: {path} {member:?}",
+                        name.as_path(db),
+                        file.path(db),
+                    );
                 } else {
                     address_info.push(FunctionAddressInfo {
                         start: *base_address,

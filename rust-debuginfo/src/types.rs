@@ -11,20 +11,77 @@ pub struct NameId<'db> {
     pub path: Vec<String>,
     #[returns(ref)]
     pub name: String,
+    #[returns(ref)]
+    pub generics: Vec<NameId<'db>>,
 }
 
 impl<'db> NameId<'db> {
+    pub fn parse_string_in_module(path: Vec<String>, s: &str, db: &'db dyn Db) -> Self {
+        let (name, generics) = if let Some((name, generics)) = s.split_once('<') {
+            if generics.is_empty() {
+                tracing::error!("Invalid generic type: {generics} in {s}");
+            }
+            // NOTE: this won't support doubly-nested generics
+            let generics = generics[..generics.len() - 1]
+                .split(',')
+                .map(|s| NameId::parse_string(s, db))
+                .collect();
+            (name, generics)
+        } else {
+            (s, vec![])
+        };
+
+        NameId::new(db, path, name.to_string(), generics)
+    }
+    pub fn parse_string(s: &str, db: &'db dyn Db) -> Self {
+        tracing::info!("Parsing symbol: {s}");
+        let (name, generics) = if let Some((name, generics)) = s.split_once('<') {
+            if generics.is_empty() {
+                tracing::error!("Invalid generic type: {generics} in {s}");
+            }
+            // NOTE: this won't support doubly-nested generics
+            let generics = generics[..generics.len() - 1]
+                .split(',')
+                .map(|s| NameId::parse_string(s, db))
+                .collect();
+            (name, generics)
+        } else {
+            (s, vec![])
+        };
+
+        let mut path: Vec<String> = name.split("::").map(|s| s.to_owned()).collect();
+        let name = path.pop().unwrap_or_else(|| {
+            db.report_error(format!("Invalid empty symbol name: {s}",));
+            "<invalid>".to_string()
+        });
+        NameId::new(db, path, name, generics)
+    }
+
     pub fn as_path<Db>(&self, db: &'db Db) -> String
     where
         Db: salsa::Database + ?Sized,
     {
         let name = self.name(db);
-        let path = self.path(db).iter().join("::");
-        if path.is_empty() {
-            name.to_string()
+        let path = self.path(db);
+        let path = if path.is_empty() {
+            String::new()
         } else {
-            format!("{path}::{name}")
-        }
+            path.join("::") + "::"
+        };
+        let generics = self.generics(db);
+        let generics = if generics.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "<{}>",
+                generics
+                    .iter()
+                    .map(|g| g.as_path(db))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )
+        };
+        format!("{path}{name}{generics}")
     }
 }
 
@@ -44,18 +101,12 @@ pub fn demangle<'db>(db: &'db dyn Db, sym: Symbol<'db>) -> NameId<'db> {
                 "Failed to parse symbol bytes to string: {:?}",
                 sym.name_bytes(db)
             ));
-            return NameId::new(db, vec![], "<invalid>".to_string());
+            return NameId::new(db, vec![], "<invalid>".to_string(), vec![]);
         }
     };
     let demangled = rustc_demangle::demangle(name_str.as_ref());
     // return the demangled name as a string, without the trailing hash
-    let demangled = format!("{demangled:#}");
-    let mut split: Vec<String> = demangled.split("::").map(|s| s.to_owned()).collect();
-    let name = split.pop().unwrap_or_else(|| {
-        db.report_error(format!("Invalid empty symbol name: {demangled}",));
-        "<invalid>".to_string()
-    });
-    NameId::new(db, split, name)
+    NameId::parse_string(&demangled.to_string(), db)
 }
 
 #[salsa::interned(debug)]
