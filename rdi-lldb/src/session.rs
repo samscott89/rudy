@@ -2,10 +2,11 @@
 
 use anyhow::{Result, anyhow};
 use rust_debuginfo::DebugInfo;
+use std::collections::HashMap;
 
+use crate::evaluator::{self, EvalContext, RemoteDataAccess};
 use crate::expression::{self, Expression};
-use crate::evaluator::{self, EvalContext, EvaluationState};
-use crate::protocol::{ClientMessage, ServerMessage, EventRequest, EventResponseData};
+use crate::protocol::{ClientMessage, EventRequest, EventResponseData, ServerMessage};
 
 /// Represents a debugging session with state
 pub struct DebugSession<'db> {
@@ -17,8 +18,6 @@ pub struct DebugSession<'db> {
     frame_index: Option<usize>,
     /// Message ID counter
     next_msg_id: u64,
-    /// Pending evaluation: (request_id, expression, evaluation_state)
-    pending_evaluation: Option<(u64, Expression, Option<EvaluationState>)>,
 }
 
 impl<'db> DebugSession<'db> {
@@ -28,7 +27,6 @@ impl<'db> DebugSession<'db> {
             thread_id: None,
             frame_index: None,
             next_msg_id: 1,
-            pending_evaluation: None,
         }
     }
 
@@ -46,9 +44,7 @@ impl<'db> DebugSession<'db> {
             ClientMessage::Init { .. } => {
                 Err(anyhow!("Unexpected init message in existing session"))
             }
-            ClientMessage::EventResponse { id, data } => {
-                self.handle_event_response(id, data)
-            }
+            ClientMessage::EventResponse { id, data } => self.handle_event_response(id, data),
         }
     }
 
@@ -64,7 +60,7 @@ impl<'db> DebugSession<'db> {
                 }
 
                 let input = &args[0];
-                
+
                 // Parse the expression
                 let expr = match expression::parse(input) {
                     Ok(expr) => expr,
@@ -105,21 +101,22 @@ impl<'db> DebugSession<'db> {
             Some((eval_id, expr, eval_state)) if *eval_id == id => {
                 let expr = expr.clone();
                 let eval_state = eval_state.take();
-                
+
                 match eval_state {
                     None => {
                         // This is the initial GetFrameInfo response
                         match data {
                             EventResponseData::FrameInfo { pc, sp, fp } => {
-                                
                                 // Create evaluation context
                                 let context = EvalContext {
                                     debug_info: &self.debug_info,
                                     pc,
                                     sp,
                                     fp,
+                                    memory_cache: HashMap::new(),
+                                    register_cache: HashMap::new(),
                                 };
-                                
+
                                 // Start evaluation
                                 match evaluator::evaluate(&expr, &context, id)? {
                                     EvaluationState::Complete(result) => {
@@ -134,13 +131,17 @@ impl<'db> DebugSession<'db> {
                                             }),
                                         })
                                     }
-                                    EvaluationState::NeedEvent { event, continuation: _ } => {
+                                    EvaluationState::NeedEvent {
+                                        event,
+                                        continuation: _,
+                                    } => {
                                         // Need more data, store the state and send the event
                                         // For now, we'll simplify and not handle complex continuations
                                         self.pending_evaluation = None;
                                         Ok(ServerMessage::Error {
                                             id,
-                                            error: "Complex evaluation not yet implemented".to_string(),
+                                            error: "Complex evaluation not yet implemented"
+                                                .to_string(),
                                         })
                                     }
                                 }
@@ -160,17 +161,16 @@ impl<'db> DebugSession<'db> {
                         self.pending_evaluation = None;
                         Ok(ServerMessage::Error {
                             id,
-                            error: "Complex evaluation continuations not yet implemented".to_string(),
+                            error: "Complex evaluation continuations not yet implemented"
+                                .to_string(),
                         })
                     }
                 }
             }
-            _ => {
-                Ok(ServerMessage::Error {
-                    id,
-                    error: format!("No pending evaluation for id {}", id),
-                })
-            }
+            _ => Ok(ServerMessage::Error {
+                id,
+                error: format!("No pending evaluation for id {}", id),
+            }),
         }
     }
 }

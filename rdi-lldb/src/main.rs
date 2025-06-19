@@ -2,11 +2,10 @@
 //!
 //! Event-driven RPC server for LLDB integration with rust-debuginfo
 
-mod expression;
 mod evaluator;
+mod expression;
 mod protocol;
 mod server;
-mod session;
 
 use anyhow::Result;
 use clap::Parser;
