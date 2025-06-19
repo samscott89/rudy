@@ -74,7 +74,7 @@ class RdiConnection:
         """Send a command and handle event loop"""
 
         self.request_id += 1
-        msg = {"type": "Command", "id": self.request_id, "cmd": cmd, "args": args}
+        msg = {"type": "Command", "cmd": cmd, "args": args}
 
         self._send_message(msg)
 
@@ -93,7 +93,6 @@ class RdiConnection:
 
     def _handle_event(self, event_msg: dict, debugger) -> dict:
         """Handle an event request from the server"""
-        event_id = event_msg.get("id", 0)
         event = event_msg.get("event")
 
         try:
@@ -101,7 +100,6 @@ class RdiConnection:
             if not target:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": "No target selected",
                 }
@@ -110,25 +108,27 @@ class RdiConnection:
             if not process:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": "No process",
                 }
 
             if event == "ReadMemory":
-                return self._handle_read_memory(event_msg, process, event_id)
+                return self._handle_read_memory(event_msg, process)
             elif event == "ReadRegister":
-                return self._handle_read_register(event_msg, process, event_id)
+                return self._handle_read_register(event_msg, process)
+            elif event == "ReadRegisterByIndex":
+                return self._handle_read_register_by_index(event_msg, process)
             elif event == "GetFrameInfo":
-                return self._handle_get_frame_info(process, event_id)
+                return self._handle_get_frame_info(process)
             elif event == "GetThreadInfo":
-                return self._handle_get_thread_info(process, event_id)
+                return self._handle_get_thread_info(process)
+            elif event == "GetBaseAddress":
+                return self._handle_get_base_address(target)
             elif event == "EvaluateLLDBExpression":
-                return self._handle_evaluate_expression(event_msg, target, event_id)
+                return self._handle_evaluate_expression(event_msg, target)
             else:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": f"Unknown event type: {event}",
                 }
@@ -136,12 +136,11 @@ class RdiConnection:
         except Exception as e:
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "Error",
                 "message": f"Event handling error: {e}",
             }
 
-    def _handle_read_memory(self, event_msg: dict, process, event_id: int) -> dict:
+    def _handle_read_memory(self, event_msg: dict, process) -> dict:
         """Handle ReadMemory event"""
         address = event_msg.get("address", 0)
         size = event_msg.get("size", 0)
@@ -154,26 +153,23 @@ class RdiConnection:
             if error.Success():
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "MemoryData",
                     "data": list(data),  # Convert bytes to list of ints
                 }
             else:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": f"Memory read failed: {error.GetCString()}",
                 }
         except Exception as e:
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "Error",
                 "message": f"Memory read error: {e}",
             }
 
-    def _handle_read_register(self, event_msg: dict, process, event_id: int) -> dict:
+    def _handle_read_register(self, event_msg: dict, process) -> dict:
         """Handle ReadRegister event"""
         reg_name = event_msg.get("name", "")
 
@@ -182,7 +178,6 @@ class RdiConnection:
             if not thread:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": "No selected thread",
                 }
@@ -191,7 +186,6 @@ class RdiConnection:
             if not frame:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": "No selected frame",
                 }
@@ -206,14 +200,12 @@ class RdiConnection:
 
                         return {
                             "type": "EventResponse",
-                            "id": event_id,
                             "event": "RegisterData",
                             "value": reg_value,
                         }
 
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "Error",
                 "message": f"Register '{reg_name}' not found",
             }
@@ -221,19 +213,19 @@ class RdiConnection:
         except Exception as e:
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "Error",
                 "message": f"Register read error: {e}",
             }
 
-    def _handle_get_frame_info(self, process, event_id: int) -> dict:
-        """Handle GetFrameInfo event"""
+    def _handle_read_register_by_index(self, event_msg: dict, process) -> dict:
+        """Handle ReadRegisterByIndex event"""
+        reg_index = event_msg.get("index", 0)
+
         try:
             thread = process.GetSelectedThread()
             if not thread:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": "No selected thread",
                 }
@@ -242,7 +234,60 @@ class RdiConnection:
             if not frame:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
+                    "event": "Error",
+                    "message": "No selected frame",
+                }
+
+            # Get all register sets and find the register by index
+            registers = frame.GetRegisters()
+            current_index = 0
+
+            debug_print(f"Looking for register index {reg_index}")
+
+            for reg_set in registers:
+                if reg_set.GetNumChildren() >= reg_index:
+                    reg = reg_set.GetChildAtIndex(reg_index)
+                    if reg:
+                        reg_value = int(reg.GetData().uint64s[0])
+                        debug_print(
+                            f"Found register {reg_index} ({reg.GetName()}): {reg_value:#x}"
+                        )
+                        return {
+                            "type": "EventResponse",
+                            "event": "RegisterData",
+                            "value": reg_value,
+                        }
+                    else:
+                        debug_print(f"Register at index {reg_index} not found in set")
+
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Register index {reg_index} not found (only have {current_index} registers)",
+            }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Register read by index error: {e}",
+            }
+
+    def _handle_get_frame_info(self, process) -> dict:
+        """Handle GetFrameInfo event"""
+        try:
+            thread = process.GetSelectedThread()
+            if not thread:
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": "No selected thread",
+                }
+
+            frame = thread.GetSelectedFrame()
+            if not frame:
+                return {
+                    "type": "EventResponse",
                     "event": "Error",
                     "message": "No selected frame",
                 }
@@ -253,7 +298,6 @@ class RdiConnection:
 
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "FrameInfo",
                 "pc": pc,
                 "sp": sp,
@@ -263,26 +307,23 @@ class RdiConnection:
         except Exception as e:
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "Error",
                 "message": f"Frame info error: {e}",
             }
 
-    def _handle_get_thread_info(self, process, event_id: int) -> dict:
+    def _handle_get_thread_info(self, process) -> dict:
         """Handle GetThreadInfo event"""
         try:
             thread = process.GetSelectedThread()
             if not thread:
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": "No selected thread",
                 }
 
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "ThreadInfo",
                 "tid": thread.GetThreadID(),
                 "name": thread.GetName() or None,
@@ -291,14 +332,46 @@ class RdiConnection:
         except Exception as e:
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "Error",
                 "message": f"Thread info error: {e}",
             }
 
-    def _handle_evaluate_expression(
-        self, event_msg: dict, target, event_id: int
-    ) -> dict:
+    def _handle_get_base_address(self, target) -> dict:
+        """Handle GetBaseAddress event"""
+        try:
+            if not target:
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": "No target available",
+                }
+
+            # Get the main module (executable)
+            module = target.GetModuleAtIndex(0)
+            if not module:
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": "No modules loaded",
+                }
+
+            # Get the base address where the module is loaded
+            base_address = module.GetObjectFileHeaderAddress().GetLoadAddress(target)
+
+            return {
+                "type": "EventResponse",
+                "event": "BaseAddress",
+                "address": base_address,
+            }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Base address error: {e}",
+            }
+
+    def _handle_evaluate_expression(self, event_msg: dict, target) -> dict:
         """Handle EvaluateLLDBExpression event"""
         expr = event_msg.get("expr", "")
 
@@ -309,7 +382,6 @@ class RdiConnection:
             if result.IsValid():
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "ExpressionResult",
                     "value": str(result.GetValue() or result.GetSummary() or ""),
                 }
@@ -317,7 +389,6 @@ class RdiConnection:
                 error = result.GetError()
                 return {
                     "type": "EventResponse",
-                    "id": event_id,
                     "event": "Error",
                     "message": f"Expression evaluation failed: {error.GetCString() if error else 'Unknown error'}",
                 }
@@ -325,7 +396,6 @@ class RdiConnection:
         except Exception as e:
             return {
                 "type": "EventResponse",
-                "id": event_id,
                 "event": "Error",
                 "message": f"Expression evaluation error: {e}",
             }

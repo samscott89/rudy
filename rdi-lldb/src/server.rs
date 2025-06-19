@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 use rust_debuginfo::{DebugDb, DebugInfo};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace};
 
 use crate::{
     evaluator::EvalContext,
@@ -75,11 +75,20 @@ impl ClientConnection {
             return Err(anyhow!("Received empty line"));
         }
 
-        debug!("Received: {}", line);
+        trace!("Received: {}", line);
         // Parse the client message
         let msg: ClientMessage = serde_json::from_str(line)
             .with_context(|| format!("Failed to parse message: {}", line))?;
+        debug!("Received: {msg:#?}");
         Ok(Some(msg))
+    }
+
+    fn write_message(&mut self, response: &ServerMessage) -> Result<()> {
+        debug!("Sending: {response:#?}");
+        let response_json = serde_json::to_string(response)? + "\n";
+        self.writer.write_all(response_json.as_bytes())?;
+        self.writer.flush()?;
+        Ok(())
     }
 
     fn init<'db>(&mut self, db: &'db DebugDb) -> Result<DebugInfo<'db>> {
@@ -113,13 +122,8 @@ impl ClientConnection {
                 }
                 Err(e) => {
                     error!("Failed to read message: {}", e);
-                    let error_response = ServerMessage::Error {
-                        id: 0,
-                        error: format!("Failed to read message: {}", e),
-                    };
-                    let response = serde_json::to_string(&error_response)? + "\n";
-                    self.writer.write_all(response.as_bytes())?;
-                    self.writer.flush()?;
+                    let error_response = ServerMessage::from(e);
+                    self.write_message(&error_response)?;
 
                     continue;
                 }
@@ -127,8 +131,8 @@ impl ClientConnection {
             debug!("Received message: {:?}", msg);
             // Handle the message
             let response = match msg {
-                ClientMessage::Command { id, cmd, args } => {
-                    self.handle_command(id, &cmd, &args, &debug_info)
+                ClientMessage::Command { cmd, args } => {
+                    self.handle_command(&cmd, &args, &debug_info)
                 }
                 ClientMessage::Init { .. } => {
                     anyhow::bail!("Unexpected init message in existing session")
@@ -139,28 +143,23 @@ impl ClientConnection {
             }?;
 
             // Send response
-            let response_json = serde_json::to_string(&response)? + "\n";
-            debug!("Sending: {}", response_json.trim());
-            self.writer.write_all(response_json.as_bytes())?;
-            self.writer.flush()?;
+            self.write_message(&response)?;
         }
 
         Ok(())
     }
 
     pub fn send_event_request(&mut self, event: EventRequest) -> Result<EventResponseData> {
-        let message = ServerMessage::Event {
-            id: 0, // TODO: do we need this?
-            event,
-        };
-        let response = serde_json::to_string(&message)? + "\n";
-        debug!("Sending event: {}", response.trim());
-        self.writer.write_all(response.as_bytes())?;
-        self.writer.flush()?;
+        let message = ServerMessage::Event { event };
+        self.write_message(&message)?;
+        // let response = serde_json::to_string(&message)? + "\n";
+        // debug!("Sending event: {}", response.trim());
+        // self.writer.write_all(response.as_bytes())?;
+        // self.writer.flush()?;
 
         // next, receive the response
         let response = match self.read_next_message()? {
-            Some(ClientMessage::EventResponse { id: _, data }) => data,
+            Some(ClientMessage::EventResponse { data }) => data,
             Some(msg) => {
                 return Err(anyhow!("Expected EventResponse, got: {:?}", msg));
             }
@@ -177,7 +176,6 @@ impl ClientConnection {
     /// Handle a command from the client
     fn handle_command(
         &mut self,
-        id: u64,
         cmd: &str,
         args: &[String],
         debug_info: &DebugInfo,
@@ -186,8 +184,8 @@ impl ClientConnection {
             "eval" | "print" => {
                 if args.is_empty() {
                     return Ok(ServerMessage::Error {
-                        id,
                         error: "Usage: eval <expression>".to_string(),
+                        backtrace: None,
                     });
                 }
 
@@ -197,10 +195,7 @@ impl ClientConnection {
                 let expr = match expression::parse(input) {
                     Ok(expr) => expr,
                     Err(e) => {
-                        return Ok(ServerMessage::Error {
-                            id,
-                            error: format!("Parse error: {}", e),
-                        });
+                        return Ok(e.into());
                     }
                 };
 
@@ -211,21 +206,17 @@ impl ClientConnection {
 
                 match result {
                     Ok(value) => Ok(ServerMessage::Complete {
-                        id: 0,
                         result: serde_json::to_value(&value)?,
                     }),
                     Err(e) => {
-                        return Ok(ServerMessage::Error {
-                            id,
-                            error: format!("Evaluation error: {}", e),
-                        });
+                        return Ok(e.into());
                     }
                 }
             }
 
             _ => Ok(ServerMessage::Error {
-                id,
-                error: format!("Unknown command: {}", cmd),
+                error: format!("Unknown command: {cmd}"),
+                backtrace: None,
             }),
         }
     }

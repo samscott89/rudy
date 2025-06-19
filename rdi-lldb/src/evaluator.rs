@@ -23,6 +23,7 @@ impl<'conn> RemoteDataAccess<'conn> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn read_register(&mut self, name: &str) -> Result<u64> {
         let event = EventRequest::ReadRegister {
             name: name.to_string(),
@@ -41,7 +42,16 @@ impl<'conn> RemoteDataAccess<'conn> {
 
 impl<'conn> DataResolver for RemoteDataAccess<'conn> {
     fn base_address(&self) -> u64 {
-        todo!()
+        // Get the base load address where the binary is loaded in memory
+        if let Ok(EventResponseData::BaseAddress { address }) = self
+            .conn
+            .borrow_mut()
+            .send_event_request(EventRequest::GetBaseAddress)
+        {
+            address
+        } else {
+            0 // Fallback if we can't get base address
+        }
     }
 
     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
@@ -50,25 +60,34 @@ impl<'conn> DataResolver for RemoteDataAccess<'conn> {
 
         match response {
             EventResponseData::MemoryData { data } => Ok(data),
-            EventResponseData::Error { message } => Err(anyhow!("Memory read failed: {}", message)),
+            EventResponseData::Error { message } => Err(anyhow!("{message}")),
             _ => Err(anyhow!("Unexpected response type for ReadMemory")),
         }
     }
 
     fn get_registers(&self) -> Result<Vec<u64>> {
-        // Return the basic register set we know about
-        //
-        todo!()
+        // This method is supposed to return all available registers
+        // For now, we'll return an error since we don't have a way to get all registers
+        // In practice, DWARF expressions typically use get_register(idx) directly
+        Err(anyhow!(
+            "get_registers() not implemented - use get_register(idx) instead"
+        ))
     }
 
     fn get_register(&self, idx: usize) -> Result<u64> {
-        // match idx {
-        //     0 => Ok(self.context.pc), // PC
-        //     1 => Ok(self.context.sp), // SP
-        //     2 => Ok(self.context.fp), // FP
-        //     _ => Err(anyhow!("Register index {} not available", idx)),
-        // }
-        todo!()
+        // Read a specific register by index using the new protocol event
+        let event = EventRequest::ReadRegisterByIndex { index: idx };
+        let response = self.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::RegisterData { value } => Ok(value),
+            EventResponseData::Error { message } => Err(anyhow!(
+                "Register read failed for index {}: {}",
+                idx,
+                message
+            )),
+            _ => Err(anyhow!("Unexpected response type for ReadRegisterByIndex")),
+        }
     }
 
     fn read_address(&self, address: u64) -> Result<u64> {
@@ -95,6 +114,7 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Resolve variables at the current program counter
+    #[allow(dead_code)]
     fn resolve_variables_at_address(
         &self,
         address: u64,
@@ -139,31 +159,20 @@ impl<'a> EvalContext<'a> {
                 .map(|t| t.name.clone())
                 .unwrap_or_else(|| "Unknown".to_string());
 
-            let (value_str, pretty_str) = match &variable.value {
-                Some(value) => {
-                    let value_display = format_value(value);
-                    let pretty_display = format!("{} = {}", name, value_display);
-                    (value_display, pretty_display)
-                }
-                None => {
-                    // Variable found but no value available
-                    let no_value = "<value not available>".to_string();
-                    let pretty = format!("{} = {}", name, no_value);
-                    (no_value, pretty)
-                }
+            let value_str = match &variable.value {
+                Some(value) => format_value(value),
+                None => "<value not available>".to_string(),
             };
 
             Ok(EvalResult {
                 value: value_str,
                 type_name,
-                pretty: pretty_str,
             })
         } else {
             // Variable not found at this location
             Ok(EvalResult {
                 value: "<not found>".to_string(),
                 type_name: "Unknown".to_string(),
-                pretty: format!("{} = <variable not found in current scope>", name),
             })
         }
     }
@@ -176,8 +185,6 @@ pub struct EvalResult {
     pub value: String,
     /// The type of the value
     pub type_name: String,
-    /// Pretty-printed representation
-    pub pretty: String,
 }
 
 /// Format a Value for display
@@ -192,16 +199,12 @@ fn format_value(value: &rust_debuginfo::Value) -> String {
                 format!("[{} items]", items.len())
             }
         }
-        rust_debuginfo::Value::Struct { ty: _, fields } => {
-            if fields.len() <= 2 {
-                let fields_str: Vec<String> = fields
-                    .iter()
-                    .map(|(k, v)| format!("{}: {}", k, format_value(v)))
-                    .collect();
-                format!("{{ {} }}", fields_str.join(", "))
-            } else {
-                format!("{{ {} fields }}", fields.len())
-            }
+        rust_debuginfo::Value::Struct { ty, fields } => {
+            let fields_str: Vec<String> = fields
+                .iter()
+                .map(|(k, v)| format!("{}: {}", k, format_value(v)))
+                .collect();
+            format!("{ty} {{ {} }}", fields_str.join(", "))
         }
     }
 }

@@ -19,6 +19,7 @@ use crate::{
 ///
 /// The struct holds a reference to the debug database and manages the
 /// binary file and associated debug files.
+#[derive(Clone)]
 pub struct DebugInfo<'db> {
     binary: crate::file::Binary,
     debug_files: Vec<crate::file::DebugFile>,
