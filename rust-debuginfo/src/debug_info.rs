@@ -21,9 +21,9 @@ use crate::{
 /// binary file and associated debug files.
 #[derive(Clone)]
 pub struct DebugInfo<'db> {
-    binary: crate::file::Binary,
+    pub(crate) binary: crate::file::Binary,
     debug_files: Vec<crate::file::DebugFile>,
-    db: &'db crate::database::DebugDatabaseImpl,
+    pub(crate) db: &'db crate::database::DebugDatabaseImpl,
 }
 
 impl<'db> fmt::Debug for DebugInfo<'db> {

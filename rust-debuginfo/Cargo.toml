@@ -44,6 +44,6 @@ name = "generate_test_binaries"
 path = "bin/generate_test_binaries.rs"
 
 [dev-dependencies]
-insta = "1.42.2"
+insta = { version = "1.42.2", features = ["filters"] }
 rstest = "0.25"
 rstest_reuse = { version = "0.7" }

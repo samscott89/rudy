@@ -1,0 +1,64 @@
+---
+source: rust-debuginfo/src/dwarf/resolution/types.rs
+expression: ty
+snapshot_kind: text
+---
+TypeDef {
+    [salsa id]: Id(a804),
+    kind: Struct(
+        StructDef {
+            name: "Vec<i32, alloc::alloc::Global>",
+            size: 24,
+            alignment: 8,
+            fields: [
+                StructField {
+                    name: "buf",
+                    offset: 0,
+                    ty: TypeDef {
+                        [salsa id]: Id(a802),
+                        kind: Alias(
+                            Die {
+                                file: DebugFile {
+                                    [salsa id]: Id(800),
+                                    file: File {
+                                        [salsa id]: Id(1),
+                                        path: "/var/folders/gj/1wgczm_s7vncb_d05hl6x6pw0000gn/T/rust_debuginfo_test/test_binary.main.5f6bf0c8e9d0afce-cgu.0.rcgu.o",
+                                        member_file: None,
+                                        mtime: SystemTime {
+                                            tv_sec: [ts],
+                                            tv_nsec: [ts],
+                                        },
+                                        size: 219592,
+                                    },
+                                    relocatable: false,
+                                },
+                                cu_offset: DebugInfoOffset(
+                                    DebugInfoOffset(
+                                        0,
+                                    ),
+                                ),
+                                die_offset: UnitOffset(
+                                    7794,
+                                ),
+                            },
+                        ),
+                    },
+                },
+                StructField {
+                    name: "len",
+                    offset: 16,
+                    ty: TypeDef {
+                        [salsa id]: Id(a803),
+                        kind: Primitive(
+                            UnsignedInt(
+                                UnsignedIntDef {
+                                    size: 8,
+                                },
+                            ),
+                        ),
+                    },
+                },
+            ],
+        },
+    ),
+}

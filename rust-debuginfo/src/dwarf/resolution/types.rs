@@ -586,3 +586,116 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
 //         Error::ObjectParseError(err)
 //     }
 // }
+
+#[cfg(test)]
+mod test {
+    use crate::{DebugDb, DebugInfo, dwarf::resolve_function_variables};
+
+    use super::*;
+
+    #[test]
+    fn test_std_type_detection() {
+        tracing_subscriber::fmt::init();
+
+        let db = DebugDb::new();
+
+        // Create a test binary that should have std types
+        let test_binary_path = create_test_binary();
+
+        println!("=== Testing std type detection ===");
+        println!("Using binary: {test_binary_path}");
+
+        let debug_info =
+            DebugInfo::new(&db, &test_binary_path).expect("Failed to create debug info");
+        // For now, just test that we can create the debug info
+        // You can add more specific tests here as you implement the functionality
+        println!("DebugInfo created successfully");
+
+        let function_name = NameId::new(&db, vec![], "test_fn");
+        let (f, debug_file) =
+            crate::index::find_closest_function(debug_info.db, debug_info.binary, function_name)
+                .expect("Failed to find function");
+
+        let (_debug_file, fie) = crate::index::debug_index(&db, debug_info.binary)
+            .lookup_function(&db, f)
+            .expect("Failed to find function in debug index");
+
+        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
+        let params = resolve_function_variables(&db, function_die)
+            .expect("Failed to resolve function variables");
+        assert_eq!(
+            params.params(&db).len(),
+            3,
+            "Expected 3 parameters in test_fn"
+        );
+
+        // Check if we can resolve the types of the parameters
+        for param in params.params(&db) {
+            let ty = param.ty(&db);
+
+            insta::with_settings!({
+                prepend_module_to_snapshot => false,
+                filters => vec![
+                (r"tv_sec: [0-9]+", "tv_sec: [ts]"),
+                (r"tv_nsec: [0-9]+", "tv_nsec: [ts]"),
+            ]}, {
+                salsa::attach(&db, || insta::assert_debug_snapshot!(ty));
+            });
+        }
+
+        // Test resolving variables if we can find any
+        // This is a basic smoke test to make sure the new get_die_name function works
+        println!("DebugInfo appears to be working correctly");
+    }
+
+    fn create_test_binary() -> String {
+        use std::fs;
+        use std::process::Command;
+
+        let test_code = r#"
+    use std::collections::HashMap;
+
+    fn test_fn(s: String, v: Vec<i32>, map: HashMap<String, i32>) {
+        println!("String: {s}, Vec: {v:?}, Map: {map:?}");
+    }
+
+    fn main() {
+        let s = String::from("hello");
+        let mut v: Vec<i32> = vec![1, 2, 3];
+        let mut map: HashMap<String, i32> = HashMap::new();
+        map.insert("key".to_string(), 42);
+
+        test_fn(s, v, map);
+    }
+    "#;
+
+        let temp_dir = std::env::temp_dir().join("rust_debuginfo_test");
+        fs::create_dir_all(&temp_dir).expect("Failed to create temp dir");
+
+        let src_file = temp_dir.join("main.rs");
+        fs::write(&src_file, test_code).expect("Failed to write test code");
+
+        let binary_path = temp_dir.join("test_binary");
+
+        let output = Command::new("rustc")
+            .args(&[
+                "-g", // Include debug info
+                "-C",
+                "split-debuginfo=unpacked", // Use unpacked split debuginfo
+                "-o",
+                binary_path.to_str().unwrap(),
+                src_file.to_str().unwrap(),
+            ])
+            .output()
+            .expect("Failed to compile test binary");
+
+        if !output.status.success() {
+            panic!(
+                "Failed to compile test binary: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
+        binary_path.to_string_lossy().to_string()
+    }
+}
