@@ -27,12 +27,12 @@ impl TypeName {
             if !known_bad_case(name) {
                 tracing::error!("Failed to parse type name `{name}`: {e}");
             }
-            anyhow::anyhow!("Failed to parse type name `{name}`: {e}")
+            anyhow::anyhow!("Failed to parse type name `{name}`")
         })?;
 
         // Kinda of a silly way to do it -- we'll probably want to use
         // the parsed type directly
-        let type_name = full_path.tokens_to_string();
+        let type_name = full_path.to_string();
         Ok(TypeName {
             module: ModuleName {
                 segments: module_path.to_vec(),
@@ -96,7 +96,7 @@ impl SymbolName {
             if !known_bad_case(path) {
                 tracing::error!("Failed to parse symbol path `{path}`: {e}");
             }
-            anyhow::anyhow!("Failed to parse symbol path `{path}`: {e}")
+            anyhow::anyhow!("Failed to parse symbol path `{path}`")
         })?;
         let mut segments = full_path.segments();
         let last = segments

@@ -1,3 +1,6 @@
+use std::fmt;
+
+use itertools::Itertools;
 use unsynn::{
     BraceGroupContaining, BracketGroupContaining, CommaDelimitedVec, Cons, Delimited, DelimitedVec,
     Either, EndOfStream, Error, Except, Gt, Ident, Lt, Many, Optional, ParenthesisGroupContaining,
@@ -25,11 +28,16 @@ unsynn! {
     }
 
 
-    // pub struct GenericArgs {
-    //     lt: Lt,
-    //     pub args: CommaDelimitedVec<Path>,
-    //     gt: Gt
-    // }
+    pub enum GenericArgs {
+        Parsed {
+            _lt: Lt,
+            inner: CommaDelimitedVec<Type>,
+            _gt: Gt,
+        },
+        // fallback for cases we didn't handle above
+        // correctly
+        Unparsed(AngleTokenTree)
+    }
 
     // pub struct QualifiedSelf {
     //     lt: Lt,
@@ -54,7 +62,7 @@ unsynn! {
 
     pub struct Segment {
         pub ident: Ident,
-        generics: Optional<AngleTokenTree>,
+        generics: Optional<GenericArgs>,
         // for some weirdo cases like `core::ops::function::FnOnce::call_once{{vtable.shim}}`
         vtable_shim: Optional<BraceGroupContaining<BraceGroupContaining<VTableShim>>>,
     }
@@ -111,9 +119,69 @@ unsynn! {
     }
 }
 
+impl Array {
+    pub fn inner(&self) -> &Type {
+        &self.inner.content.inner
+    }
+
+    pub fn size(&self) -> Option<&Type> {
+        self.inner.content.size.0.first().map(|c| &c.value.second)
+    }
+}
+
+impl fmt::Display for Array {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[{}", self.inner())?;
+        if let Some(size) = self.size() {
+            write!(f, "; {}", size)?;
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
+}
+
+impl fmt::Display for DynTrait {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "dyn {}",
+            self.traits.0.iter().map(|t| &t.value).join(" + ")
+        )
+    }
+}
+
 impl RefType {
     pub fn is_mutable(&self) -> bool {
         self.mutability.0.len() > 0
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.segments().join("::"))
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Ref(r) => {
+                write!(f, "&")?;
+                if r.is_mutable() {
+                    write!(f, "mut ")?;
+                }
+                write!(f, "{}", r.inner)
+            }
+            Type::Array(a) => write!(f, "{a}"),
+            Type::DynTrait(d) => write!(f, "{d}"),
+            Type::Tuple(t) => write!(
+                f,
+                "({})",
+                t.inner.content.0.iter().map(|t| &t.value).join(", ")
+            ),
+            Type::Ptr(p) => write!(f, "{}{}", p.pointer_type.tokens_to_string(), p.inner),
+            Type::Path(p) => write!(f, "{}", p),
+        }
     }
 }
 
@@ -122,7 +190,31 @@ impl Path {
         self.segments
             .0
             .iter()
-            .map(|segment| segment.value.tokens_to_string())
+            .map(|path_segment| match &path_segment.value {
+                PathSegment::Segment(segment) => {
+                    format!(
+                        "{}{}",
+                        segment.ident,
+                        match segment.generics.0.first().as_ref().map(|g| &g.value) {
+                            Some(GenericArgs::Parsed {
+                                _lt: _,
+                                inner,
+                                _gt: _,
+                            }) => {
+                                format!(
+                                    "<{}>",
+                                    inner.0.iter().map(|d| d.value.to_string()).join(", ")
+                                )
+                            }
+                            Some(GenericArgs::Unparsed(angle_token_tree)) => {
+                                angle_token_tree.tokens_to_string()
+                            }
+                            None => String::new(),
+                        }
+                    )
+                }
+                p => p.tokens_to_string(),
+            })
             .collect()
     }
 }
@@ -268,5 +360,11 @@ mod test {
         parse_type("*const [i32]");
         parse_type("&mut dyn core::ops::function::FnMut<(usize), Output=bool>");
         // parse_type("");
+    }
+
+    #[test]
+    fn test_type_printing() {
+        let s = "hashbrown::map::HashMap<alloc::string::String, i32, std::hash::random::RandomState, alloc::alloc::Global>";
+        assert_eq!(parse_type(s).to_string(), s.to_string());
     }
 }

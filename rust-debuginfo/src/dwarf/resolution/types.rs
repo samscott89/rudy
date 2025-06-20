@@ -569,9 +569,7 @@ mod test {
             DebugInfo::new(&db, &test_binary_path).expect("Failed to create debug info");
         // For now, just test that we can create the debug info
         // You can add more specific tests here as you implement the functionality
-        salsa::attach(&db, || {
-            tracing::info!("DebugInfo created successfully: {debug_info:#?}");
-        });
+        tracing::info!("DebugInfo created successfully");
 
         let function_name = "test_fn";
         let (f, _debug_file) =
