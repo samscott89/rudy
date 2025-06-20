@@ -9,6 +9,7 @@ mod die;
 mod expressions;
 mod index;
 mod loader;
+mod names;
 mod navigation;
 mod resolution;
 mod unit;
@@ -24,6 +25,7 @@ pub use index::{
     debug_file_index,
 };
 pub use loader::{Dwarf, load};
+pub use names::{ModuleName, Symbol, SymbolName, TypeName};
 pub use resolution::{
     // Address resolution
     ResolvedLocation,

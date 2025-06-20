@@ -1,10 +1,10 @@
 //! Query functions for looking up debug information
 
 use crate::database::Db;
-use crate::dwarf::{self};
+use crate::dwarf::{self, SymbolName};
 use crate::file::Binary;
 use crate::index::{self, find_all_by_address};
-use crate::types::{Address, NameId, Position};
+use crate::types::{Address, Position};
 
 #[salsa::tracked]
 pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db>) -> Option<u64> {
@@ -105,7 +105,7 @@ pub fn lookup_closest_function<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: Address<'db>,
-) -> Option<NameId<'db>> {
+) -> Option<SymbolName> {
     let address = address.address(db);
 
     find_all_by_address(db, binary, address)

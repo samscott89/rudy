@@ -1,5 +1,5 @@
 ---
-source: tests/mod.rs
+source: rust-debuginfo/tests/mod.rs
 expression: "resolver.resolve_function(\"function_call\").unwrap()"
 snapshot_kind: text
 ---

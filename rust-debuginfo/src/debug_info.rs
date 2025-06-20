@@ -8,7 +8,7 @@ use crate::{
     index,
     outputs::ResolvedFunction,
     query::{lookup_address, lookup_closest_function, lookup_position},
-    types::{Address, NameId, Position},
+    types::{Address, Position},
 };
 
 /// Main interface for accessing debug information from binary files.
@@ -145,13 +145,13 @@ impl<'db> DebugInfo<'db> {
     /// }
     /// ```
     pub fn resolve_function(&self, function: &str) -> Result<Option<ResolvedFunction>> {
-        let function_name = NameId::parse_string(function, self.db);
-
-        let Some((name, _)) = index::find_closest_function(self.db, self.binary, function_name)
-        else {
+        let Some((name, _)) = index::find_closest_function(self.db, self.binary, function) else {
             tracing::debug!("no function found for {function}");
             return Ok(None);
         };
+        let diagnostics: Vec<&Diagnostic> =
+            index::find_closest_function::accumulated(self.db, self.binary, function);
+        handle_diagnostics(&diagnostics)?;
 
         let debug_data = index::debug_index(self.db, self.binary).data(self.db);
 
@@ -164,12 +164,8 @@ impl<'db> DebugInfo<'db> {
                 "Failed to get base address for function"
             })?;
 
-        let diagnostics: Vec<&Diagnostic> =
-            index::find_closest_function::accumulated(self.db, self.binary, function_name);
-        handle_diagnostics(&diagnostics)?;
-
         let (_debug_file, fie) = crate::index::debug_index(self.db, self.binary)
-            .lookup_function(self.db, name)
+            .get_function(self.db, &name)
             .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
 
         let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
@@ -179,7 +175,7 @@ impl<'db> DebugInfo<'db> {
         handle_diagnostics(&diagnostics)?;
 
         Ok(Some(ResolvedFunction {
-            name: name.as_path(self.db),
+            name: name.to_string(),
             address: base_address,
             params: params
                 .params(self.db)
@@ -223,7 +219,7 @@ impl<'db> DebugInfo<'db> {
         Ok(loc.map(|loc| {
             let file = loc.file(self.db);
             crate::ResolvedLocation {
-                function: name.as_path(self.db),
+                function: name.to_string(),
                 file: file.path(self.db).clone(),
                 line: loc.line(self.db),
             }
@@ -348,7 +344,7 @@ impl<'db> DebugInfo<'db> {
         };
 
         let index = crate::index::debug_index(self.db, self.binary);
-        let Some((_, fie)) = index.lookup_function(self.db, f) else {
+        let Some((_, fie)) = index.get_function(self.db, &f) else {
             tracing::debug!("no function found for {f:?}");
             return Ok(Default::default());
         };

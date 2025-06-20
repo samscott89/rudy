@@ -7,9 +7,11 @@ use object::{Object, ObjectSymbol};
 
 use crate::address_tree::{AddressTree, FunctionAddressInfo};
 use crate::database::Db;
-use crate::dwarf::{self, FunctionIndexEntry, ModuleIndexEntry, SymbolIndexEntry, TypeIndexEntry};
+use crate::dwarf::{
+    self, FunctionIndexEntry, ModuleIndexEntry, Symbol, SymbolIndexEntry, SymbolName,
+    TypeIndexEntry,
+};
 use crate::file::{Binary, DebugFile, File, SourceFile, load};
-use crate::types::{NameId, Symbol, demangle};
 
 #[salsa::tracked(returns(ref))]
 pub fn discover_debug_files<'db>(
@@ -88,18 +90,22 @@ pub struct Index<'db> {
 }
 
 impl<'db> Index<'db> {
-    pub fn lookup_function(
+    pub fn get_function(
         &self,
         db: &'db dyn Db,
-        name: NameId<'db>,
-    ) -> Option<(DebugFile, FunctionIndexEntry<'db>)> {
-        let file = self.data(db).name_to_file.get(&name)?;
-        let indexed = dwarf::debug_file_index(db, *file).data(db);
+        name: &SymbolName,
+    ) -> Option<(DebugFile, FunctionIndexEntry)> {
+        let file = *self
+            .data(db)
+            .symbol_to_file
+            .get(&name.lookup_name)?
+            .get(name)?;
+        let indexed = dwarf::debug_file_index(db, file).data(db);
         indexed
             .functions
-            .get(&name)
+            .get(name)
             .cloned()
-            .map(|entry| (*file, entry))
+            .map(|entry| (file, entry))
     }
     // #[allow(dead_code)]
     // pub fn lookup_symbol(
@@ -131,16 +137,21 @@ impl<'db> Index<'db> {
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct IndexData<'db> {
-    pub name_to_file: BTreeMap<NameId<'db>, DebugFile>,
+    pub symbol_to_file: BTreeMap<String, BTreeMap<SymbolName, DebugFile>>,
     pub source_to_file: BTreeMap<SourceFile<'db>, Vec<DebugFile>>,
-    pub base_address: BTreeMap<NameId<'db>, u64>,
-    pub address_info: AddressTree<'db>,
+    pub base_address: BTreeMap<SymbolName, u64>,
+    pub address_info: AddressTree,
 }
 
 impl<'db> IndexData<'db> {
-    fn insert(&mut self, db: &dyn Db, name: NameId<'db>, file: DebugFile) {
+    fn insert(&mut self, db: &dyn Db, symbol: SymbolName, file: DebugFile) {
         // insert the file into the index
-        match self.name_to_file.entry(name) {
+        match self
+            .symbol_to_file
+            .entry(symbol.lookup_name.clone())
+            .or_default()
+            .entry(symbol)
+        {
             Entry::Occupied(mut e) => {
                 // if the file already exists, we need to check if the
                 // base address is the same
@@ -150,7 +161,7 @@ impl<'db> IndexData<'db> {
                 if existing_file_path != file_path {
                     tracing::debug!(
                         "Symbol {} found in multiple files: {existing_file_path} and {file_path}",
-                        name.name(db),
+                        e.key()
                     );
                 }
             }
@@ -160,17 +171,17 @@ impl<'db> IndexData<'db> {
         }
     }
 
-    fn set_symbol_address(&mut self, db: &dyn Db, name: NameId<'db>, address: u64) {
+    fn set_symbol_address(&mut self, name: SymbolName, address: u64) {
         // insert the file into the index
         match self.base_address.entry(name) {
-            Entry::Occupied(mut e) => {
+            Entry::Occupied(e) => {
                 // if the file already exists, we need to check if the
                 // base address is the same
-                let existing_file = e.get_mut();
+                let existing_file = e.get();
                 if *existing_file != address {
                     tracing::warn!(
                         "Function {} has different base addresses: {existing_file:#x} and {address:#x}",
-                        name.name(db)
+                        e.key()
                     );
                 }
             }
@@ -192,7 +203,7 @@ unsafe impl salsa::Update for IndexData<'_> {
 fn get_symbol_map<'db>(
     db: &'db dyn Db,
     binary: Binary,
-) -> BTreeMap<NameId<'db>, (u64, String, Option<String>)> {
+) -> BTreeMap<SymbolName, (u64, String, Option<String>)> {
     let binary_file = binary.file(db);
     let loaded_file = match load(db, binary_file) {
         Ok(file) => file,
@@ -202,7 +213,7 @@ fn get_symbol_map<'db>(
         }
     };
 
-    let mut map: BTreeMap<NameId<'_>, (u64, String, Option<String>)> = BTreeMap::new();
+    let mut map: BTreeMap<SymbolName, (u64, String, Option<String>)> = BTreeMap::new();
 
     // find symbols in the main binary file
     let object = &loaded_file.object;
@@ -214,12 +225,18 @@ fn get_symbol_map<'db>(
                 continue;
             }
         };
-        let symbol = Symbol::new(db, name);
-        let demangled_name = demangle(db, symbol);
-        map.insert(
-            demangled_name,
-            (s.address(), binary_file.path(db).to_string(), None),
-        );
+        let symbol = Symbol::new(name.to_vec());
+        match symbol.demangle() {
+            Ok(demangled_name) => {
+                map.insert(
+                    demangled_name,
+                    (s.address(), binary_file.path(db).to_string(), None),
+                );
+            }
+            Err(e) => {
+                tracing::debug!("Failed to demangle symbol {name:?}: {e}");
+            }
+        }
     }
 
     // find the symbol in the object file
@@ -230,12 +247,14 @@ fn get_symbol_map<'db>(
             // skip empty symbols
             continue;
         }
-        let symbol = Symbol::new(
-            db,
-            // trim the leading `_` character that macos adds when using STAB entries
-            &name_bytes[1..],
-        );
-        let demangled_name = demangle(db, symbol);
+        let symbol = Symbol::new(name_bytes.to_vec());
+        let demangled_name = match symbol.demangle() {
+            Ok(name) => name,
+            Err(e) => {
+                tracing::debug!("Failed to demangle symbol {name_bytes:?}: {e}");
+                continue;
+            }
+        };
         let file = s.object(&object_map).path();
         let file = match std::str::from_utf8(file) {
             Ok(p) => p,
@@ -295,12 +314,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         // let is_relocatable = debug_file.relocatable(db);
         let file = debug_file.file(db);
         let indexed = dwarf::debug_file_index(db, *debug_file).data(db);
-        for name in indexed
-            .functions
-            .keys()
-            .chain(indexed.types.keys())
-            .chain(indexed.symbols.keys())
-        {
+        for name in indexed.functions.keys().chain(indexed.symbols.keys()) {
             data.insert(db, name.clone(), *debug_file);
 
             // if the debug file is relocatable, we need to
@@ -308,12 +322,11 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             if let Some((address, symbol_path, symbol_member)) = symbol_map.get(name) {
                 if symbol_path != path || symbol_member != member {
                     tracing::debug!(
-                        "Symbol {} found in file {} with address {address:#x} but also in binary with different path or member: {path} {member:?}",
-                        name.as_path(db),
+                        "Symbol {name} found in file {} with address {address:#x} but also in binary with different path or member: {path} {member:?}",
                         file.path(db),
                     );
                 } else {
-                    data.set_symbol_address(db, name.clone(), *address);
+                    data.set_symbol_address(name.clone(), *address);
                 }
             }
         }
@@ -323,8 +336,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         for (name, entry) in &indexed.functions {
             let Some((start, end)) = entry.relative_address_range else {
                 tracing::trace!(
-                    "Function {} in file {} does not have a valid address range",
-                    name.as_path(db),
+                    "Function {name} in file {} does not have a valid address range",
                     file.path(db),
                 );
                 // function does not have a valid address range
@@ -335,8 +347,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             if let Some((base_address, symbol_path, symbol_member)) = symbol_map.get(name) {
                 if symbol_path != path || symbol_member != member {
                     tracing::debug!(
-                        "Function {} found in file {} with address {base_address:#x} but also in binary with different path or member: {path} {member:?}",
-                        name.as_path(db),
+                        "Function {name} found in file {} with address {base_address:#x} but also in binary with different path or member: {path} {member:?}",
                         file.path(db),
                     );
                 } else {
@@ -344,14 +355,13 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
                         start: *base_address,
                         end: base_address + end - start,
                         file: *debug_file,
-                        name: *name,
+                        name: name.clone(),
                     });
                 }
             } else {
                 // function not linked in binary -- this is fine
                 tracing::trace!(
-                    "Function {} found in file {} but not linked in binary",
-                    name.as_path(db),
+                    "Function {name} found in file {} but not linked in binary",
                     file.path(db),
                 );
             }
@@ -376,34 +386,33 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
 pub fn find_closest_function<'db>(
     db: &'db dyn Db,
     binary: Binary,
-    function_name: NameId<'db>,
-) -> Option<(NameId<'db>, DebugFile)> {
+    function_name: &'db str,
+) -> Option<(SymbolName, DebugFile)> {
     // check if exact name exists in index
     let index = debug_index(db, binary);
 
-    // if we get a direct match, return it
-    if let Some((file, _)) = index.lookup_function(db, function_name) {
-        return Some((function_name, file));
-    }
-
     // otherwise, find the closest match by scanning the index
-    let name = function_name.name(db);
-    let module_prefix = function_name.path(db);
+    // let name = function_name.name(db);
+    // let module_prefix = function_name.path(db);
+
+    let mut segments = function_name
+        .split("::")
+        .map(|s| s.to_owned())
+        .collect::<Vec<String>>();
+    let name = segments.pop()?;
+    let module: Vec<String> = segments.iter().map(|s| s.to_string()).collect();
 
     let index_data = index.data(db);
-    for (indexed_name, entry) in index_data.name_to_file.iter() {
+    for (indexed_name, entry) in index_data.symbol_to_file.get(&name)? {
         // check if the name matches and the path ends with the module prefix
-        if indexed_name.name(db) == name
-            && indexed_name.path(db).ends_with(module_prefix.as_slice())
-        {
+        if indexed_name.matches_name_and_module(&name, &module) {
             // get the function from the relevant index
             let indexed = dwarf::debug_file_index(db, *entry).data(db);
             if indexed.functions.contains_key(indexed_name) {
-                return Some((*indexed_name, *entry));
+                return Some((indexed_name.clone(), *entry));
             } else {
                 db.report_warning(format!(
-                    "Function {} found in file {} but not in index",
-                    indexed_name.as_path(db),
+                    "Function {indexed_name} found in file {} but not in index",
                     entry.file(db).path(db)
                 ));
             }
@@ -416,7 +425,7 @@ pub fn find_all_by_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<&'db FunctionAddressInfo<'db>> {
+) -> Vec<&'db FunctionAddressInfo> {
     let index = debug_index(db, binary).data(db);
 
     index.address_info.query_address(address)

@@ -1,16 +1,16 @@
 use std::fmt;
 
-use crate::{file::DebugFile, types::NameId};
+use crate::file::DebugFile;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
-pub struct FunctionAddressInfo<'db> {
+pub struct FunctionAddressInfo {
     pub start: u64,
     pub end: u64,
     pub file: DebugFile,
-    pub name: NameId<'db>,
+    pub name: crate::dwarf::SymbolName,
 }
 
-impl fmt::Debug for FunctionAddressInfo<'_> {
+impl fmt::Debug for FunctionAddressInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         salsa::with_attached_database(|db| {
             let file_path = self.file.file(db).path(db);
@@ -18,7 +18,7 @@ impl fmt::Debug for FunctionAddressInfo<'_> {
                 .field("start", &self.start)
                 .field("end", &self.end)
                 .field("file", &file_path)
-                .field("name", &self.name.as_path(db))
+                .field("name", &self.name)
                 .finish()
         })
         .unwrap_or_else(|| {
@@ -30,7 +30,7 @@ impl fmt::Debug for FunctionAddressInfo<'_> {
     }
 }
 
-impl<'db> FunctionAddressInfo<'db> {
+impl FunctionAddressInfo {
     fn contains_address(&self, address: u64) -> bool {
         address >= self.start && address < self.end
     }
@@ -43,15 +43,15 @@ impl<'db> FunctionAddressInfo<'db> {
 
 // Define the Node for the Interval Tree
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Node<'db> {
-    info: FunctionAddressInfo<'db>,
+struct Node {
+    info: FunctionAddressInfo,
     max_end_in_subtree: u64, // Maximum endpoint in the subtree rooted at this node
-    left: Option<Box<Node<'db>>>,
-    right: Option<Box<Node<'db>>>,
+    left: Option<Box<Node>>,
+    right: Option<Box<Node>>,
 }
 
-impl<'db> Node<'db> {
-    fn new(info: FunctionAddressInfo<'db>) -> Self {
+impl Node {
+    fn new(info: FunctionAddressInfo) -> Self {
         Node {
             max_end_in_subtree: info.end,
             info,
@@ -74,16 +74,14 @@ impl<'db> Node<'db> {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AddressTree<'db> {
-    root: Option<Box<Node<'db>>>,
+pub struct AddressTree {
+    root: Option<Box<Node>>,
 }
 
-impl<'db> AddressTree<'db> {
-    pub fn new(mut info: Vec<FunctionAddressInfo<'db>>) -> Self {
+impl AddressTree {
+    pub fn new(mut info: Vec<FunctionAddressInfo>) -> Self {
         /// Recursive helper function to build the tree from a sorted slice of addresses.
-        fn build_recursive<'db>(
-            sorted_ranges: &[FunctionAddressInfo<'db>],
-        ) -> Option<Box<Node<'db>>> {
+        fn build_recursive(sorted_ranges: &[FunctionAddressInfo]) -> Option<Box<Node>> {
             if sorted_ranges.is_empty() {
                 return None;
             }
@@ -116,7 +114,7 @@ impl<'db> AddressTree<'db> {
     }
 
     /// Finds all functions in the tree that contain the given address.
-    pub fn query_address(&'db self, address: u64) -> Vec<&'db FunctionAddressInfo<'db>> {
+    pub fn query_address(&self, address: u64) -> Vec<&FunctionAddressInfo> {
         let mut result = Vec::new();
         if let Some(ref root_node) = self.root {
             Self::query_address_recursive(root_node, address, &mut result);
@@ -129,10 +127,10 @@ impl<'db> AddressTree<'db> {
         result
     }
 
-    fn query_address_recursive(
-        node: &'db Box<Node<'db>>,
+    fn query_address_recursive<'a>(
+        node: &'a Box<Node>,
         address: u64,
-        result: &mut Vec<&'db FunctionAddressInfo<'db>>,
+        result: &mut Vec<&'a FunctionAddressInfo>,
     ) {
         // 1. Check if the address is contained in the current node's range
         if node.info.contains_address(address) {
@@ -195,10 +193,10 @@ impl<'db> AddressTree<'db> {
     #[allow(dead_code)]
     /// Finds all functions in the tree that overlap with the given address range.
     pub fn query_address_range(
-        &'db self,
+        &self,
         query_start: u64,
         query_end: u64,
-    ) -> Vec<&'db FunctionAddressInfo<'db>> {
+    ) -> Vec<&FunctionAddressInfo> {
         let mut result = Vec::new();
         if let Some(ref root_node) = self.root {
             Self::query_interval_recursive(root_node, query_start, query_end, &mut result);
@@ -206,11 +204,11 @@ impl<'db> AddressTree<'db> {
         result
     }
 
-    fn query_interval_recursive(
-        node: &'db Box<Node<'db>>,
+    fn query_interval_recursive<'a>(
+        node: &'a Box<Node>,
         query_start: u64,
         query_end: u64,
-        result: &mut Vec<&'db FunctionAddressInfo<'db>>,
+        result: &mut Vec<&'a FunctionAddressInfo>,
     ) {
         // 1. Check if current node overlaps with the query range
         if node.info.overlaps(query_start, query_end) {

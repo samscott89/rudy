@@ -4,13 +4,12 @@ use std::sync::Arc;
 
 use crate::database::Db;
 use crate::dwarf::Die;
-use crate::dwarf::index::get_die_name;
+use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
     ArrayDef, DefKind, FloatDef, IntDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
     StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef, UnitDef, UnsignedIntDef,
     VecDef,
 };
-use crate::types::NameId;
 
 use anyhow::Context;
 
@@ -18,7 +17,7 @@ type Result<T> = std::result::Result<T, super::Error>;
 
 /// Systematically identify standard library types
 fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef<'db>>> {
-    let Some(fq_name) = get_die_name(db, entry) else {
+    let Some(fq_name) = get_die_typename(db, entry) else {
         tracing::warn!(
             "no name found for entry: {} at offset {}",
             entry.print(db),
@@ -27,7 +26,7 @@ fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<Typ
         return Ok(None);
     };
 
-    tracing::info!("fully-qualified type name: {}", fq_name.as_path(db));
+    tracing::info!("fully-qualified type name: {fq_name}");
 
     Ok(None)
 }
@@ -570,15 +569,17 @@ mod test {
             DebugInfo::new(&db, &test_binary_path).expect("Failed to create debug info");
         // For now, just test that we can create the debug info
         // You can add more specific tests here as you implement the functionality
-        tracing::info!("DebugInfo created successfully");
+        salsa::attach(&db, || {
+            tracing::info!("DebugInfo created successfully: {debug_info:#?}");
+        });
 
-        let function_name = NameId::new(&db, vec![], "test_fn", vec![]);
+        let function_name = "test_fn";
         let (f, _debug_file) =
             crate::index::find_closest_function(debug_info.db, debug_info.binary, function_name)
                 .expect("Failed to find function");
 
         let (_debug_file, fie) = crate::index::debug_index(&db, debug_info.binary)
-            .lookup_function(&db, f)
+            .get_function(&db, &f)
             .expect("Failed to find function in debug index");
 
         let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
