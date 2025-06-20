@@ -183,7 +183,7 @@ impl<'db> DebugInfo<'db> {
                 .map(|var| crate::Variable {
                     name: var.name(self.db).to_string(),
                     ty: Some(crate::Type {
-                        name: var.ty(self.db).display_name(self.db),
+                        name: var.ty(self.db).display_name(),
                     }),
                     value: None,
                 })
@@ -434,7 +434,7 @@ fn output_variable<'db>(
     Ok(crate::Variable {
         name: var.name(db).to_string(),
         ty: Some(crate::Type {
-            name: var.ty(db).display_name(db),
+            name: var.ty(db).display_name(),
         }),
         value,
     })
@@ -459,7 +459,7 @@ fn output_global_variable<'db>(
     Ok(crate::Variable {
         name: var.name(db).to_string(),
         ty: Some(crate::Type {
-            name: var.ty(db).display_name(db),
+            name: var.ty(db).display_name(),
         }),
         value,
     })

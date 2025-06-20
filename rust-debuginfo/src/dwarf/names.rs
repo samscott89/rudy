@@ -7,15 +7,24 @@ use unsynn::ToTokens;
 
 mod parser;
 
+pub use parser::Type;
+
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleName {
     pub segments: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TypeName {
     module: ModuleName,
     name: String,
+    // parsed_type: Type,
+}
+
+impl fmt::Debug for TypeName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
+    }
 }
 
 impl TypeName {
@@ -23,21 +32,20 @@ impl TypeName {
         fn known_bad_case(path: &str) -> bool {
             path.contains("{closure_env#")
         }
-        let full_path = parser::parse_type(name).map_err(|e| {
+        let parsed_type = parser::parse_type(name).map_err(|e| {
             if !known_bad_case(name) {
                 tracing::error!("Failed to parse type name `{name}`: {e}");
             }
             anyhow::anyhow!("Failed to parse type name `{name}`")
         })?;
 
-        // Kinda of a silly way to do it -- we'll probably want to use
-        // the parsed type directly
-        let type_name = full_path.to_string();
+        let type_name = parsed_type.to_string();
         Ok(TypeName {
             module: ModuleName {
                 segments: module_path.to_vec(),
             },
             name: type_name,
+            // parsed_type,
         })
     }
 }

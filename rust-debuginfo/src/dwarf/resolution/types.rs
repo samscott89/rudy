@@ -7,8 +7,8 @@ use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
     ArrayDef, DefKind, FloatDef, IntDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
-    StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef, UnitDef, UnsignedIntDef,
-    VecDef,
+    StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef, UnitDef,
+    UnsignedIntDef, VecDef,
 };
 
 use anyhow::Context;
@@ -16,7 +16,7 @@ use anyhow::Context;
 type Result<T> = std::result::Result<T, super::Error>;
 
 /// Systematically identify standard library types
-fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef<'db>>> {
+fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef>> {
     let Some(fq_name) = get_die_typename(db, entry) else {
         tracing::warn!(
             "no name found for entry: {} at offset {}",
@@ -38,7 +38,7 @@ fn resolve_string_type<'db>(_db: &'db dyn Db, _entry: Die<'db>) -> Result<String
 }
 
 /// Resolve Vec type
-fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef<'db>> {
+fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
     // Extract the element type from the first template parameter
     // This is a simplified implementation - in reality we'd need to parse the template params
     let children = entry.children(db);
@@ -54,24 +54,25 @@ fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef<'db>
     }
 
     // Fallback - create a Vec<u8> if we can't determine the type
-    let u8_type = TypeDef::new(
-        db,
-        DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 })),
-    );
+    let u8_type = TypeDef {
+        kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 })),
+    };
     Ok(VecDef {
         inner_type: Arc::new(u8_type),
     })
 }
 
 /// Resolve HashMap type
-fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef<'db>> {
+fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef> {
     // Extract key and value types from template parameters
     // This is a simplified implementation
     let _children = entry.children(db);
 
     // For now, create a default HashMap<String, String>
     // In reality, we'd parse the template parameters
-    let string_type = TypeDef::new(db, DefKind::Std(StdDef::String(StringDef {})));
+    let string_type = TypeDef {
+        kind: DefKind::Std(StdDef::String(StringDef {})),
+    };
 
     Ok(MapDef {
         key_type: Arc::new(string_type.clone()),
@@ -82,7 +83,7 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef<'db>
 }
 
 /// Resolve the full type for a DIE entry
-pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     let type_entry = entry
         .get_unit_ref(db, gimli::DW_AT_type)?
         .with_context(|| entry.format_with_location(db, "Failed to get type entry"))?;
@@ -90,7 +91,7 @@ pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
-pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     let type_entry = entry
         .get_unit_ref(db, gimli::DW_AT_type)?
         .with_context(|| entry.format_with_location(db, "Failed to get type entry"))?;
@@ -98,7 +99,7 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 }
 
 /// Resolve a primitive type by name
-fn resolve_primitive_type<'db>(db: &'db dyn Db, name: &str) -> TypeDef<'db> {
+fn resolve_primitive_type<'db>(db: &'db dyn Db, name: &str) -> TypeDef {
     use PrimitiveDef::*;
     let primitive_def = match name {
         "u8" => UnsignedInt(UnsignedIntDef { size: 1 }),
@@ -124,19 +125,20 @@ fn resolve_primitive_type<'db>(db: &'db dyn Db, name: &str) -> TypeDef<'db> {
 
         _ => {
             db.report_critical(format!("unsupported type: {name:?}"));
-            return TypeDef::new(
-                db,
-                DefKind::Other {
+            return TypeDef {
+                kind: DefKind::Other {
                     name: name.to_string(),
                 },
-            );
+            };
         }
     };
-    TypeDef::new(db, DefKind::Primitive(primitive_def))
+    TypeDef {
+        kind: DefKind::Primitive(primitive_def),
+    }
 }
 
 /// Resolve Option type structure
-fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDef<'db>> {
+fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDef> {
     // we have an option type -- but we still need to get the inner
     // type and we should double check the layout
 
@@ -233,7 +235,7 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
         .into())
 }
 
-fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     let Some(size) = entry
         .get_attr(db, gimli::DW_AT_byte_size)
         .and_then(|attr| attr.udata_value())
@@ -286,21 +288,19 @@ fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db
             .format_with_location(db, "length offset not found")
             .into());
     };
-    Ok(TypeDef::new(
-        db,
-        // canonical_name,
-        DefKind::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
+    Ok(TypeDef {
+        kind: DefKind::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
             data_ptr_offset,
             length_offset,
             size: size as usize,
         })),
-    ))
+    })
 }
 
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
 /// support "builtin" types -- these are types that we manually resolve rather
 /// than relying on the DWARF info to do so.
-fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef<'db>>> {
+fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef>> {
     Ok(match entry.tag(db) {
         gimli::DW_TAG_base_type => {
             // primitive type
@@ -312,13 +312,11 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
         }
         gimli::DW_TAG_pointer_type => {
             let pointed_ty = resolve_type_shallow(db, entry)?;
-            Some(TypeDef::new(
-                db,
-                // canonical_name,
-                DefKind::Primitive(PrimitiveDef::Pointer(PointerDef {
+            Some(TypeDef {
+                kind: DefKind::Primitive(PrimitiveDef::Pointer(PointerDef {
                     pointed_type: Arc::new(pointed_ty),
                 })),
-            ))
+            })
         }
         gimli::DW_TAG_structure_type => {
             // Try to identify standard library types systematically
@@ -385,14 +383,12 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
 
             debug_assert_eq!(lower_bound, 0);
 
-            Some(TypeDef::new(
-                db,
-                // canonical_name,
-                DefKind::Primitive(PrimitiveDef::Array(ArrayDef {
+            Some(TypeDef {
+                kind: DefKind::Primitive(PrimitiveDef::Array(ArrayDef {
                     element_type: Arc::new(pointed_ty),
                     length: count as usize,
                 })),
-            ))
+            })
         }
         t => {
             tracing::trace!(
@@ -407,21 +403,23 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
-pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     Ok(
         if let Some(builtin_ty) = resolve_as_builtin_type(db, entry)? {
             // we have a builtin type -- use it
             tracing::debug!("builtin: {builtin_ty:?}");
             builtin_ty
         } else {
-            TypeDef::new(db, DefKind::Alias(entry))
+            TypeDef {
+                kind: DefKind::Alias(TypeRef::from_die(&entry, db)),
+            }
         },
     )
 }
 
 /// Fully resolve a type from a DWARF DIE entry
 #[salsa::tracked]
-pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef<'db>> {
+pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     if let Some(def) = resolve_as_builtin_type(db, entry)? {
         return Ok(def);
     }
@@ -511,16 +509,14 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                         ty: Arc::new(ty),
                     });
                 }
-                TypeDef::new(
-                    db,
-                    // type_name,
-                    DefKind::Struct(StructDef {
+                TypeDef {
+                    kind: DefKind::Struct(StructDef {
                         name,
                         fields,
                         size: size as usize,
                         alignment: alignment as usize,
                     }),
-                )
+                }
             }
         }
         t => {

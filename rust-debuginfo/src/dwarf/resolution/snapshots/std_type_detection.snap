@@ -4,7 +4,6 @@ expression: ty
 snapshot_kind: text
 ---
 TypeDef {
-    [salsa id]: Id(7801),
     kind: Struct(
         StructDef {
             name: "String",
@@ -15,9 +14,8 @@ TypeDef {
                     name: "vec",
                     offset: 0,
                     ty: TypeDef {
-                        [salsa id]: Id(7800),
                         kind: Alias(
-                            Die {
+                            TypeRef {
                                 file: DebugFile {
                                     [salsa id]: Id(800),
                                     file: File {
@@ -37,9 +35,7 @@ TypeDef {
                                         0,
                                     ),
                                 ),
-                                die_offset: UnitOffset(
-                                    4591,
-                                ),
+                                die_offset: 4591,
                             },
                         ),
                     },

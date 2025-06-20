@@ -121,13 +121,13 @@ pub trait DataResolver {
 pub fn read_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
-    ty: &TypeDef<'db>,
+    ty: &TypeDef,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::Value> {
-    tracing::debug!("read_from_memory {address:#x} {}", ty.display_name(db));
-    match ty.kind(db) {
+    tracing::debug!("read_from_memory {address:#x} {}", ty.display_name());
+    match &ty.kind {
         DefKind::Primitive(primitive_def) => {
-            read_primitive_from_memory(db, address, primitive_def, data_resolver)
+            read_primitive_from_memory(db, address, &primitive_def, data_resolver)
         }
         DefKind::Struct(struct_def) => {
             let mut fields = BTreeMap::new();
@@ -135,7 +135,7 @@ pub fn read_from_memory<'db>(
                 let field_name = &field.name;
                 let field_ty = &field.ty;
                 let field_address = address + (field.offset as u64);
-                let field_value = read_from_memory(db, field_address, &field_ty, data_resolver)?;
+                let field_value = read_from_memory(db, field_address, field_ty, data_resolver)?;
                 fields.insert(field_name.to_string(), field_value);
             }
             Ok(crate::Value::Struct {
@@ -143,10 +143,11 @@ pub fn read_from_memory<'db>(
                 fields,
             })
         }
-        DefKind::Std(std_def) => read_std_from_memory(db, address, std_def, data_resolver),
+        DefKind::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
         DefKind::Alias(entry) => {
-            let def = crate::dwarf::resolve_type_offset(db, *entry)
-                .with_context(|| format!("could not resolve type: {}", entry.print(db)))?;
+            let die = entry.to_die(db);
+            let def = crate::dwarf::resolve_type_offset(db, die)
+                .with_context(|| format!("could not resolve type: {:?}", entry))?;
 
             read_from_memory(db, address, &def, data_resolver)
         }
@@ -159,8 +160,8 @@ pub fn read_from_memory<'db>(
     }
 }
 
-fn read_primitive_from_memory<'db>(
-    db: &'db dyn Db,
+fn read_primitive_from_memory(
+    db: &dyn Db,
     address: u64,
     def: &PrimitiveDef,
     data_resolver: &dyn crate::DataResolver,
@@ -182,27 +183,27 @@ fn read_primitive_from_memory<'db>(
             length,
         }) => {
             let mut values = Vec::new();
-            let element_size = element_type.size(db)?.with_context(|| {
+            let element_size = element_type.size().with_context(|| {
                 format!(
                     "inner type: {} has unknown size",
-                    element_type.display_name(db)
+                    element_type.display_name()
                 )
             })? as u64;
 
             let mut address = address;
             for _ in 0..*length {
-                let value = read_from_memory(db, address, &element_type, data_resolver)?;
+                let value = read_from_memory(db, address, element_type, data_resolver)?;
                 values.push(value);
                 address += element_size;
             }
             crate::Value::Array {
-                ty: format!("[{}; {length}]", element_type.display_name(db)),
+                ty: format!("[{}; {length}]", element_type.display_name()),
                 items: values,
             }
         }
         PrimitiveDef::Pointer(PointerDef { pointed_type }) => {
             let address = data_resolver.read_address(address)?;
-            read_from_memory(db, address, &pointed_type, data_resolver)?
+            read_from_memory(db, address, pointed_type, data_resolver)?
         }
         PrimitiveDef::StrSlice(StrSliceDef {
             data_ptr_offset,
@@ -247,8 +248,8 @@ fn read_primitive_from_memory<'db>(
     Ok(value)
 }
 
-fn read_std_from_memory<'db>(
-    db: &'db dyn Db,
+fn read_std_from_memory(
+    db: &dyn Db,
     address: u64,
     def: &StdDef,
     data_resolver: &dyn crate::DataResolver,

@@ -14,7 +14,7 @@ pub struct Variable<'db> {
     #[returns(ref)]
     pub name: String,
     #[returns(ref)]
-    pub ty: TypeDef<'db>,
+    pub ty: TypeDef,
     pub file: SourceFile<'db>,
     pub line: u64,
     pub origin: Die<'db>,

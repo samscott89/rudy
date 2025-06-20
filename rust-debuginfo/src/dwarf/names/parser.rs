@@ -19,6 +19,7 @@ unsynn! {
     type Amp = PunctAlone<'&'>;
 
     /// eats all tokens within two angle brackets
+    #[derive(Clone)]
     pub struct AngleTokenTree {
         _lt: Lt,
         // inner can either be another nested AngleTokenTree, or
@@ -27,7 +28,7 @@ unsynn! {
         _gt: Gt,
     }
 
-
+    #[derive(Clone)]
     pub enum GenericArgs {
         Parsed {
             _lt: Lt,
@@ -60,6 +61,7 @@ unsynn! {
     type VTableShim = Cons<VTable, PunctAny<'.'>, Shim>;
     keyword VTableType = "vtable_type";
 
+    #[derive(Clone)]
     pub struct Segment {
         pub ident: Ident,
         generics: Optional<GenericArgs>,
@@ -67,12 +69,14 @@ unsynn! {
         vtable_shim: Optional<BraceGroupContaining<BraceGroupContaining<VTableShim>>>,
     }
 
+    #[derive(Clone)]
     enum PathSegment {
         Segment(Segment),
         QualifiedSegment(AngleTokenTree),
         VTableType(BraceGroupContaining<VTableType>),
     }
 
+    #[derive(Clone)]
     pub struct DynTrait {
         dyn_kw: Dyn,
         pub traits: DelimitedVec<Type, PunctAny<'+'>>,
@@ -81,28 +85,35 @@ unsynn! {
     type ConstPtr = Cons<PunctAny<'*'>, Const>;
     type MutPtr = Cons<PunctAny<'*'>, Mut>;
 
+    #[derive(Clone)]
     pub struct PtrType {
         pointer_type: Either<ConstPtr, MutPtr>,
         pub inner: Box<Type>,
     }
+    #[derive(Clone)]
     pub struct RefType {
         amp: Amp,
         mutability: Optional<Mut>,
         pub inner: Box<Type>,
     }
 
+    #[derive(Clone)]
     struct ArrayInner {
         inner: Box<Type>,
         size: Optional<Cons<PunctAny<';'>, Type>>,
     }
+
+    #[derive(Clone)]
     pub struct Array {
         inner: BracketGroupContaining<ArrayInner>,
     }
 
+    #[derive(Clone)]
     pub struct Tuple {
         inner: ParenthesisGroupContaining<DelimitedVec<Type, PunctAny<','>>>,
     }
 
+    #[derive(Clone)]
     pub enum Type {
         Ref(RefType),
         Array(Array),
@@ -114,6 +125,7 @@ unsynn! {
     }
 
     /// Symbol or binary paths as used in Dwarf information.
+    #[derive(Clone)]
     pub struct Path {
         segments: PathSepDelimitedVec<PathSegment>
     }

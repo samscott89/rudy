@@ -1,26 +1,54 @@
 //! Definition of types in the Rust language.
 
 use anyhow::Result;
+use gimli::UnitSectionOffset;
+use std::mem::size_of;
 use std::sync::Arc;
 
 use salsa::Update;
 
-use crate::{database::Db, dwarf::Die};
+use crate::file::DebugFile;
 
-#[salsa::tracked(debug)]
-pub struct TypeDef<'db> {
-    // pub name: Option<NameId<'db>>,
-    #[returns(ref)]
-    pub kind: DefKind<'db>,
+/// Reference to a type in DWARF debug information
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeRef {
+    file: DebugFile,
+    cu_offset: UnitSectionOffset<usize>,
+    die_offset: usize,
 }
 
-impl<'db> TypeDef<'db> {
-    pub fn display_name(&self, db: &'db dyn Db) -> String {
-        match self.kind(db) {
+impl TypeRef {
+    /// Create a TypeRef from a Die
+    pub fn from_die<'db>(die: &crate::dwarf::Die<'db>, db: &'db dyn crate::database::Db) -> Self {
+        Self {
+            file: die.file(db),
+            cu_offset: die.cu_offset(db),
+            die_offset: die.die_offset(db).0,
+        }
+    }
+
+    pub fn to_die<'db>(&self, db: &'db dyn crate::database::Db) -> crate::dwarf::Die<'db> {
+        crate::dwarf::Die::new(
+            db,
+            self.file.clone(),
+            self.cu_offset,
+            gimli::UnitOffset(self.die_offset),
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeDef {
+    pub kind: DefKind,
+}
+
+impl TypeDef {
+    pub fn display_name(&self) -> String {
+        match &self.kind {
             DefKind::Primitive(primitive_def) => match primitive_def {
                 PrimitiveDef::Array(array_def) => format!(
                     "[{}; {}]",
-                    array_def.element_type.display_name(db),
+                    array_def.element_type.display_name(),
                     array_def.length
                 ),
                 PrimitiveDef::Bool(_) => "bool".to_string(),
@@ -32,31 +60,27 @@ impl<'db> TypeDef<'db> {
                     let arg_types = function_def
                         .arg_types
                         .iter()
-                        .map(|arg| arg.display_name(db))
+                        .map(|arg| arg.display_name())
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!(
                         "fn({}) -> {}",
                         arg_types,
-                        function_def.return_type.display_name(db)
+                        function_def.return_type.display_name()
                     )
                 }
                 PrimitiveDef::Int(int_def) => {
                     format!("i{}", int_def.size * 8)
                 }
                 PrimitiveDef::Pointer(pointer_def) => {
-                    format!("*{}", pointer_def.pointed_type.display_name(db))
+                    format!("*{}", pointer_def.pointed_type.display_name())
                 }
                 PrimitiveDef::Reference(reference_def) => {
                     let mut_ref = if reference_def.mutable { "mut " } else { "" };
-                    format!(
-                        "&{}{}",
-                        mut_ref,
-                        reference_def.pointed_type.display_name(db)
-                    )
+                    format!("&{}{}", mut_ref, reference_def.pointed_type.display_name())
                 }
                 PrimitiveDef::Slice(slice_def) => {
-                    format!("&[{}]", slice_def.element_type.display_name(db))
+                    format!("&[{}]", slice_def.element_type.display_name())
                 }
                 PrimitiveDef::Str(_) => "str".to_string(),
                 PrimitiveDef::StrSlice(_) => {
@@ -66,7 +90,7 @@ impl<'db> TypeDef<'db> {
                     let element_types = tuple_def
                         .element_types
                         .iter()
-                        .map(|element| element.display_name(db))
+                        .map(|element| element.display_name())
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!("({})", element_types)
@@ -78,88 +102,87 @@ impl<'db> TypeDef<'db> {
             },
             DefKind::Std(std_def) => match std_def {
                 StdDef::SmartPtr(smart_ptr_def) => {
-                    let inner = smart_ptr_def.inner_type.display_name(db);
+                    let inner = smart_ptr_def.inner_type.display_name();
                     format!("{:?}<{}>", smart_ptr_def.variant, inner)
                 }
                 StdDef::Map(map_def) => {
-                    let key_type = map_def.key_type.display_name(db);
-                    let value_type = map_def.value_type.display_name(db);
+                    let key_type = map_def.key_type.display_name();
+                    let value_type = map_def.value_type.display_name();
                     format!("{:?}<{}, {}>", map_def.variant, key_type, value_type)
                 }
                 StdDef::Option(option_def) => {
-                    let inner_type = option_def.inner_type.display_name(db);
+                    let inner_type = option_def.inner_type.display_name();
                     format!("Option<{}>", inner_type)
                 }
                 StdDef::Result(result_def) => {
-                    let ok_type = result_def.ok_type.display_name(db);
-                    let err_type = result_def.err_type.display_name(db);
+                    let ok_type = result_def.ok_type.display_name();
+                    let err_type = result_def.err_type.display_name();
                     format!("Result<{}, {}>", ok_type, err_type)
                 }
                 StdDef::String(_) => {
                     format!("String")
                 }
                 StdDef::Vec(vec_def) => {
-                    let inner_type = vec_def.inner_type.display_name(db);
+                    let inner_type = vec_def.inner_type.display_name();
                     format!("Vec<{}>", inner_type)
                 }
             },
             DefKind::Struct(struct_def) => struct_def.name.clone(),
             DefKind::Enum(enum_def) => enum_def.name.clone(),
-            DefKind::Alias(entry) => {
-                if let Ok(def) = crate::dwarf::resolve_type_offset(db, *entry) {
-                    def.display_name(db)
-                } else {
-                    entry.name(db).unwrap_or_default()
-                }
+            DefKind::Alias(type_ref) => {
+                // For now, just return a placeholder name
+                // In a real implementation, you'd resolve this using the TypeRef
+                format!(
+                    "<alias@{:x}:{:x}>",
+                    type_ref.cu_offset.as_debug_info_offset().unwrap().0,
+                    type_ref.die_offset
+                )
             }
             DefKind::Other { name } => name.to_string(),
         }
     }
 
-    pub fn size(&self, db: &'db dyn Db) -> Result<Option<usize>> {
-        match self.kind(db) {
-            DefKind::Primitive(primitive_def) => primitive_def.size(db),
-            DefKind::Std(std_def) => std_def.size(db),
-            DefKind::Struct(struct_def) => Ok(Some(struct_def.size)),
-            DefKind::Enum(enum_def) => Ok(Some(enum_def.size)),
-            DefKind::Alias(entry) => {
-                if let Ok(def) = crate::dwarf::resolve_type_offset(db, *entry) {
-                    def.size(db)
-                } else {
-                    Ok(None)
-                }
+    pub fn size(&self) -> Option<usize> {
+        match &self.kind {
+            DefKind::Primitive(primitive_def) => primitive_def.size(),
+            DefKind::Std(std_def) => std_def.size(),
+            DefKind::Struct(struct_def) => Some(struct_def.size),
+            DefKind::Enum(enum_def) => Some(enum_def.size),
+            DefKind::Alias(_type_ref) => {
+                // Type resolution would need to happen at a higher level
+                None
             }
-            DefKind::Other { name: _ } => Ok(None),
+            DefKind::Other { name: _ } => None,
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum DefKind<'db> {
+pub enum DefKind {
     /// Language-specific primitive types from `core::primitive`
     /// (e.g. `i32`, `f64`, etc.)
     ///
     /// There are all simple types that can
     /// be backed by a single slice of memory
     /// and easily transumted to a Rust type
-    Primitive(PrimitiveDef<'db>),
+    Primitive(PrimitiveDef),
 
     /// Common definitions from the Rust standard library
-    Std(StdDef<'db>),
+    Std(StdDef),
 
     // Custom type definitions
     /// Structs and tuples
-    Struct(StructDef<'db>),
+    Struct(StructDef),
 
     /// Enums
-    Enum(EnumDef<'db>),
+    Enum(EnumDef),
 
     /// Reference to some other type
     ///
     /// We use this when we're traversing a type
     /// definition and want to lazily evaluate nested
     /// types.
-    Alias(Die<'db>),
+    Alias(TypeRef),
 
     /// Other types not yet supported/handled
     Other { name: String },
@@ -167,16 +190,16 @@ pub enum DefKind<'db> {
 
 /// From the Rust standard library:
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum PrimitiveDef<'db> {
-    Array(ArrayDef<'db>),
+pub enum PrimitiveDef {
+    Array(ArrayDef),
     Bool(()),
     Char(()),
     Float(FloatDef),
-    Function(FunctionDef<'db>),
+    Function(FunctionDef),
     Int(IntDef),
-    Pointer(PointerDef<'db>),
-    Reference(ReferenceDef<'db>),
-    Slice(SliceDef<'db>),
+    Pointer(PointerDef),
+    Reference(ReferenceDef),
+    Slice(SliceDef),
     /// Technically constructable, `str` is like `[u8; N]`
     /// but where the size is opaque (since utf8 is variable length)
     /// and so rarely seen in the wild. We could have something like `Box<str>`
@@ -185,20 +208,17 @@ pub enum PrimitiveDef<'db> {
     /// A specialization of `Slice` where the referenced type is `str`
     /// Also helps us avoid using the `str` type.
     StrSlice(StrSliceDef),
-    Tuple(TupleDef<'db>),
+    Tuple(TupleDef),
     Unit(UnitDef),
     UnsignedInt(UnsignedIntDef),
     // neverExperimental,
 }
 
-impl<'db> PrimitiveDef<'db> {
-    fn size(&self, db: &'db dyn Db) -> Result<Option<usize>> {
+impl PrimitiveDef {
+    fn size(&self) -> Option<usize> {
         let size = match self {
             PrimitiveDef::Array(array_def) => {
-                let element_size = array_def.element_type.size(db)?;
-                let Some(element_size) = element_size else {
-                    return Ok(None);
-                };
+                let element_size = array_def.element_type.size()?;
                 element_size * array_def.length
             }
             PrimitiveDef::Bool(_) => {
@@ -229,13 +249,13 @@ impl<'db> PrimitiveDef<'db> {
             }
         };
 
-        Ok(Some(size))
+        Some(size)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct ArrayDef<'db> {
-    pub element_type: Arc<TypeDef<'db>>,
+pub struct ArrayDef {
+    pub element_type: Arc<TypeDef>,
     pub length: usize,
 }
 
@@ -244,29 +264,29 @@ pub struct FloatDef {
     pub size: usize,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct FunctionDef<'db> {
-    pub return_type: Arc<TypeDef<'db>>,
-    pub arg_types: Vec<Arc<TypeDef<'db>>>,
+pub struct FunctionDef {
+    pub return_type: Arc<TypeDef>,
+    pub arg_types: Vec<Arc<TypeDef>>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct IntDef {
     pub size: usize,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct PointerDef<'db> {
-    pub pointed_type: Arc<TypeDef<'db>>,
+pub struct PointerDef {
+    pub pointed_type: Arc<TypeDef>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct ReferenceDef<'db> {
+pub struct ReferenceDef {
     /// Is this a mutable reference?
     /// (i.e. `&mut T` vs `&T`)
     pub mutable: bool,
 
-    pub pointed_type: Arc<TypeDef<'db>>,
+    pub pointed_type: Arc<TypeDef>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct SliceDef<'db> {
-    pub element_type: Arc<TypeDef<'db>>,
+pub struct SliceDef {
+    pub element_type: Arc<TypeDef>,
     pub data_ptr_offset: usize,
     pub length_offset: usize,
     pub size: usize,
@@ -280,8 +300,8 @@ pub struct StrSliceDef {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct TupleDef<'db> {
-    pub element_types: Vec<Arc<TypeDef<'db>>>,
+pub struct TupleDef {
+    pub element_types: Vec<Arc<TypeDef>>,
     pub alignment: usize,
     pub size: usize,
 }
@@ -296,17 +316,17 @@ pub struct UnsignedIntDef {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum StdDef<'db> {
-    SmartPtr(SmartPtrDef<'db>),
-    Map(MapDef<'db>),
-    Option(OptionDef<'db>),
-    Result(ResultDef<'db>),
+pub enum StdDef {
+    SmartPtr(SmartPtrDef),
+    Map(MapDef),
+    Option(OptionDef),
+    Result(ResultDef),
     String(StringDef),
-    Vec(VecDef<'db>),
+    Vec(VecDef),
 }
 
-impl<'db> StdDef<'db> {
-    fn size(&self, db: &'db dyn Db) -> Result<Option<usize>> {
+impl StdDef {
+    fn size(&self) -> Option<usize> {
         let size = match self {
             StdDef::SmartPtr(smart_ptr_def) => match smart_ptr_def.variant {
                 SmartPtrVariant::Rc => size_of::<std::rc::Rc<()>>(),
@@ -329,25 +349,20 @@ impl<'db> StdDef<'db> {
                 size_of::<usize>()
             }
             StdDef::Result(result_def) => {
-                match result_def
-                    .ok_type
-                    .size(db)?
-                    .zip(result_def.err_type.size(db)?)
-                {
-                    Some((res_size, err_size)) => std::cmp::max(res_size, err_size),
-                    None => return Ok(None),
-                }
+                let res_size = result_def.ok_type.size()?;
+                let err_size = result_def.err_type.size()?;
+                std::cmp::max(res_size, err_size)
             }
             StdDef::String(_) | StdDef::Vec(_) => size_of::<Vec<()>>(),
         };
 
-        Ok(Some(size))
+        Some(size)
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct SmartPtrDef<'db> {
-    pub inner_type: Arc<TypeDef<'db>>,
+pub struct SmartPtrDef {
+    pub inner_type: Arc<TypeDef>,
     pub variant: SmartPtrVariant,
 }
 
@@ -363,9 +378,9 @@ pub enum SmartPtrVariant {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct MapDef<'db> {
-    pub key_type: Arc<TypeDef<'db>>,
-    pub value_type: Arc<TypeDef<'db>>,
+pub struct MapDef {
+    pub key_type: Arc<TypeDef>,
+    pub value_type: Arc<TypeDef>,
     pub variant: MapVariant,
     pub size: usize,
 }
@@ -378,42 +393,42 @@ pub enum MapVariant {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct OptionDef<'db> {
-    pub inner_type: Arc<TypeDef<'db>>,
+pub struct OptionDef {
+    pub inner_type: Arc<TypeDef>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct ResultDef<'db> {
-    pub ok_type: Arc<TypeDef<'db>>,
-    pub err_type: Arc<TypeDef<'db>>,
+pub struct ResultDef {
+    pub ok_type: Arc<TypeDef>,
+    pub err_type: Arc<TypeDef>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StringDef;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct VecDef<'db> {
-    pub inner_type: Arc<TypeDef<'db>>,
+pub struct VecDef {
+    pub inner_type: Arc<TypeDef>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct StructDef<'db> {
+pub struct StructDef {
     pub name: String,
     pub size: usize,
     pub alignment: usize,
-    pub fields: Vec<StructField<'db>>,
+    pub fields: Vec<StructField>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct StructField<'db> {
+pub struct StructField {
     pub name: String,
     pub offset: usize,
-    pub ty: Arc<TypeDef<'db>>,
+    pub ty: Arc<TypeDef>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumDef<'db> {
+pub struct EnumDef {
     pub name: String,
     pub repr: EnumRepr,
-    pub variants: Vec<EnumVariant<'db>>,
+    pub variants: Vec<EnumVariant>,
     pub size: usize,
 }
 
@@ -424,10 +439,10 @@ pub enum EnumRepr {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum EnumVariant<'db> {
+pub enum EnumVariant {
     Unit(EnumUnitVariant),
-    Tuple(EnumTupleVariant<'db>),
-    Struct(EnumStructVariant<'db>),
+    Tuple(EnumTupleVariant),
+    Struct(EnumStructVariant),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -436,13 +451,13 @@ pub struct EnumUnitVariant {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumTupleVariant<'db> {
+pub struct EnumTupleVariant {
     pub name: String,
-    pub fields: Vec<StructField<'db>>,
+    pub fields: Vec<StructField>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumStructVariant<'db> {
+pub struct EnumStructVariant {
     pub name: String,
-    pub fields: Vec<StructField<'db>>,
+    pub fields: Vec<StructField>,
 }
