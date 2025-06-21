@@ -103,7 +103,10 @@ impl TypeDef {
             DefKind::Std(std_def) => match std_def {
                 StdDef::SmartPtr(smart_ptr_def) => {
                     let inner = smart_ptr_def.inner_type.display_name();
-                    format!("{:?}<{}>", smart_ptr_def.variant, inner)
+                    match smart_ptr_def.variant {
+                        SmartPtrVariant::Box => format!("Box<{}>", inner),
+                        _ => format!("{:?}<{}>", smart_ptr_def.variant, inner),
+                    }
                 }
                 StdDef::Map(map_def) => {
                     let key_type = map_def.key_type.display_name();
@@ -274,6 +277,7 @@ pub struct IntDef {
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct PointerDef {
+    pub mutable: bool,
     pub pointed_type: Arc<TypeDef>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -329,6 +333,7 @@ impl StdDef {
     fn size(&self) -> Option<usize> {
         let size = match self {
             StdDef::SmartPtr(smart_ptr_def) => match smart_ptr_def.variant {
+                SmartPtrVariant::Box => size_of::<Box<()>>(),
                 SmartPtrVariant::Rc => size_of::<std::rc::Rc<()>>(),
                 SmartPtrVariant::Arc => size_of::<std::sync::Arc<()>>(),
                 SmartPtrVariant::RefCell => size_of::<std::cell::RefCell<()>>(),
@@ -368,6 +373,7 @@ pub struct SmartPtrDef {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum SmartPtrVariant {
+    Box,
     Rc,
     Arc,
     RefCell,

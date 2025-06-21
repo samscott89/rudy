@@ -28,58 +28,18 @@ fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<Typ
 
     tracing::info!("fully-qualified type name: {fq_name}");
 
-    Ok(None)
-}
+    let typedef = &fq_name.typedef;
 
-/// Resolve String type
-fn resolve_string_type<'db>(_db: &'db dyn Db, _entry: Die<'db>) -> Result<StringDef> {
-    // For String, we don't need to extract the element type since it's always u8
-    Ok(StringDef {})
-}
-
-/// Resolve Vec type
-fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
-    // Extract the element type from the first template parameter
-    // This is a simplified implementation - in reality we'd need to parse the template params
-    let children = entry.children(db);
-
-    // Look for the first field which should be the vec's buffer
-    for child in children {
-        if let Some(field_type) = child.get_unit_ref(db, gimli::DW_AT_type).ok().flatten() {
-            let element_type = resolve_type_shallow(db, field_type)?;
-            return Ok(VecDef {
-                inner_type: Arc::new(element_type),
-            });
-        }
+    match &typedef.kind {
+        DefKind::Primitive(primitive_def) => todo!(),
+        DefKind::Std(std_def) => todo!(),
+        DefKind::Struct(struct_def) => todo!(),
+        DefKind::Enum(enum_def) => todo!(),
+        DefKind::Alias(type_ref) => todo!(),
+        DefKind::Other { name } => todo!(),
     }
 
-    // Fallback - create a Vec<u8> if we can't determine the type
-    let u8_type = TypeDef {
-        kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 })),
-    };
-    Ok(VecDef {
-        inner_type: Arc::new(u8_type),
-    })
-}
-
-/// Resolve HashMap type
-fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef> {
-    // Extract key and value types from template parameters
-    // This is a simplified implementation
-    let _children = entry.children(db);
-
-    // For now, create a default HashMap<String, String>
-    // In reality, we'd parse the template parameters
-    let string_type = TypeDef {
-        kind: DefKind::Std(StdDef::String(StringDef {})),
-    };
-
-    Ok(MapDef {
-        key_type: Arc::new(string_type.clone()),
-        value_type: Arc::new(string_type),
-        variant: MapVariant::HashMap,
-        size: std::mem::size_of::<std::collections::HashMap<String, String>>(),
-    })
+    Ok(None)
 }
 
 /// Resolve the full type for a DIE entry
@@ -314,6 +274,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
             let pointed_ty = resolve_type_shallow(db, entry)?;
             Some(TypeDef {
                 kind: DefKind::Primitive(PrimitiveDef::Pointer(PointerDef {
+                    mutable: false, // TODO: handle mutability
                     pointed_type: Arc::new(pointed_ty),
                 })),
             })

@@ -3,27 +3,53 @@
 use std::fmt;
 
 use anyhow::Context;
-use unsynn::ToTokens;
 
 mod parser;
 
-pub use parser::Type;
+use crate::typedef::TypeDef;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleName {
     pub segments: Vec<String>,
 }
 
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone)]
 pub struct TypeName {
-    module: ModuleName,
-    name: String,
-    // parsed_type: Type,
+    pub module: ModuleName,
+    pub name: String,
+    pub typedef: TypeDef,
 }
 
 impl fmt::Debug for TypeName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl PartialEq for TypeName {
+    fn eq(&self, other: &Self) -> bool {
+        self.module == other.module && self.name == other.name
+    }
+}
+impl Eq for TypeName {}
+impl PartialOrd for TypeName {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TypeName {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.module
+            .cmp(&other.module)
+            .then_with(|| self.name.cmp(&other.name))
+    }
+}
+
+impl std::hash::Hash for TypeName {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.module.hash(state);
+        self.name.hash(state);
     }
 }
 
@@ -45,7 +71,7 @@ impl TypeName {
                 segments: module_path.to_vec(),
             },
             name: type_name,
-            // parsed_type,
+            typedef: parsed_type.as_typedef(),
         })
     }
 }
