@@ -201,7 +201,7 @@ fn read_primitive_from_memory(
                 items: values,
             }
         }
-        PrimitiveDef::Pointer(PointerDef { pointed_type }) => {
+        PrimitiveDef::Pointer(PointerDef { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
             read_from_memory(db, address, pointed_type, data_resolver)?
         }

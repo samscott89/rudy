@@ -580,8 +580,15 @@ pub fn parse_type(s: &str) -> Result<Type> {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Arc;
+
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
+
+    use crate::typedef::{
+        DefKind, MapDef, OptionDef, PrimitiveDef, SmartPtrDef, SmartPtrVariant, StdDef, StringDef,
+        UnsignedIntDef, VecDef,
+    };
 
     use super::*;
 
@@ -713,5 +720,121 @@ mod test {
     fn test_type_printing() {
         let s = "hashbrown::map::HashMap<alloc::string::String, i32, std::hash::random::RandomState, alloc::alloc::Global>";
         assert_eq!(parse_type(s).to_string(), s.to_string());
+    }
+
+    #[test]
+    fn test_type_inference() {
+        assert_eq!(
+            parse_type("u8").as_typedef().kind,
+            DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
+        );
+        assert_eq!(
+            parse_type("u32").as_typedef().kind,
+            DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 4 }))
+        );
+        assert_eq!(
+            parse_type("&u8").as_typedef().kind,
+            DefKind::Primitive(PrimitiveDef::Reference(crate::typedef::ReferenceDef {
+                mutable: false,
+                pointed_type: Arc::new(TypeDef {
+                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
+                })
+            }))
+        );
+        assert_eq!(
+            parse_type("&mut u8").as_typedef().kind,
+            DefKind::Primitive(PrimitiveDef::Reference(crate::typedef::ReferenceDef {
+                mutable: true,
+                pointed_type: Arc::new(TypeDef {
+                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
+                })
+            }))
+        );
+        assert_eq!(
+            parse_type("dyn core::fmt::Debug").as_typedef().kind,
+            DefKind::Other {
+                name: "dyn core::fmt::Debug".to_string()
+            }
+        );
+        assert_eq!(
+            parse_type("alloc::vec::Vec<u8>").as_typedef().kind,
+            DefKind::Std(StdDef::Vec(VecDef {
+                inner_type: Arc::new(TypeDef {
+                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
+                })
+            }))
+        );
+        assert_eq!(
+            parse_type("alloc::vec::Vec<alloc::vec::Vec<u8>>")
+                .as_typedef()
+                .kind,
+            DefKind::Std(StdDef::Vec(VecDef {
+                inner_type: Arc::new(TypeDef {
+                    kind: DefKind::Std(StdDef::Vec(VecDef {
+                        inner_type: Arc::new(TypeDef {
+                            kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef {
+                                size: 1
+                            }))
+                        })
+                    }))
+                })
+            }))
+        );
+        assert_eq!(
+            parse_type("alloc::vec::Vec<u8, alloc::alloc::Global>")
+                .as_typedef()
+                .kind,
+            DefKind::Std(StdDef::Vec(VecDef {
+                inner_type: Arc::new(TypeDef {
+                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
+                })
+            }))
+        );
+        assert_eq!(
+            parse_type("core::option::Option<i32>").as_typedef().kind,
+            DefKind::Std(StdDef::Option(OptionDef {
+                inner_type: Arc::new(TypeDef {
+                    kind: DefKind::Primitive(PrimitiveDef::Int(crate::typedef::IntDef { size: 4 }))
+                })
+            }))
+        );
+        assert_eq!(
+            parse_type("alloc::boxed::Box<i32>").as_typedef().kind,
+            DefKind::Std(StdDef::SmartPtr(SmartPtrDef {
+                inner_type: Arc::new(TypeDef {
+                    kind: DefKind::Primitive(PrimitiveDef::Int(crate::typedef::IntDef { size: 4 }))
+                }),
+                variant: SmartPtrVariant::Box
+            }))
+        );
+        assert_eq!(
+            parse_type("alloc::String::String").as_typedef().kind,
+            DefKind::Std(StdDef::String(StringDef))
+        );
+        assert_eq!(
+            parse_type(
+                "std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>"
+            )
+            .as_typedef()
+            .kind,
+            DefKind::Std(StdDef::Map(MapDef {
+                key_type: Arc::new(TypeDef {
+                    kind: DefKind::Std(StdDef::String(StringDef))
+                }),
+                value_type: Arc::new(TypeDef {
+                    kind: DefKind::Std(StdDef::String(StringDef))
+                }),
+                variant: crate::typedef::MapVariant::HashMap,
+                size: 0, // Would need to calculate from DWARF
+            }))
+        );
+        assert_eq!(
+            parse_type("core::num::nonzero::NonZero<u8>")
+                .as_typedef()
+                .kind,
+            DefKind::Other {
+                name: "core::num::nonzero::NonZero<u8>".to_string()
+            }
+        );
     }
 }
