@@ -304,6 +304,7 @@ fn resolve_as_primitive_type<'db>(
         | PrimitiveDef::Bool(_)
         | PrimitiveDef::Char(_)
         | PrimitiveDef::Float(_)
+        | PrimitiveDef::Never(_)
         | PrimitiveDef::Str(_)
         | PrimitiveDef::UnsignedInt(_)
         | PrimitiveDef::Unit(_) => Ok(Some(TypeDef::Primitive(primitive_def.clone()))),

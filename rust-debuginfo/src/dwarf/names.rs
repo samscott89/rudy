@@ -56,7 +56,7 @@ impl std::hash::Hash for TypeName {
 impl TypeName {
     pub fn parse(module_path: &[String], name: &str) -> anyhow::Result<Self> {
         fn known_bad_case(path: &str) -> bool {
-            path.contains("{closure_env#")
+            path.contains("{closure_env#") || path.contains("{impl#")
         }
 
         // If we have a module path, prepend it to the name for parsing

@@ -146,6 +146,7 @@ unsynn! {
     #[derive(Clone)]
     pub enum Type {
         Ref(RefType),
+        Never(PunctAny<'!'>),
         Array(Array),
         Function(FnType),
         DynTrait(DynTrait),
@@ -306,6 +307,10 @@ impl Type {
                     .map(|a| Arc::new(a.as_typedef()))
                     .collect(),
             })),
+            Type::Never(_) => {
+                // For the never type, we can just return a unit type
+                TypeDef::Primitive(PrimitiveDef::Never(()))
+            }
         }
     }
 }
@@ -368,6 +373,7 @@ impl Path {
                 "f64" => return FloatDef { size: 8 }.into(),
                 "bool" => return TypeDef::Primitive(PrimitiveDef::Bool(())),
                 "char" => return TypeDef::Primitive(PrimitiveDef::Char(())),
+                "str" => return TypeDef::Primitive(PrimitiveDef::Str(())),
                 "()" => return TypeDef::Primitive(PrimitiveDef::Unit(UnitDef)),
                 _ => {}
             }
@@ -476,7 +482,8 @@ impl Path {
                                 size: 0, // Would need to calculate from DWARF
                             }));
                         }
-                        "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "Mutex" | "RwLock" => {
+                        "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "UnsafeCell" | "Mutex"
+                        | "RwLock" => {
                             let inner = generics
                                 .into_iter()
                                 .next()
@@ -492,6 +499,7 @@ impl Path {
                                 "Arc" => SmartPtrVariant::Arc,
                                 "Cell" => SmartPtrVariant::Cell,
                                 "RefCell" => SmartPtrVariant::RefCell,
+                                "UnsafeCell" => SmartPtrVariant::UnsafeCell,
                                 "Mutex" => SmartPtrVariant::Mutex,
                                 "RwLock" => SmartPtrVariant::RwLock,
                                 _ => unreachable!(),
@@ -583,6 +591,7 @@ impl fmt::Display for Type {
             Type::Ptr(p) => write!(f, "{}{}", p.pointer_type.tokens_to_string(), p.inner),
             Type::Path(p) => write!(f, "{p}"),
             Type::Function(fn_type) => write!(f, "{fn_type}"),
+            Type::Never(_) => write!(f, "!"),
         }
     }
 }
@@ -770,8 +779,7 @@ mod test {
         parse_type("*const [i32]");
         parse_type("&mut dyn core::ops::function::FnMut<(usize), Output=bool>");
         parse_type("&&i32");
-
-        // parse_type("");
+        parse_type("!");
     }
 
     #[test]
@@ -802,6 +810,22 @@ mod test {
     impl IntDef {
         pub fn i32() -> Self {
             Self { size: 4 }
+        }
+    }
+
+    impl ReferenceDef {
+        pub fn new_mutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
+            Self {
+                mutable: true,
+                pointed_type: Arc::new(pointed_type.into()),
+            }
+        }
+
+        pub fn new_immutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
+            Self {
+                mutable: false,
+                pointed_type: Arc::new(pointed_type.into()),
+            }
         }
     }
 

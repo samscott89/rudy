@@ -66,6 +66,7 @@ impl TypeDef {
                 PrimitiveDef::Int(int_def) => {
                     format!("i{}", int_def.size * 8)
                 }
+                PrimitiveDef::Never(_) => "!".to_string(),
                 PrimitiveDef::Pointer(pointer_def) => {
                     format!("*{}", pointer_def.pointed_type.display_name())
                 }
@@ -391,6 +392,7 @@ pub enum PrimitiveDef {
     Float(FloatDef),
     Function(FunctionDef),
     Int(IntDef),
+    Never(()),
     Pointer(PointerDef),
     Reference(ReferenceDef),
     Slice(SliceDef),
@@ -431,6 +433,10 @@ impl PrimitiveDef {
             PrimitiveDef::Int(int_def) => {
                 // size of an int
                 int_def.size
+            }
+            PrimitiveDef::Never(_) => {
+                // never type is 0 bytes
+                0
             }
             PrimitiveDef::Slice(slice_def) => slice_def.size,
             PrimitiveDef::Str(_) => todo!(),
@@ -478,22 +484,6 @@ pub struct ReferenceDef {
     pub mutable: bool,
 
     pub pointed_type: Arc<TypeDef>,
-}
-
-impl ReferenceDef {
-    pub fn new_mutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
-        Self {
-            mutable: true,
-            pointed_type: Arc::new(pointed_type.into()),
-        }
-    }
-
-    pub fn new_immutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
-        Self {
-            mutable: false,
-            pointed_type: Arc::new(pointed_type.into()),
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
