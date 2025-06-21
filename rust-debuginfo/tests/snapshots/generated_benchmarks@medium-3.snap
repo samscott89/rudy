@@ -1,5 +1,5 @@
 ---
-source: tests/mod.rs
+source: rust-debuginfo/tests/mod.rs
 expression: "debug_info.resolve_function(\"TestStruct0::method_0\").unwrap().unwrap()"
 snapshot_kind: text
 ---
@@ -12,7 +12,7 @@ ResolvedFunction {
             value: None,
             ty: Some(
                 Type {
-                    name: "*TestStruct0",
+                    name: "&TestStruct0",
                 },
             ),
         },

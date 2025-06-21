@@ -6,8 +6,8 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    FloatDef, IntDef, OptionDef, PrimitiveDef, StdDef, StrSliceDef, StringDef, StructDef,
-    StructField, TypeDef, TypeRef, UnitDef, UnsignedIntDef,
+    OptionDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, StringDef, StructDef, StructField,
+    TypeDef, TypeRef,
 };
 
 use anyhow::Context;
@@ -33,7 +33,7 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 /// Resolve Vec type layout from DWARF
 fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     // Vec has a similar layout to &[T] - pointer + length + capacity
-    let Some(size) = entry
+    let Some(_size) = entry
         .get_attr(db, gimli::DW_AT_byte_size)
         .and_then(|attr| attr.udata_value())
     else {
@@ -311,12 +311,59 @@ fn resolve_as_primitive_type<'db>(
 
         // these types need to be resolved further
         PrimitiveDef::StrSlice(_) => resolve_str_type(db, entry).map(Some),
-        PrimitiveDef::Array(array_def) => todo!(),
-        PrimitiveDef::Function(function_def) => todo!(),
-        PrimitiveDef::Pointer(pointer_def) => todo!(),
-        PrimitiveDef::Reference(reference_def) => todo!(),
-        PrimitiveDef::Slice(slice_def) => todo!(),
-        PrimitiveDef::Tuple(tuple_def) => todo!(),
+        PrimitiveDef::Array(_array_def) => todo!(
+            "array def at:\n\n{}",
+            entry.format_with_location(db, entry.print(db))
+        ),
+        PrimitiveDef::Function(_function_def) => {
+            todo!(
+                "function def at:\n\n{}",
+                entry.format_with_location(db, entry.print(db))
+            )
+        }
+        PrimitiveDef::Pointer(_pointer_def) => {
+            todo!(
+                "pointer def at:\n\n{}",
+                entry.format_with_location(db, entry.print(db))
+            )
+            // let pointed_type = entry.get_type_entry(db).with_context(|| {
+            //     entry.format_with_location(
+            //         db,
+            //         format!(
+            //             "reference type missing type entry, expected: {}",
+            //             pointer_def.pointed_type.display_name()
+            //         ),
+            //     )
+            // })?;
+            // let inner = resolve_type(db, pointed_type)?;
+            // Ok(Some(TypeDef::Primitive(PrimitiveDef::Reference(
+            //     ReferenceDef {
+            //         mutable: pointer_def.mutable,
+            //         pointed_type: Arc::new(inner),
+            //     },
+            // ))))
+        }
+        PrimitiveDef::Reference(reference_def) => {
+            let inner = resolve_type(db, entry)?;
+            Ok(Some(TypeDef::Primitive(PrimitiveDef::Reference(
+                ReferenceDef {
+                    mutable: reference_def.mutable,
+                    pointed_type: Arc::new(inner),
+                },
+            ))))
+        }
+        PrimitiveDef::Slice(_slice_def) => {
+            todo!(
+                "slice def at:\n\n{}",
+                entry.format_with_location(db, entry.print(db))
+            )
+        }
+        PrimitiveDef::Tuple(_tuple_def) => {
+            todo!(
+                "tuple def at:\n\n{}",
+                entry.format_with_location(db, entry.print(db))
+            )
+        }
     }
 }
 

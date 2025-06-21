@@ -34,6 +34,5 @@ pub use resolution::{
     address_to_location,
     location_to_address,
     resolve_function_variables,
-    resolve_type,
     resolve_type_offset,
 };

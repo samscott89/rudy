@@ -630,10 +630,93 @@ impl Path {
     }
 }
 
-pub fn parse_path(s: &str) -> Result<Path> {
-    let mut iter = s.to_token_iter();
-    let path = Cons::<Path, EndOfStream>::parse(&mut iter)?;
-    Ok(path.first)
+pub type ParsedSymbol = (Vec<String>, String, Option<String>);
+
+/// A simpler parsing approach for symbols
+///
+/// All we truly care about is splitting it into:
+///
+/// - the module path prefix
+/// - the type name
+/// - the hash (if present)
+///
+/// e.g. `core::num::nonzero::NonZero<u8>::ilog2::hc1106854ed63a858`
+/// would be parsed into:
+/// - `["core", "num", "nonzero", "NonZero<u8>"]`
+/// - `ilog2`
+/// - `Some("hc1106854ed63a858")`
+///
+/// We can do that without incurring the parsing overhead of the full
+/// `Path` and `Type` parsers, which are more complex and handle
+/// more cases than we need here.
+pub fn parse_symbol(s: &str) -> anyhow::Result<ParsedSymbol> {
+    // First, we need to split the string by `::` while respecting angle brackets
+    let mut segments = Vec::with_capacity(4);
+    let mut current_segment = String::with_capacity(64);
+    let mut angle_depth = 0;
+    let mut chars = s.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '<' => {
+                angle_depth += 1;
+                current_segment.push(ch);
+            }
+            '>' => {
+                angle_depth -= 1;
+                current_segment.push(ch);
+            }
+            ':' if angle_depth == 0 && chars.peek() == Some(&':') => {
+                // We found `::` at the top level
+                chars.next(); // consume the second ':'
+                if !current_segment.is_empty() {
+                    segments.push(current_segment.trim().to_string());
+                    current_segment.clear();
+                }
+            }
+            '\n' | '\r' | '\t' | ' ' => {
+                // Ignore consecutive whitespace characters
+                // and replace with a single space character
+                if !current_segment.is_empty() {
+                    if !current_segment.ends_with(' ') {
+                        current_segment.push(' ');
+                    }
+                }
+            }
+            _ => {
+                current_segment.push(ch);
+            }
+        }
+    }
+
+    // Don't forget the last segment
+    if !current_segment.is_empty() {
+        segments.push(current_segment.trim().to_string());
+    }
+
+    if segments.is_empty() {
+        anyhow::bail!("Empty symbol path");
+    }
+
+    // Now we need to identify the hash, function name, and module path
+    let hash = if let Some(last) = segments.last() {
+        if last.starts_with('h') && last.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
+            segments.pop()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let Some(function_name) = segments.pop() else {
+        anyhow::bail!("No function name found");
+    };
+
+    segments.shrink_to_fit();
+    let module_path = segments;
+
+    Ok((module_path, function_name, hash))
 }
 
 pub fn parse_type(s: &str) -> Result<Type> {
@@ -657,20 +740,16 @@ mod test {
     use super::*;
 
     #[track_caller]
-    fn parse_path(s: &str) -> Path {
-        match super::parse_path(s) {
-            Ok(p) => p,
+    fn parse_symbol(s: &str) -> ParsedSymbol {
+        match super::parse_symbol(s) {
+            Ok(s) => s,
             Err(e) => {
                 panic!(
-                    "Failed to parse path `{s}`: {e}\nTokens:\n{}",
+                    "Failed to parse symbol `{s}`: {e}\nTokens:\n{}",
                     s.to_token_iter().map(|t| format!("{t:?}")).join("\n")
                 );
             }
         }
-    }
-    #[track_caller]
-    fn parse_path_err(s: &str) {
-        let _ = super::parse_path(s).unwrap_err();
     }
 
     #[track_caller]
@@ -706,21 +785,21 @@ mod test {
     }
 
     #[test]
-    fn test_path_parsing() {
-        parse_path("u8");
+    fn test_symbol_parsing() {
+        parse_symbol("u8");
         let mut iter = "<impl foo as bar>".to_token_iter();
         AngleTokenTree::parse(&mut iter).unwrap();
         // let mut iter = "NonZero<u8>".to_token_iter();
         // Cons::<Ident, BracketGroupContaining<Path>>::parse(&mut iter).unwrap();
-        parse_path("NonZero");
-        parse_path("NonZero<u8>");
-        parse_path("core::num::nonzero::NonZero");
-        parse_path("core::num::nonzero::NonZero<u8>");
-        parse_path("core::num::nonzero::NonZero<u8>::ilog2::hc1106854ed63a858");
-        parse_path(
+        parse_symbol("NonZero");
+        parse_symbol("NonZero<u8>");
+        parse_symbol("core::num::nonzero::NonZero");
+        parse_symbol("core::num::nonzero::NonZero<u8>");
+        parse_symbol("core::num::nonzero::NonZero<u8>::ilog2::hc1106854ed63a858");
+        parse_symbol(
             "drop_in_place<std::backtrace_rs::symbolize::gimli::parse_running_mmaps::MapsEntry>",
         );
-        parse_path(
+        parse_symbol(
             "alloc::ffi::c_str::<
                 impl
                 core::convert::From<
@@ -734,7 +813,7 @@ mod test {
         );
 
         assert_eq!(
-            parse_path(
+            parse_symbol(
                 "alloc::ffi::c_str::<
                     impl
                     core::convert::From<
@@ -746,24 +825,23 @@ mod test {
                     >
                 >::from::hec874816052de6db"
             )
-            .segments(),
-            vec![
-                "alloc".to_string(),
-                "ffi".to_string(),
-                "c_str".to_string(),
-                "< impl core :: convert :: From < & core :: ffi :: c_str :: CStr > for alloc :: boxed :: Box < core :: ffi :: c_str :: CStr > >".to_string(),
+            ,
+            (
+                vec![
+                    "alloc".to_string(),
+                    "ffi".to_string(),
+                    "c_str".to_string(),
+                    "< impl core::convert::From< &core::ffi::c_str::CStr > for alloc::boxed::Box< core::ffi::c_str::CStr > >".to_string(),
+                ],
                 "from".to_string(),
-                "hec874816052de6db".to_string(),
-            ]
+                Some("hec874816052de6db".to_string())
+            )
         );
-        parse_path("core::ops::function::FnOnce::call_once{{vtable.shim}}::h7689c9dccb951788");
+        parse_symbol("core::ops::function::FnOnce::call_once{{vtable.shim}}::h7689c9dccb951788");
 
-        // unsupported cases
-
-        // libc symbols?
-        parse_path_err("_Unwind_SetIP@GCC_3.0");
-        // whatever this is
-        parse_path_err("__rustc[95feac21a9532783]::__rust_alloc_zeroed");
+        // other cases
+        parse_symbol("_Unwind_SetIP@GCC_3.0");
+        parse_symbol("__rustc[95feac21a9532783]::__rust_alloc_zeroed");
     }
 
     #[test]
@@ -923,5 +1001,82 @@ mod test {
                 )),
             })),
         );
+    }
+
+    #[test]
+    fn test_symbol_parsing_basic() {
+        // Test basic function without generics
+        let (module_path, function_name, hash) = parse_symbol("core::num::ilog2::h12345");
+        assert_eq!(module_path, vec!["core", "num"]);
+        assert_eq!(function_name, "ilog2");
+        assert_eq!(hash, Some("h12345".to_string()));
+
+        // Test function with generics in module path
+        let (module_path, function_name, hash) =
+            parse_symbol("core::num::nonzero::NonZero<u8>::ilog2::hc1106854ed63a858");
+        assert_eq!(module_path, vec!["core", "num", "nonzero", "NonZero<u8>"]);
+        assert_eq!(function_name, "ilog2");
+        assert_eq!(hash, Some("hc1106854ed63a858".to_string()));
+
+        // Test function without hash
+        let (module_path, function_name, hash) =
+            parse_symbol("std::collections::HashMap<String, i32>::insert");
+        assert_eq!(
+            module_path,
+            vec!["std", "collections", "HashMap<String, i32>"]
+        );
+        assert_eq!(function_name, "insert");
+        assert_eq!(hash, None);
+
+        // Test nested generics
+        let (module_path, function_name, hash) =
+            parse_symbol("std::collections::HashMap<String, Vec<i32>>::get");
+        assert_eq!(
+            module_path,
+            vec!["std", "collections", "HashMap<String, Vec<i32>>"]
+        );
+        assert_eq!(function_name, "get");
+        assert_eq!(hash, None);
+
+        // Test single segment (just function name)
+        let (module_path, function_name, hash) = parse_symbol("main");
+        assert_eq!(module_path, Vec::<String>::new());
+        assert_eq!(function_name, "main");
+        assert_eq!(hash, None);
+
+        // Test single segment with hash
+        let (module_path, function_name, hash) = parse_symbol("main::h123abc");
+        assert_eq!(module_path, Vec::<String>::new());
+        assert_eq!(function_name, "main");
+        assert_eq!(hash, Some("h123abc".to_string()));
+    }
+
+    #[test]
+    fn test_symbol_parsing_complex_cases() {
+        // Test from the original parser tests
+        let (module_path, function_name, hash) = parse_symbol(
+            "alloc::ffi::c_str::<impl core::convert::From<&core::ffi::c_str::CStr> for alloc::boxed::Box<core::ffi::c_str::CStr>>::from::hec874816052de6db",
+        );
+
+        assert_eq!(
+            module_path,
+            vec![
+                "alloc",
+                "ffi",
+                "c_str",
+                "<impl core::convert::From<&core::ffi::c_str::CStr> for alloc::boxed::Box<core::ffi::c_str::CStr>>"
+            ]
+        );
+        assert_eq!(function_name, "from");
+        assert_eq!(hash, Some("hec874816052de6db".to_string()));
+    }
+
+    #[test]
+    fn test_symbol_parsing_errors() {
+        // Test empty string
+        assert!(super::parse_symbol("").is_err());
+
+        // Test only hash
+        assert!(super::parse_symbol("h123abc").is_err());
     }
 }

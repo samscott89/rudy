@@ -23,15 +23,6 @@ pub struct Die<'db> {
 
 impl<'db> Die<'db> {
     // GROUP 1: Core Identity (Keep - no dependencies)
-    pub fn as_path_ref(&self, db: &'db dyn Db) -> String {
-        let path = self.file(db).file(db).path(db);
-        let cu_offset = match self.cu_offset(db) {
-            UnitSectionOffset::DebugInfoOffset(debug_info_offset) => debug_info_offset.0,
-            UnitSectionOffset::DebugTypesOffset(debug_types_offset) => debug_types_offset.0,
-        };
-        let die_offset = self.die_offset(db).0;
-        format!("{path}:{cu_offset:#x}:{die_offset:#x}")
-    }
 
     pub fn cu(&self, db: &'db dyn Db) -> CompilationUnitId<'db> {
         CompilationUnitId::new(db, self.file(db), self.cu_offset(db))

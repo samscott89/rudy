@@ -128,6 +128,7 @@ pub struct SymbolName {
     full_path: String,
 }
 
+
 impl SymbolName {
     pub fn parse(path: &str) -> anyhow::Result<Self> {
         fn known_bad_case(path: &str) -> bool {
@@ -145,36 +146,19 @@ impl SymbolName {
                 || path.ends_with(".0$tlv$init")
         }
 
-        let full_path = parser::parse_path(path).map_err(|e| {
+        let (module_path, lookup_name, hash) = parser::parse_symbol(path).map_err(|e| {
             // known bad cases we don't care about
             if !known_bad_case(path) {
                 tracing::error!("Failed to parse symbol path `{path}`: {e}");
             }
             anyhow::anyhow!("Failed to parse symbol path `{path}`")
         })?;
-        let mut segments = full_path.segments();
-        let last = segments
-            .pop()
-            .context("No segments in demangled path")?
-            .to_string();
-
-        let hash = if last.starts_with('h') && last.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
-            // This is a hash, we don't want it as the lookup name
-            last
-        } else {
-            "".to_string()
-        };
-
-        let lookup_name = segments
-            .pop()
-            .context("No name in demangled path")?
-            .to_string();
 
         Ok(SymbolName {
             full_path: path.to_string(),
             lookup_name,
-            hash,
-            module_path: segments,
+            hash: hash.unwrap_or_default(),
+            module_path,
         })
     }
 }
@@ -233,3 +217,4 @@ fn demangle_symbol(symbol: Symbol) -> anyhow::Result<SymbolName> {
         .map_err(|_| anyhow::anyhow!("could not demangle symbol as Rust symbol"))?;
     SymbolName::parse(&demangled.to_string()).context("Failed to parse demangled symbol")
 }
+

@@ -35,14 +35,17 @@ unsynn = { version = "0.1.1" }
 [[bin]]
 name = "bench_comparison"
 path = "bin/bench_comparison.rs"
+test = false
 
 [[bin]]
 name = "bench_operations"
 path = "bin/bench_operations.rs"
+test = false
 
 [[bin]]
 name = "generate_test_binaries"
 path = "bin/generate_test_binaries.rs"
+test = false
 
 [dev-dependencies]
 insta = { version = "1.42.2", features = ["filters"] }
