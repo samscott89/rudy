@@ -3,13 +3,14 @@ use std::fmt;
 use itertools::Itertools;
 use unsynn::*;
 
-use crate::typedef::TypeDef;
+use crate::typedef::{FunctionDef, TypeDef, UnitDef};
 
 // Define some types
 unsynn! {
     keyword As = "as";
     keyword Const = "const";
     keyword Dyn = "dyn";
+    keyword FnKw = "fn";
     keyword For = "for";
     keyword Impl = "impl";
     keyword Mut = "mut";
@@ -103,14 +104,37 @@ unsynn! {
     }
 
     #[derive(Clone)]
-    pub struct Tuple {
-        inner: ParenthesisGroupContaining<DelimitedVec<Type, PunctAny<','>>>,
+    pub enum Tuple {
+        Arity0(ParenthesisGroupContaining<Nothing>),
+        Arity1(ParenthesisGroupContaining<Cons<Box<Type>, PunctAny<','>>>),
+        ArityN(
+            ParenthesisGroupContaining<
+                Cons<
+                    AtLeast<1, Cons<Box<Type>, PunctAny<','>>>,
+                    Cons<Box<Type>, Optional<PunctAny<','>>>
+                >
+            >,
+        )
+    }
+
+    #[derive(Clone)]
+    struct FnResult {
+        arrow: Cons<PunctJoint<'-'>, PunctAny<'>'>>,
+        ret: Type,
+    }
+
+    #[derive(Clone)]
+    pub struct FnType {
+        fn_kw: FnKw,
+        args: ParenthesisGroupContaining<DelimitedVec<Type, PunctAny<','>>>,
+        ret: Optional<FnResult>,
     }
 
     #[derive(Clone)]
     pub enum Type {
         Ref(RefType),
         Array(Array),
+        Function(FnType),
         DynTrait(DynTrait),
         Tuple(Tuple),
         Ptr(PtrType),
@@ -132,6 +156,38 @@ impl Array {
 
     pub fn size(&self) -> Option<&Type> {
         self.inner.content.size.0.first().map(|c| &c.value.second)
+    }
+}
+
+impl Tuple {
+    pub fn inner(&self) -> Vec<Type> {
+        match self {
+            Tuple::Arity0(_) => vec![],
+            Tuple::Arity1(inner) => vec![*inner.content.first.clone()],
+            Tuple::ArityN(inner) => inner
+                .content
+                .first
+                .0
+                .iter()
+                .map(|c| *c.value.clone().first.clone())
+                .chain(std::iter::once(*inner.content.second.first.clone()))
+                .collect(),
+        }
+    }
+}
+
+impl FnType {
+    pub fn args(&self) -> Vec<Type> {
+        self.args
+            .content
+            .0
+            .iter()
+            .map(|t| t.value.clone())
+            .collect()
+    }
+
+    pub fn ret(&self) -> Option<&Type> {
+        self.ret.0.first().map(|c| &c.value.ret)
     }
 }
 
@@ -186,19 +242,23 @@ impl Type {
                 }))
             }
             Type::Tuple(tuple) => {
+                tracing::info!("Converting tuple type: {:?}", tuple);
                 let elements: Vec<Arc<TypeDef>> = tuple
-                    .inner
-                    .content
-                    .0
+                    .inner()
                     .iter()
-                    .map(|t| Arc::new(t.value.as_typedef()))
+                    .map(|t| Arc::new(t.as_typedef()))
                     .collect();
 
-                TypeDef::Primitive(PrimitiveDef::Tuple(TupleDef {
-                    element_types: elements,
-                    alignment: 0, // Would need to calculate from DWARF
-                    size: 0,      // Would need to calculate from DWARF
-                }))
+                // 0-arity tuple is a unit
+                if elements.is_empty() {
+                    TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))
+                } else {
+                    TypeDef::Primitive(PrimitiveDef::Tuple(TupleDef {
+                        element_types: elements,
+                        alignment: 0, // Would need to calculate from DWARF
+                        size: 0,      // Would need to calculate from DWARF
+                    }))
+                }
             }
             Type::DynTrait(_dyn_trait) => {
                 // For trait objects, we'll use Other for now
@@ -206,6 +266,14 @@ impl Type {
                     name: self.to_string(),
                 }
             }
+            Type::Function(fn_type) => TypeDef::Primitive(PrimitiveDef::Function(FunctionDef {
+                return_type: fn_type.ret().map(|r| Arc::new(r.as_typedef())),
+                arg_types: fn_type
+                    .args()
+                    .iter()
+                    .map(|a| Arc::new(a.as_typedef()))
+                    .collect(),
+            })),
         }
     }
 }
@@ -276,6 +344,8 @@ impl Path {
         // Check if this is a standard library type by examining the path
         let is_std = segments[0] == "std" || segments[0] == "core" || segments[0] == "alloc";
 
+        tracing::debug!("Parser segments: {:?}, is_std: {}", segments, is_std);
+
         if is_std {
             // Parse the last segment for generic types
             // (we're guaranteed to have at least one segment here)
@@ -295,8 +365,11 @@ impl Path {
                         None => vec![],
                     };
 
+                    tracing::debug!("Checking std type: '{}' against known types", type_name);
+
                     match type_name.as_str() {
                         "String" => {
+                            tracing::debug!("Matched String type!");
                             return TypeDef::Std(StdDef::String(StringDef));
                         }
                         "Vec" => {
@@ -436,6 +509,25 @@ impl fmt::Display for Path {
     }
 }
 
+impl fmt::Display for FnType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "fn")?;
+        if !self.args.content.0.is_empty() {
+            write!(
+                f,
+                "({})",
+                self.args.content.0.iter().map(|t| &t.value).join(", ")
+            )?;
+        } else {
+            write!(f, "()")?;
+        }
+        if let Some(ret) = &self.ret.0.first() {
+            write!(f, " -> {}", ret.value.ret)?;
+        }
+        Ok(())
+    }
+}
+
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -448,13 +540,17 @@ impl fmt::Display for Type {
             }
             Type::Array(a) => write!(f, "{a}"),
             Type::DynTrait(d) => write!(f, "{d}"),
-            Type::Tuple(t) => write!(
-                f,
-                "({})",
-                t.inner.content.0.iter().map(|t| &t.value).join(", ")
-            ),
+            Type::Tuple(t) => {
+                let elements = t.inner();
+                if elements.len() == 1 {
+                    write!(f, "({},)", elements[0])
+                } else {
+                    write!(f, "({})", elements.iter().map(|e| e.to_string()).join(", "))
+                }
+            }
             Type::Ptr(p) => write!(f, "{}{}", p.pointer_type.tokens_to_string(), p.inner),
-            Type::Path(p) => write!(f, "{}", p),
+            Type::Path(p) => write!(f, "{p}"),
+            Type::Function(fn_type) => write!(f, "{fn_type}"),
         }
     }
 }
@@ -513,8 +609,8 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use crate::typedef::{
-        IntDef, MapDef, MapVariant, OptionDef, ReferenceDef, SmartPtrDef, SmartPtrVariant,
-        StringDef, TypeDef, UnsignedIntDef, VecDef,
+        IntDef, MapDef, MapVariant, OptionDef, PrimitiveDef, ReferenceDef, ResultDef, SmartPtrDef,
+        SmartPtrVariant, StdDef, StringDef, TupleDef, TypeDef, UnitDef, UnsignedIntDef, VecDef,
     };
 
     use super::*;
@@ -656,10 +752,53 @@ mod test {
         assert_eq!(ty, expected.into(), "Failed to parse type `{s}`");
     }
 
+    // Helper functions for common patterns
+    impl UnsignedIntDef {
+        pub fn u8() -> Self {
+            Self { size: 1 }
+        }
+        pub fn u32() -> Self {
+            Self { size: 4 }
+        }
+        pub fn u64() -> Self {
+            Self { size: 8 }
+        }
+    }
+
+    impl IntDef {
+        pub fn i32() -> Self {
+            Self { size: 4 }
+        }
+    }
+
     #[test]
     fn test_type_inference() {
+        let _ = tracing_subscriber::fmt()
+            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+            .try_init();
+
         infer("u8", UnsignedIntDef::u8());
         infer("u32", UnsignedIntDef::u32());
+        infer("()", PrimitiveDef::from(UnitDef));
+        infer(
+            "(u8,)",
+            PrimitiveDef::Tuple(TupleDef {
+                element_types: vec![Arc::new(UnsignedIntDef::u8().into())],
+                alignment: 0, // Would need to calculate from DWARF
+                size: 0,      // Would need to calculate from DWARF
+            }),
+        );
+        infer(
+            "(u8,u64)",
+            PrimitiveDef::Tuple(TupleDef {
+                element_types: vec![
+                    Arc::new(UnsignedIntDef::u8().into()),
+                    Arc::new(UnsignedIntDef::u64().into()),
+                ],
+                alignment: 0, // Would need to calculate from DWARF
+                size: 0,      // Would need to calculate from DWARF
+            }),
+        );
         infer("&u8", ReferenceDef::new_immutable(UnsignedIntDef::u8()));
         infer("&mut u8", ReferenceDef::new_mutable(UnsignedIntDef::u8()));
         infer(
@@ -701,6 +840,30 @@ mod test {
             TypeDef::Other {
                 name: "core::num::nonzero::NonZero<u8>".to_string(),
             },
+        );
+
+        infer(
+            "fn(&u64, &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error>",
+            TypeDef::Primitive(PrimitiveDef::Function(FunctionDef {
+                arg_types: vec![
+                    Arc::new(ReferenceDef::new_immutable(UnsignedIntDef::u64()).into()),
+                    Arc::new(
+                        ReferenceDef::new_mutable(TypeDef::Other {
+                            name: "core::fmt::Formatter".to_string(),
+                        })
+                        .into(),
+                    ),
+                ],
+                return_type: Some(Arc::new(
+                    StdDef::from(ResultDef {
+                        ok_type: Arc::new(PrimitiveDef::from(UnitDef).into()),
+                        err_type: Arc::new(TypeDef::Other {
+                            name: "core::fmt::Error".to_string(),
+                        }),
+                    })
+                    .into(),
+                )),
+            })),
         );
     }
 }

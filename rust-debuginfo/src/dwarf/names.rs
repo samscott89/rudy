@@ -58,20 +58,40 @@ impl TypeName {
         fn known_bad_case(path: &str) -> bool {
             path.contains("{closure_env#")
         }
-        let parsed_type = parser::parse_type(name).map_err(|e| {
-            if !known_bad_case(name) {
-                tracing::error!("Failed to parse type name `{name}`: {e}");
+
+        // If we have a module path, prepend it to the name for parsing
+        // This allows the parser to correctly identify std types like "String" as "alloc::string::String"
+        let full_name = if module_path.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}::{}", module_path.join("::"), name)
+        };
+
+        tracing::debug!(
+            "TypeName::parse - module_path: {:?}, name: {}, full_name: {}",
+            module_path,
+            name,
+            full_name
+        );
+
+        let parsed_type = parser::parse_type(&full_name).map_err(|e| {
+            if !known_bad_case(&full_name) {
+                tracing::error!("Failed to parse type name `{full_name}`: {e}");
             }
-            anyhow::anyhow!("Failed to parse type name `{name}`")
+            anyhow::anyhow!("Failed to parse type name `{full_name}`")
         })?;
 
-        let type_name = parsed_type.to_string();
+        // let type_name = parsed_type.to_string();
+        let typedef = parsed_type.as_typedef();
+
+        tracing::debug!("TypeName::parse - name: {name}, typedef: {typedef:?}",);
+
         Ok(TypeName {
             module: ModuleName {
                 segments: module_path.to_vec(),
             },
-            name: type_name,
-            typedef: parsed_type.as_typedef(),
+            name: name.to_string(),
+            typedef,
         })
     }
 }

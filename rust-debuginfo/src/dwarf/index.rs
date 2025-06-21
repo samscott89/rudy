@@ -341,6 +341,69 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
             }
         };
     }
+
+    fn visit_base_type<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        entry: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        // for "base types" (aka primitives), we just need to fetch the name
+        visit_type(walker, entry, unit_ref);
+    }
+
+    fn visit_enum<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        entry: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        // we'll treat enums as structs for now
+        Self::visit_struct(walker, entry, unit_ref);
+    }
+
+    fn visit_pointer_type<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        entry: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        visit_type(walker, entry, unit_ref);
+    }
+}
+
+/// Generically visit a type DIE entry, extracts the type name
+/// and indexes it
+fn visit_type<'a, 'db>(
+    walker: &mut DieWalker<'a, 'db, FileIndexBuilder<'db>>,
+    entry: RawDie<'a>,
+    unit_ref: UnitRef<'a>,
+) {
+    let Some(name) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref).unwrap() else {
+        tracing::warn!("No type name found for entry: {}", {
+            let print_entry = pretty_print_die_entry(&entry, &unit_ref);
+            walker
+                .get_die(entry)
+                .format_with_location(walker.db, print_entry)
+        });
+        return;
+    };
+    let name = match TypeName::parse(&walker.visitor.current_path, &name) {
+        Ok(n) => n,
+        Err(e) => {
+            tracing::debug!(
+                "Failed to parse type name `{name}`: {e} for entry: {}",
+                pretty_print_die_entry(&entry, &unit_ref)
+            );
+            return;
+        }
+    };
+    let die = walker.get_die(entry);
+    walker
+        .visitor
+        .data
+        .types
+        .entry(name.clone())
+        .or_default()
+        .push(TypeIndexEntry::new(walker.db, die));
+    walker.visitor.data.die_to_type.insert(die, name);
 }
 
 /// Build an index of all types + functions (using fully qualified names

@@ -242,8 +242,12 @@ pub trait DieVisitor<'db>: Sized {
             gimli::DW_TAG_enumeration_type => Self::visit_enum(walker, die, unit_ref),
             gimli::DW_TAG_variable => Self::visit_variable(walker, die, unit_ref),
             gimli::DW_TAG_base_type => Self::visit_base_type(walker, die, unit_ref),
+            gimli::DW_TAG_pointer_type => Self::visit_pointer_type(walker, die, unit_ref),
+            gimli::DW_TAG_subroutine_type => {
+                // these don't seem to contain much, so we'll skip
+            }
             _ => {
-                tracing::debug!(
+                tracing::warn!(
                     "Unhandled DIE tag: {} at offset {:#x}",
                     die.tag(),
                     die.offset().0
@@ -299,6 +303,15 @@ pub trait DieVisitor<'db>: Sized {
 
     /// Visit a base type
     fn visit_base_type<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        _entry: RawDie<'a>,
+        _unit_ref: UnitRef<'a>,
+    ) {
+        walker.walk_children();
+    }
+
+    /// Visit a pointer type
+    fn visit_pointer_type<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,

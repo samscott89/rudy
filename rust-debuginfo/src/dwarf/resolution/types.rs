@@ -6,41 +6,13 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    ArrayDef, FloatDef, IntDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, StdDef,
-    StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef, UnitDef, UnsignedIntDef,
-    VecDef,
+    FloatDef, IntDef, OptionDef, PrimitiveDef, StdDef, StrSliceDef, StringDef, StructDef,
+    StructField, TypeDef, TypeRef, UnitDef, UnsignedIntDef,
 };
 
 use anyhow::Context;
 
 type Result<T> = std::result::Result<T, super::Error>;
-
-/// Systematically identify standard library types
-fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef>> {
-    let Some(fq_name) = get_die_typename(db, entry) else {
-        tracing::warn!(
-            "no name found for entry: {} at offset {}",
-            entry.print(db),
-            entry.die_offset(db).0
-        );
-        return Ok(None);
-    };
-
-    tracing::info!("fully-qualified type name: {fq_name}");
-
-    let typedef = &fq_name.typedef;
-
-    match &typedef {
-        TypeDef::Primitive(primitive_def) => todo!(),
-        TypeDef::Std(std_def) => todo!(),
-        TypeDef::Struct(struct_def) => todo!(),
-        TypeDef::Enum(enum_def) => todo!(),
-        TypeDef::Alias(type_ref) => todo!(),
-        TypeDef::Other { name } => todo!(),
-    }
-
-    Ok(None)
-}
 
 /// Resolve the full type for a DIE entry
 pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
@@ -58,39 +30,109 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
     shallow_resolve_type(db, type_entry)
 }
 
-/// Resolve a primitive type by name
-fn resolve_primitive_type<'db>(db: &'db dyn Db, name: &str) -> TypeDef {
-    use PrimitiveDef::*;
-    let primitive_def = match name {
-        "u8" => UnsignedInt(UnsignedIntDef { size: 1 }),
-        "u16" => UnsignedInt(UnsignedIntDef { size: 2 }),
-        "u32" => UnsignedInt(UnsignedIntDef { size: 4 }),
-        "u64" => UnsignedInt(UnsignedIntDef { size: 8 }),
-        "i8" => Int(IntDef { size: 1 }),
-        "i16" => Int(IntDef { size: 2 }),
-        "i32" => Int(IntDef { size: 4 }),
-        "i64" => Int(IntDef { size: 8 }),
-        "usize" => UnsignedInt(UnsignedIntDef {
-            // TODO(Sam): this should be `target_pointer_width` from the target triple
-            size: std::mem::size_of::<usize>(),
-        }),
-        "isize" => Int(IntDef {
-            size: std::mem::size_of::<isize>(),
-        }),
-        "f32" => Float(FloatDef { size: 4 }),
-        "f64" => Float(FloatDef { size: 8 }),
-        "bool" => Bool(()),
-        "char" => Char(()),
-        "()" => Unit(UnitDef),
-
-        _ => {
-            db.report_critical(format!("unsupported type: {name:?}"));
-            return TypeDef::Other {
-                name: name.to_string(),
-            };
-        }
+/// Resolve Vec type layout from DWARF
+fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+    // Vec has a similar layout to &[T] - pointer + length + capacity
+    let Some(size) = entry
+        .get_attr(db, gimli::DW_AT_byte_size)
+        .and_then(|attr| attr.udata_value())
+    else {
+        return Err(entry.format_with_location(db, "Vec size not found").into());
     };
-    TypeDef::Primitive(primitive_def)
+
+    // For now, we'll use the parsed type information and just validate the layout
+    // In a full implementation, we'd extract the exact field offsets
+    let Some(typename) = get_die_typename(db, entry) else {
+        return Err(entry
+            .format_with_location(db, "Vec typename not found")
+            .into());
+    };
+
+    match &typename.typedef {
+        TypeDef::Std(StdDef::Vec(vec_def)) => Ok(TypeDef::Std(StdDef::Vec(vec_def.clone()))),
+        _ => Err(entry
+            .format_with_location(db, "Expected Vec type in typename")
+            .into()),
+    }
+}
+
+/// Resolve String type layout from DWARF
+fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+    // String has the same layout as Vec<u8>
+    let Some(_size) = entry
+        .get_attr(db, gimli::DW_AT_byte_size)
+        .and_then(|attr| attr.udata_value())
+    else {
+        return Err(entry
+            .format_with_location(db, "String size not found")
+            .into());
+    };
+
+    Ok(TypeDef::Std(StdDef::String(StringDef)))
+}
+
+/// Resolve Map type layout from DWARF
+fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+    let Some(size) = entry
+        .get_attr(db, gimli::DW_AT_byte_size)
+        .and_then(|attr| attr.udata_value())
+    else {
+        return Err(entry.format_with_location(db, "Map size not found").into());
+    };
+
+    let Some(typename) = get_die_typename(db, entry) else {
+        return Err(entry
+            .format_with_location(db, "Map typename not found")
+            .into());
+    };
+
+    match &typename.typedef {
+        TypeDef::Std(StdDef::Map(map_def)) => {
+            let mut resolved_map = map_def.clone();
+            resolved_map.size = size as usize;
+            Ok(TypeDef::Std(StdDef::Map(resolved_map)))
+        }
+        _ => Err(entry
+            .format_with_location(db, "Expected Map type in typename")
+            .into()),
+    }
+}
+
+/// Resolve Result type layout from DWARF
+fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+    // Result is an enum type with Ok and Err variants
+    let Some(typename) = get_die_typename(db, entry) else {
+        return Err(entry
+            .format_with_location(db, "Result typename not found")
+            .into());
+    };
+
+    match &typename.typedef {
+        TypeDef::Std(StdDef::Result(result_def)) => {
+            Ok(TypeDef::Std(StdDef::Result(result_def.clone())))
+        }
+        _ => Err(entry
+            .format_with_location(db, "Expected Result type in typename")
+            .into()),
+    }
+}
+
+/// Resolve smart pointer type layout from DWARF
+fn resolve_smart_ptr_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+    let Some(typename) = get_die_typename(db, entry) else {
+        return Err(entry
+            .format_with_location(db, "SmartPtr typename not found")
+            .into());
+    };
+
+    match &typename.typedef {
+        TypeDef::Std(StdDef::SmartPtr(smart_ptr_def)) => {
+            Ok(TypeDef::Std(StdDef::SmartPtr(smart_ptr_def.clone())))
+        }
+        _ => Err(entry
+            .format_with_location(db, "Expected SmartPtr type in typename")
+            .into()),
+    }
 }
 
 /// Resolve Option type structure
@@ -251,104 +293,106 @@ fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     })))
 }
 
+fn resolve_as_primitive_type<'db>(
+    db: &'db dyn Db,
+    entry: Die<'db>,
+    primitive_def: &PrimitiveDef,
+) -> Result<Option<TypeDef>> {
+    match primitive_def {
+        // these "scalar" types are already fully resolved
+        PrimitiveDef::Int(_)
+        | PrimitiveDef::Bool(_)
+        | PrimitiveDef::Char(_)
+        | PrimitiveDef::Float(_)
+        | PrimitiveDef::Str(_)
+        | PrimitiveDef::UnsignedInt(_)
+        | PrimitiveDef::Unit(_) => Ok(Some(TypeDef::Primitive(primitive_def.clone()))),
+
+        // these types need to be resolved further
+        PrimitiveDef::StrSlice(_) => resolve_str_type(db, entry).map(Some),
+        PrimitiveDef::Array(array_def) => todo!(),
+        PrimitiveDef::Function(function_def) => todo!(),
+        PrimitiveDef::Pointer(pointer_def) => todo!(),
+        PrimitiveDef::Reference(reference_def) => todo!(),
+        PrimitiveDef::Slice(slice_def) => todo!(),
+        PrimitiveDef::Tuple(tuple_def) => todo!(),
+    }
+}
+
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
 /// support "builtin" types -- these are types that we manually resolve rather
 /// than relying on the DWARF info to do so.
 fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<TypeDef>> {
-    Ok(match entry.tag(db) {
-        gimli::DW_TAG_base_type => {
-            // primitive type
-            let Some(name) = entry.name(db) else {
-                return Err(entry.format_with_location(db, "type name not found").into());
-            };
-            let ty = resolve_primitive_type(db, &name);
-            Some(ty)
-        }
-        gimli::DW_TAG_pointer_type => {
-            let pointed_ty = resolve_type_shallow(db, entry)?;
-            Some(TypeDef::Primitive(PrimitiveDef::Pointer(PointerDef {
-                mutable: false, // TODO: handle mutability
-                pointed_type: Arc::new(pointed_ty),
-            })))
-        }
-        gimli::DW_TAG_structure_type => {
-            // Try to identify standard library types systematically
-            if let Some(std_type) = identify_std_type(db, entry)? {
-                Some(std_type)
-            } else {
-                // Not a recognized standard type, return None to handle as regular struct
-                match entry.name(db) {
-                    Some(n) => {
-                        tracing::trace!(
-                            "not handled as a builtin: {n} {}",
-                            entry.format_with_location(db, "")
-                        );
-                        None
-                    }
-                    _ => {
-                        tracing::trace!(
-                            "{}",
-                            entry.format_with_location(db, "no name found for struct")
-                        );
-                        None
-                    }
+    // when detecting builtin types, we look up the typename, which contains
+    // our best effort at parsing the type definition based on the name
+    // e.g. we detect `alloc::vec::Vec<u8>` as `VecDef` with
+    // the primitive `u8` as the element type.
+
+    // From there, we need to full resolve the type the DIE entry
+    // (e.g. finding where the pointer + length for the Vec are stored)
+    let Some(typename) = get_die_typename(db, entry) else {
+        tracing::warn!(
+            "no name found for entry: {} at offset {}",
+            entry.print(db),
+            entry.die_offset(db).0
+        );
+        return Ok(None);
+    };
+
+    tracing::info!("resolve_as_builtin_type: checking typename: {}", typename);
+    tracing::info!("resolve_as_builtin_type: typedef: {:?}", typename.typedef);
+
+    match &typename.typedef {
+        TypeDef::Primitive(primitive_def) => resolve_as_primitive_type(db, entry, primitive_def),
+        TypeDef::Std(std_def) => {
+            // For std types, we need to do additional resolution based on DWARF
+            // to get layout information, but we can use the parsed generic types
+            match std_def {
+                StdDef::Option(_) => {
+                    // Use the parsed Option type but resolve the actual layout
+                    let option_def = resolve_option_type(db, entry)?;
+                    Ok(Some(TypeDef::Std(StdDef::Option(option_def))))
+                }
+                StdDef::Vec(_) => {
+                    // For Vec, we need to resolve the actual layout from DWARF
+                    resolve_vec_type(db, entry).map(Some)
+                }
+                StdDef::String(_) => {
+                    // String has a known layout similar to Vec
+                    resolve_string_type(db, entry).map(Some)
+                }
+                StdDef::Map(_) => {
+                    // HashMap/BTreeMap need layout resolution
+                    resolve_map_type(db, entry).map(Some)
+                }
+                StdDef::Result(_) => {
+                    // Result types need layout resolution
+                    resolve_result_type(db, entry).map(Some)
+                }
+                StdDef::SmartPtr(_) => {
+                    // Smart pointers like Box, Rc, Arc need layout resolution
+                    resolve_smart_ptr_type(db, entry).map(Some)
                 }
             }
         }
-        gimli::DW_TAG_array_type => {
-            // Typical array type entry:
-            // 0x000001c4:   DW_TAG_array_type
-            //                 DW_AT_type      (0x00000063 "simple_test::TestStruct")
-
-            // 0x000001c9:     DW_TAG_subrange_type
-            //                  DW_AT_type    (0x000001d1 "__ARRAY_SIZE_TYPE__")
-            //                  DW_AT_lower_bound     (0)
-            //                  DW_AT_count   (0x01)
-
-            // 0x000001d0:     NULL
-
-            // 0x000001d1:   DW_TAG_base_type
-            //                  DW_AT_name      ("__ARRAY_SIZE_TYPE__")
-            //                  DW_AT_byte_size (0x08)
-            //                  DW_AT_encoding  (DW_ATE_unsigned)
-            let pointed_ty = resolve_type_shallow(db, entry)?;
-
-            // get the child with the size
-            let children = entry.children(db);
-            let Some(size_child) = children
-                .iter()
-                .find(|child| child.tag(db) == gimli::DW_TAG_subrange_type)
-            else {
-                return Err(entry
-                    .format_with_location(db, "array type does not have a size child")
-                    .into());
-            };
-
-            let count = size_child
-                .get_attr(db, gimli::DW_AT_count)
-                .and_then(|attr| attr.udata_value())
-                .unwrap_or(0);
-
-            let lower_bound = size_child
-                .get_attr(db, gimli::DW_AT_lower_bound)
-                .and_then(|attr| attr.udata_value())
-                .unwrap_or(0);
-
-            debug_assert_eq!(lower_bound, 0);
-
-            Some(TypeDef::Primitive(PrimitiveDef::Array(ArrayDef {
-                element_type: Arc::new(pointed_ty),
-                length: count as usize,
-            })))
+        TypeDef::Struct(_) => {
+            // For custom structs, we don't handle them as builtins
+            // They'll be resolved through the normal struct resolution path
+            Ok(None)
         }
-        t => {
-            tracing::trace!(
-                "not handled as a builtin: {t} {}",
-                entry.format_with_location(db, "")
-            );
-            None
+        TypeDef::Enum(_) => {
+            // For custom enums, we don't handle them as builtins
+            Ok(None)
         }
-    })
+        TypeDef::Alias(_) => {
+            // Aliases should be resolved through normal resolution
+            Ok(None)
+        }
+        TypeDef::Other { name: _ } => {
+            // Unknown types are not builtins
+            Ok(None)
+        }
+    }
 }
 
 /// "Shallow" resolve a type -- if it's a primitive value, then
@@ -542,7 +586,6 @@ mod test {
             ]}, {
                 salsa::attach(&db, || insta::assert_debug_snapshot!(ty));
             });
-            break; // Just check the first parameter for now
         }
 
         // Test resolving variables if we can find any

@@ -57,11 +57,11 @@ impl TypeDef {
                         .map(|arg| arg.display_name())
                         .collect::<Vec<_>>()
                         .join(", ");
-                    format!(
-                        "fn({}) -> {}",
-                        arg_types,
-                        function_def.return_type.display_name()
-                    )
+                    if let Some(return_type) = &function_def.return_type {
+                        format!("fn({}) -> {}", arg_types, return_type.display_name())
+                    } else {
+                        format!("fn({})", arg_types)
+                    }
                 }
                 PrimitiveDef::Int(int_def) => {
                     format!("i{}", int_def.size * 8)
@@ -296,62 +296,6 @@ impl From<()> for PrimitiveDef {
     }
 }
 
-// Helper functions for common patterns
-impl UnsignedIntDef {
-    pub fn u8() -> Self {
-        Self { size: 1 }
-    }
-    pub fn u16() -> Self {
-        Self { size: 2 }
-    }
-    pub fn u32() -> Self {
-        Self { size: 4 }
-    }
-    pub fn u64() -> Self {
-        Self { size: 8 }
-    }
-    pub fn u128() -> Self {
-        Self { size: 16 }
-    }
-    pub fn usize() -> Self {
-        Self {
-            size: std::mem::size_of::<usize>(),
-        }
-    }
-}
-
-impl IntDef {
-    pub fn i8() -> Self {
-        Self { size: 1 }
-    }
-    pub fn i16() -> Self {
-        Self { size: 2 }
-    }
-    pub fn i32() -> Self {
-        Self { size: 4 }
-    }
-    pub fn i64() -> Self {
-        Self { size: 8 }
-    }
-    pub fn i128() -> Self {
-        Self { size: 16 }
-    }
-    pub fn isize() -> Self {
-        Self {
-            size: std::mem::size_of::<isize>(),
-        }
-    }
-}
-
-impl FloatDef {
-    pub fn f32() -> Self {
-        Self { size: 4 }
-    }
-    pub fn f64() -> Self {
-        Self { size: 8 }
-    }
-}
-
 // Chain conversions for common patterns
 impl From<UnsignedIntDef> for TypeDef {
     fn from(uint: UnsignedIntDef) -> Self {
@@ -515,7 +459,7 @@ pub struct FloatDef {
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct FunctionDef {
-    pub return_type: Arc<TypeDef>,
+    pub return_type: Option<Arc<TypeDef>>,
     pub arg_types: Vec<Arc<TypeDef>>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
