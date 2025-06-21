@@ -14,7 +14,8 @@ unsynn! {
     keyword For = "for";
     keyword Impl = "impl";
     keyword Mut = "mut";
-    type Amp = PunctAlone<'&'>;
+    keyword Unsafe = "unsafe";
+    type Amp = PunctAny<'&'>;
 
     /// eats all tokens within two angle brackets
     #[derive(Clone)]
@@ -92,10 +93,19 @@ unsynn! {
         pub inner: Box<Type>,
     }
 
+
+
+    #[derive(Clone)]
+    pub enum ArraySize {
+        Fixed(usize),
+        Dynamic(Type),
+    }
+
+
     #[derive(Clone)]
     struct ArrayInner {
         inner: Box<Type>,
-        size: Optional<Cons<PunctAny<';'>, Type>>,
+        size: Optional<Cons<PunctAny<';'>, ArraySize>>,
     }
 
     #[derive(Clone)]
@@ -106,7 +116,9 @@ unsynn! {
     #[derive(Clone)]
     pub enum Tuple {
         Arity0(ParenthesisGroupContaining<Nothing>),
-        Arity1(ParenthesisGroupContaining<Cons<Box<Type>, PunctAny<','>>>),
+        // NOTE: the `,` here should not actually be optional, but it
+        // seems like rustc outputs these incorrectly
+        Arity1(ParenthesisGroupContaining<Cons<Box<Type>, Optional<PunctAny<','>>>>),
         ArityN(
             ParenthesisGroupContaining<
                 Cons<
@@ -125,6 +137,7 @@ unsynn! {
 
     #[derive(Clone)]
     pub struct FnType {
+        unsafe_kw: Optional<Unsafe>,
         fn_kw: FnKw,
         args: ParenthesisGroupContaining<DelimitedVec<Type, PunctAny<','>>>,
         ret: Optional<FnResult>,
@@ -154,8 +167,24 @@ impl Array {
         &self.inner.content.inner
     }
 
-    pub fn size(&self) -> Option<&Type> {
-        self.inner.content.size.0.first().map(|c| &c.value.second)
+    pub fn concrete_size(&self) -> Option<usize> {
+        self.inner.content.size.0.first().and_then(|c| {
+            match &c.value.second {
+                ArraySize::Fixed(size) => Some(*size),
+                ArraySize::Dynamic(_) => None, // Dynamic size is not concrete
+            }
+        })
+    }
+    pub fn generic_size(&self) -> Option<&Type> {
+        self.inner
+            .content
+            .size
+            .0
+            .first()
+            .and_then(|c| match &c.value.second {
+                ArraySize::Fixed(_) => None,
+                ArraySize::Dynamic(t) => Some(t),
+            })
     }
 }
 
@@ -194,7 +223,10 @@ impl FnType {
 impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}", self.inner())?;
-        if let Some(size) = self.size() {
+        if let Some(size) = self.concrete_size() {
+            write!(f, "; {}", size)?;
+        }
+        if let Some(size) = self.generic_size() {
             write!(f, "; {}", size)?;
         }
         write!(f, "]")?;
@@ -228,7 +260,7 @@ impl Type {
             }
             Type::Array(array) => {
                 let inner = array.inner().clone().as_typedef();
-                let length = if let Some(size_type) = array.size() {
+                let length = if let Some(size_type) = array.concrete_size() {
                     // Try to extract numeric literal from the size
                     // For now, we'll default to 0 if we can't parse it
                     size_type.to_string().parse::<usize>().unwrap_or(0)
@@ -737,6 +769,8 @@ mod test {
         parse_type("(usize, core::option::Option<usize>)");
         parse_type("*const [i32]");
         parse_type("&mut dyn core::ops::function::FnMut<(usize), Output=bool>");
+        parse_type("&&i32");
+
         // parse_type("");
     }
 
