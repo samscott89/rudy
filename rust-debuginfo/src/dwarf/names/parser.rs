@@ -148,11 +148,7 @@ impl fmt::Display for Array {
 
 impl Type {
     pub fn as_typedef(&self) -> TypeDef {
-        use crate::typedef::{
-            ArrayDef, DefKind, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
-            ReferenceDef, ResultDef, SmartPtrDef, SmartPtrVariant, StdDef, StringDef, TupleDef,
-            TypeRef, VecDef,
-        };
+        use crate::typedef::{ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, TupleDef};
         use std::sync::Arc;
 
         match self {
@@ -162,21 +158,17 @@ impl Type {
             }
             Type::Ref(ref_type) => {
                 let inner = ref_type.inner.as_typedef();
-                TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::Reference(ReferenceDef {
-                        mutable: ref_type.is_mutable(),
-                        pointed_type: Arc::new(inner),
-                    })),
-                }
+                TypeDef::Primitive(PrimitiveDef::Reference(ReferenceDef {
+                    mutable: ref_type.is_mutable(),
+                    pointed_type: Arc::new(inner),
+                }))
             }
             Type::Ptr(ptr_type) => {
                 let inner = ptr_type.inner.as_typedef();
-                TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::Pointer(PointerDef {
-                        mutable: ptr_type.is_mutable(),
-                        pointed_type: Arc::new(inner),
-                    })),
-                }
+                TypeDef::Primitive(PrimitiveDef::Pointer(PointerDef {
+                    mutable: ptr_type.is_mutable(),
+                    pointed_type: Arc::new(inner),
+                }))
             }
             Type::Array(array) => {
                 let inner = array.inner().clone().as_typedef();
@@ -188,12 +180,10 @@ impl Type {
                     0 // Unknown size
                 };
 
-                TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::Array(ArrayDef {
-                        element_type: Arc::new(inner),
-                        length,
-                    })),
-                }
+                TypeDef::Primitive(PrimitiveDef::Array(ArrayDef {
+                    element_type: Arc::new(inner),
+                    length,
+                }))
             }
             Type::Tuple(tuple) => {
                 let elements: Vec<Arc<TypeDef>> = tuple
@@ -204,20 +194,16 @@ impl Type {
                     .map(|t| Arc::new(t.value.as_typedef()))
                     .collect();
 
-                TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::Tuple(TupleDef {
-                        element_types: elements,
-                        alignment: 0, // Would need to calculate from DWARF
-                        size: 0,      // Would need to calculate from DWARF
-                    })),
-                }
+                TypeDef::Primitive(PrimitiveDef::Tuple(TupleDef {
+                    element_types: elements,
+                    alignment: 0, // Would need to calculate from DWARF
+                    size: 0,      // Would need to calculate from DWARF
+                }))
             }
             Type::DynTrait(_dyn_trait) => {
                 // For trait objects, we'll use Other for now
-                TypeDef {
-                    kind: DefKind::Other {
-                        name: self.to_string(),
-                    },
+                TypeDef::Other {
+                    name: self.to_string(),
                 }
             }
         }
@@ -227,18 +213,16 @@ impl Type {
 impl Path {
     fn as_typedef(&self) -> TypeDef {
         use crate::typedef::{
-            DefKind, FloatDef, IntDef, MapDef, MapVariant, OptionDef, PrimitiveDef, ResultDef,
-            SmartPtrDef, SmartPtrVariant, StdDef, StringDef, UnitDef, UnsignedIntDef, VecDef,
+            FloatDef, IntDef, MapDef, MapVariant, OptionDef, PrimitiveDef, ResultDef, SmartPtrDef,
+            SmartPtrVariant, StdDef, StringDef, UnitDef, UnsignedIntDef, VecDef,
         };
         use std::sync::Arc;
 
         // First, let's extract the segments
         let segments = self.segments();
         if segments.is_empty() {
-            return TypeDef {
-                kind: DefKind::Other {
-                    name: String::new(),
-                },
+            return TypeDef::Other {
+                name: String::new(),
             };
         }
 
@@ -247,73 +231,44 @@ impl Path {
 
         // Check if this is a primitive type
         if segments.len() == 1 {
-            let unsigned_def = |size| TypeDef {
-                kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size })),
-            };
-            let int_def = |size| TypeDef {
-                kind: DefKind::Primitive(PrimitiveDef::Int(IntDef { size })),
-            };
-            let float_def = |size| TypeDef {
-                kind: DefKind::Primitive(PrimitiveDef::Float(FloatDef { size })),
-            };
             match last_segment.as_str() {
                 "u8" => {
-                    return unsigned_def(1);
+                    return UnsignedIntDef { size: 1 }.into();
                 }
                 "u16" => {
-                    return unsigned_def(2);
+                    return UnsignedIntDef { size: 2 }.into();
                 }
                 "u32" => {
-                    return unsigned_def(4);
+                    return UnsignedIntDef { size: 4 }.into();
                 }
                 "u64" => {
-                    return unsigned_def(8);
+                    return UnsignedIntDef { size: 8 }.into();
                 }
                 "u128" => {
-                    return unsigned_def(16);
+                    return UnsignedIntDef { size: 16 }.into();
                 }
                 "usize" => {
-                    return unsigned_def(std::mem::size_of::<usize>());
+                    return UnsignedIntDef {
+                        size: std::mem::size_of::<usize>(),
+                    }
+                    .into();
                 }
-                "i8" => {
-                    return int_def(1);
-                }
-                "i16" => {
-                    return int_def(2);
-                }
-                "i32" => {
-                    return int_def(4);
-                }
-                "i64" => {
-                    return int_def(8);
-                }
-                "i128" => {
-                    return int_def(16);
-                }
+                "i8" => return IntDef { size: 1 }.into(),
+                "i16" => return IntDef { size: 2 }.into(),
+                "i32" => return IntDef { size: 4 }.into(),
+                "i64" => return IntDef { size: 8 }.into(),
+                "i128" => return IntDef { size: 16 }.into(),
                 "isize" => {
-                    return int_def(std::mem::size_of::<isize>());
+                    return IntDef {
+                        size: std::mem::size_of::<isize>(),
+                    }
+                    .into();
                 }
-                "f32" => {
-                    return float_def(4);
-                }
-                "f64" => {
-                    return float_def(8);
-                }
-                "bool" => {
-                    return TypeDef {
-                        kind: DefKind::Primitive(PrimitiveDef::Bool(())),
-                    };
-                }
-                "char" => {
-                    return TypeDef {
-                        kind: DefKind::Primitive(PrimitiveDef::Char(())),
-                    };
-                }
-                "()" => {
-                    return TypeDef {
-                        kind: DefKind::Primitive(PrimitiveDef::Unit(UnitDef)),
-                    };
-                }
+                "f32" => return FloatDef { size: 4 }.into(),
+                "f64" => return FloatDef { size: 8 }.into(),
+                "bool" => return TypeDef::Primitive(PrimitiveDef::Bool(())),
+                "char" => return TypeDef::Primitive(PrimitiveDef::Char(())),
+                "()" => return TypeDef::Primitive(PrimitiveDef::Unit(UnitDef)),
                 _ => {}
             }
         }
@@ -342,39 +297,29 @@ impl Path {
 
                     match type_name.as_str() {
                         "String" => {
-                            return TypeDef {
-                                kind: DefKind::Std(StdDef::String(StringDef)),
-                            };
+                            return TypeDef::Std(StdDef::String(StringDef));
                         }
                         "Vec" => {
                             let inner = generics
                                 .first()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef {
-                                        kind: DefKind::Other {
-                                            name: "Unknown".to_string(),
-                                        },
+                                    Arc::new(TypeDef::Other {
+                                        name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef {
-                                kind: DefKind::Std(StdDef::Vec(VecDef { inner_type: inner })),
-                            };
+                            return TypeDef::Std(StdDef::Vec(VecDef { inner_type: inner }));
                         }
                         "Option" => {
                             let inner = generics
                                 .first()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef {
-                                        kind: DefKind::Other {
-                                            name: "Unknown".to_string(),
-                                        },
+                                    Arc::new(TypeDef::Other {
+                                        name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef {
-                                kind: DefKind::Std(StdDef::Option(OptionDef { inner_type: inner })),
-                            };
+                            return TypeDef::Std(StdDef::Option(OptionDef { inner_type: inner }));
                         }
                         "Result" => {
                             let mut generics_iter = generics.into_iter();
@@ -382,25 +327,19 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef {
-                                        kind: DefKind::Other {
-                                            name: "Unknown".to_string(),
-                                        },
+                                    Arc::new(TypeDef::Other {
+                                        name: "Unknown".to_string(),
                                     })
                                 });
                             let err_type = generics_iter
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef {
-                                        kind: DefKind::Other {
-                                            name: "Unknown".to_string(),
-                                        },
+                                    Arc::new(TypeDef::Other {
+                                        name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef {
-                                kind: DefKind::Std(StdDef::Result(ResultDef { ok_type, err_type })),
-                            };
+                            return TypeDef::Std(StdDef::Result(ResultDef { ok_type, err_type }));
                         }
                         "HashMap" | "BTreeMap" => {
                             let mut generics_iter = generics.into_iter();
@@ -408,20 +347,16 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef {
-                                        kind: DefKind::Other {
-                                            name: "Unknown".to_string(),
-                                        },
+                                    Arc::new(TypeDef::Other {
+                                        name: "Unknown".to_string(),
                                     })
                                 });
                             let value_type = generics_iter
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef {
-                                        kind: DefKind::Other {
-                                            name: "Unknown".to_string(),
-                                        },
+                                    Arc::new(TypeDef::Other {
+                                        name: "Unknown".to_string(),
                                     })
                                 });
                             let variant = match type_name.as_str() {
@@ -429,14 +364,12 @@ impl Path {
                                 "BTreeMap" => MapVariant::BTreeMap,
                                 _ => unreachable!(),
                             };
-                            return TypeDef {
-                                kind: DefKind::Std(StdDef::Map(MapDef {
-                                    key_type,
-                                    value_type,
-                                    variant,
-                                    size: 0, // Would need to calculate from DWARF
-                                })),
-                            };
+                            return TypeDef::Std(StdDef::Map(MapDef {
+                                key_type,
+                                value_type,
+                                variant,
+                                size: 0, // Would need to calculate from DWARF
+                            }));
                         }
                         "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "Mutex" | "RwLock" => {
                             let inner = generics
@@ -444,10 +377,8 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef {
-                                        kind: DefKind::Other {
-                                            name: "Unknown".to_string(),
-                                        },
+                                    Arc::new(TypeDef::Other {
+                                        name: "Unknown".to_string(),
                                     })
                                 });
                             let variant = match type_name.as_str() {
@@ -460,12 +391,10 @@ impl Path {
                                 "RwLock" => SmartPtrVariant::RwLock,
                                 _ => unreachable!(),
                             };
-                            return TypeDef {
-                                kind: DefKind::Std(StdDef::SmartPtr(SmartPtrDef {
-                                    inner_type: inner,
-                                    variant,
-                                })),
-                            };
+                            return TypeDef::Std(StdDef::SmartPtr(SmartPtrDef {
+                                inner_type: inner,
+                                variant,
+                            }));
                         }
                         _ => {}
                     }
@@ -474,10 +403,8 @@ impl Path {
         }
 
         // Default case: treat as a custom type (struct/enum) or alias
-        TypeDef {
-            kind: DefKind::Other {
-                name: self.to_string(),
-            },
+        TypeDef::Other {
+            name: self.to_string(),
         }
     }
 }
@@ -586,8 +513,8 @@ mod test {
     use pretty_assertions::assert_eq;
 
     use crate::typedef::{
-        DefKind, MapDef, OptionDef, PrimitiveDef, SmartPtrDef, SmartPtrVariant, StdDef, StringDef,
-        UnsignedIntDef, VecDef,
+        IntDef, MapDef, MapVariant, OptionDef, ReferenceDef, SmartPtrDef, SmartPtrVariant,
+        StringDef, TypeDef, UnsignedIntDef, VecDef,
     };
 
     use super::*;
@@ -622,6 +549,7 @@ mod test {
         }
     }
 
+    #[allow(unused)]
     #[track_caller]
     fn parse_arbitrary<T>(s: &str) -> T
     where
@@ -722,119 +650,57 @@ mod test {
         assert_eq!(parse_type(s).to_string(), s.to_string());
     }
 
+    #[track_caller]
+    fn infer<T: Into<TypeDef> + fmt::Debug>(s: &str, expected: T) {
+        let ty = parse_type(s).as_typedef();
+        assert_eq!(ty, expected.into(), "Failed to parse type `{s}`");
+    }
+
     #[test]
     fn test_type_inference() {
-        assert_eq!(
-            parse_type("u8").as_typedef().kind,
-            DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
+        infer("u8", UnsignedIntDef::u8());
+        infer("u32", UnsignedIntDef::u32());
+        infer("&u8", ReferenceDef::new_immutable(UnsignedIntDef::u8()));
+        infer("&mut u8", ReferenceDef::new_mutable(UnsignedIntDef::u8()));
+        infer(
+            "dyn core::fmt::Debug",
+            TypeDef::Other {
+                name: "dyn core::fmt::Debug".to_string(),
+            },
         );
-        assert_eq!(
-            parse_type("u32").as_typedef().kind,
-            DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 4 }))
+        infer("alloc::vec::Vec<u8>", VecDef::new(UnsignedIntDef::u8()));
+        infer(
+            "alloc::vec::Vec<alloc::vec::Vec<u8>>",
+            VecDef::new(VecDef::new(UnsignedIntDef::u8())),
         );
-        assert_eq!(
-            parse_type("&u8").as_typedef().kind,
-            DefKind::Primitive(PrimitiveDef::Reference(crate::typedef::ReferenceDef {
-                mutable: false,
-                pointed_type: Arc::new(TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
-                })
-            }))
+        infer(
+            "alloc::vec::Vec<u8, alloc::alloc::Global>",
+            VecDef::new(UnsignedIntDef::u8()),
         );
-        assert_eq!(
-            parse_type("&mut u8").as_typedef().kind,
-            DefKind::Primitive(PrimitiveDef::Reference(crate::typedef::ReferenceDef {
-                mutable: true,
-                pointed_type: Arc::new(TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
-                })
-            }))
+        infer("core::option::Option<i32>", OptionDef::new(IntDef::i32()));
+        infer(
+            "alloc::boxed::Box<i32>",
+            SmartPtrDef {
+                inner_type: Arc::new(IntDef::i32().into()),
+                variant: SmartPtrVariant::Box,
+            },
         );
-        assert_eq!(
-            parse_type("dyn core::fmt::Debug").as_typedef().kind,
-            DefKind::Other {
-                name: "dyn core::fmt::Debug".to_string()
-            }
-        );
-        assert_eq!(
-            parse_type("alloc::vec::Vec<u8>").as_typedef().kind,
-            DefKind::Std(StdDef::Vec(VecDef {
-                inner_type: Arc::new(TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
-                })
-            }))
-        );
-        assert_eq!(
-            parse_type("alloc::vec::Vec<alloc::vec::Vec<u8>>")
-                .as_typedef()
-                .kind,
-            DefKind::Std(StdDef::Vec(VecDef {
-                inner_type: Arc::new(TypeDef {
-                    kind: DefKind::Std(StdDef::Vec(VecDef {
-                        inner_type: Arc::new(TypeDef {
-                            kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef {
-                                size: 1
-                            }))
-                        })
-                    }))
-                })
-            }))
-        );
-        assert_eq!(
-            parse_type("alloc::vec::Vec<u8, alloc::alloc::Global>")
-                .as_typedef()
-                .kind,
-            DefKind::Std(StdDef::Vec(VecDef {
-                inner_type: Arc::new(TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }))
-                })
-            }))
-        );
-        assert_eq!(
-            parse_type("core::option::Option<i32>").as_typedef().kind,
-            DefKind::Std(StdDef::Option(OptionDef {
-                inner_type: Arc::new(TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::Int(crate::typedef::IntDef { size: 4 }))
-                })
-            }))
-        );
-        assert_eq!(
-            parse_type("alloc::boxed::Box<i32>").as_typedef().kind,
-            DefKind::Std(StdDef::SmartPtr(SmartPtrDef {
-                inner_type: Arc::new(TypeDef {
-                    kind: DefKind::Primitive(PrimitiveDef::Int(crate::typedef::IntDef { size: 4 }))
-                }),
-                variant: SmartPtrVariant::Box
-            }))
-        );
-        assert_eq!(
-            parse_type("alloc::String::String").as_typedef().kind,
-            DefKind::Std(StdDef::String(StringDef))
-        );
-        assert_eq!(
-            parse_type(
-                "std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>"
-            )
-            .as_typedef()
-            .kind,
-            DefKind::Std(StdDef::Map(MapDef {
-                key_type: Arc::new(TypeDef {
-                    kind: DefKind::Std(StdDef::String(StringDef))
-                }),
-                value_type: Arc::new(TypeDef {
-                    kind: DefKind::Std(StdDef::String(StringDef))
-                }),
-                variant: crate::typedef::MapVariant::HashMap,
+        infer("alloc::String::String", StringDef);
+        infer(
+            "std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>",
+            MapDef {
+                key_type: Arc::new(StringDef.into()),
+                value_type: Arc::new(StringDef.into()),
+                variant: MapVariant::HashMap,
                 size: 0, // Would need to calculate from DWARF
-            }))
+            },
         );
-        assert_eq!(
-            parse_type("core::num::nonzero::NonZero<u8>")
-                .as_typedef()
-                .kind,
-            DefKind::Other {
-                name: "core::num::nonzero::NonZero<u8>".to_string()
-            }
+
+        infer(
+            "core::num::nonzero::NonZero<u8>",
+            TypeDef::Other {
+                name: "core::num::nonzero::NonZero<u8>".to_string(),
+            },
         );
     }
 }

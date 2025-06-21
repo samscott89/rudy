@@ -1,6 +1,5 @@
 //! Definition of types in the Rust language.
 
-use anyhow::Result;
 use gimli::UnitSectionOffset;
 use std::mem::size_of;
 use std::sync::Arc;
@@ -37,15 +36,10 @@ impl TypeRef {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct TypeDef {
-    pub kind: DefKind,
-}
-
 impl TypeDef {
     pub fn display_name(&self) -> String {
-        match &self.kind {
-            DefKind::Primitive(primitive_def) => match primitive_def {
+        match &self {
+            TypeDef::Primitive(primitive_def) => match primitive_def {
                 PrimitiveDef::Array(array_def) => format!(
                     "[{}; {}]",
                     array_def.element_type.display_name(),
@@ -100,7 +94,7 @@ impl TypeDef {
                     format!("u{}", unsigned_int_def.size * 8)
                 }
             },
-            DefKind::Std(std_def) => match std_def {
+            TypeDef::Std(std_def) => match std_def {
                 StdDef::SmartPtr(smart_ptr_def) => {
                     let inner = smart_ptr_def.inner_type.display_name();
                     match smart_ptr_def.variant {
@@ -130,9 +124,9 @@ impl TypeDef {
                     format!("Vec<{}>", inner_type)
                 }
             },
-            DefKind::Struct(struct_def) => struct_def.name.clone(),
-            DefKind::Enum(enum_def) => enum_def.name.clone(),
-            DefKind::Alias(type_ref) => {
+            TypeDef::Struct(struct_def) => struct_def.name.clone(),
+            TypeDef::Enum(enum_def) => enum_def.name.clone(),
+            TypeDef::Alias(type_ref) => {
                 // For now, just return a placeholder name
                 // In a real implementation, you'd resolve this using the TypeRef
                 format!(
@@ -141,27 +135,280 @@ impl TypeDef {
                     type_ref.die_offset
                 )
             }
-            DefKind::Other { name } => name.to_string(),
+            TypeDef::Other { name } => name.to_string(),
         }
     }
 
     pub fn size(&self) -> Option<usize> {
-        match &self.kind {
-            DefKind::Primitive(primitive_def) => primitive_def.size(),
-            DefKind::Std(std_def) => std_def.size(),
-            DefKind::Struct(struct_def) => Some(struct_def.size),
-            DefKind::Enum(enum_def) => Some(enum_def.size),
-            DefKind::Alias(_type_ref) => {
+        match &self {
+            TypeDef::Primitive(primitive_def) => primitive_def.size(),
+            TypeDef::Std(std_def) => std_def.size(),
+            TypeDef::Struct(struct_def) => Some(struct_def.size),
+            TypeDef::Enum(enum_def) => Some(enum_def.size),
+            TypeDef::Alias(_type_ref) => {
                 // Type resolution would need to happen at a higher level
                 None
             }
-            DefKind::Other { name: _ } => None,
+            TypeDef::Other { name: _ } => None,
         }
     }
 }
 
+// Conversion helpers for cleaner test code
+impl From<PrimitiveDef> for TypeDef {
+    fn from(primitive: PrimitiveDef) -> Self {
+        TypeDef::Primitive(primitive)
+    }
+}
+
+impl From<StdDef> for TypeDef {
+    fn from(std_def: StdDef) -> Self {
+        TypeDef::Std(std_def)
+    }
+}
+
+impl From<StructDef> for TypeDef {
+    fn from(struct_def: StructDef) -> Self {
+        TypeDef::Struct(struct_def)
+    }
+}
+
+impl From<EnumDef> for TypeDef {
+    fn from(enum_def: EnumDef) -> Self {
+        TypeDef::Enum(enum_def)
+    }
+}
+
+impl From<TypeRef> for TypeDef {
+    fn from(type_ref: TypeRef) -> Self {
+        TypeDef::Alias(type_ref)
+    }
+}
+
+// PrimitiveDef conversions
+impl From<ArrayDef> for PrimitiveDef {
+    fn from(array: ArrayDef) -> Self {
+        PrimitiveDef::Array(array)
+    }
+}
+
+impl From<FloatDef> for PrimitiveDef {
+    fn from(float: FloatDef) -> Self {
+        PrimitiveDef::Float(float)
+    }
+}
+
+impl From<FunctionDef> for PrimitiveDef {
+    fn from(function: FunctionDef) -> Self {
+        PrimitiveDef::Function(function)
+    }
+}
+
+impl From<IntDef> for PrimitiveDef {
+    fn from(int: IntDef) -> Self {
+        PrimitiveDef::Int(int)
+    }
+}
+
+impl From<PointerDef> for PrimitiveDef {
+    fn from(pointer: PointerDef) -> Self {
+        PrimitiveDef::Pointer(pointer)
+    }
+}
+
+impl From<ReferenceDef> for PrimitiveDef {
+    fn from(reference: ReferenceDef) -> Self {
+        PrimitiveDef::Reference(reference)
+    }
+}
+
+impl From<SliceDef> for PrimitiveDef {
+    fn from(slice: SliceDef) -> Self {
+        PrimitiveDef::Slice(slice)
+    }
+}
+
+impl From<StrSliceDef> for PrimitiveDef {
+    fn from(str_slice: StrSliceDef) -> Self {
+        PrimitiveDef::StrSlice(str_slice)
+    }
+}
+
+impl From<TupleDef> for PrimitiveDef {
+    fn from(tuple: TupleDef) -> Self {
+        PrimitiveDef::Tuple(tuple)
+    }
+}
+
+impl From<UnitDef> for PrimitiveDef {
+    fn from(unit: UnitDef) -> Self {
+        PrimitiveDef::Unit(unit)
+    }
+}
+
+impl From<UnsignedIntDef> for PrimitiveDef {
+    fn from(uint: UnsignedIntDef) -> Self {
+        PrimitiveDef::UnsignedInt(uint)
+    }
+}
+
+// StdDef conversions
+impl From<SmartPtrDef> for StdDef {
+    fn from(smart_ptr: SmartPtrDef) -> Self {
+        StdDef::SmartPtr(smart_ptr)
+    }
+}
+
+impl From<MapDef> for StdDef {
+    fn from(map: MapDef) -> Self {
+        StdDef::Map(map)
+    }
+}
+
+impl From<OptionDef> for StdDef {
+    fn from(option: OptionDef) -> Self {
+        StdDef::Option(option)
+    }
+}
+
+impl From<ResultDef> for StdDef {
+    fn from(result: ResultDef) -> Self {
+        StdDef::Result(result)
+    }
+}
+
+impl From<StringDef> for StdDef {
+    fn from(string: StringDef) -> Self {
+        StdDef::String(string)
+    }
+}
+
+impl From<VecDef> for StdDef {
+    fn from(vec: VecDef) -> Self {
+        StdDef::Vec(vec)
+    }
+}
+
+// Convenience constructors for primitives with unit values
+impl From<()> for PrimitiveDef {
+    fn from(_: ()) -> Self {
+        PrimitiveDef::Bool(())
+    }
+}
+
+// Helper functions for common patterns
+impl UnsignedIntDef {
+    pub fn u8() -> Self {
+        Self { size: 1 }
+    }
+    pub fn u16() -> Self {
+        Self { size: 2 }
+    }
+    pub fn u32() -> Self {
+        Self { size: 4 }
+    }
+    pub fn u64() -> Self {
+        Self { size: 8 }
+    }
+    pub fn u128() -> Self {
+        Self { size: 16 }
+    }
+    pub fn usize() -> Self {
+        Self {
+            size: std::mem::size_of::<usize>(),
+        }
+    }
+}
+
+impl IntDef {
+    pub fn i8() -> Self {
+        Self { size: 1 }
+    }
+    pub fn i16() -> Self {
+        Self { size: 2 }
+    }
+    pub fn i32() -> Self {
+        Self { size: 4 }
+    }
+    pub fn i64() -> Self {
+        Self { size: 8 }
+    }
+    pub fn i128() -> Self {
+        Self { size: 16 }
+    }
+    pub fn isize() -> Self {
+        Self {
+            size: std::mem::size_of::<isize>(),
+        }
+    }
+}
+
+impl FloatDef {
+    pub fn f32() -> Self {
+        Self { size: 4 }
+    }
+    pub fn f64() -> Self {
+        Self { size: 8 }
+    }
+}
+
+// Chain conversions for common patterns
+impl From<UnsignedIntDef> for TypeDef {
+    fn from(uint: UnsignedIntDef) -> Self {
+        TypeDef::Primitive(PrimitiveDef::UnsignedInt(uint))
+    }
+}
+
+impl From<IntDef> for TypeDef {
+    fn from(int: IntDef) -> Self {
+        TypeDef::Primitive(PrimitiveDef::Int(int))
+    }
+}
+
+impl From<FloatDef> for TypeDef {
+    fn from(float: FloatDef) -> Self {
+        TypeDef::Primitive(PrimitiveDef::Float(float))
+    }
+}
+
+impl From<ReferenceDef> for TypeDef {
+    fn from(reference: ReferenceDef) -> Self {
+        TypeDef::Primitive(PrimitiveDef::Reference(reference))
+    }
+}
+
+impl From<StringDef> for TypeDef {
+    fn from(string: StringDef) -> Self {
+        TypeDef::Std(StdDef::String(string))
+    }
+}
+
+impl From<VecDef> for TypeDef {
+    fn from(vec: VecDef) -> Self {
+        TypeDef::Std(StdDef::Vec(vec))
+    }
+}
+
+impl From<OptionDef> for TypeDef {
+    fn from(option: OptionDef) -> Self {
+        TypeDef::Std(StdDef::Option(option))
+    }
+}
+
+impl From<MapDef> for TypeDef {
+    fn from(map: MapDef) -> Self {
+        TypeDef::Std(StdDef::Map(map))
+    }
+}
+
+impl From<SmartPtrDef> for TypeDef {
+    fn from(smart_ptr: SmartPtrDef) -> Self {
+        TypeDef::Std(StdDef::SmartPtr(smart_ptr))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum DefKind {
+pub enum TypeDef {
     /// Language-specific primitive types from `core::primitive`
     /// (e.g. `i32`, `f64`, etc.)
     ///
@@ -288,6 +535,23 @@ pub struct ReferenceDef {
 
     pub pointed_type: Arc<TypeDef>,
 }
+
+impl ReferenceDef {
+    pub fn new_mutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
+        Self {
+            mutable: true,
+            pointed_type: Arc::new(pointed_type.into()),
+        }
+    }
+
+    pub fn new_immutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
+        Self {
+            mutable: false,
+            pointed_type: Arc::new(pointed_type.into()),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SliceDef {
     pub element_type: Arc<TypeDef>,
@@ -403,6 +667,14 @@ pub struct OptionDef {
     pub inner_type: Arc<TypeDef>,
 }
 
+impl OptionDef {
+    pub fn new<T: Into<TypeDef>>(inner_type: T) -> Self {
+        Self {
+            inner_type: Arc::new(inner_type.into()),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ResultDef {
     pub ok_type: Arc<TypeDef>,
@@ -415,6 +687,14 @@ pub struct StringDef;
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct VecDef {
     pub inner_type: Arc<TypeDef>,
+}
+
+impl VecDef {
+    pub fn new<T: Into<TypeDef>>(inner_type: T) -> Self {
+        Self {
+            inner_type: Arc::new(inner_type.into()),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]

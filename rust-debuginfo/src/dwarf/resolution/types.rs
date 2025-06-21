@@ -6,9 +6,9 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    ArrayDef, DefKind, FloatDef, IntDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
-    StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef, UnitDef,
-    UnsignedIntDef, VecDef,
+    ArrayDef, FloatDef, IntDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, StdDef,
+    StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef, UnitDef, UnsignedIntDef,
+    VecDef,
 };
 
 use anyhow::Context;
@@ -30,13 +30,13 @@ fn identify_std_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<Typ
 
     let typedef = &fq_name.typedef;
 
-    match &typedef.kind {
-        DefKind::Primitive(primitive_def) => todo!(),
-        DefKind::Std(std_def) => todo!(),
-        DefKind::Struct(struct_def) => todo!(),
-        DefKind::Enum(enum_def) => todo!(),
-        DefKind::Alias(type_ref) => todo!(),
-        DefKind::Other { name } => todo!(),
+    match &typedef {
+        TypeDef::Primitive(primitive_def) => todo!(),
+        TypeDef::Std(std_def) => todo!(),
+        TypeDef::Struct(struct_def) => todo!(),
+        TypeDef::Enum(enum_def) => todo!(),
+        TypeDef::Alias(type_ref) => todo!(),
+        TypeDef::Other { name } => todo!(),
     }
 
     Ok(None)
@@ -85,16 +85,12 @@ fn resolve_primitive_type<'db>(db: &'db dyn Db, name: &str) -> TypeDef {
 
         _ => {
             db.report_critical(format!("unsupported type: {name:?}"));
-            return TypeDef {
-                kind: DefKind::Other {
-                    name: name.to_string(),
-                },
+            return TypeDef::Other {
+                name: name.to_string(),
             };
         }
     };
-    TypeDef {
-        kind: DefKind::Primitive(primitive_def),
-    }
+    TypeDef::Primitive(primitive_def)
 }
 
 /// Resolve Option type structure
@@ -248,13 +244,11 @@ fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
             .format_with_location(db, "length offset not found")
             .into());
     };
-    Ok(TypeDef {
-        kind: DefKind::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
-            data_ptr_offset,
-            length_offset,
-            size: size as usize,
-        })),
-    })
+    Ok(TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
+        data_ptr_offset,
+        length_offset,
+        size: size as usize,
+    })))
 }
 
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
@@ -272,12 +266,10 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
         }
         gimli::DW_TAG_pointer_type => {
             let pointed_ty = resolve_type_shallow(db, entry)?;
-            Some(TypeDef {
-                kind: DefKind::Primitive(PrimitiveDef::Pointer(PointerDef {
-                    mutable: false, // TODO: handle mutability
-                    pointed_type: Arc::new(pointed_ty),
-                })),
-            })
+            Some(TypeDef::Primitive(PrimitiveDef::Pointer(PointerDef {
+                mutable: false, // TODO: handle mutability
+                pointed_type: Arc::new(pointed_ty),
+            })))
         }
         gimli::DW_TAG_structure_type => {
             // Try to identify standard library types systematically
@@ -344,12 +336,10 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
 
             debug_assert_eq!(lower_bound, 0);
 
-            Some(TypeDef {
-                kind: DefKind::Primitive(PrimitiveDef::Array(ArrayDef {
-                    element_type: Arc::new(pointed_ty),
-                    length: count as usize,
-                })),
-            })
+            Some(TypeDef::Primitive(PrimitiveDef::Array(ArrayDef {
+                element_type: Arc::new(pointed_ty),
+                length: count as usize,
+            })))
         }
         t => {
             tracing::trace!(
@@ -371,9 +361,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
             tracing::debug!("builtin: {builtin_ty:?}");
             builtin_ty
         } else {
-            TypeDef {
-                kind: DefKind::Alias(TypeRef::from_die(&entry, db)),
-            }
+            TypeDef::Alias(TypeRef::from_die(&entry, db))
         },
     )
 }
@@ -470,14 +458,12 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                         ty: Arc::new(ty),
                     });
                 }
-                TypeDef {
-                    kind: DefKind::Struct(StructDef {
-                        name,
-                        fields,
-                        size: size as usize,
-                        alignment: alignment as usize,
-                    }),
-                }
+                TypeDef::Struct(StructDef {
+                    name,
+                    fields,
+                    size: size as usize,
+                    alignment: alignment as usize,
+                })
             }
         }
         t => {
@@ -505,8 +491,6 @@ mod test {
     use tracing_subscriber::EnvFilter;
 
     use crate::{DebugDb, DebugInfo, dwarf::resolve_function_variables};
-
-    use super::*;
 
     #[test]
     fn test_std_type_detection() {

@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 
 use crate::database::Db;
-use crate::typedef::{ArrayDef, DefKind, PointerDef, PrimitiveDef, StdDef, StrSliceDef, TypeDef};
+use crate::typedef::{ArrayDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef, TypeDef};
 
 /// Trait for resolving data from memory during debugging.
 ///
@@ -125,11 +125,11 @@ pub fn read_from_memory<'db>(
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::Value> {
     tracing::debug!("read_from_memory {address:#x} {}", ty.display_name());
-    match &ty.kind {
-        DefKind::Primitive(primitive_def) => {
+    match &ty {
+        TypeDef::Primitive(primitive_def) => {
             read_primitive_from_memory(db, address, &primitive_def, data_resolver)
         }
-        DefKind::Struct(struct_def) => {
+        TypeDef::Struct(struct_def) => {
             let mut fields = BTreeMap::new();
             for field in &struct_def.fields {
                 let field_name = &field.name;
@@ -143,8 +143,8 @@ pub fn read_from_memory<'db>(
                 fields,
             })
         }
-        DefKind::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
-        DefKind::Alias(entry) => {
+        TypeDef::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
+        TypeDef::Alias(entry) => {
             let die = entry.to_die(db);
             let def = crate::dwarf::resolve_type_offset(db, die)
                 .with_context(|| format!("could not resolve type: {:?}", entry))?;
