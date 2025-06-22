@@ -45,4 +45,3 @@ pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
 pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable};
 pub use typedef::TypeDef;
-

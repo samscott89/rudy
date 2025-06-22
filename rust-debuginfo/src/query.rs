@@ -11,13 +11,15 @@ pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db
     let file = query.file(db);
 
     // find compilation units that cover the provided file
-    let index = index::debug_index(db, binary).data(db);
+    let index = index::debug_index(db, binary);
+    let symbol_index = index.symbol_index(db);
+    let source_to_file = index.source_to_file(db);
 
     let mut closest_match: Option<u64> = None;
     let mut closest_line = u64::MAX;
 
     // find closest match to this line + column within the files
-    for debug_file in index.source_to_file.get(&file)? {
+    for debug_file in source_to_file.get(&file)? {
         // let Some(base_addr) = index.data(db).cu_to_base_addr.get(cu).copied() else {
         //     tracing::debug!("no base address found for {cu:?}");
         //     continue;
@@ -46,7 +48,7 @@ pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db
 
                 for f in matching_functions {
                     let relative_start = f.start;
-                    if let Some(abs_start) = index.base_address.get(&f.name) {
+                    if let Some(abs_start) = symbol_index.get_function(&f.name).map(|s| s.address) {
                         let addr = addr + abs_start - relative_start;
                         tracing::debug!(
                             "found closest match at {addr:#x} for address {addr:#x} in file {debug_file:?}"

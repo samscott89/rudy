@@ -22,7 +22,7 @@ pub use die::Die;
 pub use expressions::resolve_data_location;
 pub use index::{FileIndex, FunctionIndexEntry, debug_file_index};
 pub use loader::{Dwarf, load};
-pub use names::{ModuleName, Symbol, SymbolName, TypeName};
+pub use names::{ModuleName, RawSymbol, SymbolName, TypeName};
 pub use resolution::{
     // Address resolution
     ResolvedLocation,

@@ -46,10 +46,7 @@ use std::fmt::Debug;
 use anyhow::Result;
 use salsa::Accumulator;
 
-use crate::{
-    file::{Binary, DebugFile, File},
-    index::discover_debug_files,
-};
+use crate::file::{Binary, DebugFile, File};
 
 #[salsa::db]
 pub trait Db: salsa::Database {
@@ -181,13 +178,12 @@ impl DebugDatabaseImpl {
         // this file. We can do thy by checking file path, size, mtime, etc.
         let file = File::build(self, binary_file.to_string(), None)?;
         let bin = Binary::new(self, file);
-        let debug_files = discover_debug_files(self, bin)
-            .values()
-            .copied()
-            .collect::<Vec<_>>();
 
-        // warm the index
-        let _ = crate::index::debug_index(self, bin);
+        let index = crate::index::debug_index(self, bin);
+        tracing::debug!("Index built: {index:#?}");
+
+        // get a list of all debug files so that we can track them in case they change
+        let debug_files = index.debug_files(self).values().copied().collect();
 
         Ok((bin, debug_files))
     }

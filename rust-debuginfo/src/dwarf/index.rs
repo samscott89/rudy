@@ -14,7 +14,7 @@ use super::utils::{
 use super::visitor::{DieVisitor, DieWalker, walk_file};
 use crate::address_tree::{AddressTree, FunctionAddressInfo};
 use crate::database::Db;
-use crate::dwarf::Symbol;
+use crate::dwarf::RawSymbol;
 use crate::dwarf::{
     ModuleName, SymbolName, TypeName,
     resolution::{FunctionDeclarationType, get_declaration_type},
@@ -222,7 +222,7 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                 // NOTE: we'll only index this function if we can parse the linkage name
                 // For now we know that only functions with a linkage name are even accessible(?)
                 if let Some(ln) = &linkage_name {
-                    let name = match Symbol::new(ln.as_bytes().to_vec()).demangle() {
+                    let name = match RawSymbol::new(ln.as_bytes().to_vec()).demangle() {
                         Ok(s) => s,
                         Err(e) => {
                             tracing::debug!(

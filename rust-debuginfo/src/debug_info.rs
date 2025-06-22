@@ -153,16 +153,12 @@ impl<'db> DebugInfo<'db> {
             index::find_closest_function::accumulated(self.db, self.binary, function);
         handle_diagnostics(&diagnostics)?;
 
-        let debug_data = index::debug_index(self.db, self.binary).data(self.db);
+        let symbol_index = index::debug_index(self.db, self.binary).symbol_index(self.db);
 
-        let base_address = debug_data
-            .base_address
-            .get(&name)
-            .copied()
-            .with_context(|| {
-                tracing::debug!(?name, "{:#?}", debug_data.base_address);
-                "Failed to get base address for function"
-            })?;
+        let symbol = symbol_index.get_function(&name).cloned().with_context(|| {
+            tracing::debug!(?name, "{:#?}", symbol_index);
+            "Failed to get base address for function"
+        })?;
 
         let (_debug_file, fie) = crate::index::debug_index(self.db, self.binary)
             .get_function(self.db, &name)
@@ -176,7 +172,7 @@ impl<'db> DebugInfo<'db> {
 
         Ok(Some(ResolvedFunction {
             name: name.to_string(),
-            address: base_address,
+            address: symbol.address,
             params: params
                 .params(self.db)
                 .into_iter()
@@ -254,17 +250,17 @@ impl<'db> DebugInfo<'db> {
         line: u64,
         column: Option<u64>,
     ) -> Result<Option<crate::ResolvedAddress>> {
-        let index = crate::index::debug_index(self.db, self.binary).data(self.db);
+        let index = crate::index::debug_index(self.db, self.binary);
 
         let source_file = crate::file::SourceFile::new(self.db, file);
 
-        let file = if index.source_to_file.contains_key(&source_file) {
+        let file = if index.source_to_file(self.db).contains_key(&source_file) {
             // already indexed file, so we can use it directly
             source_file
         } else {
             // otherwise, we need to find the file in the index
             if let Some(source_file) = index
-                .source_to_file
+                .source_to_file(self.db)
                 .keys()
                 .find(|f| f.path(self.db).ends_with(&file))
             {
@@ -356,11 +352,11 @@ impl<'db> DebugInfo<'db> {
             dwarf::resolve_function_variables::accumulated(self.db, function_die);
         handle_diagnostics(&diagnostics)?;
 
-        let base_addr = *crate::index::debug_index(self.db, self.binary)
-            .data(self.db)
-            .base_address
-            .get(&f)
-            .context("Failed to get base address for function")?;
+        let base_addr = crate::index::debug_index(self.db, self.binary)
+            .symbol_index(self.db)
+            .get_function(&f)
+            .context("Failed to get base address for function")?
+            .address;
 
         let params = vars
             .params(self.db)

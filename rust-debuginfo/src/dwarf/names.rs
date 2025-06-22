@@ -106,11 +106,11 @@ impl fmt::Display for TypeName {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Symbol {
+pub struct RawSymbol {
     name_bytes: Vec<u8>,
 }
 
-impl Symbol {
+impl RawSymbol {
     pub fn new(name_bytes: Vec<u8>) -> Self {
         Self { name_bytes }
     }
@@ -127,7 +127,6 @@ pub struct SymbolName {
     module_path: Vec<String>,
     full_path: String,
 }
-
 
 impl SymbolName {
     pub fn parse(path: &str) -> anyhow::Result<Self> {
@@ -203,7 +202,7 @@ impl Ord for SymbolName {
     }
 }
 
-fn demangle_symbol(symbol: Symbol) -> anyhow::Result<SymbolName> {
+fn demangle_symbol(symbol: RawSymbol) -> anyhow::Result<SymbolName> {
     let name_str = std::str::from_utf8(&symbol.name_bytes)
         .context("Failed to convert symbol bytes to string")?;
     let name_str = if name_str.starts_with("__Z") {
@@ -217,4 +216,3 @@ fn demangle_symbol(symbol: Symbol) -> anyhow::Result<SymbolName> {
         .map_err(|_| anyhow::anyhow!("could not demangle symbol as Rust symbol"))?;
     SymbolName::parse(&demangled.to_string()).context("Failed to parse demangled symbol")
 }
-
