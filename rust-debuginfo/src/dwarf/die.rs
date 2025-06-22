@@ -102,6 +102,37 @@ impl<'db> Die<'db> {
     }
 
     // GROUP 3: Attribute Access (Keep - building blocks for other operations)
+
+    pub fn get_member(&self, db: &'db dyn Db, name: &str) -> Option<Die<'db>> {
+        self.children(db)
+            .into_iter()
+            .find(|child| child.name(db).map_or(false, |n| n == name))
+    }
+
+    pub fn get_member_attribute(
+        &self,
+        db: &'db dyn Db,
+        name: &str,
+        attr: gimli::DwAt,
+    ) -> Option<gimli::AttributeValue<DwarfReader>> {
+        self.children(db)
+            .into_iter()
+            .find(|child| {
+                child.tag(db) == gimli::DW_TAG_member && child.name(db).map_or(false, |n| n == name)
+            })
+            .and_then(|member| member.get_attr(db, attr))
+    }
+
+    pub fn get_generic_type_entry(&self, db: &'db dyn Db, name: &str) -> Option<Die<'db>> {
+        self.children(db)
+            .into_iter()
+            .find(|child| {
+                child.tag(db) == gimli::DW_TAG_template_type_parameter
+                    && child.name(db).map_or(false, |n| n == name)
+            })
+            .and_then(|member| member.get_unit_ref(db, gimli::DW_AT_type).ok().flatten())
+    }
+
     pub fn get_attr(
         &self,
         db: &'db dyn Db,

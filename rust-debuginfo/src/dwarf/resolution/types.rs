@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::data;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
@@ -15,7 +16,7 @@ use anyhow::Context;
 type Result<T> = std::result::Result<T, super::Error>;
 
 /// Resolve the full type for a DIE entry
-pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+pub fn resolve_entry_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     let type_entry = entry
         .get_unit_ref(db, gimli::DW_AT_type)?
         .with_context(|| entry.format_with_location(db, "Failed to get type entry"))?;
@@ -23,7 +24,7 @@ pub fn resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
-pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     let type_entry = entry
         .get_unit_ref(db, gimli::DW_AT_type)?
         .with_context(|| entry.format_with_location(db, "Failed to get type entry"))?;
@@ -32,14 +33,6 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 
 /// Resolve Vec type layout from DWARF
 fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
-    // Vec has a similar layout to &[T] - pointer + length + capacity
-    let Some(_size) = entry
-        .get_attr(db, gimli::DW_AT_byte_size)
-        .and_then(|attr| attr.udata_value())
-    else {
-        return Err(entry.format_with_location(db, "Vec size not found").into());
-    };
-
     // For now, we'll use the parsed type information and just validate the layout
     // In a full implementation, we'd extract the exact field offsets
     let Some(typename) = get_die_typename(db, entry) else {
@@ -48,7 +41,39 @@ fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
             .into());
     };
 
-    todo!()
+    // TODO: resolve the inner type
+
+    let data_ptr_offset = entry
+        .get_member_attribute(db, "buf", gimli::DW_AT_data_member_location)
+        .context("could not find buf")?;
+    let data_ptr_offset = data_ptr_offset
+        .udata_value()
+        .map(|v| v as usize)
+        .context("buf offset is not a valid udata")?;
+
+    let length_offset = entry
+        .get_member_attribute(db, "len", gimli::DW_AT_data_member_location)
+        .context("could not find len")?;
+    let length_offset = length_offset
+        .udata_value()
+        .map(|v| v as usize)
+        .context("len offset is not a valid udata")?;
+
+    let inner_type = entry
+        .get_generic_type_entry(db, "T")
+        .context("could not find inner type")?;
+    tracing::debug!(
+        "inner type for Vec: {}",
+        inner_type.format_with_location(db, inner_type.print(db))
+    );
+    let inner_type =
+        shallow_resolve_type(db, inner_type).context("could not resolve inner type of vec")?;
+
+    Ok(VecDef {
+        data_ptr_offset,
+        length_offset,
+        inner_type: Arc::new(inner_type),
+    })
 }
 
 /// Resolve String type layout from DWARF
@@ -192,7 +217,9 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
                                 // formally, this tells us the type
                                 // of the option generic `T`
                                 return Ok(OptionDef {
-                                    inner_type: Arc::new(resolve_type_shallow(db, grandchild)?),
+                                    inner_type: Arc::new(resolve_entry_type_shallow(
+                                        db, grandchild,
+                                    )?),
                                 });
                             }
                             gimli::DW_TAG_member => {
@@ -239,50 +266,22 @@ fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
             .format_with_location(db, "struct size not found")
             .into());
     };
-    let mut data_ptr_offset = None;
-    let mut length_offset = None;
+    let data_ptr_offset = entry
+        .get_member_attribute(db, "data_ptr", gimli::DW_AT_data_member_location)
+        .context("could not find data_ptr")?;
+    let data_ptr_offset = data_ptr_offset
+        .udata_value()
+        .map(|v| v as usize)
+        .context("data_ptr offset is not a valid udata")?;
 
-    for child in entry.children(db) {
-        if child.tag(db) == gimli::DW_TAG_member {
-            let Some(name) = child.name(db) else {
-                continue;
-            };
-            if name == "data_ptr" {
-                if let Some(offset) = child
-                    .get_attr(db, gimli::DW_AT_data_member_location)
-                    .and_then(|attr| attr.udata_value().map(|v| v as usize))
-                {
-                    data_ptr_offset = Some(offset);
-                } else {
-                    return Err(child
-                        .format_with_location(db, "could not read data_ptr offset")
-                        .into());
-                }
-            } else if name == "length" {
-                if let Some(offset) = child
-                    .get_attr(db, gimli::DW_AT_data_member_location)
-                    .and_then(|attr| attr.udata_value().map(|v| v as usize))
-                {
-                    length_offset = Some(offset);
-                } else {
-                    return Err(child
-                        .format_with_location(db, "could not read length offset")
-                        .into());
-                }
-            }
-        }
-    }
+    let length_offset = entry
+        .get_member_attribute(db, "length", gimli::DW_AT_data_member_location)
+        .context("could not find length")?;
+    let length_offset = length_offset
+        .udata_value()
+        .map(|v| v as usize)
+        .context("length offset is not a valid udata")?;
 
-    let Some(data_ptr_offset) = data_ptr_offset else {
-        return Err(entry
-            .format_with_location(db, "data_ptr offset not found")
-            .into());
-    };
-    let Some(length_offset) = length_offset else {
-        return Err(entry
-            .format_with_location(db, "length offset not found")
-            .into());
-    };
     Ok(TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
         data_ptr_offset,
         length_offset,
@@ -319,7 +318,7 @@ fn resolve_as_primitive_type<'db>(
             )
         }
         PrimitiveDef::Pointer(pointer_def) => {
-            let inner = resolve_type(db, entry)?;
+            let inner = resolve_entry_type(db, entry)?;
             Ok(Some(TypeDef::Primitive(PrimitiveDef::Pointer(
                 PointerDef {
                     mutable: pointer_def.mutable,
@@ -328,7 +327,7 @@ fn resolve_as_primitive_type<'db>(
             ))))
         }
         PrimitiveDef::Reference(reference_def) => {
-            let inner = resolve_type(db, entry)?;
+            let inner = resolve_entry_type(db, entry)?;
             Ok(Some(TypeDef::Primitive(PrimitiveDef::Reference(
                 ReferenceDef {
                     mutable: reference_def.mutable,
@@ -458,7 +457,7 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                 .into());
         }
         gimli::DW_TAG_array_type => {
-            let array_type = resolve_type(db, entry)?;
+            let array_type = resolve_entry_type(db, entry)?;
             let children = entry.children(db);
             let subrange = children
                 .iter()

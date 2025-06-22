@@ -280,7 +280,7 @@ pub fn resolve_type<'db>(
                     return Ok(Some(typedef));
                 }
                 Err(e) => {
-                    tracing::debug!("Failed to resolve type '{}': {}", type_name, e);
+                    tracing::debug!("Failed to resolve type '{type_name}': {e:#}");
                 }
             }
         }

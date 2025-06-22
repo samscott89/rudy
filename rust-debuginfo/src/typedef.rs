@@ -64,9 +64,7 @@ impl TypeDef {
                         format!("fn({})", arg_types)
                     }
                 }
-                PrimitiveDef::Int(int_def) => {
-                    format!("i{}", int_def.size * 8)
-                }
+                PrimitiveDef::Int(int_def) => int_def.display_name(),
                 PrimitiveDef::Never(_) => "!".to_string(),
                 PrimitiveDef::Pointer(pointer_def) => {
                     format!("*{}", pointer_def.pointed_type.display_name())
@@ -92,9 +90,7 @@ impl TypeDef {
                     format!("({})", element_types)
                 }
                 PrimitiveDef::Unit(_) => "()".to_string(),
-                PrimitiveDef::UnsignedInt(unsigned_int_def) => {
-                    format!("u{}", unsigned_int_def.size * 8)
-                }
+                PrimitiveDef::UnsignedInt(unsigned_int_def) => unsigned_int_def.display_name(),
             },
             TypeDef::Std(std_def) => match std_def {
                 StdDef::SmartPtr(smart_ptr_def) => {
@@ -528,6 +524,13 @@ pub struct FunctionDef {
 pub struct IntDef {
     pub size: usize,
 }
+
+impl IntDef {
+    pub fn display_name(&self) -> String {
+        format!("i{}", self.size * 8)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct PointerDef {
     pub mutable: bool,
@@ -571,6 +574,12 @@ pub struct UnsignedIntDef {
     /// Size in bytes
     /// (e.g. 1 for u8, 2 for u16, etc.)
     pub size: usize,
+}
+
+impl UnsignedIntDef {
+    pub fn display_name(&self) -> String {
+        format!("u{}", self.size * 8)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]

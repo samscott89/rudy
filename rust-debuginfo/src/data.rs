@@ -249,7 +249,22 @@ fn read_primitive_from_memory(
                 _ => todo!("read_primitive_from_memory: {unsigned_int_def:#?}"),
             };
             crate::Value::Scalar {
-                ty: format!("u{}", unsigned_int_def.size * 8),
+                ty: unsigned_int_def.display_name(),
+                value: num_string,
+            }
+        }
+        PrimitiveDef::Int(int_def) => {
+            let memory = data_resolver.read_memory(address, int_def.size)?;
+
+            let num_string = match int_def.size {
+                1 => i8::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                2 => i16::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                4 => i32::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                8 => i64::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                _ => todo!("read_primitive_from_memory: {int_def:#?}"),
+            };
+            crate::Value::Scalar {
+                ty: int_def.display_name(),
                 value: num_string,
             }
         }
@@ -280,8 +295,35 @@ fn read_std_from_memory(
             read_from_memory(db, address, &option_def.inner_type, data_resolver)?
         }
         StdDef::Vec(v) => {
-            // let ptr = v.
-            todo!()
+            // // let ptr = v.
+            // todo!()
+
+            let mut values = Vec::new();
+            let element_type = &v.inner_type;
+            let element_size = v.inner_type.size().with_context(|| {
+                format!(
+                    "inner type: {} has unknown size",
+                    v.inner_type.display_name()
+                )
+            })? as u64;
+
+            let length = data_resolver
+                .read_memory(address + v.length_offset as u64, 8)?
+                .try_into()
+                .map(usize::from_le_bytes)
+                .map_err(|_| {
+                    anyhow::anyhow!("Failed to read length for Vec at address {address:#x}")
+                })?;
+            let mut address = address;
+            for _ in 0..length {
+                let value = read_from_memory(db, address, element_type, data_resolver)?;
+                values.push(value);
+                address += element_size;
+            }
+            crate::Value::Array {
+                ty: format!("[{}; {length}]", element_type.display_name()),
+                items: values,
+            }
         }
         StdDef::Map(def) => match def.variant {
             crate::typedef::MapVariant::HashMap => {

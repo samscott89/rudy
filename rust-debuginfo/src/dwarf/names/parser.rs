@@ -419,7 +419,11 @@ impl Path {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Vec(VecDef { inner_type: inner }));
+                            return TypeDef::Std(StdDef::Vec(VecDef {
+                                inner_type: inner,
+                                length_offset: 0,
+                                data_ptr_offset: 0,
+                            }));
                         }
                         "Option" => {
                             let inner = get_generics()
