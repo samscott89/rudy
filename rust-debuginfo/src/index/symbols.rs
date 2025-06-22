@@ -153,7 +153,7 @@ impl SymbolIndex {
             let symbol = RawSymbol::new(name.to_vec());
 
             let Ok(demangled) = symbol.demangle() else {
-                tracing::debug!("Failed to demangle symbol at : {:#016x}", s.address());
+                tracing::trace!("Failed to demangle symbol at : {:#016x}", s.address());
                 continue;
             };
 
@@ -194,7 +194,7 @@ impl SymbolIndex {
             let symbol = RawSymbol::new(s.name().to_vec());
 
             let Ok(demangled) = symbol.demangle() else {
-                tracing::debug!("Failed to demangle symbol at : {:#016x}", s.address());
+                tracing::trace!("Failed to demangle symbol at : {:#016x}", s.address());
                 continue;
             };
 

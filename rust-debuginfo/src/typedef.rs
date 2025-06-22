@@ -1,6 +1,7 @@
 //! Definition of types in the Rust language.
 
 use gimli::UnitSectionOffset;
+use std::cell::Ref;
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -152,6 +153,57 @@ impl TypeDef {
             }
             TypeDef::Other { name: _ } => None,
         }
+    }
+
+    pub fn matching_type(&self, other: &TypeDef) -> bool {
+        match (self, other) {
+            (TypeDef::Primitive(p1), TypeDef::Primitive(p2)) => match (p1, p2) {
+                (p1, p2) if p1 == p2 => true,
+
+                (PrimitiveDef::Pointer(l), PrimitiveDef::Pointer(r)) => {
+                    l.pointed_type.matching_type(&r.pointed_type)
+                }
+                (PrimitiveDef::Reference(l), PrimitiveDef::Reference(r)) => {
+                    l.pointed_type.matching_type(&r.pointed_type)
+                }
+                (PrimitiveDef::Slice(l), PrimitiveDef::Slice(r)) => {
+                    l.element_type.matching_type(&r.element_type)
+                }
+                (PrimitiveDef::Array(l), PrimitiveDef::Array(r)) => {
+                    l.element_type.matching_type(&r.element_type)
+                }
+
+                (PrimitiveDef::Tuple(l), PrimitiveDef::Tuple(r)) => {
+                    if l.element_types.len() != r.element_types.len() {
+                        return false;
+                    }
+                    l.element_types
+                        .iter()
+                        .zip(r.element_types.iter())
+                        .all(|(l, r)| l.matching_type(r))
+                }
+                _ => false,
+            },
+            (TypeDef::Std(s1), TypeDef::Std(s2)) => s1 == s2,
+            // TODO: Sam: handle this more robustly
+            (TypeDef::Struct(s1), TypeDef::Struct(s2)) => s1.name == s2.name,
+            (TypeDef::Struct(s1), TypeDef::Other { name }) => &s1.name == name,
+            (TypeDef::Other { name: left }, TypeDef::Other { name: right }) => {
+                left.ends_with(right) || right.ends_with(left)
+            }
+            // TODO: Sam: handle this more robustly
+            (TypeDef::Enum(e1), TypeDef::Enum(e2)) => e1.name == e2.name,
+            (TypeDef::Enum(e1), TypeDef::Other { name }) => &e1.name == name,
+            (TypeDef::Alias(_), TypeDef::Alias(_)) => false,
+            _ => false,
+        }
+    }
+
+    pub fn as_reference(&self) -> TypeDef {
+        TypeDef::Primitive(PrimitiveDef::Reference(ReferenceDef {
+            mutable: false,
+            pointed_type: Arc::new(self.clone()),
+        }))
     }
 }
 

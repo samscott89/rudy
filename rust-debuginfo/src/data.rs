@@ -5,7 +5,9 @@ use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 
 use crate::database::Db;
-use crate::typedef::{ArrayDef, PointerDef, PrimitiveDef, StdDef, StrSliceDef, TypeDef};
+use crate::typedef::{
+    ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, TypeDef,
+};
 
 /// Trait for resolving data from memory during debugging.
 ///
@@ -202,6 +204,10 @@ fn read_primitive_from_memory(
             }
         }
         PrimitiveDef::Pointer(PointerDef { pointed_type, .. }) => {
+            let address = data_resolver.read_address(address)?;
+            read_from_memory(db, address, pointed_type, data_resolver)?
+        }
+        PrimitiveDef::Reference(ReferenceDef { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
             read_from_memory(db, address, pointed_type, data_resolver)?
         }

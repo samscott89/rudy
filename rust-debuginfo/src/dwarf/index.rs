@@ -187,9 +187,9 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
             .or_default()
             .push(TypeIndexEntry::new(walker.db, die));
         walker.visitor.data.die_to_type.insert(die, name);
-        walker.visitor.current_path.push(struct_name.clone());
-        walker.walk_struct();
-        walker.visitor.current_path.pop();
+        // walker.visitor.current_path.push(struct_name.clone());
+        // walker.walk_struct();
+        // walker.visitor.current_path.pop();
     }
 
     fn visit_function<'a>(
@@ -225,7 +225,7 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                     let name = match RawSymbol::new(ln.as_bytes().to_vec()).demangle() {
                         Ok(s) => s,
                         Err(e) => {
-                            tracing::debug!(
+                            tracing::trace!(
                                 "Failed to demangle linkage name `{ln}`: {e} for entry: {}",
                                 pretty_print_die_entry(&entry, &unit_ref)
                             );
@@ -418,7 +418,7 @@ fn visit_type<'a, 'db>(
 #[salsa::tracked(returns(ref))]
 pub fn debug_file_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileIndex<'db> {
     let mut builder = FileIndexBuilder::default();
-    tracing::info!("Indexing file: {}", debug_file.name(db));
+    tracing::debug!("Indexing file: {}", debug_file.name(db));
     walk_file(db, debug_file, &mut builder);
 
     let FileIndexBuilder {

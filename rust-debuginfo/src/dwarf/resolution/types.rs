@@ -6,8 +6,8 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    OptionDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, StringDef, StructDef, StructField,
-    TypeDef, TypeRef,
+    OptionDef, PointerDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, StringDef, StructDef,
+    StructField, TypeDef, TypeRef,
 };
 
 use anyhow::Context;
@@ -321,27 +321,14 @@ fn resolve_as_primitive_type<'db>(
                 entry.format_with_location(db, entry.print(db))
             )
         }
-        PrimitiveDef::Pointer(_pointer_def) => {
-            todo!(
-                "pointer def at:\n\n{}",
-                entry.format_with_location(db, entry.print(db))
-            )
-            // let pointed_type = entry.get_type_entry(db).with_context(|| {
-            //     entry.format_with_location(
-            //         db,
-            //         format!(
-            //             "reference type missing type entry, expected: {}",
-            //             pointer_def.pointed_type.display_name()
-            //         ),
-            //     )
-            // })?;
-            // let inner = resolve_type(db, pointed_type)?;
-            // Ok(Some(TypeDef::Primitive(PrimitiveDef::Reference(
-            //     ReferenceDef {
-            //         mutable: pointer_def.mutable,
-            //         pointed_type: Arc::new(inner),
-            //     },
-            // ))))
+        PrimitiveDef::Pointer(pointer_def) => {
+            let inner = resolve_type(db, entry)?;
+            Ok(Some(TypeDef::Primitive(PrimitiveDef::Pointer(
+                PointerDef {
+                    mutable: pointer_def.mutable,
+                    pointed_type: Arc::new(inner),
+                },
+            ))))
         }
         PrimitiveDef::Reference(reference_def) => {
             let inner = resolve_type(db, entry)?;

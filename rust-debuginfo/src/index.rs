@@ -7,7 +7,7 @@ use itertools::Itertools;
 
 use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;
-use crate::dwarf::{self, FunctionIndexEntry, SymbolName};
+use crate::dwarf::{self, FunctionIndexEntry, SymbolName, TypeName};
 use crate::file::{Binary, DebugFile, SourceFile};
 use crate::index::symbols::{DebugFiles, SymbolIndex};
 
@@ -97,7 +97,11 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     // TODO: get "main debug files" (i.e. the binary itself, or the debug file adjacent to it)
     // and insert into the vec + index the symbols
 
-    let binary_path = binary.file(db).path(db).replace("-", "_");
+    let binary_path = binary
+        .file(db)
+        .path(db)
+        .replace("/deps/", "/")
+        .replace("-", "_");
     let indexed_debug_files = debug_files
         .iter()
         .filter_map(|((file, _member), debug_file)| {
@@ -117,7 +121,6 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     let mut source_file_index: BTreeMap<SourceFile<'_>, Vec<DebugFile>> = Default::default();
 
     for debug_file in &indexed_debug_files {
-        tracing::info!("Indexed debug file: {}", debug_file.name(db));
         let indexed = dwarf::debug_file_index(db, *debug_file).data(db);
         for source in indexed.sources.iter() {
             source_file_index
@@ -228,58 +231,63 @@ pub fn resolve_type<'db>(
     binary: Binary,
     type_name: &str,
 ) -> anyhow::Result<Option<crate::typedef::TypeDef>> {
+    let parsed = TypeName::parse(&[], type_name)?;
+    tracing::info!("Finding type '{parsed}'");
     let index = debug_index(db, binary);
 
+    let indexed_debug_files = index.indexed_debug_files(db);
+
+    if indexed_debug_files.is_empty() {
+        tracing::warn!(
+            "No indexed debug files found for binary: {}",
+            binary.file(db).path(db)
+        );
+        return Ok(None);
+    }
+
     // Search through all debug files to find the type
-    for debug_file in index.indexed_debug_files(db) {
+    for debug_file in indexed_debug_files {
         let indexed = dwarf::debug_file_index(db, debug_file).data(db);
 
         // Look for types that match the given name
-        let type_entry = indexed
+        let entries = indexed
             .types
             .iter()
-            .find(|(name, _)| {
-                // Try exact match first
-                if name.name == type_name {
-                    return true;
+            .filter(|(name, _)| {
+                if name.name == parsed.name {
+                    tracing::info!("Checking type '{name}' vs '{parsed}'",);
+                    if !name.typedef.matching_type(&parsed.typedef) {
+                        tracing::info!(
+                            "Type '{:#?}' does not match '{:#?}'",
+                            name.typedef,
+                            parsed.typedef
+                        );
+                        return false;
+                    }
+                    name.module.segments.ends_with(&parsed.module.segments)
+                } else {
+                    false
                 }
-
-                // For standard library types, also check if the simple name matches
-                // e.g., "String" should match "alloc::string::String"
-                if name.name == type_name
-                    && (name.module.segments.contains(&"std".to_string())
-                        || name.module.segments.contains(&"core".to_string())
-                        || name.module.segments.contains(&"alloc".to_string()))
-                {
-                    return true;
-                }
-
-                // For generic types, check if the name starts with the type name
-                // e.g., "Vec" should match "Vec<i32>"
-                if name.name.starts_with(type_name)
-                    && name.name.chars().nth(type_name.len()) == Some('<')
-                {
-                    return true;
-                }
-
-                false
             })
-            .map(|(_, entry)| entry);
+            .flat_map(|(_, entry)| entry);
 
-        if let Some(entries) = type_entry {
-            for entry in entries {
-                // Resolve the type using the DWARF resolution logic
-                match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
-                    Ok(typedef) => {
-                        // Successfully resolved the type
-                        return Ok(Some(typedef));
-                    }
-                    Err(e) => {
-                        tracing::debug!("Failed to resolve type '{}': {}", type_name, e);
-                    }
+        for entry in entries {
+            // Resolve the type using the DWARF resolution logic
+            match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
+                Ok(typedef) => {
+                    // Successfully resolved the type
+                    return Ok(Some(typedef));
+                }
+                Err(e) => {
+                    tracing::debug!("Failed to resolve type '{}': {}", type_name, e);
                 }
             }
         }
+        tracing::debug!(
+            "No type '{}' found in debug file: {}",
+            type_name,
+            debug_file.name(db)
+        );
     }
 
     // Type not found in any debug file

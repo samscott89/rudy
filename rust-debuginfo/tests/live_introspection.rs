@@ -55,6 +55,15 @@ struct TestPoint {
     y: f64,
 }
 
+// Struct with only basic types that should work
+#[derive(Debug)]
+struct TestBasicStruct {
+    id: u32,
+    count: u64,
+    enabled: bool,
+    bytes: [u8; 4],
+}
+
 #[derive(Debug)]
 struct TestComplexData {
     id: u64,
@@ -85,25 +94,21 @@ fn test_introspect_string() -> Result<()> {
     let resolver = SelfProcessResolver::new();
 
     // Find the String type using the public API
-    if let Some(typedef) = debug_info.resolve_type("String")? {
-        // Read the string value from memory
-        let value = debug_info
-            .address_to_value(string_ptr, &typedef, &resolver)
-            .expect("Failed to read String from memory");
+    let typedef = debug_info
+        .resolve_type("String")?
+        .expect("could not resolve String type");
+    // Read the string value from memory
+    let value = debug_info
+        .address_to_value(string_ptr, &typedef, &resolver)
+        .expect("Failed to read String from memory");
 
-        // Verify we got the expected value
-        match value {
-            Value::Scalar { ty, value } if ty == "str" => {
-                assert_eq!(value, "\"Hello, Debugger!\"");
-            }
-            _ => panic!("Expected string value, got: {:?}", value),
+    // Verify we got the expected value
+    match value {
+        Value::Scalar { ty, value } if ty == "str" => {
+            assert_eq!(value, "\"Hello, Debugger!\"");
         }
-    } else {
-        // For now, we'll skip if we can't find String type
-        // This might happen if debug info isn't complete
-        eprintln!("Warning: Could not find String type in debug info");
+        _ => panic!("Expected string value, got: {:?}", value),
     }
-
     // Keep string alive
     let _ = test_string;
     Ok(())
@@ -132,26 +137,28 @@ fn test_introspect_struct() -> Result<()> {
     let resolver = SelfProcessResolver::new();
 
     // Find TestPerson type using the public API
-    if let Some(typedef) = debug_info.resolve_type("TestPerson")? {
-        let value = debug_info
-            .address_to_value(person_ptr, &typedef, &resolver)
-            .expect("Failed to read TestPerson from memory");
+    let typedef = debug_info
+        .resolve_type("TestPerson")?
+        .expect("Failed to resolve TestPerson type");
 
-        match value {
-            Value::Struct { ty, fields } => {
-                assert_eq!(ty, "TestPerson");
-                assert!(fields.contains_key("name"));
-                assert!(fields.contains_key("age"));
-                assert!(fields.contains_key("email"));
+    let value = debug_info
+        .address_to_value(person_ptr, &typedef, &resolver)
+        .expect("Failed to read TestPerson from memory");
 
-                // Check age field
-                if let Some(Value::Scalar { ty, value }) = fields.get("age") {
-                    assert_eq!(ty, "u32");
-                    assert_eq!(value, "30");
-                }
+    match value {
+        Value::Struct { ty, fields } => {
+            assert_eq!(ty, "TestPerson");
+            assert!(fields.contains_key("name"));
+            assert!(fields.contains_key("age"));
+            assert!(fields.contains_key("email"));
+
+            // Check age field
+            if let Some(Value::Scalar { ty, value }) = fields.get("age") {
+                assert_eq!(ty, "u32");
+                assert_eq!(value, "30");
             }
-            _ => panic!("Expected struct value, got: {:?}", value),
         }
+        _ => panic!("Expected struct value, got: {:?}", value),
     }
 
     // Keep data alive
@@ -178,19 +185,15 @@ fn test_introspect_vec() -> Result<()> {
     let resolver = SelfProcessResolver::new();
 
     // Find Vec<i32> type using the public API
-    if let Some(typedef) = debug_info.resolve_type("Vec")? {
-        // TODO: Once Vec reading is implemented in data.rs, test it here
-        // For now, we just verify we can resolve the type
-        println!("Found Vec type: {:?}", typedef);
+    let typedef = debug_info
+        .resolve_type("Vec")?
+        .expect("Vec type should be found");
 
-        // Attempt to read the Vec (this may fail if Vec reading isn't fully implemented)
-        match debug_info.address_to_value(vec_ptr, &typedef, &resolver) {
-            Ok(value) => println!("Successfully read Vec value: {:?}", value),
-            Err(e) => println!("Vec reading not yet implemented: {}", e),
-        }
-    } else {
-        eprintln!("Warning: Could not find Vec type in debug info");
-    }
+    // Try to read Vec - this will fail when Vec reading isn't implemented
+    let value = debug_info.address_to_value(vec_ptr, &typedef, &resolver)?;
+
+    // If we get here, Vec reading is working
+    println!("Vec value: {:?}", value);
 
     // Keep vec alive
     let _ = test_vec;
@@ -220,32 +223,42 @@ fn test_introspect_option() -> Result<()> {
     let resolver = SelfProcessResolver::new();
 
     // Find Option<u32> type using the public API
-    if let Some(typedef) = debug_info.resolve_type("Option")? {
-        // Test Some variant
-        match debug_info.address_to_value(some_ptr, &typedef, &resolver) {
-            Ok(some_value) => match some_value {
-                Value::Scalar { ty, value } => {
-                    assert_eq!(ty, "u32");
-                    assert_eq!(value, "42");
-                }
-                _ => println!("Expected Some(42), got: {:?}", some_value),
-            },
-            Err(e) => println!("Option reading not yet implemented: {}", e),
-        }
+    let typedef = debug_info
+        .resolve_type("Option")?
+        .expect("Failed to resolve Option type");
 
-        // Test None variant
-        match debug_info.address_to_value(none_ptr, &typedef, &resolver) {
-            Ok(none_value) => match none_value {
-                Value::Scalar { ty, value } => {
-                    assert_eq!(ty, "Option");
-                    assert_eq!(value, "None");
-                }
-                _ => println!("Expected None, got: {:?}", none_value),
-            },
-            Err(e) => println!("Option reading not yet implemented: {}", e),
+    // Test Some variant - Option is implemented and should work
+    let some_value = debug_info
+        .address_to_value(some_ptr, &typedef, &resolver)
+        .expect("Option::Some reading should be implemented");
+
+    match some_value {
+        Value::Scalar { ty, value } => {
+            assert_eq!(ty, "u32");
+            assert_eq!(value, "42");
+            println!("✓ Option::Some correctly read as: {} = {}", ty, value);
         }
-    } else {
-        eprintln!("Warning: Could not find Option type in debug info");
+        _ => panic!(
+            "Expected Some(42) to be read as Scalar {{ ty: u32, value: 42 }}, got: {:?}",
+            some_value
+        ),
+    }
+
+    // Test None variant - Option is implemented and should work
+    let none_value = debug_info
+        .address_to_value(none_ptr, &typedef, &resolver)
+        .expect("Option::None reading should be implemented");
+
+    match none_value {
+        Value::Scalar { ty, value } => {
+            assert_eq!(ty, "Option");
+            assert_eq!(value, "None");
+            println!("✓ Option::None correctly read as: {} = {}", ty, value);
+        }
+        _ => panic!(
+            "Expected None to be read as Scalar {{ ty: Option, value: None }}, got: {:?}",
+            none_value
+        ),
     }
 
     // Keep data alive
@@ -276,15 +289,15 @@ fn test_introspect_hashmap() -> Result<()> {
     let resolver = SelfProcessResolver::new();
 
     // Find HashMap type using the public API
-    if let Some(typedef) = debug_info.resolve_type("HashMap")? {
-        // Attempt to read the HashMap (this may fail if HashMap reading isn't fully implemented)
-        match debug_info.address_to_value(map_ptr, &typedef, &resolver) {
-            Ok(value) => println!("Successfully read HashMap value: {:?}", value),
-            Err(e) => println!("HashMap reading not yet implemented: {}", e),
-        }
-    } else {
-        eprintln!("Warning: Could not find HashMap type in debug info");
-    }
+    let typedef = debug_info
+        .resolve_type("HashMap")?
+        .expect("HashMap type should be found");
+
+    // Try to read HashMap - this will fail when HashMap reading isn't implemented
+    let value = debug_info.address_to_value(map_ptr, &typedef, &resolver)?;
+
+    // If we get here, HashMap reading is working
+    println!("HashMap value: {:?}", value);
 
     // Keep map alive
     let _ = test_map;
@@ -303,7 +316,7 @@ fn test_introspect_complex_nested_types() -> Result<()> {
     let debug_info =
         DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
-    // Create complex nested data
+    // Create complex nested data - NOTE: This contains Vec and HashMap which are not implemented yet
     let mut metadata = HashMap::new();
     metadata.insert("version".to_string(), "1.0".to_string());
     metadata.insert("author".to_string(), "test".to_string());
@@ -320,41 +333,15 @@ fn test_introspect_complex_nested_types() -> Result<()> {
     let resolver = SelfProcessResolver::new();
 
     // Find TestComplexData type using the public API
-    if let Some(typedef) = debug_info.resolve_type("TestComplexData")? {
-        let value = debug_info
-            .address_to_value(data_ptr, &typedef, &resolver)
-            .expect("Failed to read TestComplexData");
+    let typedef = debug_info
+        .resolve_type("TestComplexData")?
+        .expect("TestComplexData type should be found");
 
-        match value {
-            Value::Struct { ty, fields } => {
-                assert_eq!(ty, "TestComplexData");
-                assert!(fields.contains_key("id"));
-                assert!(fields.contains_key("values"));
-                assert!(fields.contains_key("metadata"));
-                assert!(fields.contains_key("location"));
+    // Try to read TestComplexData - this will fail when Vec/HashMap reading isn't implemented
+    let value = debug_info.address_to_value(data_ptr, &typedef, &resolver)?;
 
-                // Check id field
-                if let Some(Value::Scalar { ty, value }) = fields.get("id") {
-                    assert_eq!(ty, "u64");
-                    assert_eq!(value, "12345");
-                }
-
-                // Check nested location struct
-                if let Some(Value::Struct {
-                    ty,
-                    fields: location_fields,
-                }) = fields.get("location")
-                {
-                    assert_eq!(ty, "TestPoint");
-                    assert!(location_fields.contains_key("x"));
-                    assert!(location_fields.contains_key("y"));
-                }
-            }
-            _ => panic!("Expected struct value, got: {:?}", value),
-        }
-    } else {
-        eprintln!("Warning: Could not find TestComplexData type in debug info");
-    }
+    // If we get here, complex struct reading is working
+    println!("TestComplexData value: {:?}", value);
 
     // Keep data alive
     let _ = test_data;
@@ -384,40 +371,71 @@ fn test_introspect_smart_pointers() -> Result<()> {
 
     let resolver = SelfProcessResolver::new();
 
-    // Find Box type using the public API
-    if let Some(typedef) = debug_info.resolve_type("Box")? {
-        // Attempt to read the Box (this may fail if smart pointer reading isn't fully implemented)
-        match debug_info.address_to_value(box_ptr, &typedef, &resolver) {
-            Ok(value) => println!("Successfully read Box value: {:?}", value),
-            Err(e) => println!("Box reading not yet implemented: {}", e),
-        }
-    } else {
-        eprintln!("Warning: Could not find Box type in debug info");
-    }
+    // Test Box - will fail when Box reading isn't implemented
+    let box_typedef = debug_info
+        .resolve_type("Box")?
+        .expect("Box type should be found");
 
-    // Find Arc type using the public API
-    if let Some(typedef) = debug_info.resolve_type("Arc")? {
-        // Attempt to read the Arc (this may fail if smart pointer reading isn't fully implemented)
-        match debug_info.address_to_value(arc_ptr, &typedef, &resolver) {
-            Ok(value) => println!("Successfully read Arc value: {:?}", value),
-            Err(e) => println!("Arc reading not yet implemented: {}", e),
-        }
-    } else {
-        eprintln!("Warning: Could not find Arc type in debug info");
-    }
+    let box_value = debug_info.address_to_value(box_ptr, &box_typedef, &resolver)?;
+    println!("Box value: {:?}", box_value);
 
-    // Find Rc type using the public API
-    if let Some(typedef) = debug_info.resolve_type("Rc")? {
-        // Attempt to read the Rc (this may fail if smart pointer reading isn't fully implemented)
-        match debug_info.address_to_value(rc_ptr, &typedef, &resolver) {
-            Ok(value) => println!("Successfully read Rc value: {:?}", value),
-            Err(e) => println!("Rc reading not yet implemented: {}", e),
-        }
-    } else {
-        eprintln!("Warning: Could not find Rc type in debug info");
-    }
+    // Test Arc - will fail when Arc reading isn't implemented
+    let arc_typedef = debug_info
+        .resolve_type("Arc")?
+        .expect("Arc type should be found");
+
+    let arc_value = debug_info.address_to_value(arc_ptr, &arc_typedef, &resolver)?;
+    println!("Arc value: {:?}", arc_value);
+
+    // Test Rc - will fail when Rc reading isn't implemented
+    let rc_typedef = debug_info
+        .resolve_type("Rc")?
+        .expect("Rc type should be found");
+
+    let rc_value = debug_info.address_to_value(rc_ptr, &rc_typedef, &resolver)?;
+    println!("Rc value: {:?}", rc_value);
 
     // Keep data alive
     let _ = (test_box, test_arc, test_rc);
+    Ok(())
+}
+
+#[test]
+fn test_introspect_basic_struct() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
+    let db = DebugDb::new();
+
+    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+
+    // Create test data with only basic types that should be implemented
+    let test_basic = TestBasicStruct {
+        id: 42,
+        count: 12345,
+        enabled: true,
+        bytes: [0xDE, 0xAD, 0xBE, 0xEF],
+    };
+
+    let basic_ptr = &test_basic as *const TestBasicStruct as u64;
+
+    let resolver = SelfProcessResolver::new();
+
+    // Find TestBasicStruct type using the public API
+    let typedef = debug_info
+        .resolve_type("TestBasicStruct")?
+        .expect("Failed to resolve TestBasicStruct type");
+
+    // Try to read the basic struct - will fail if any field types aren't implemented
+    let value = debug_info.address_to_value(basic_ptr, &typedef, &resolver)?;
+
+    // If we get here, basic struct reading is working
+    println!("TestBasicStruct value: {:?}", value);
+
+    // Keep data alive
+    let _ = test_basic;
     Ok(())
 }

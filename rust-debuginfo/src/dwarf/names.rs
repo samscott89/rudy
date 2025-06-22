@@ -15,8 +15,14 @@ pub struct ModuleName {
 
 #[derive(Clone)]
 pub struct TypeName {
+    /// The module this type is defined in
+    /// e.g. `alloc::string`
     pub module: ModuleName,
+    /// The simple name of the type, e.g. `String`
     pub name: String,
+    /// The full name of the type, including module path
+    /// e.g. `alloc::string::String`
+    pub full_name: String,
     pub typedef: TypeDef,
 }
 
@@ -28,7 +34,7 @@ impl fmt::Debug for TypeName {
 
 impl PartialEq for TypeName {
     fn eq(&self, other: &Self) -> bool {
-        self.module == other.module && self.name == other.name
+        self.module == other.module && self.full_name == other.full_name
     }
 }
 impl Eq for TypeName {}
@@ -42,14 +48,14 @@ impl Ord for TypeName {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.module
             .cmp(&other.module)
-            .then_with(|| self.name.cmp(&other.name))
+            .then_with(|| self.full_name.cmp(&other.full_name))
     }
 }
 
 impl std::hash::Hash for TypeName {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.module.hash(state);
-        self.name.hash(state);
+        self.full_name.hash(state);
     }
 }
 
@@ -91,6 +97,7 @@ impl TypeName {
                 segments: module_path.to_vec(),
             },
             name: name.to_string(),
+            full_name,
             typedef,
         })
     }
@@ -101,7 +108,7 @@ impl fmt::Display for TypeName {
         if !self.module.segments.is_empty() {
             write!(f, "{}::", self.module.segments.join("::"))?;
         }
-        write!(f, "{}", self.name)
+        write!(f, "{}", self.full_name)
     }
 }
 
