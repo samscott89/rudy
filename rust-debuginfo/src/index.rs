@@ -7,10 +7,7 @@ use object::{Object, ObjectSymbol};
 
 use crate::address_tree::{AddressTree, FunctionAddressInfo};
 use crate::database::Db;
-use crate::dwarf::{
-    self, FunctionIndexEntry, ModuleIndexEntry, Symbol, SymbolIndexEntry, SymbolName,
-    TypeIndexEntry,
-};
+use crate::dwarf::{self, FunctionIndexEntry, Symbol, SymbolName};
 use crate::file::{Binary, DebugFile, File, SourceFile, load};
 
 #[salsa::tracked(returns(ref))]
@@ -429,4 +426,68 @@ pub fn find_all_by_address<'db>(
     let index = debug_index(db, binary).data(db);
 
     index.address_info.query_address(address)
+}
+
+/// Resolve a type by name in the debug information
+pub fn resolve_type<'db>(
+    db: &'db dyn Db,
+    binary: Binary,
+    type_name: &str,
+) -> anyhow::Result<Option<crate::typedef::TypeDef>> {
+    let debug_files = discover_debug_files(db, binary);
+
+    // Search through all debug files to find the type
+    for debug_file in debug_files.values() {
+        let indexed = dwarf::debug_file_index(db, *debug_file).data(db);
+
+        // Look for types that match the given name
+        let type_entry = indexed
+            .types
+            .iter()
+            .find(|(name, _)| {
+                // Try exact match first
+                if name.name == type_name {
+                    return true;
+                }
+
+                // For standard library types, also check if the simple name matches
+                // e.g., "String" should match "alloc::string::String"
+                if name.name == type_name
+                    && (name.module.segments.contains(&"std".to_string())
+                        || name.module.segments.contains(&"core".to_string())
+                        || name.module.segments.contains(&"alloc".to_string()))
+                {
+                    return true;
+                }
+
+                // For generic types, check if the name starts with the type name
+                // e.g., "Vec" should match "Vec<i32>"
+                if name.name.starts_with(type_name)
+                    && name.name.chars().nth(type_name.len()) == Some('<')
+                {
+                    return true;
+                }
+
+                false
+            })
+            .map(|(_, entry)| entry);
+
+        if let Some(entries) = type_entry {
+            for entry in entries {
+                // Resolve the type using the DWARF resolution logic
+                match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
+                    Ok(typedef) => {
+                        // Successfully resolved the type
+                        return Ok(Some(typedef));
+                    }
+                    Err(e) => {
+                        tracing::debug!("Failed to resolve type '{}': {}", type_name, e);
+                    }
+                }
+            }
+        }
+    }
+
+    // Type not found in any debug file
+    Ok(None)
 }

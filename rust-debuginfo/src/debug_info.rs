@@ -406,6 +406,69 @@ impl<'db> DebugInfo<'db> {
         //     .collect::<Result<Vec<_>>>()?;
         Ok((params, locals, vec![]))
     }
+
+    /// Resolve a type by name in the debug information
+    ///
+    /// # Arguments
+    ///
+    /// * `type_name` - The name of the type to resolve (e.g., "String", "Vec", "TestPerson")
+    ///
+    /// # Returns
+    ///
+    /// The resolved type definition if found, or `None` if the type cannot be found
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo};
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// if let Some(typedef) = debug_info.resolve_type("String").unwrap() {
+    ///     println!("Found String type: {}", typedef.display_name());
+    /// }
+    /// ```
+    pub fn resolve_type(&self, type_name: &str) -> Result<Option<crate::typedef::TypeDef>> {
+        crate::index::resolve_type(self.db, self.binary, type_name)
+    }
+
+    /// Read a value from memory using type information
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The memory address to read from
+    /// * `typedef` - The type definition to use for interpreting the memory
+    /// * `data_resolver` - Interface for reading memory and register values
+    ///
+    /// # Returns
+    ///
+    /// The interpreted value from memory
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, DataResolver};
+    /// # struct MyResolver;
+    /// # impl DataResolver for MyResolver {
+    /// #     fn base_address(&self) -> u64 { 0 }
+    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// # }
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let resolver = MyResolver;
+    /// if let Some(typedef) = debug_info.resolve_type("String").unwrap() {
+    ///     let value = debug_info.address_to_value(0x12345, &typedef, &resolver).unwrap();
+    ///     println!("Value at address: {:?}", value);
+    /// }
+    /// ```
+    pub fn address_to_value(
+        &self,
+        address: u64,
+        typedef: &crate::typedef::TypeDef,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<crate::Value> {
+        crate::data::read_from_memory(self.db, address, typedef, data_resolver)
+    }
 }
 
 fn output_variable<'db>(

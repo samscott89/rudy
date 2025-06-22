@@ -275,7 +275,6 @@ impl Type {
                 }))
             }
             Type::Tuple(tuple) => {
-                tracing::info!("Converting tuple type: {:?}", tuple);
                 let elements: Vec<Arc<TypeDef>> = tuple
                     .inner()
                     .iter()
