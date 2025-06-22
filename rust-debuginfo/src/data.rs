@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use crate::database::Db;
 use crate::typedef::{
-    ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, TypeDef,
+    ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, TypeDef, UnsignedIntDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -323,6 +323,33 @@ fn read_std_from_memory(
             crate::Value::Array {
                 ty: format!("[{}; {length}]", element_type.display_name()),
                 items: values,
+            }
+        }
+        StdDef::String(s) => {
+            let v = &s.0;
+            tracing::debug!(
+                "reading String length at {:#x}",
+                address + v.length_offset as u64
+            );
+            let length = data_resolver
+                .read_memory(address + v.length_offset as u64, 8)?
+                .try_into()
+                .map(usize::from_le_bytes)
+                .map_err(|_| {
+                    anyhow::anyhow!("Failed to read length for Vec at address {address:#x}")
+                })?;
+            tracing::debug!("String length: {length}");
+            // read the bytes from the data pointer
+            let data_address = address + s.0.data_ptr_offset as u64;
+            let data = data_resolver.read_address(data_address).with_context(|| {
+                format!("Failed to read String data pointer at {data_address:#x}")
+            })?;
+            tracing::debug!("reading String data at {data:#016x}");
+            let bytes = data_resolver.read_memory(data, length)?;
+            let value = String::from_utf8_lossy(&bytes).to_string();
+            crate::Value::Scalar {
+                ty: "String".to_string(),
+                value,
             }
         }
         StdDef::Map(def) => match def.variant {

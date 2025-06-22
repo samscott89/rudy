@@ -104,8 +104,8 @@ fn test_introspect_string() -> Result<()> {
 
     // Verify we got the expected value
     match value {
-        Value::Scalar { ty, value } if ty == "str" => {
-            assert_eq!(value, "\"Hello, Debugger!\"");
+        Value::Scalar { ty, value } if ty == "String" => {
+            assert_eq!(value, "Hello, Debugger!");
         }
         _ => panic!("Expected string value, got: {:?}", value),
     }

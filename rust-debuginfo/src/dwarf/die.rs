@@ -151,6 +151,17 @@ impl<'db> Die<'db> {
         .ok()?
     }
 
+    pub fn udata_attr(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Option<usize> {
+        self.with_entry(db, |entry| {
+            entry
+                .attr(attr)
+                .ok()?
+                .and_then(|attr| attr.udata_value())
+                .map(|v| v as usize)
+        })
+        .flatten()
+    }
+
     pub fn print(&self, db: &'db dyn Db) -> String {
         self.with_entry_and_unit(db, |entry, unit_ref| {
             super::utils::pretty_print_die_entry(entry, unit_ref)

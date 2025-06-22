@@ -105,9 +105,6 @@ impl TypeName {
 
 impl fmt::Display for TypeName {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if !self.module.segments.is_empty() {
-            write!(f, "{}::", self.module.segments.join("::"))?;
-        }
         write!(f, "{}", self.full_name)
     }
 }

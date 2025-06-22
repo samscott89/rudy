@@ -408,7 +408,13 @@ impl Path {
                     match type_name.as_str() {
                         "String" => {
                             tracing::debug!("Matched String type!");
-                            return TypeDef::Std(StdDef::String(StringDef));
+                            return TypeDef::Std(StdDef::String(StringDef(VecDef {
+                                length_offset: 0,
+                                data_ptr_offset: 0,
+                                inner_type: Arc::new(TypeDef::Primitive(
+                                    PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }),
+                                )),
+                            })));
                         }
                         "Vec" => {
                             let inner = get_generics()
@@ -877,6 +883,16 @@ mod test {
         assert_eq!(ty, expected.into(), "Failed to parse type `{s}`");
     }
 
+    fn string_def() -> TypeDef {
+        TypeDef::Std(StdDef::String(StringDef(VecDef {
+            length_offset: 0,
+            data_ptr_offset: 0,
+            inner_type: Arc::new(TypeDef::Primitive(PrimitiveDef::UnsignedInt(
+                UnsignedIntDef { size: 1 },
+            ))),
+        })))
+    }
+
     // Helper functions for common patterns
     impl UnsignedIntDef {
         pub fn u8() -> Self {
@@ -965,12 +981,12 @@ mod test {
                 variant: SmartPtrVariant::Box,
             },
         );
-        infer("alloc::String::String", StringDef);
+        infer("alloc::String::String", string_def());
         infer(
             "std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>",
             MapDef {
-                key_type: Arc::new(StringDef.into()),
-                value_type: Arc::new(StringDef.into()),
+                key_type: Arc::new(string_def()),
+                value_type: Arc::new(string_def()),
                 variant: MapVariant::HashMap,
                 size: 0, // Would need to calculate from DWARF
             },

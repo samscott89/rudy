@@ -33,23 +33,39 @@ pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Resu
 
 /// Resolve Vec type layout from DWARF
 fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
-    // For now, we'll use the parsed type information and just validate the layout
-    // In a full implementation, we'd extract the exact field offsets
-    let Some(typename) = get_die_typename(db, entry) else {
-        return Err(entry
-            .format_with_location(db, "Vec typename not found")
-            .into());
-    };
+    let mut data_ptr_offset = 0;
+    // Vec.buf -> RawVec
+    let buf = entry.get_member(db, "buf").context("could not find buf")?;
+    data_ptr_offset += buf
+        .udata_attr(db, gimli::DW_AT_data_member_location)
+        .context("could not find buf offset")?;
 
-    // TODO: resolve the inner type
+    let rawvec = buf
+        .get_unit_ref(db, gimli::DW_AT_type)?
+        .with_context(|| buf.format_with_location(db, "Failed to get type for buf"))?;
 
-    let data_ptr_offset = entry
-        .get_member_attribute(db, "buf", gimli::DW_AT_data_member_location)
-        .context("could not find buf")?;
-    let data_ptr_offset = data_ptr_offset
+    // RawVec.inner -> RawVecInner
+
+    let inner = rawvec
+        .get_member(db, "inner")
+        .with_context(|| buf.format_with_location(db, "Failed to get inner member"))?;
+    data_ptr_offset += inner
+        .udata_attr(db, gimli::DW_AT_data_member_location)
+        .context("could not find inner offset")?;
+
+    let rawvec_inner = inner
+        .get_unit_ref(db, gimli::DW_AT_type)?
+        .with_context(|| inner.format_with_location(db, "Failed to get type for inner"))?;
+
+    // RawVecInner.ptr -> *mut T
+    let data_ptr = rawvec_inner
+        .get_member_attribute(db, "ptr", gimli::DW_AT_data_member_location)
+        .context("could not find ptr")?
         .udata_value()
         .map(|v| v as usize)
-        .context("buf offset is not a valid udata")?;
+        .context("ptr offset is not a valid udata")?;
+
+    data_ptr_offset += data_ptr;
 
     let length_offset = entry
         .get_member_attribute(db, "len", gimli::DW_AT_data_member_location)
@@ -78,17 +94,18 @@ fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
 
 /// Resolve String type layout from DWARF
 fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDef> {
-    // String has the same layout as Vec<u8>
-    let Some(_size) = entry
-        .get_attr(db, gimli::DW_AT_byte_size)
-        .and_then(|attr| attr.udata_value())
-    else {
-        return Err(entry
-            .format_with_location(db, "String size not found")
-            .into());
-    };
+    // string should just have a single child member for the vec
+    let vec_field = entry
+        .get_member(db, "vec")
+        .context("could not find vec field for string")?;
+    let vec_type = vec_field
+        .get_unit_ref(db, gimli::DW_AT_type)
+        .context("could not get type for vec field")?
+        .with_context(|| vec_field.format_with_location(db, "Failed to get type for vec field"))?;
+    let vec = resolve_vec_type(db, vec_type)
+        .with_context(|| vec_type.format_with_location(db, "Failed to resolve vec for string"))?;
 
-    Ok(StringDef)
+    Ok(StringDef(vec))
 }
 
 /// Resolve Map type layout from DWARF
@@ -370,7 +387,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
         return Ok(None);
     };
 
-    tracing::info!("resolve_as_builtin_type: checking typename: {}", typename);
+    tracing::info!("resolve_as_builtin_type: checking typename: {typename}",);
     tracing::info!("resolve_as_builtin_type: typedef: {:?}", typename.typedef);
 
     match &typename.typedef {

@@ -702,7 +702,7 @@ pub struct ResultDef {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct StringDef;
+pub struct StringDef(pub VecDef);
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct VecDef {
