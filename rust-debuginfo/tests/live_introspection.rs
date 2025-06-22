@@ -186,7 +186,7 @@ fn test_introspect_vec() -> Result<()> {
 
     // Find Vec<i32> type using the public API
     let typedef = debug_info
-        .resolve_type("Vec")?
+        .resolve_type("Vec<i32>")?
         .expect("Vec type should be found");
 
     // Try to read Vec - this will fail when Vec reading isn't implemented
@@ -290,7 +290,7 @@ fn test_introspect_hashmap() -> Result<()> {
 
     // Find HashMap type using the public API
     let typedef = debug_info
-        .resolve_type("HashMap")?
+        .resolve_type("HashMap<String, i32>")?
         .expect("HashMap type should be found");
 
     // Try to read HashMap - this will fail when HashMap reading isn't implemented
@@ -434,6 +434,51 @@ fn test_introspect_basic_struct() -> Result<()> {
 
     // If we get here, basic struct reading is working
     println!("TestBasicStruct value: {:?}", value);
+
+    assert_eq!(
+        value,
+        Value::Struct {
+            ty: "TestBasicStruct".to_string(),
+            fields: {
+                let mut fields = std::collections::BTreeMap::new();
+                fields.insert(
+                    "id".to_string(),
+                    Value::Scalar {
+                        ty: "u32".to_string(),
+                        value: "42".to_string(),
+                    },
+                );
+                fields.insert(
+                    "count".to_string(),
+                    Value::Scalar {
+                        ty: "u64".to_string(),
+                        value: "12345".to_string(),
+                    },
+                );
+                fields.insert(
+                    "enabled".to_string(),
+                    Value::Scalar {
+                        ty: "bool".to_string(),
+                        value: "true".to_string(),
+                    },
+                );
+                fields.insert(
+                    "bytes".to_string(),
+                    Value::Array {
+                        ty: "[u8; 4]".to_string(),
+                        items: vec!["222", "173", "190", "239"]
+                            .into_iter()
+                            .map(|v| Value::Scalar {
+                                ty: "u8".to_string(),
+                                value: v.to_string(),
+                            })
+                            .collect(),
+                    },
+                );
+                fields
+            }
+        }
+    );
 
     // Keep data alive
     let _ = test_basic;

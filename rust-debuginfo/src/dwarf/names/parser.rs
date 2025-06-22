@@ -380,26 +380,27 @@ impl Path {
 
         // Check if this is a standard library type by examining the path
         let is_std = segments[0] == "std" || segments[0] == "core" || segments[0] == "alloc";
+        let is_hashbrown = segments[0] == "hashbrown";
 
         tracing::debug!("Parser segments: {:?}, is_std: {}", segments, is_std);
 
-        if is_std {
+        if is_std || is_hashbrown || segments.len() == 1 {
             // Parse the last segment for generic types
             // (we're guaranteed to have at least one segment here)
             if let Some(path_segment) = self.segments.0.last() {
                 if let PathSegment::Segment(segment) = &path_segment.value {
                     let type_name = segment.ident.to_string();
 
-                    // Extract generic arguments if present
-                    let generics: Vec<Type> = match segment.generics.0.first() {
-                        Some(generic_args) => match &generic_args.value {
-                            GenericArgs::Parsed { inner, .. } => {
-                                inner.0.iter().map(|d| d.value.clone()).collect()
-                            }
-                            // we failed to parse the generic args, so we wont be able to use those later.
-                            GenericArgs::Unparsed(_) => vec![],
-                        },
-                        None => vec![],
+                    let get_generics = || {
+                        segment.generics.0.first().map_or_else(
+                            || vec![],
+                            |generic_args| match &generic_args.value {
+                                GenericArgs::Parsed { inner, .. } => {
+                                    inner.0.iter().map(|d| d.value.clone()).collect()
+                                }
+                                GenericArgs::Unparsed(_) => vec![],
+                            },
+                        )
                     };
 
                     tracing::debug!("Checking std type: '{}' against known types", type_name);
@@ -410,7 +411,7 @@ impl Path {
                             return TypeDef::Std(StdDef::String(StringDef));
                         }
                         "Vec" => {
-                            let inner = generics
+                            let inner = get_generics()
                                 .first()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
@@ -421,7 +422,7 @@ impl Path {
                             return TypeDef::Std(StdDef::Vec(VecDef { inner_type: inner }));
                         }
                         "Option" => {
-                            let inner = generics
+                            let inner = get_generics()
                                 .first()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
@@ -432,7 +433,7 @@ impl Path {
                             return TypeDef::Std(StdDef::Option(OptionDef { inner_type: inner }));
                         }
                         "Result" => {
-                            let mut generics_iter = generics.into_iter();
+                            let mut generics_iter = get_generics().into_iter();
                             let ok_type = generics_iter
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
@@ -452,7 +453,7 @@ impl Path {
                             return TypeDef::Std(StdDef::Result(ResultDef { ok_type, err_type }));
                         }
                         "HashMap" | "BTreeMap" => {
-                            let mut generics_iter = generics.into_iter();
+                            let mut generics_iter = get_generics().into_iter();
                             let key_type = generics_iter
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
@@ -474,6 +475,7 @@ impl Path {
                                 "BTreeMap" => MapVariant::BTreeMap,
                                 _ => unreachable!(),
                             };
+                            tracing::debug!("Matched Map type: '{type_name}'");
                             return TypeDef::Std(StdDef::Map(MapDef {
                                 key_type,
                                 value_type,
@@ -483,7 +485,7 @@ impl Path {
                         }
                         "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "UnsafeCell" | "Mutex"
                         | "RwLock" => {
-                            let inner = generics
+                            let inner = get_generics()
                                 .into_iter()
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))

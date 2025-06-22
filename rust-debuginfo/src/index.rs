@@ -254,8 +254,9 @@ pub fn resolve_type<'db>(
             .types
             .iter()
             .filter(|(name, _)| {
-                if name.name == parsed.name {
-                    tracing::info!("Checking type '{name}' vs '{parsed}'",);
+                if name.name.starts_with(&parsed.name) {
+                    tracing::info!("Found type name: {} vs {}", name.name, parsed.name);
+                    tracing::info!("Checking type '{name}' vs '{parsed}'");
                     if !name.typedef.matching_type(&parsed.typedef) {
                         tracing::info!(
                             "Type '{:#?}' does not match '{:#?}'",
@@ -283,7 +284,7 @@ pub fn resolve_type<'db>(
                 }
             }
         }
-        tracing::debug!(
+        tracing::trace!(
             "No type '{}' found in debug file: {}",
             type_name,
             debug_file.name(db)

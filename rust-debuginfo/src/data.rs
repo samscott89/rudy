@@ -170,7 +170,14 @@ fn read_primitive_from_memory(
 ) -> Result<crate::Value> {
     let value = match def {
         // PrimitiveDef::Array(array_def) => todo!(),
-        // PrimitiveDef::Bool(bool_def) => todo!(),
+        PrimitiveDef::Bool(_) => {
+            let memory = data_resolver.read_memory(address, 1)?;
+            let bool_value = memory[0] != 0;
+            crate::Value::Scalar {
+                ty: "bool".to_string(),
+                value: bool_value.to_string(),
+            }
+        }
         // PrimitiveDef::Char(char_def) => todo!(),
         // PrimitiveDef::Float(float_def) => todo!(),
         // PrimitiveDef::Function(function_def) => todo!(),
@@ -272,6 +279,18 @@ fn read_std_from_memory(
 
             read_from_memory(db, address, &option_def.inner_type, data_resolver)?
         }
+        StdDef::Vec(v) => {
+            // let ptr = v.
+            todo!()
+        }
+        StdDef::Map(def) => match def.variant {
+            crate::typedef::MapVariant::HashMap => {
+                // super hacky...
+                todo!()
+            }
+            crate::typedef::MapVariant::BTreeMap => todo!(),
+            crate::typedef::MapVariant::IndexMap => todo!(),
+        },
         def => {
             todo!("read_std_from_memory: {def:#?}");
         }

@@ -367,6 +367,13 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
     ) {
         visit_type(walker, entry, unit_ref);
     }
+    fn visit_array_type<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        entry: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        visit_type(walker, entry, unit_ref);
+    }
 }
 
 /// Generically visit a type DIE entry, extracts the type name

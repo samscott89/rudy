@@ -96,7 +96,7 @@ impl TypeName {
             module: ModuleName {
                 segments: module_path.to_vec(),
             },
-            name: name.to_string(),
+            name: typedef.display_name(),
             full_name,
             typedef,
         })

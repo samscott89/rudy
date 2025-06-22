@@ -157,34 +157,8 @@ impl TypeDef {
 
     pub fn matching_type(&self, other: &TypeDef) -> bool {
         match (self, other) {
-            (TypeDef::Primitive(p1), TypeDef::Primitive(p2)) => match (p1, p2) {
-                (p1, p2) if p1 == p2 => true,
-
-                (PrimitiveDef::Pointer(l), PrimitiveDef::Pointer(r)) => {
-                    l.pointed_type.matching_type(&r.pointed_type)
-                }
-                (PrimitiveDef::Reference(l), PrimitiveDef::Reference(r)) => {
-                    l.pointed_type.matching_type(&r.pointed_type)
-                }
-                (PrimitiveDef::Slice(l), PrimitiveDef::Slice(r)) => {
-                    l.element_type.matching_type(&r.element_type)
-                }
-                (PrimitiveDef::Array(l), PrimitiveDef::Array(r)) => {
-                    l.element_type.matching_type(&r.element_type)
-                }
-
-                (PrimitiveDef::Tuple(l), PrimitiveDef::Tuple(r)) => {
-                    if l.element_types.len() != r.element_types.len() {
-                        return false;
-                    }
-                    l.element_types
-                        .iter()
-                        .zip(r.element_types.iter())
-                        .all(|(l, r)| l.matching_type(r))
-                }
-                _ => false,
-            },
-            (TypeDef::Std(s1), TypeDef::Std(s2)) => s1 == s2,
+            (TypeDef::Primitive(p1), TypeDef::Primitive(p2)) => p1.matching_type(p2),
+            (TypeDef::Std(s1), TypeDef::Std(s2)) => s1.matching_type(s2),
             // TODO: Sam: handle this more robustly
             (TypeDef::Struct(s1), TypeDef::Struct(s2)) => s1.name == s2.name,
             (TypeDef::Struct(s1), TypeDef::Other { name }) => &s1.name == name,
@@ -503,6 +477,36 @@ impl PrimitiveDef {
 
         Some(size)
     }
+
+    fn matching_type(&self, other: &Self) -> bool {
+        match (self, other) {
+            (p1, p2) if p1 == p2 => true,
+
+            (PrimitiveDef::Pointer(l), PrimitiveDef::Pointer(r)) => {
+                l.pointed_type.matching_type(&r.pointed_type)
+            }
+            (PrimitiveDef::Reference(l), PrimitiveDef::Reference(r)) => {
+                l.pointed_type.matching_type(&r.pointed_type)
+            }
+            (PrimitiveDef::Slice(l), PrimitiveDef::Slice(r)) => {
+                l.element_type.matching_type(&r.element_type)
+            }
+            (PrimitiveDef::Array(l), PrimitiveDef::Array(r)) => {
+                l.element_type.matching_type(&r.element_type)
+            }
+
+            (PrimitiveDef::Tuple(l), PrimitiveDef::Tuple(r)) => {
+                if l.element_types.len() != r.element_types.len() {
+                    return false;
+                }
+                l.element_types
+                    .iter()
+                    .zip(r.element_types.iter())
+                    .all(|(l, r)| l.matching_type(r))
+            }
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -613,6 +617,27 @@ impl StdDef {
 
         Some(size)
     }
+
+    fn matching_type(&self, other: &Self) -> bool {
+        match (self, other) {
+            (l, r) if l == r => true,
+            (StdDef::SmartPtr(l), StdDef::SmartPtr(r)) => {
+                l.variant == r.variant && l.inner_type.matching_type(&r.inner_type)
+            }
+            (StdDef::Map(l), StdDef::Map(r)) => {
+                l.variant == r.variant
+                    && l.key_type.matching_type(&r.key_type)
+                    && l.value_type.matching_type(&r.value_type)
+            }
+            (StdDef::Option(l), StdDef::Option(r)) => l.inner_type.matching_type(&r.inner_type),
+            (StdDef::Result(l), StdDef::Result(r)) => {
+                l.ok_type.matching_type(&r.ok_type) && l.err_type.matching_type(&r.err_type)
+            }
+            (StdDef::String(_), StdDef::String(_)) => true,
+            (StdDef::Vec(l), StdDef::Vec(r)) => l.inner_type.matching_type(&r.inner_type),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -672,12 +697,16 @@ pub struct StringDef;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct VecDef {
+    pub length_offset: usize,
+    pub data_ptr_offset: usize,
     pub inner_type: Arc<TypeDef>,
 }
 
 impl VecDef {
     pub fn new<T: Into<TypeDef>>(inner_type: T) -> Self {
         Self {
+            length_offset: 0,
+            data_ptr_offset: 0,
             inner_type: Arc::new(inner_type.into()),
         }
     }

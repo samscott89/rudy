@@ -6,8 +6,8 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    OptionDef, PointerDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, StringDef, StructDef,
-    StructField, TypeDef, TypeRef,
+    ArrayDef, MapDef, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef, StdDef,
+    StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef, VecDef,
 };
 
 use anyhow::Context;
@@ -31,7 +31,7 @@ pub fn resolve_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 }
 
 /// Resolve Vec type layout from DWARF
-fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
     // Vec has a similar layout to &[T] - pointer + length + capacity
     let Some(_size) = entry
         .get_attr(db, gimli::DW_AT_byte_size)
@@ -48,16 +48,11 @@ fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
             .into());
     };
 
-    match &typename.typedef {
-        TypeDef::Std(StdDef::Vec(vec_def)) => Ok(TypeDef::Std(StdDef::Vec(vec_def.clone()))),
-        _ => Err(entry
-            .format_with_location(db, "Expected Vec type in typename")
-            .into()),
-    }
+    todo!()
 }
 
 /// Resolve String type layout from DWARF
-fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDef> {
     // String has the same layout as Vec<u8>
     let Some(_size) = entry
         .get_attr(db, gimli::DW_AT_byte_size)
@@ -68,11 +63,11 @@ fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef>
             .into());
     };
 
-    Ok(TypeDef::Std(StdDef::String(StringDef)))
+    Ok(StringDef)
 }
 
 /// Resolve Map type layout from DWARF
-fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef> {
     let Some(size) = entry
         .get_attr(db, gimli::DW_AT_byte_size)
         .and_then(|attr| attr.udata_value())
@@ -86,20 +81,21 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
             .into());
     };
 
-    match &typename.typedef {
-        TypeDef::Std(StdDef::Map(map_def)) => {
-            let mut resolved_map = map_def.clone();
-            resolved_map.size = size as usize;
-            Ok(TypeDef::Std(StdDef::Map(resolved_map)))
-        }
-        _ => Err(entry
-            .format_with_location(db, "Expected Map type in typename")
-            .into()),
-    }
+    // match &typename.typedef {
+    //     TypeDef::Std(StdDef::Map(map_def)) => {
+    //         let mut resolved_map = map_def.clone();
+    //         resolved_map.size = size as usize;
+    //         Ok(TypeDef::Std(StdDef::Map(resolved_map)))
+    //     }
+    //     _ => Err(entry
+    //         .format_with_location(db, "Expected Map type in typename")
+    //         .into()),
+    // }
+    todo!()
 }
 
 /// Resolve Result type layout from DWARF
-fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<ResultDef> {
     // Result is an enum type with Ok and Err variants
     let Some(typename) = get_die_typename(db, entry) else {
         return Err(entry
@@ -107,14 +103,15 @@ fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef>
             .into());
     };
 
-    match &typename.typedef {
-        TypeDef::Std(StdDef::Result(result_def)) => {
-            Ok(TypeDef::Std(StdDef::Result(result_def.clone())))
-        }
-        _ => Err(entry
-            .format_with_location(db, "Expected Result type in typename")
-            .into()),
-    }
+    // match &typename.typedef {
+    //     TypeDef::Std(StdDef::Result(result_def)) => {
+    //         Ok(TypeDef::Std(StdDef::Result(result_def.clone())))
+    //     }
+    //     _ => Err(entry
+    //         .format_with_location(db, "Expected Result type in typename")
+    //         .into()),
+    // }
+    todo!()
 }
 
 /// Resolve smart pointer type layout from DWARF
@@ -390,19 +387,19 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                 }
                 StdDef::Vec(_) => {
                     // For Vec, we need to resolve the actual layout from DWARF
-                    resolve_vec_type(db, entry).map(Some)
+                    resolve_vec_type(db, entry).map(|v| Some(TypeDef::Std(StdDef::Vec(v))))
                 }
                 StdDef::String(_) => {
                     // String has a known layout similar to Vec
-                    resolve_string_type(db, entry).map(Some)
+                    resolve_string_type(db, entry).map(|s| Some(TypeDef::Std(StdDef::String(s))))
                 }
                 StdDef::Map(_) => {
                     // HashMap/BTreeMap need layout resolution
-                    resolve_map_type(db, entry).map(Some)
+                    resolve_map_type(db, entry).map(|m| Some(TypeDef::Std(StdDef::Map(m))))
                 }
                 StdDef::Result(_) => {
                     // Result types need layout resolution
-                    resolve_result_type(db, entry).map(Some)
+                    resolve_result_type(db, entry).map(|r| Some(TypeDef::Std(StdDef::Result(r))))
                 }
                 StdDef::SmartPtr(_) => {
                     // Smart pointers like Box, Rc, Arc need layout resolution
@@ -459,6 +456,28 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
             return Err(entry
                 .format_with_location(db, "Primitive type not handled")
                 .into());
+        }
+        gimli::DW_TAG_array_type => {
+            let array_type = resolve_type(db, entry)?;
+            let children = entry.children(db);
+            let subrange = children
+                .iter()
+                .find(|c| c.tag(db) == gimli::DW_TAG_subrange_type)
+                .ok_or_else(|| {
+                    entry.format_with_location(db, "array type missing subrange information")
+                })?;
+            let Some(count) = subrange
+                .get_attr(db, gimli::DW_AT_count)
+                .and_then(|attr| attr.udata_value())
+            else {
+                return Err(subrange
+                    .format_with_location(db, "array type subrange count not found")
+                    .into());
+            };
+            TypeDef::Primitive(PrimitiveDef::Array(ArrayDef {
+                element_type: Arc::new(array_type),
+                length: count as usize,
+            }))
         }
         gimli::DW_TAG_structure_type => {
             // DWARF info says struct, but in practice this could also be an enum
