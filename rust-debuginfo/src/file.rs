@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Debug};
 use std::sync::Arc;
 
 use memmap2::Mmap;
@@ -42,6 +42,17 @@ pub struct DebugFile {
     /// Whether this debug file is relocatable
     /// (i..e it is split from the main binary and can be loaded independently)
     pub relocatable: bool,
+}
+
+impl DebugFile {
+    pub fn name(&self, db: &dyn Db) -> String {
+        let file = self.file(db);
+        if let Some(member) = file.member_file(db) {
+            format!("{}({})", file.path(db), member)
+        } else {
+            file.path(db).to_string()
+        }
+    }
 }
 
 pub struct LoadedFile {

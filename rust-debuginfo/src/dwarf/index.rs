@@ -377,6 +377,12 @@ fn visit_type<'a, 'db>(
     unit_ref: UnitRef<'a>,
 ) {
     let Some(name) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref).unwrap() else {
+        if entry.tag() == gimli::DW_TAG_pointer_type {
+            // we end up with raw pointers like `T *` which don't come with a name
+            // it's probably some C interop thing
+            // so no need to warn
+            return;
+        }
         tracing::warn!("No type name found for entry: {}", {
             let print_entry = pretty_print_die_entry(&entry, &unit_ref);
             walker
@@ -411,10 +417,8 @@ fn visit_type<'a, 'db>(
 /// corresponding DIE entry in the DWARF information.
 #[salsa::tracked(returns(ref))]
 pub fn debug_file_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileIndex<'db> {
-    let file = debug_file.file(db);
-
     let mut builder = FileIndexBuilder::default();
-    tracing::info!("Indexing file: {}", file.path(db));
+    tracing::info!("Indexing file: {}", debug_file.name(db));
     walk_file(db, debug_file, &mut builder);
 
     let FileIndexBuilder {

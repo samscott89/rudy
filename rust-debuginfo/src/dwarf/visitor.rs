@@ -247,10 +247,10 @@ pub trait DieVisitor<'db>: Sized {
                 // these don't seem to contain much, so we'll skip
             }
             _ => {
-                tracing::warn!(
-                    "Unhandled DIE tag: {} at offset {:#x}",
+                tracing::debug!(
+                    "Unhandled DIE tag: {} {}",
                     die.tag(),
-                    die.offset().0
+                    walker.get_die(die).format_with_location(walker.db, "")
                 );
             }
         }
