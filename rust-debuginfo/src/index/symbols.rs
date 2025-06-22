@@ -47,9 +47,11 @@ pub fn index_symbol_map<'db>(
     let debug_file = DebugFile::new(db, binary_file, false);
     debug_files.insert((binary_file.path(db).to_string(), None), debug_file.clone());
 
-    // index the symbols in the binary
+    // index the symbols in the binary (if it has debug info)
     let mut symbol_index = SymbolIndex::default();
-    symbol_index.index_binary(&loaded_file.object, debug_file)?;
+    if loaded_file.object.has_debug_symbols() {
+        symbol_index.index_binary(&loaded_file.object, debug_file)?;
+    }
 
     // next, if we have any mapped objects (via Mach-O)
     // then we'll locate all the debug files, and index their symbols
@@ -99,11 +101,6 @@ pub fn index_symbol_map<'db>(
         symbol_index.index_mapped_file(symbols.into_iter(), debug_file)?;
     }
 
-    // finally, sort all functions by address
-    symbol_index
-        .functions_by_address
-        .sort_unstable_by_key(|s| s.address);
-
     Ok((debug_files, symbol_index))
 }
 
@@ -119,7 +116,7 @@ pub struct SymbolIndex {
 
     /// All functions sorted by address for binary search lookup
     /// Used for address-to-function mapping
-    pub functions_by_address: Vec<Symbol>,
+    pub functions_by_address: BTreeMap<u64, Vec<Symbol>>,
 }
 
 impl SymbolIndex {
@@ -137,23 +134,13 @@ impl SymbolIndex {
     }
 
     /// Find function containing the given address using binary search
-    pub fn function_at_address(&self, address: u64) -> Option<&Symbol> {
-        // Binary search to find the function with the highest address <= target
-        match self
-            .functions_by_address
-            .binary_search_by_key(&address, |f| f.address)
-        {
-            Ok(idx) => Some(&self.functions_by_address[idx]),
-            Err(idx) => {
-                // binary_search returns the insertion point when not found
-                // We want the function just before this point
-                if idx > 0 {
-                    Some(&self.functions_by_address[idx - 1])
-                } else {
-                    None
-                }
-            }
-        }
+    pub fn function_at_address(&self, address: u64) -> Option<&Vec<Symbol>> {
+        // Find the first function(s) with an address less than or equal to the given address
+        self.functions_by_address
+            .range(..=address)
+            .rev()
+            .next()
+            .map(|(_, v)| v)
     }
 
     pub fn index_binary(&mut self, object: &object::File<'_>, debug_file: DebugFile) -> Result<()> {
@@ -181,7 +168,10 @@ impl SymbolIndex {
                 debug_file,
             };
             let map = if is_function {
-                self.functions_by_address.push(entry.clone());
+                self.functions_by_address
+                    .entry(entry.address)
+                    .or_default()
+                    .push(entry.clone());
                 &mut self.functions
             } else {
                 &mut self.symbols
@@ -219,7 +209,10 @@ impl SymbolIndex {
                 debug_file,
             };
             let map = if is_function {
-                self.functions_by_address.push(entry.clone());
+                self.functions_by_address
+                    .entry(entry.address)
+                    .or_default()
+                    .push(entry.clone());
                 &mut self.functions
             } else {
                 &mut self.symbols
@@ -263,20 +256,7 @@ mod test {
         );
         assert!(
             !symbol_index.functions_by_address.is_empty(),
-            "Should have functions sorted by address"
-        );
-
-        // Verify functions are sorted by address
-        let addresses: Vec<u64> = symbol_index
-            .functions_by_address
-            .iter()
-            .map(|f| f.address)
-            .collect();
-        let mut sorted_addresses = addresses.clone();
-        sorted_addresses.sort();
-        assert_eq!(
-            addresses, sorted_addresses,
-            "Functions should be sorted by address"
+            "Should have functions grouped by address"
         );
 
         tracing::info!(
@@ -286,13 +266,13 @@ mod test {
         );
 
         // Test address lookup
-        if let Some(first_func) = symbol_index.functions_by_address.first() {
-            let found_func = symbol_index.function_at_address(first_func.address);
+        if let Some((addr, first_funcs)) = symbol_index.functions_by_address.first_key_value() {
+            let found_func = symbol_index.function_at_address(*addr);
             assert!(
                 found_func.is_some(),
                 "Should find function at its own address"
             );
-            assert_eq!(found_func.unwrap().address, first_func.address);
+            assert_eq!(found_func.unwrap(), first_funcs);
         }
 
         Ok(())

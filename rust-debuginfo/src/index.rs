@@ -135,14 +135,19 @@ pub fn find_all_by_address<'db>(
 ) -> Vec<&'db FunctionAddressInfo> {
     // first, find the closest function by address
     let index = debug_index(db, binary).symbol_index(db);
-    let Some(function) = index.function_at_address(address) else {
+    let Some(function_symbols) = index.function_at_address(address) else {
         return vec![];
     };
 
     // then, query the debug file index to find the actual matching addresses
-    let debug_file = function.debug_file;
-    let indexed = dwarf::debug_file_index(db, debug_file).data(db);
-    indexed.function_addresses.query_address(address)
+    function_symbols
+        .iter()
+        .flat_map(|s| {
+            let debug_file = s.debug_file;
+            let indexed = dwarf::debug_file_index(db, debug_file).data(db);
+            indexed.function_addresses.query_address(address)
+        })
+        .collect()
 }
 
 /// Resolve a type by name in the debug information
