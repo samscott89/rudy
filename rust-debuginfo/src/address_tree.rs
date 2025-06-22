@@ -4,6 +4,8 @@ use crate::file::DebugFile;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FunctionAddressInfo {
+    /// The start address of the function
+    /// This is _relative_ to the debug file
     pub start: u64,
     pub end: u64,
     pub file: DebugFile,

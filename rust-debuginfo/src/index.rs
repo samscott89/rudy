@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::Context;
+use itertools::Itertools;
 
 use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;
@@ -96,7 +97,43 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     // TODO: get "main debug files" (i.e. the binary itself, or the debug file adjacent to it)
     // and insert into the vec + index the symbols
 
-    Index::new(db, debug_files, symbol_index, vec![], Default::default())
+    let binary_path = binary.file(db).path(db).replace("-", "_");
+    let indexed_debug_files = debug_files
+        .iter()
+        .filter_map(|((file, _member), debug_file)| {
+            // filter out files that are not related to the binary
+            if file
+                .replace("/deps/", "/")
+                .replace("-", "_")
+                .contains(&binary_path)
+            {
+                Some(*debug_file)
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let mut source_file_index: BTreeMap<SourceFile<'_>, Vec<DebugFile>> = Default::default();
+
+    for debug_file in &indexed_debug_files {
+        tracing::info!("Indexed debug file: {}", debug_file.name(db));
+        let indexed = dwarf::debug_file_index(db, *debug_file).data(db);
+        for source in indexed.sources.iter() {
+            source_file_index
+                .entry(*source)
+                .or_default()
+                .push(*debug_file);
+        }
+    }
+
+    Index::new(
+        db,
+        debug_files,
+        symbol_index,
+        indexed_debug_files,
+        source_file_index,
+    )
 }
 
 #[salsa::tracked]
@@ -105,13 +142,7 @@ pub fn find_closest_function<'db>(
     binary: Binary,
     function_name: &'db str,
 ) -> Option<(SymbolName, DebugFile)> {
-    // check if exact name exists in index
     let index = debug_index(db, binary);
-
-    // otherwise, find the closest match by scanning the index
-    // let name = function_name.name(db);
-    // let module_prefix = function_name.path(db);
-
     let mut segments = function_name
         .split("::")
         .map(|s| s.to_owned())
@@ -128,14 +159,15 @@ pub fn find_closest_function<'db>(
     None
 }
 
+/// Finds all functions
 pub fn find_all_by_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<&'db FunctionAddressInfo> {
+) -> Vec<(u64, &'db FunctionAddressInfo)> {
     // first, find the closest function by address
     let index = debug_index(db, binary).symbol_index(db);
-    let Some(function_symbols) = index.function_at_address(address) else {
+    let Some((_, function_symbols)) = index.function_at_address(address) else {
         return vec![];
     };
 
@@ -143,9 +175,49 @@ pub fn find_all_by_address<'db>(
     function_symbols
         .iter()
         .flat_map(|s| {
+            // our index says that this symbol is _approximately_ at `address`
+            // but we want to find the exact address in the debug file
+
+            // we also need to adjust the address by the symbol's base address
+
+
             let debug_file = s.debug_file;
             let indexed = dwarf::debug_file_index(db, debug_file).data(db);
-            indexed.function_addresses.query_address(address)
+            let Some(f) = indexed.functions.get(&s.name) else {
+                tracing::warn!(
+                    "No function found for symbol {} in debug file {}",
+                    s.name,
+                    debug_file.name(db)
+                );
+                return vec![];
+            };
+            let Some((relative_start, _)) = f.relative_address_range else {
+                return vec![]
+            };
+
+            // compute the necessary address slide
+            let slide = s.address - relative_start;
+
+            debug_assert!(
+                debug_file.relocatable(db) || slide == 0,
+                "Expected slide to be 0 for non-relocatable debug files, got relocatable={} and slide={slide}",
+                debug_file.relocatable(db),
+            );
+
+                        let relative_address = address - slide;
+
+
+            tracing::info!(
+                "Resolving function {} at address {address:#x} with slide {slide:#x} (relative addr: {relative_address:#x}) in debug file {}",
+                s.name,
+                debug_file.name(db)
+            );
+
+            // if not relocatable, we can use the address directly
+            indexed.function_addresses.query_address(relative_address).into_iter().map(|f| {
+                // return the relative address and the function info
+                (relative_address, f)
+            }).collect_vec()
         })
         .collect()
 }

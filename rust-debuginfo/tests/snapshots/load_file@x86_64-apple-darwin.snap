@@ -199,7 +199,7 @@ DebugInfo {
         },
     ],
     index: Index {
-        [salsa id]: Id(c00),
+        [salsa id]: Id(2400),
         debug_files: {
             (
                 "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/x86_64-apple-darwin/lib/liballoc-62326b1a230d9193.rlib",
@@ -21249,7 +21249,423 @@ DebugInfo {
                 ],
             },
         },
-        indexed_debug_files: [],
-        source_to_file: {},
+        indexed_debug_files: [
+            DebugFile {
+                [salsa id]: Id(801),
+                file: File {
+                    [salsa id]: Id(1),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.3nftq86p71ntq93o6n8om1ynx.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 342386447,
+                    },
+                    size: 3008,
+                },
+                relocatable: true,
+            },
+            DebugFile {
+                [salsa id]: Id(802),
+                file: File {
+                    [salsa id]: Id(2),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.6u438fpfsnxi93k6ee6z15i7a.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 343371743,
+                    },
+                    size: 5024,
+                },
+                relocatable: true,
+            },
+            DebugFile {
+                [salsa id]: Id(803),
+                file: File {
+                    [salsa id]: Id(3),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.9c1pltfv61nh9ensl3ostwq7v.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 342489989,
+                    },
+                    size: 2584,
+                },
+                relocatable: true,
+            },
+            DebugFile {
+                [salsa id]: Id(804),
+                file: File {
+                    [salsa id]: Id(4),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.c0ne9inybjkxgt3z8dovovhcl.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 343266784,
+                    },
+                    size: 6264,
+                },
+                relocatable: true,
+            },
+            DebugFile {
+                [salsa id]: Id(805),
+                file: File {
+                    [salsa id]: Id(5),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.ceeiqj98j08v12f42wctxrtoz.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 344019579,
+                    },
+                    size: 5336,
+                },
+                relocatable: true,
+            },
+            DebugFile {
+                [salsa id]: Id(806),
+                file: File {
+                    [salsa id]: Id(6),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 343448285,
+                    },
+                    size: 14008,
+                },
+                relocatable: true,
+            },
+            DebugFile {
+                [salsa id]: Id(807),
+                file: File {
+                    [salsa id]: Id(7),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.daxzzv99m94e3tgswsj8l17nm.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 342768616,
+                    },
+                    size: 6944,
+                },
+                relocatable: true,
+            },
+            DebugFile {
+                [salsa id]: Id(800),
+                file: File {
+                    [salsa id]: Id(0),
+                    path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/simple-test",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1748701644,
+                        tv_nsec: 379656780,
+                    },
+                    size: 429800,
+                },
+                relocatable: false,
+            },
+        ],
+        source_to_file: {
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/std/src/sys/backtrace.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(801),
+                    file: File {
+                        [salsa id]: Id(1),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.3nftq86p71ntq93o6n8om1ynx.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 342386447,
+                        },
+                        size: 3008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/hint.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(801),
+                    file: File {
+                        [salsa id]: Id(1),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.3nftq86p71ntq93o6n8om1ynx.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 342386447,
+                        },
+                        size: 3008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/fmt/rt.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(802),
+                    file: File {
+                        [salsa id]: Id(2),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.6u438fpfsnxi93k6ee6z15i7a.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343371743,
+                        },
+                        size: 5024,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/std/src/process.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(803),
+                    file: File {
+                        [salsa id]: Id(3),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.9c1pltfv61nh9ensl3ostwq7v.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 342489989,
+                        },
+                        size: 2584,
+                    },
+                    relocatable: true,
+                },
+                DebugFile {
+                    [salsa id]: Id(805),
+                    file: File {
+                        [salsa id]: Id(5),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.ceeiqj98j08v12f42wctxrtoz.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 344019579,
+                        },
+                        size: 5336,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/fmt/mod.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(804),
+                    file: File {
+                        [salsa id]: Id(4),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.c0ne9inybjkxgt3z8dovovhcl.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343266784,
+                        },
+                        size: 6264,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/std/src/rt.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(805),
+                    file: File {
+                        [salsa id]: Id(5),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.ceeiqj98j08v12f42wctxrtoz.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 344019579,
+                        },
+                        size: 5336,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/std/src/sys/process/unix/common.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(805),
+                    file: File {
+                        [salsa id]: Id(5),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.ceeiqj98j08v12f42wctxrtoz.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 344019579,
+                        },
+                        size: 5336,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/ops/function.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/ptr/mod.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/alloc/src/boxed.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/mem/mod.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/ub_checks.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/alloc/layout.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/ptr/non_null.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/core/src/ptr/unique.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(806),
+                    file: File {
+                        [salsa id]: Id(6),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.d81afr9hme9bypy7vapx7pvbd.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 343448285,
+                        },
+                        size: 14008,
+                    },
+                    relocatable: true,
+                },
+            ],
+            SourceFile {
+                path: "/Users/sam/work/tardis/examples/simple-test/src/main.rs",
+            }: [
+                DebugFile {
+                    [salsa id]: Id(807),
+                    file: File {
+                        [salsa id]: Id(7),
+                        path: "/Users/sam/work/tardis/target/x86_64-apple-darwin/debug-test/deps/simple_test-634780a390c845c7.daxzzv99m94e3tgswsj8l17nm.rcgu.o",
+                        member_file: None,
+                        mtime: SystemTime {
+                            tv_sec: 1748701644,
+                            tv_nsec: 342768616,
+                        },
+                        size: 6944,
+                    },
+                    relocatable: true,
+                },
+            ],
+        },
     },
 }

@@ -70,48 +70,24 @@ pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db
     closest_match
 }
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(skip_all, fields(binary=binary.name(db), address=address.address(db)))]
 #[salsa::tracked]
 pub fn lookup_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: Address<'db>,
-) -> Option<dwarf::ResolvedLocation<'db>> {
+) -> Option<(SymbolName, dwarf::ResolvedLocation<'db>)> {
     let address = address.address(db);
 
     find_all_by_address(db, binary, address)
         .into_iter()
-        .filter_map(|fai| {
+        .filter_map(|(relative_addr, fai)| {
             let indexed_function = dwarf::debug_file_index(db, fai.file)
                 .data(db)
                 .functions
                 .get(&fai.name)?;
             let cu = indexed_function.declaration_die.cu(db);
-
-            // offset into the functino
-            let function_offset = address - fai.start;
-            let relative_address = indexed_function
-                .relative_address_range
-                .unwrap_or_default() // TODO: Fix
-                .0
-                + function_offset;
-
-            dwarf::address_to_location(db, cu, relative_address)
+            dwarf::address_to_location(db, cu, relative_addr).map(|loc| (fai.name.clone(), loc))
         })
-        .next()
-}
-
-#[tracing::instrument(skip(db))]
-#[salsa::tracked]
-pub fn lookup_closest_function<'db>(
-    db: &'db dyn Db,
-    binary: Binary,
-    address: Address<'db>,
-) -> Option<SymbolName> {
-    let address = address.address(db);
-
-    find_all_by_address(db, binary, address)
-        .into_iter()
-        .map(|fai| fai.name.clone())
         .next()
 }

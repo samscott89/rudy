@@ -7,7 +7,7 @@ use crate::{
     dwarf::{self, Die, resolve_function_variables},
     index,
     outputs::ResolvedFunction,
-    query::{lookup_address, lookup_closest_function, lookup_position},
+    query::{lookup_address, lookup_position},
     types::{Address, Position},
 };
 
@@ -202,23 +202,18 @@ impl<'db> DebugInfo<'db> {
         &self,
         address: u64,
     ) -> Result<Option<crate::ResolvedLocation>> {
-        let address = Address::new(self.db, address);
-        let loc = lookup_address(self.db, self.binary, address);
-        let Some(name) = lookup_closest_function(self.db, self.binary, address) else {
-            tracing::debug!(
-                "no function found for address {:#x}",
-                address.address(self.db)
-            );
+        let db = self.db;
+        let address = Address::new(db, address);
+
+        let Some((name, loc)) = lookup_address(db, self.binary, address) else {
+            tracing::debug!("no function found for address {:#x}", address.address(db));
             return Ok(None);
         };
 
-        Ok(loc.map(|loc| {
-            let file = loc.file(self.db);
-            crate::ResolvedLocation {
-                function: name.to_string(),
-                file: file.path(self.db).clone(),
-                line: loc.line(self.db),
-            }
+        Ok(Some(crate::ResolvedLocation {
+            function: name.to_string(),
+            file: loc.file(db).path(db).to_string(),
+            line: loc.line(db),
         }))
     }
 
@@ -324,75 +319,50 @@ impl<'db> DebugInfo<'db> {
         Vec<crate::Variable>,
         Vec<crate::Variable>,
     )> {
-        let address = Address::new(self.db, address);
-        let loc = lookup_address(self.db, self.binary, address);
-        let f = lookup_closest_function(self.db, self.binary, address);
-        let diagnostics: Vec<&Diagnostic> =
-            lookup_closest_function::accumulated(self.db, self.binary, address);
+        let db = self.db;
+        let address = Address::new(db, address);
+        let f = lookup_address(db, self.binary, address);
+        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
         handle_diagnostics(&diagnostics)?;
 
-        let Some(f) = f else {
-            tracing::debug!(
-                "no function found for address {:#x}",
-                address.address(self.db)
-            );
+        let Some((function_name, loc)) = f else {
+            tracing::debug!("no function found for address {:#x}", address.address(db));
             return Ok(Default::default());
         };
 
-        let index = crate::index::debug_index(self.db, self.binary);
-        let Some((_, fie)) = index.get_function(self.db, &f) else {
-            tracing::debug!("no function found for {f:?}");
+        let index = crate::index::debug_index(db, self.binary);
+        let Some((_, fie)) = index.get_function(db, &function_name) else {
+            tracing::debug!("no function found for {function_name}");
             return Ok(Default::default());
         };
 
         let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
 
-        let vars = dwarf::resolve_function_variables(self.db, function_die)?;
+        let vars = dwarf::resolve_function_variables(db, function_die)?;
         let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(self.db, function_die);
+            dwarf::resolve_function_variables::accumulated(db, function_die);
         handle_diagnostics(&diagnostics)?;
 
-        let base_addr = crate::index::debug_index(self.db, self.binary)
-            .symbol_index(self.db)
-            .get_function(&f)
+        let base_addr = crate::index::debug_index(db, self.binary)
+            .symbol_index(db)
+            .get_function(&function_name)
             .context("Failed to get base address for function")?
             .address;
 
         let params = vars
-            .params(self.db)
+            .params(db)
             .into_iter()
-            .map(|param| {
-                output_variable(
-                    self.db,
-                    fie.declaration_die,
-                    base_addr,
-                    param,
-                    data_resolver,
-                )
-            })
+            .map(|param| output_variable(db, fie.declaration_die, base_addr, param, data_resolver))
             .collect::<Result<Vec<_>>>()?;
         let locals = vars
-            .locals(self.db)
+            .locals(db)
             .into_iter()
             .filter(|var| {
                 // for local variables, we want to make sure the variable
                 // is defined before the current location
-                if let Some(loc) = loc {
-                    loc.line(self.db) > var.line(self.db)
-                } else {
-                    // if we don't have a location, we assume the param is valid
-                    true
-                }
+                loc.line(db) > var.line(db)
             })
-            .map(|param| {
-                output_variable(
-                    self.db,
-                    fie.declaration_die,
-                    base_addr,
-                    param,
-                    data_resolver,
-                )
-            })
+            .map(|param| output_variable(db, fie.declaration_die, base_addr, param, data_resolver))
             .collect::<Result<Vec<_>>>()?;
         // TODO: handle globals
         // let globals = vars

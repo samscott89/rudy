@@ -134,13 +134,13 @@ impl SymbolIndex {
     }
 
     /// Find function containing the given address using binary search
-    pub fn function_at_address(&self, address: u64) -> Option<&Vec<Symbol>> {
+    pub fn function_at_address(&self, address: u64) -> Option<(u64, &Vec<Symbol>)> {
         // Find the first function(s) with an address less than or equal to the given address
         self.functions_by_address
             .range(..=address)
             .rev()
             .next()
-            .map(|(_, v)| v)
+            .map(|(base_addr, v)| (*base_addr, v))
     }
 
     pub fn index_binary(&mut self, object: &object::File<'_>, debug_file: DebugFile) -> Result<()> {
@@ -267,12 +267,10 @@ mod test {
 
         // Test address lookup
         if let Some((addr, first_funcs)) = symbol_index.functions_by_address.first_key_value() {
-            let found_func = symbol_index.function_at_address(*addr);
-            assert!(
-                found_func.is_some(),
-                "Should find function at its own address"
-            );
-            assert_eq!(found_func.unwrap(), first_funcs);
+            let (_, found_func) = symbol_index
+                .function_at_address(*addr)
+                .expect("Should find function at address");
+            assert_eq!(found_func, first_funcs);
         }
 
         Ok(())

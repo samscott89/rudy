@@ -35,6 +35,12 @@ pub struct Binary {
     pub file: File,
 }
 
+impl Binary {
+    pub fn name(&self, db: &dyn Db) -> String {
+        self.file(db).path(db).to_string()
+    }
+}
+
 #[salsa::input(debug)]
 pub struct DebugFile {
     /// The underlying file/metadata for this debug file
