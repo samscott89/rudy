@@ -4,10 +4,11 @@ use anyhow::{Context, Result};
 
 use std::collections::BTreeMap;
 
+use crate::Value;
 use crate::database::Db;
 use crate::typedef::{
-    ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, SliceDef, SmartPtrVariant, StdDef,
-    StrSliceDef, TypeDef, VecDef,
+    ArrayDef, MapVariant, PointerDef, PrimitiveDef, ReferenceDef, SliceDef, SmartPtrVariant,
+    StdDef, StrSliceDef, TypeDef, VecDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -126,7 +127,7 @@ pub fn read_from_memory<'db>(
     address: u64,
     ty: &TypeDef,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<crate::Value> {
+) -> Result<Value> {
     tracing::debug!("read_from_memory {address:#x} {}", ty.display_name());
     match &ty {
         TypeDef::Primitive(primitive_def) => {
@@ -141,7 +142,7 @@ pub fn read_from_memory<'db>(
                 let field_value = read_from_memory(db, field_address, field_ty, data_resolver)?;
                 fields.insert(field_name.to_string(), field_value);
             }
-            Ok(crate::Value::Struct {
+            Ok(Value::Struct {
                 ty: struct_def.name.clone(),
                 fields,
             })
@@ -169,12 +170,12 @@ fn read_primitive_from_memory(
     address: u64,
     def: &PrimitiveDef,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<crate::Value> {
+) -> Result<Value> {
     let value = match def {
         PrimitiveDef::Bool(_) => {
             let memory = data_resolver.read_memory(address, 1)?;
             let bool_value = memory[0] != 0;
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: "bool".to_string(),
                 value: bool_value.to_string(),
             }
@@ -183,12 +184,12 @@ fn read_primitive_from_memory(
             let memory = data_resolver.read_memory(address, 4)?;
             let char_value = char::from_u32(u32::from_le_bytes(memory.try_into().unwrap()))
                 .ok_or_else(|| anyhow::anyhow!("Invalid char value at address {address:#x}"))?;
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: "char".to_string(),
                 value: format!("'{char_value}'"),
             }
         }
-        PrimitiveDef::Function(function_def) => crate::Value::Scalar {
+        PrimitiveDef::Function(function_def) => Value::Scalar {
             ty: function_def.display_name(),
             value: format!("fn at {address:#x}"),
         },
@@ -210,7 +211,7 @@ fn read_primitive_from_memory(
                 values.push(value);
                 address += element_size;
             }
-            crate::Value::Array {
+            Value::Array {
                 ty: format!("[{}; {length}]", element_type.display_name()),
                 items: values,
             }
@@ -247,7 +248,7 @@ fn read_primitive_from_memory(
                 values.push(value);
                 data_ptr += element_size;
             }
-            crate::Value::Array {
+            Value::Array {
                 ty: format!("&[{}]", element_type.display_name()),
                 items: values,
             }
@@ -267,7 +268,7 @@ fn read_primitive_from_memory(
 
             let memory = data_resolver.read_memory(data_address, length as usize)?;
             let string_value = String::from_utf8_lossy(&memory).to_string();
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: "str".to_string(),
                 value: format!("\"{string_value}\""),
             }
@@ -288,7 +289,7 @@ fn read_primitive_from_memory(
                     )
                 }
             };
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: unsigned_int_def.display_name(),
                 value: num_string,
             }
@@ -309,7 +310,7 @@ fn read_primitive_from_memory(
                     )
                 }
             };
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: format!("f{}", float_def.size * 8),
                 value: num_string,
             }
@@ -330,14 +331,14 @@ fn read_primitive_from_memory(
                     )
                 }
             };
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: int_def.display_name(),
                 value: num_string,
             }
         }
         PrimitiveDef::Never(_) => {
             // The Never type is a zero-sized type, so we return a placeholder value.
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: "Never".to_string(),
                 value: "unreachable".to_string(),
             }
@@ -350,7 +351,7 @@ fn read_primitive_from_memory(
         }
         PrimitiveDef::Unit(_) => {
             // The Unit type is a zero-sized type, so we return a placeholder value.
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: "()".to_string(),
                 value: "()".to_string(),
             }
@@ -365,12 +366,12 @@ fn read_std_from_memory(
     address: u64,
     def: &StdDef,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<crate::Value> {
+) -> Result<Value> {
     let value = match def {
         StdDef::Option(option_def) => {
             let first_byte = data_resolver.read_memory(address, 1)?;
             if first_byte[0] == 0 {
-                crate::Value::Scalar {
+                Value::Scalar {
                     ty: option_def.inner_type.display_name(),
                     value: "None".to_string(),
                 }
@@ -423,7 +424,7 @@ fn read_std_from_memory(
                 values.push(value);
                 address += element_size;
             }
-            crate::Value::Array {
+            Value::Array {
                 ty: format!("Vec<{}>", element_type.display_name()),
                 items: values,
             }
@@ -450,13 +451,111 @@ fn read_std_from_memory(
             tracing::debug!("reading String data at {data:#016x}");
             let bytes = data_resolver.read_memory(data, length)?;
             let value = String::from_utf8_lossy(&bytes).to_string();
-            crate::Value::Scalar {
+            Value::Scalar {
                 ty: "String".to_string(),
                 value: format!("\"{value}\""),
             }
         }
         StdDef::Map(def) => {
-            todo!("read_std_from_memory: MapDef not implemented yet: {def:#?}")
+            // todo!("read_std_from_memory: MapDef not implemented yet: {def:#?}")
+            let table_offset = def.table_offset as u64;
+
+            match def.variant {
+                MapVariant::HashMap {
+                    bucket_mask_offset,
+                    ctrl_offset,
+                    items_offset,
+                    pair_size,
+                    key_offset,
+                    value_offset,
+                } => {
+                    let bucket_mask_address = address + table_offset + bucket_mask_offset as u64;
+                    let ctrl_address = address + table_offset + ctrl_offset as u64;
+                    let items_address = address + table_offset + items_offset as u64;
+                    // Read item count
+                    let items = data_resolver.read_memory(items_address, 8)?;
+                    let items = usize::from_le_bytes(items.try_into().unwrap());
+
+                    if items == 0 {
+                        return Ok(Value::Map {
+                            ty: format!(
+                                "HashMap<{}, {}>",
+                                def.key_type.display_name(),
+                                def.value_type.display_name()
+                            ),
+                            entries: Vec::with_capacity(items),
+                        });
+                    }
+
+                    tracing::debug!(
+                        "reading HashMap at {address:#x}, items: {items}, bucket_mask_addr: {bucket_mask_address:#x}, ctrl_addr: {ctrl_address:#x}"
+                    );
+
+                    // Read bucket mask to get capacity
+                    let bucket_mask = data_resolver.read_memory(bucket_mask_address, 8)?;
+                    let capacity = usize::from_le_bytes(bucket_mask.try_into().unwrap()) + 1;
+
+                    // Read control bytes pointer
+                    let ctrl_ptr = data_resolver.read_address(ctrl_address)?;
+
+                    tracing::debug!(
+                        "HashMap capacity: {capacity}, ctrl_ptr: {ctrl_ptr:#x}, items: {items}"
+                    );
+
+                    // Calculate size of key-value pair
+                    // Data starts BEFORE the control bytes, counting backwards!
+                    let mut slot_addr = ctrl_ptr - pair_size as u64;
+
+                    // Read control bytes
+                    let ctrl_bytes = data_resolver.read_memory(ctrl_ptr, capacity)?;
+
+                    let mut entries = Vec::new();
+
+                    for &ctrl in &ctrl_bytes {
+                        if ctrl < 0x80 {
+                            // Occupied slot
+                            // Read key
+                            let key = read_from_memory(
+                                db,
+                                slot_addr + key_offset as u64,
+                                &def.key_type,
+                                data_resolver,
+                            )?;
+
+                            // Read value (immediately after key)
+                            let value = read_from_memory(
+                                db,
+                                slot_addr + value_offset as u64,
+                                &def.value_type,
+                                data_resolver,
+                            )?;
+
+                            entries.push((key, value));
+
+                            // Stop if we've found all items
+                            if entries.len() >= items {
+                                break;
+                            }
+                        }
+                        // decrement address for the next slot
+                        slot_addr -= pair_size as u64;
+                    }
+                    Value::Map {
+                        ty: format!(
+                            "HashMap<{}, {}>",
+                            def.key_type.display_name(),
+                            def.value_type.display_name()
+                        ),
+                        entries,
+                    }
+                }
+                MapVariant::BTreeMap => todo!(
+                    "read_std_from_memory: MapVariant::BTreeMap not implemented yet: {def:#?}"
+                ),
+                MapVariant::IndexMap => todo!(
+                    "read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}"
+                ),
+            }
         }
         StdDef::SmartPtr(s) => match s.variant {
             SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {

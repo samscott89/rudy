@@ -312,10 +312,55 @@ fn test_introspect_hashmap() -> Result<()> {
         .expect("HashMap type should be found");
 
     // Try to read HashMap - this will fail when HashMap reading isn't implemented
-    let value = debug_info.address_to_value(map_ptr, &typedef, &resolver)?;
+    let mut value = debug_info.address_to_value(map_ptr, &typedef, &resolver)?;
 
     // If we get here, HashMap reading is working
-    println!("HashMap value: {:?}", value);
+    // sort the values to make comparison easier
+    if let Value::Map { ty, entries } = &mut value {
+        assert_eq!(ty, "HashMap<String, i32>");
+        // Sort entries by key for consistent ordering
+        entries.sort();
+        assert_eq!(
+            entries,
+            &[
+                (
+                    Value::Scalar {
+                        ty: "String".to_string(),
+                        value: "\"one\"".to_string(),
+                    },
+                    Value::Scalar {
+                        ty: "i32".to_string(),
+                        value: "1".to_string(),
+                    }
+                ),
+                (
+                    Value::Scalar {
+                        ty: "String".to_string(),
+                        value: "\"three\"".to_string(),
+                    },
+                    Value::Scalar {
+                        ty: "i32".to_string(),
+                        value: "3".to_string(),
+                    }
+                ),
+                (
+                    Value::Scalar {
+                        ty: "String".to_string(),
+                        value: "\"two\"".to_string(),
+                    },
+                    Value::Scalar {
+                        ty: "i32".to_string(),
+                        value: "2".to_string(),
+                    }
+                )
+            ]
+        );
+    } else {
+        panic!(
+            "Expected HashMap<String, i32> to be read as Map, got: {:?}",
+            value
+        );
+    }
 
     // Keep map alive
     let _ = test_map;

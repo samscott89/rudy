@@ -4,7 +4,7 @@
 //! and reading memory through event callbacks.
 
 use anyhow::{Result, anyhow};
-use rust_debuginfo::{DataResolver, DebugInfo};
+use rust_debuginfo::{DataResolver, DebugInfo, Value};
 use std::cell::RefCell;
 
 use crate::expression::Expression;
@@ -188,10 +188,10 @@ pub struct EvalResult {
 }
 
 /// Format a Value for display
-fn format_value(value: &rust_debuginfo::Value) -> String {
+fn format_value(value: &Value) -> String {
     match value {
-        rust_debuginfo::Value::Scalar { ty: _, value } => value.clone(),
-        rust_debuginfo::Value::Array { ty: _, items } => {
+        Value::Scalar { ty: _, value } => value.clone(),
+        Value::Array { ty: _, items } => {
             if items.len() <= 3 {
                 let items_str: Vec<String> = items.iter().map(format_value).collect();
                 format!("[{}]", items_str.join(", "))
@@ -199,12 +199,23 @@ fn format_value(value: &rust_debuginfo::Value) -> String {
                 format!("[{} items]", items.len())
             }
         }
-        rust_debuginfo::Value::Struct { ty, fields } => {
+        Value::Struct { ty, fields } => {
             let fields_str: Vec<String> = fields
                 .iter()
                 .map(|(k, v)| format!("{}: {}", k, format_value(v)))
                 .collect();
             format!("{ty} {{ {} }}", fields_str.join(", "))
+        }
+        Value::Map { entries, .. } => {
+            if entries.len() <= 3 {
+                let fields_str: Vec<String> = entries
+                    .iter()
+                    .map(|(k, v)| format!("{}: {}", k, format_value(v)))
+                    .collect();
+                format!("{{ {} }}", fields_str.join(", "))
+            } else {
+                format!("{{ {} entries }}", entries.len())
+            }
         }
     }
 }

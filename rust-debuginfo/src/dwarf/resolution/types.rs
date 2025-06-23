@@ -2,14 +2,13 @@
 
 use std::sync::Arc;
 
-use crate::data;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    ArrayDef, MapDef, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef, SmartPtrDef,
-    SmartPtrVariant, StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef,
-    VecDef,
+    ArrayDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef,
+    SmartPtrDef, SmartPtrVariant, StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef,
+    TypeRef, VecDef,
 };
 
 use anyhow::Context;
@@ -46,18 +45,14 @@ fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
 
     // RawVecInner.ptr -> *mut T
     let data_ptr = rawvec_inner
-        .get_member_attribute(db, "ptr", gimli::DW_AT_data_member_location)?
-        .udata_value()
-        .map(|v| v as usize)
-        .context("ptr offset is not a valid udata")?;
+        .get_udata_member_attribute(db, "ptr", gimli::DW_AT_data_member_location)
+        .context("could not get ptr for Vec")?;
 
     data_ptr_offset += data_ptr;
 
-    let length_offset = entry.get_member_attribute(db, "len", gimli::DW_AT_data_member_location)?;
-    let length_offset = length_offset
-        .udata_value()
-        .map(|v| v as usize)
-        .context("len offset is not a valid udata")?;
+    let length_offset = entry
+        .get_udata_member_attribute(db, "len", gimli::DW_AT_data_member_location)
+        .context("could not get len for Vec")?;
 
     let inner_type = entry.get_generic_type_entry(db, "T")?;
     tracing::debug!(
@@ -90,12 +85,127 @@ fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDe
 }
 
 /// Resolve Map type layout from DWARF
-fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef> {
-    todo!()
+fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) -> Result<MapDef> {
+    let key_type = entry
+        .get_generic_type_entry(db, "K")
+        .context("could not find key type for map")?;
+    let key_type =
+        Arc::new(shallow_resolve_type(db, key_type).context("could not resolve key type for map")?);
+    let value_type = entry
+        .get_generic_type_entry(db, "V")
+        .context("could not find value type for map")?;
+    let value_type = Arc::new(
+        shallow_resolve_type(db, value_type).context("could not resolve value type for map")?,
+    );
+
+    match variant {
+        MapVariant::HashMap { .. } => {
+            // first, let's detect what kind of hashmap we're dealing with by inspecting the inner type
+            let table = entry
+                .get_member(db, "table")
+                .context("could not find table field for HashMap")?;
+            let mut table_offset = table
+                .udata_attr(db, gimli::DW_AT_data_member_location)
+                .context("table offset for HashMap")? as usize;
+
+            let inner_table_type = table
+                .get_unit_ref(db, gimli::DW_AT_type)
+                .context("could not get type for table field")?;
+
+            let fully_qualified_type_name = get_die_typename(db, inner_table_type)
+                .context("could not get fully qualified type name for table")?;
+
+            match fully_qualified_type_name.module.segments.first() {
+                Some(t) if t == "hashbrown" => {
+                    // this should be the `hashbrown::raw::RawTable`
+                    debug_assert!(
+                        fully_qualified_type_name.name.starts_with("RawTable"),
+                        "got: {}",
+                        fully_qualified_type_name.name
+                    );
+                    // inner_type_type is hashbrown::raw::RawTable
+
+                    // we also need to get the offsets + size of the (k, v) pairs
+                    // stored in the rawtable
+                    let kv_type = inner_table_type
+                        .get_generic_type_entry(db, "T")
+                        .context("could not get (k, v) type for raw table")?;
+                    let pair_size = kv_type
+                        .udata_attr(db, gimli::DW_AT_byte_size)
+                        .context("could not get (k, v) pair size for raw table")?;
+                    let key_offset = kv_type
+                        .get_udata_member_attribute(db, "__0", gimli::DW_AT_data_member_location)
+                        .context("could not get key offset for raw table")?;
+                    let value_offset = kv_type
+                        .get_udata_member_attribute(db, "__1", gimli::DW_AT_data_member_location)
+                        .context("could not get value offset for raw table")?;
+
+                    let member = inner_table_type.get_member(db, "table")?;
+                    table_offset += member
+                        .udata_attr(db, gimli::DW_AT_data_member_location)
+                        .context("could not find member offset for HashMap")?
+                        as usize;
+
+                    // hashbrow::raw::RawTableInner type entry
+                    let raw_type_inner = member
+                        .get_unit_ref(db, gimli::DW_AT_type)
+                        .context("could not get type for member field")?;
+
+                    // Extract field offsets from RawTableInner
+                    let bucket_mask_offset = raw_type_inner.get_udata_member_attribute(
+                        db,
+                        "bucket_mask",
+                        gimli::DW_AT_data_member_location,
+                    )?;
+                    let ctrl_offset = raw_type_inner.get_udata_member_attribute(
+                        db,
+                        "ctrl",
+                        gimli::DW_AT_data_member_location,
+                    )?;
+                    let items_offset = raw_type_inner.get_udata_member_attribute(
+                        db,
+                        "items",
+                        gimli::DW_AT_data_member_location,
+                    )?;
+
+                    Ok(MapDef {
+                        key_type,
+                        value_type,
+                        variant: MapVariant::HashMap {
+                            bucket_mask_offset,
+                            ctrl_offset,
+                            items_offset,
+                            pair_size,
+                            key_offset,
+                            value_offset,
+                        },
+                        table_offset,
+                    })
+                }
+                Some(t) => {
+                    todo!(
+                        "HashMap variant `{t}` not yet implemented: {}",
+                        entry.format_with_location(db, "")
+                    );
+                }
+                _ => Err(anyhow::anyhow!(
+                    "HashMap variant not recognized: {}",
+                    entry.format_with_location(db, "")
+                )
+                .into()),
+            }
+        }
+        _ => {
+            todo!(
+                "Map variant `{variant:?}` not yet implemented: {}",
+                entry.format_with_location(db, "")
+            )
+        }
+    }
 }
 
 /// Resolve Result type layout from DWARF
-fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<ResultDef> {
+fn resolve_result_type<'db>(_db: &'db dyn Db, _entry: Die<'db>) -> Result<ResultDef> {
     todo!()
 }
 
@@ -152,9 +262,7 @@ fn resolve_smart_ptr_type<'db>(
 
             // UnsafeCell.value -> T
             inner_offset += unsafe_cell_entry
-                .get_member_attribute(db, "value", gimli::DW_AT_data_member_location)?
-                .udata_value()
-                .map(|v| v as usize)
+                .get_udata_member_attribute(db, "value", gimli::DW_AT_data_member_location)
                 .context("UnsafeCell value offset is not a valid udata")?;
 
             (inner_offset, 0)
@@ -194,9 +302,7 @@ fn resolve_smart_ptr_type<'db>(
                 _ => unreachable!(),
             };
             let data_ptr_offset = arc_inner
-                .get_member_attribute(db, name, gimli::DW_AT_data_member_location)?
-                .udata_value()
-                .map(|v| v as usize)
+                .get_udata_member_attribute(db, name, gimli::DW_AT_data_member_location)
                 .context("data offset is not a valid udata")?;
 
             (inner_offset, data_ptr_offset)
@@ -280,9 +386,7 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
                         .context("could not resolve inner type for Some")?;
 
                     let some_offset = child
-                        .get_member_attribute(db, "__0", gimli::DW_AT_data_member_location)?
-                        .udata_value()
-                        .map(|v| v as u64)
+                        .get_udata_member_attribute(db, "__0", gimli::DW_AT_data_member_location)
                         .context("__0 offset is not a valid udata")?;
 
                     return Ok(OptionDef {
@@ -308,20 +412,12 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
 
 fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     let data_ptr_offset = entry
-        .get_member_attribute(db, "data_ptr", gimli::DW_AT_data_member_location)
+        .get_udata_member_attribute(db, "data_ptr", gimli::DW_AT_data_member_location)
         .context("could not find data_ptr")?;
-    let data_ptr_offset = data_ptr_offset
-        .udata_value()
-        .map(|v| v as usize)
-        .context("data_ptr offset is not a valid udata")?;
 
     let length_offset = entry
-        .get_member_attribute(db, "length", gimli::DW_AT_data_member_location)
+        .get_udata_member_attribute(db, "length", gimli::DW_AT_data_member_location)
         .context("could not find length")?;
-    let length_offset = length_offset
-        .udata_value()
-        .map(|v| v as usize)
-        .context("length offset is not a valid udata")?;
 
     Ok(TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
         data_ptr_offset,
@@ -433,9 +529,10 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                     // String has a known layout similar to Vec
                     resolve_string_type(db, entry).map(|s| Some(TypeDef::Std(StdDef::String(s))))
                 }
-                StdDef::Map(_) => {
+                StdDef::Map(map) => {
                     // HashMap/BTreeMap need layout resolution
-                    resolve_map_type(db, entry).map(|m| Some(TypeDef::Std(StdDef::Map(m))))
+                    resolve_map_type(db, entry, map.variant)
+                        .map(|m| Some(TypeDef::Std(StdDef::Map(m))))
                 }
                 StdDef::Result(_) => {
                     // Result types need layout resolution

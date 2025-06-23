@@ -35,22 +35,32 @@ fn print_value(value: &Value, indent: usize) {
 
     match value {
         Value::Scalar { ty, value } => {
-            println!("{}{}: {}", indent_str, ty, value);
+            println!("{indent_str}{ty}: {value}");
         }
         Value::Array { ty, items } => {
-            println!("{}[{}; {}]", indent_str, ty, items.len());
+            println!("{indent_str}[{ty}; {}]", items.len());
             for (i, item) in items.iter().enumerate() {
-                print!("{}  [{}] = ", indent_str, i);
+                print!("{indent_str}  [{i}] = ");
                 print_value(item, 0);
             }
         }
         Value::Struct { ty, fields } => {
-            println!("{}{} {{", indent_str, ty);
+            println!("{indent_str}{ty} {{");
             for (name, value) in fields {
-                print!("{}  {}: ", indent_str, name);
+                print!("{indent_str}  {name}: ");
                 print_value(value, indent + 4);
             }
-            println!("{}}}", indent_str);
+            println!("{indent_str}}}");
+        }
+        Value::Map { ty, entries } => {
+            println!("{indent_str}{ty} {{");
+            for (key, value) in entries {
+                print!("{indent_str}  ");
+                print_value(key, indent);
+                print!(": ");
+                print_value(value, indent + 4);
+            }
+            println!("{indent_str}}}");
         }
     }
 }

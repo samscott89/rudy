@@ -33,7 +33,7 @@ pub struct Variable {
 }
 
 /// A value read from memory, supporting scalars, arrays, and structs.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub enum Value {
     Scalar {
         ty: String,
@@ -46,6 +46,10 @@ pub enum Value {
     Struct {
         ty: String,
         fields: BTreeMap<String, Value>,
+    },
+    Map {
+        ty: String,
+        entries: Vec<(Value, Value)>,
     },
 }
 
@@ -66,6 +70,10 @@ impl Value {
             Value::Struct { fields, ty } => Value::Struct {
                 ty: type_map(ty),
                 fields: fields.clone(),
+            },
+            Value::Map { entries, ty } => Value::Map {
+                ty: type_map(ty),
+                entries: entries.clone(),
             },
         }
     }

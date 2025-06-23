@@ -213,7 +213,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
 /// Visitor trait for walking DWARF DIE trees
 pub trait DieVisitor<'db>: Sized {
     fn visit_cu<'a>(
-        walker: &mut DieWalker<'a, 'db, Self>,
+        _walker: &mut DieWalker<'a, 'db, Self>,
         _die: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
@@ -304,6 +304,7 @@ pub trait DieVisitor<'db>: Sized {
     }
 
     /// Visit a array type
+    #[allow(unused)]
     fn visit_array_type<'a>(
         _walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,

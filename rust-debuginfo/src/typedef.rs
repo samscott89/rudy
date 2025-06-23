@@ -610,7 +610,7 @@ impl StdDef {
                 SmartPtrVariant::UnsafeCell => size_of::<std::cell::UnsafeCell<()>>(),
             },
             StdDef::Map(map_def) => match map_def.variant {
-                MapVariant::HashMap => size_of::<std::collections::HashMap<(), ()>>(),
+                MapVariant::HashMap { .. } => size_of::<std::collections::HashMap<(), ()>>(),
                 MapVariant::BTreeMap => size_of::<std::collections::BTreeMap<(), ()>>(),
                 MapVariant::IndexMap => todo!(),
             },
@@ -693,12 +693,19 @@ pub struct MapDef {
     pub key_type: Arc<TypeDef>,
     pub value_type: Arc<TypeDef>,
     pub variant: MapVariant,
-    pub size: usize,
+    pub table_offset: usize, // offset to RawTable
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub enum MapVariant {
-    HashMap,
+    HashMap {
+        bucket_mask_offset: usize, // offset within RawTableInner
+        ctrl_offset: usize,        // offset to ctrl pointer
+        items_offset: usize,       // offset to items count
+        pair_size: usize,          // size of a single key-value pair
+        key_offset: usize,         // offset to key within a pair
+        value_offset: usize,       // offset to value within a pair
+    },
     BTreeMap,
     IndexMap,
 }

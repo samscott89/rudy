@@ -179,6 +179,22 @@ impl<'db> Die<'db> {
             .get_attr(db, attr)
     }
 
+    pub fn get_udata_member_attribute(
+        &self,
+        db: &'db dyn Db,
+        name: &str,
+        attr: gimli::DwAt,
+    ) -> Result<usize> {
+        self.children(db)?
+            .into_iter()
+            .find(|child| {
+                child.tag(db) == gimli::DW_TAG_member && child.name(db).map_or(false, |n| n == name)
+            })
+            .with_context(|| format!("Failed to find member `{name}`"))
+            .as_die_result(db, self)?
+            .udata_attr(db, attr)
+    }
+
     pub fn get_generic_type_entry(&self, db: &'db dyn Db, name: &str) -> Result<Die<'db>> {
         self.children(db)?
             .into_iter()
@@ -212,14 +228,12 @@ impl<'db> Die<'db> {
     }
 
     pub fn udata_attr(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<usize> {
-        self.with_entry(db, |entry| {
-            let v = self.get_attr(db, attr)?;
+        let v = self.get_attr(db, attr)?;
 
-            v.udata_value()
-                .with_context(|| format!("attr {attr} is not a udata value, got: {v:?}"))
-                .map(|v| v as usize)
-        })?
-        .as_die_result(db, self)
+        v.udata_value()
+            .with_context(|| format!("attr {attr} is not a udata value, got: {v:?}"))
+            .map(|v| v as usize)
+            .as_die_result(db, self)
     }
 
     pub fn print(&self, db: &'db dyn Db) -> String {

@@ -1,7 +1,6 @@
 //! Address to location and location to address resolution
 
 use crate::database::Db;
-use crate::dwarf::SymbolName;
 use crate::dwarf::navigation::get_roots;
 use crate::dwarf::{CompilationUnitId, utils::file_entry_to_path};
 use crate::file::{DebugFile, SourceFile};

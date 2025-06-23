@@ -485,7 +485,14 @@ impl Path {
                                     })
                                 });
                             let variant = match type_name.as_str() {
-                                "HashMap" => MapVariant::HashMap,
+                                "HashMap" => MapVariant::HashMap {
+                                    bucket_mask_offset: 0,
+                                    ctrl_offset: 0,
+                                    items_offset: 0,
+                                    pair_size: 0,
+                                    key_offset: 0,
+                                    value_offset: 0,
+                                },
                                 "BTreeMap" => MapVariant::BTreeMap,
                                 _ => unreachable!(),
                             };
@@ -494,7 +501,7 @@ impl Path {
                                 key_type,
                                 value_type,
                                 variant,
-                                size: 0, // Would need to calculate from DWARF
+                                table_offset: 0, // Would need to calculate from DWARF
                             }));
                         }
                         "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "UnsafeCell" | "Mutex"
@@ -1002,8 +1009,15 @@ mod test {
             MapDef {
                 key_type: Arc::new(string_def()),
                 value_type: Arc::new(string_def()),
-                variant: MapVariant::HashMap,
-                size: 0, // Would need to calculate from DWARF
+                variant: MapVariant::HashMap {
+                    bucket_mask_offset: 0,
+                    ctrl_offset: 0,
+                    items_offset: 0,
+                    pair_size: 0,
+                    key_offset: 0,
+                    value_offset: 0,
+                },
+                table_offset: 0,
             },
         );
 
