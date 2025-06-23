@@ -12,12 +12,15 @@ pub fn get_location_expr<'db>(
     entry: Die<'db>,
     attr: gimli::DwAt,
 ) -> Option<gimli::Expression<DwarfReader>> {
-    let Some(location) = entry.get_attr(db, attr) else {
-        db.report_warning(format!(
-            "Failed to get location attribute for entry: {}",
-            entry.print(db)
-        ));
-        return None;
+    let location = match entry.get_attr(db, attr) {
+        Ok(l) => l,
+        Err(e) => {
+            db.report_warning(format!(
+                "Failed to get location attribute for entry: {}: {e}",
+                entry.print(db)
+            ));
+            return None;
+        }
     };
 
     let gimli::AttributeValue::Exprloc(expr) = location else {
@@ -41,9 +44,7 @@ fn get_function_frame_base<'db>(
         anyhow::bail!("Failed to get location expression for function");
     };
     // evaluation the expression
-    let Some(unit_ref) = function_entry.unit_ref(db) else {
-        anyhow::bail!("Failed to get unit ref for function");
-    };
+    let unit_ref = function_entry.unit_ref(db)?;
 
     let mut eval = loc_exp.evaluation(unit_ref.encoding());
     let result = eval.evaluate()?;
@@ -79,9 +80,7 @@ pub fn resolve_data_location<'db>(
         return Ok(None);
     };
 
-    let Some(unit_ref) = function.unit_ref(db) else {
-        return Ok(None);
-    };
+    let unit_ref = function.unit_ref(db)?;
 
     // evaluation the expression
 

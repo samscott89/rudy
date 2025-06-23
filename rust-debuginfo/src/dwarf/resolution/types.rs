@@ -18,17 +18,13 @@ type Result<T> = std::result::Result<T, super::Error>;
 
 /// Resolve the full type for a DIE entry
 pub fn resolve_entry_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    let type_entry = entry
-        .get_unit_ref(db, gimli::DW_AT_type)?
-        .with_context(|| entry.format_with_location(db, "Failed to get type entry"))?;
+    let type_entry = entry.get_unit_ref(db, gimli::DW_AT_type)?;
     resolve_type_offset(db, type_entry)
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
 pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    let type_entry = entry
-        .get_unit_ref(db, gimli::DW_AT_type)?
-        .with_context(|| entry.format_with_location(db, "Failed to get type entry"))?;
+    let type_entry = entry.get_unit_ref(db, gimli::DW_AT_type)?;
     shallow_resolve_type(db, type_entry)
 }
 
@@ -36,49 +32,34 @@ pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Resu
 fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
     let mut data_ptr_offset = 0;
     // Vec.buf -> RawVec
-    let buf = entry.get_member(db, "buf").context("could not find buf")?;
-    data_ptr_offset += buf
-        .udata_attr(db, gimli::DW_AT_data_member_location)
-        .context("could not find buf offset")?;
+    let buf = entry.get_member(db, "buf")?;
+    data_ptr_offset += buf.udata_attr(db, gimli::DW_AT_data_member_location)?;
 
-    let rawvec = buf
-        .get_unit_ref(db, gimli::DW_AT_type)?
-        .with_context(|| buf.format_with_location(db, "Failed to get type for buf"))?;
+    let rawvec = buf.get_unit_ref(db, gimli::DW_AT_type)?;
 
     // RawVec.inner -> RawVecInner
 
-    let inner = rawvec
-        .get_member(db, "inner")
-        .with_context(|| buf.format_with_location(db, "Failed to get inner member"))?;
-    data_ptr_offset += inner
-        .udata_attr(db, gimli::DW_AT_data_member_location)
-        .context("could not find inner offset")?;
+    let inner = rawvec.get_member(db, "inner")?;
+    data_ptr_offset += inner.udata_attr(db, gimli::DW_AT_data_member_location)?;
 
-    let rawvec_inner = inner
-        .get_unit_ref(db, gimli::DW_AT_type)?
-        .with_context(|| inner.format_with_location(db, "Failed to get type for inner"))?;
+    let rawvec_inner = inner.get_unit_ref(db, gimli::DW_AT_type)?;
 
     // RawVecInner.ptr -> *mut T
     let data_ptr = rawvec_inner
-        .get_member_attribute(db, "ptr", gimli::DW_AT_data_member_location)
-        .context("could not find ptr")?
+        .get_member_attribute(db, "ptr", gimli::DW_AT_data_member_location)?
         .udata_value()
         .map(|v| v as usize)
         .context("ptr offset is not a valid udata")?;
 
     data_ptr_offset += data_ptr;
 
-    let length_offset = entry
-        .get_member_attribute(db, "len", gimli::DW_AT_data_member_location)
-        .context("could not find len")?;
+    let length_offset = entry.get_member_attribute(db, "len", gimli::DW_AT_data_member_location)?;
     let length_offset = length_offset
         .udata_value()
         .map(|v| v as usize)
         .context("len offset is not a valid udata")?;
 
-    let inner_type = entry
-        .get_generic_type_entry(db, "T")
-        .context("could not find inner type")?;
+    let inner_type = entry.get_generic_type_entry(db, "T")?;
     tracing::debug!(
         "inner type for Vec: {}",
         inner_type.format_with_location(db, inner_type.print(db))
@@ -101,8 +82,7 @@ fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDe
         .context("could not find vec field for string")?;
     let vec_type = vec_field
         .get_unit_ref(db, gimli::DW_AT_type)
-        .context("could not get type for vec field")?
-        .with_context(|| vec_field.format_with_location(db, "Failed to get type for vec field"))?;
+        .context("could not get type for vec field")?;
     let vec = resolve_vec_type(db, vec_type)
         .with_context(|| vec_type.format_with_location(db, "Failed to resolve vec for string"))?;
 
@@ -130,7 +110,7 @@ fn resolve_smart_ptr_type<'db>(
         SmartPtrVariant::Box => resolve_entry_type_shallow(db, entry)
             .context("Failed to resolve inner type for smart pointer")?,
         // `Rc` and `Arc` are output as struct types, with generic type parameters
-        SmartPtrVariant::Arc | SmartPtrVariant::Rc => {
+        SmartPtrVariant::Arc | SmartPtrVariant::Rc | SmartPtrVariant::Mutex => {
             let type_entry = entry
                 .get_generic_type_entry(db, "T")
                 .context("could not find inner type")?;
@@ -150,22 +130,28 @@ fn resolve_smart_ptr_type<'db>(
 
     let (inner_ptr_offset, data_ptr_offset) = match variant {
         SmartPtrVariant::Box => (0, 0), // Box has no offset, it's just a pointer
+        SmartPtrVariant::Mutex => {
+            // Mutex.data -> UnsafeCell<T>
+            let mut inner_offset = 0;
+
+            let data = entry.get_member(db, "data")?;
+
+            inner_offset += data.udata_attr(db, gimli::DW_AT_data_member_location)?;
+
+            todo!()
+        }
         SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
             // Arc.ptr -> NonNull<ArcInner<T>>
 
             let mut inner_offset = 0;
 
-            let ptr = entry
-                .get_member(db, "ptr")
-                .with_context(|| entry.format_with_location(db, "Failed to get ptr member"))?;
+            let ptr = entry.get_member(db, "ptr")?;
 
             inner_offset += ptr
                 .udata_attr(db, gimli::DW_AT_data_member_location)
                 .context("could not find ptr offset")?;
 
-            let nonnull_entry = ptr
-                .get_unit_ref(db, gimli::DW_AT_type)?
-                .context(ptr.format_with_location(db, "Failed to get type for ptr member"))?;
+            let nonnull_entry = ptr.get_unit_ref(db, gimli::DW_AT_type)?;
 
             // NonNull.pointer -> * ArcInner
 
@@ -177,19 +163,12 @@ fn resolve_smart_ptr_type<'db>(
                 .udata_attr(db, gimli::DW_AT_data_member_location)
                 .context("could not find pointer offset")?;
 
-            let arcinner_pointer = pointer.get_unit_ref(db, gimli::DW_AT_type)?.context(
-                pointer.format_with_location(db, "Failed to get type for pointer member"),
-            )?;
+            let arcinner_pointer = pointer.get_unit_ref(db, gimli::DW_AT_type)?;
 
             // pointer type that needs to be dereferenced to get the inner type
             // then we have _another_ offset to get the data
 
-            let arc_inner = arcinner_pointer
-                .get_unit_ref(db, gimli::DW_AT_type)?
-                .context(
-                    arcinner_pointer
-                        .format_with_location(db, "Failed to get type for pointer member"),
-                )?;
+            let arc_inner = arcinner_pointer.get_unit_ref(db, gimli::DW_AT_type)?;
 
             // within {Arc,Rc}Inner, we need to find the actual data pointer offset
             let name = match variant {
@@ -198,8 +177,7 @@ fn resolve_smart_ptr_type<'db>(
                 _ => unreachable!(),
             };
             let data_ptr_offset = arc_inner
-                .get_member_attribute(db, name, gimli::DW_AT_data_member_location)
-                .with_context(|| arc_inner.format_with_location(db, "could not find data offset"))?
+                .get_member_attribute(db, name, gimli::DW_AT_data_member_location)?
                 .udata_value()
                 .map(|v| v as usize)
                 .context("data offset is not a valid udata")?;
@@ -232,32 +210,32 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
 
     tracing::debug!("option: {}", entry.print(db));
 
-    for child in entry.children(db) {
+    for child in entry.children(db)? {
         tracing::debug!("option child: {}", child.print(db));
 
         match child.tag(db) {
             gimli::DW_TAG_variant_part => {
                 // this tells us how the variants are laid out
-                for grandchild in child.children(db) {
+                for grandchild in child.children(db)? {
                     match grandchild.tag(db) {
                         gimli::DW_TAG_member => {
                             // the disciminant
                             debug_assert_eq!(
                                 grandchild
-                                    .get_attr(db, gimli::DW_AT_data_member_location)
-                                    .and_then(|attr| attr.udata_value())
+                                    .get_attr(db, gimli::DW_AT_data_member_location)?
+                                    .udata_value()
                                     .unwrap_or(u64::MAX),
                                 0
                             )
                         }
                         gimli::DW_TAG_variant => {
                             // one of the variants
-                            if let Some(variant_entry) = grandchild.children(db).first() {
+                            if let Some(variant_entry) = grandchild.children(db)?.first() {
                                 // check the offset is at 0
                                 debug_assert_eq!(
                                     variant_entry
-                                        .get_attr(db, gimli::DW_AT_data_member_location)
-                                        .and_then(|attr| attr.udata_value())
+                                        .get_attr(db, gimli::DW_AT_data_member_location)?
+                                        .udata_value()
                                         .unwrap_or(u64::MAX),
                                     0
                                 )
@@ -275,20 +253,17 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
             }
             gimli::DW_TAG_structure_type => {
                 // the type definitions
-                let Some(name) = child.name(db) else {
+                let Ok(name) = child.name(db) else {
                     continue;
                 };
                 if name == "Some" {
                     // the struct type for the `Some` variant
-                    let member_type = child
-                        .get_generic_type_entry(db, "T")
-                        .context("could not find generic type T for Some")?;
+                    let member_type = child.get_generic_type_entry(db, "T")?;
                     let inner_type = resolve_type_offset(db, member_type)
                         .context("could not resolve inner type for Some")?;
 
                     let some_offset = child
-                        .get_member_attribute(db, "__0", gimli::DW_AT_data_member_location)
-                        .context("could not find __0 offset for Some")?
+                        .get_member_attribute(db, "__0", gimli::DW_AT_data_member_location)?
                         .udata_value()
                         .map(|v| v as u64)
                         .context("__0 offset is not a valid udata")?;
@@ -315,14 +290,14 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
 }
 
 fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    let Some(size) = entry
-        .get_attr(db, gimli::DW_AT_byte_size)
-        .and_then(|attr| attr.udata_value())
-    else {
-        return Err(entry
-            .format_with_location(db, "struct size not found")
-            .into());
-    };
+    // let Some(size) = entry
+    //     .get_attr(db, gimli::DW_AT_byte_size)
+    //     .and_then(|attr| attr.udata_value())
+    // else {
+    //     return Err(entry
+    //         .format_with_location(db, "struct size not found")
+    //         .into());
+    // };
     let data_ptr_offset = entry
         .get_member_attribute(db, "data_ptr", gimli::DW_AT_data_member_location)
         .context("could not find data_ptr")?;
@@ -342,7 +317,7 @@ fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     Ok(TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
         data_ptr_offset,
         length_offset,
-        size: size as usize,
+        size: 0, // TODO: remove?
     })))
 }
 
@@ -516,21 +491,14 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
         }
         gimli::DW_TAG_array_type => {
             let array_type = resolve_entry_type(db, entry)?;
-            let children = entry.children(db);
+            let children = entry.children(db)?;
             let subrange = children
                 .iter()
                 .find(|c| c.tag(db) == gimli::DW_TAG_subrange_type)
                 .ok_or_else(|| {
                     entry.format_with_location(db, "array type missing subrange information")
                 })?;
-            let Some(count) = subrange
-                .get_attr(db, gimli::DW_AT_count)
-                .and_then(|attr| attr.udata_value())
-            else {
-                return Err(subrange
-                    .format_with_location(db, "array type subrange count not found")
-                    .into());
-            };
+            let count = subrange.udata_attr(db, gimli::DW_AT_count)?;
             TypeDef::Primitive(PrimitiveDef::Array(ArrayDef {
                 element_type: Arc::new(array_type),
                 length: count as usize,
@@ -540,7 +508,7 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
             // DWARF info says struct, but in practice this could also be an enum
 
             let is_enum = entry
-                .children(db)
+                .children(db)?
                 .iter()
                 .any(|c| c.tag(db) == gimli::DW_TAG_variant_part);
 
@@ -554,57 +522,21 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                 // let index = crate::index::build_index(db);
                 // let type_name = index.data(db).die_to_type_name.get(&entry).copied();
                 // get some basic info
-                let Some(name) = entry.name(db) else {
-                    return Err(entry
-                        .format_with_location(db, "name not found for struct")
-                        .into());
-                };
-                let Some(size) = entry
-                    .get_attr(db, gimli::DW_AT_byte_size)
-                    .and_then(|v| v.udata_value())
-                else {
-                    return Err(entry
-                        .format_with_location(db, "struct size not found")
-                        .into());
-                };
-                let Some(alignment) = entry
-                    .get_attr(db, gimli::DW_AT_alignment)
-                    .and_then(|v| v.udata_value())
-                else {
-                    return Err(entry
-                        .format_with_location(db, "struct alignment not found")
-                        .into());
-                };
+                let name = entry.name(db)?;
+                let size = entry.udata_attr(db, gimli::DW_AT_byte_size)?;
+                let alignment = entry.udata_attr(db, gimli::DW_AT_alignment)?;
 
                 // iterate children to get fields
                 let mut fields = vec![];
-                for child in entry.children(db) {
+                for child in entry.children(db)? {
                     if child.tag(db) != gimli::DW_TAG_member {
                         tracing::debug!("skipping non-member entry: {}", child.print(db));
                         continue;
                     }
-                    let Some(field_name) = child.name(db) else {
-                        db.report_critical(format!("Failed to parse field name"));
-                        continue;
-                    };
+                    let field_name = child.name(db)?;
+                    let offset = child.udata_attr(db, gimli::DW_AT_data_member_location)?;
 
-                    let Some(offset) = child
-                        .get_attr(db, gimli::DW_AT_data_member_location)
-                        .and_then(|attr| attr.udata_value())
-                    else {
-                        db.report_critical(format!("Failed to parse field offset"));
-                        continue;
-                    };
-
-                    let Some(type_entry) = child.get_unit_ref(db, gimli::DW_AT_type)? else {
-                        return Err(child
-                            .format_with_location(
-                                db,
-                                format!("failed to get type for `{field_name}`"),
-                            )
-                            .into());
-                    };
-
+                    let type_entry = child.get_unit_ref(db, gimli::DW_AT_type)?;
                     let ty = shallow_resolve_type(db, type_entry)?;
 
                     fields.push(StructField {
@@ -628,18 +560,6 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
         }
     })
 }
-
-// impl From<std::io::Error> for Error {
-//     fn from(err: std::io::Error) -> Self {
-//         Error::Io(Arc::new(err))
-//     }
-// }
-
-// impl From<object::read::Error> for Error {
-//     fn from(err: object::read::Error) -> Self {
-//         Error::ObjectParseError(err)
-//     }
-// }
 
 #[cfg(test)]
 mod test {

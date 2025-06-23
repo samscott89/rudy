@@ -1,6 +1,6 @@
 //! DWARF parsing utilities and helper functions
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use gimli::Reader;
 use itertools::Itertools;
 
@@ -52,17 +52,18 @@ pub fn get_string_attr<'a>(
     Ok(Some(value.into_owned()))
 }
 
-pub fn get_unit_ref_attr<'a>(die: &RawDie<'a>, attr: gimli::DwAt) -> Result<Option<Offset>> {
-    let Some(value) = die.attr_value(attr)? else {
-        return Ok(None);
-    };
+pub fn get_unit_ref_attr<'a>(die: &RawDie<'a>, attr: gimli::DwAt) -> Result<Offset> {
+    let value = die
+        .attr_value(attr)
+        .with_context(|| format!("Failed to get `{attr}` attribute"))?
+        .with_context(|| format!("attribute `{attr}` not found"))?;
     if let gimli::AttributeValue::UnitRef(offset) = value {
-        Ok(Some(offset))
+        Ok(offset)
     } else {
-        anyhow::bail!(
+        Err(anyhow::anyhow!(
             "Expected UnitRef attribute for {:#x}, got {value:?}",
             die.offset().0,
-        );
+        ))
     }
 }
 
@@ -70,12 +71,13 @@ pub fn parse_die_string_attribute<'a>(
     die: &RawDie<'a>,
     attr: gimli::DwAt,
     unit_ref: &UnitRef<'a>,
-) -> Result<Option<String>> {
-    let attr = die.attr(attr)?;
-    let Some(attr) = attr else { return Ok(None) };
+) -> Result<String> {
+    let attr = die
+        .attr(attr)?
+        .with_context(|| format!("Failed to get string attribute `{attr}`"))?;
     let value = attr.value();
     let value = unit_ref.attr_string(value)?;
-    Ok(Some(value.to_string()?.into_owned()))
+    Ok(value.to_string()?.into_owned())
 }
 
 pub fn file_entry_to_path<'db>(

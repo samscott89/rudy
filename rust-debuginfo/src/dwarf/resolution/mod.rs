@@ -12,10 +12,13 @@ pub use variables::*;
 
 use std::{fmt, sync::Arc};
 
+use crate::dwarf::die::DieAccessError;
+
 #[derive(Debug, Clone)]
 pub enum Error {
     Gimli(gimli::Error),
     Resolution(String),
+    DieAccess(Arc<DieAccessError>),
     Custom(Arc<anyhow::Error>), // Io(Arc<std::io::Error>),
                                 // ObjectParseError(object::read::Error),
                                 // MemberFileNotFound(String),
@@ -31,6 +34,7 @@ unsafe impl salsa::Update for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::DieAccess(error) => write!(f, "Die access error: {error}"),
             Error::Gimli(error) => write!(f, "Gimli error: {error}"),
             Error::Resolution(error) => write!(f, "Resolution error: {error}"),
             Error::Custom(error) => write!(f, "{error}"),
@@ -49,6 +53,7 @@ impl PartialEq for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Error::DieAccess(error) => Some(error),
             Error::Gimli(error) => Some(error),
             Error::Resolution(_) => None,
             Error::Custom(error) => error.source(),
@@ -71,5 +76,11 @@ impl From<String> for Error {
 impl From<anyhow::Error> for Error {
     fn from(err: anyhow::Error) -> Self {
         Error::Custom(Arc::new(err))
+    }
+}
+
+impl From<DieAccessError> for Error {
+    fn from(err: DieAccessError) -> Self {
+        Error::DieAccess(Arc::new(err))
     }
 }

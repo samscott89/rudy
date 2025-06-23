@@ -1,6 +1,8 @@
 //! Core DWARF entity types and their navigation methods
 
-use anyhow::{Context, Result};
+use std::fmt;
+
+use anyhow::Context;
 use gimli::UnitSectionOffset;
 
 use super::{
@@ -21,6 +23,59 @@ pub struct Die<'db> {
     pub die_offset: Offset,
 }
 
+struct DieLocation {
+    path: String,
+    die_offset: usize,
+}
+
+pub struct DieAccessError {
+    inner: anyhow::Error,
+    location: DieLocation,
+}
+
+trait ResExt {
+    type V;
+    fn as_die_result(self, db: &dyn Db, die: &Die) -> Result<Self::V>;
+}
+
+impl<V> ResExt for anyhow::Result<V> {
+    type V = V;
+    fn as_die_result(self, db: &dyn Db, die: &Die) -> Result<V> {
+        self.map_err(|e| die.make_error(db, e))
+    }
+}
+
+type Result<T> = std::result::Result<T, DieAccessError>;
+
+impl fmt::Debug for DieAccessError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{self}")
+    }
+}
+
+impl fmt::Display for DieAccessError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            inner,
+            location: DieLocation { path, die_offset },
+        } = self;
+        write!(
+            f,
+            "Die access error at {path} {die_offset:#010x}: {inner:?}",
+        )
+    }
+}
+
+impl std::error::Error for DieAccessError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.inner.source()
+    }
+
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        Some(self.inner.as_ref())
+    }
+}
+
 impl<'db> Die<'db> {
     // GROUP 1: Core Identity (Keep - no dependencies)
 
@@ -29,51 +84,49 @@ impl<'db> Die<'db> {
     }
 
     // GROUP 2: High-Cohesion Navigation + Basic Attributes (Keep - used together 90% of time)
-    pub fn children(&self, db: &'db dyn Db) -> Vec<Die<'db>> {
+    pub fn children(&self, db: &'db dyn Db) -> Result<Vec<Die<'db>>> {
         let mut children = vec![];
 
-        let Some(unit_ref) = self.unit_ref(db) else {
-            return children;
-        };
+        let unit_ref = self.unit_ref(db)?;
 
-        let Some(mut tree) = unit_ref
+        let mut tree = unit_ref
             .entries_tree(Some(self.die_offset(db)))
-            .inspect_err(|e| {
-                db.report_critical(format!("Failed to parse child nodes: {e}"));
-            })
-            .ok()
-        else {
-            return children;
-        };
-        let Some(tree_root) = tree
+            .context("Failed to get children nodes")
+            .as_die_result(db, self)?;
+        let tree_root = tree
             .root()
-            .inspect_err(|e| {
-                db.report_critical(format!("Failed to parse child nodes: {e}"));
-            })
-            .ok()
-        else {
-            return children;
-        };
+            .context("Failed to get children nodes")
+            .as_die_result(db, self)?;
+
         let mut child_nodes = tree_root.children();
 
         loop {
-            match child_nodes.next() {
-                Ok(Some(child)) => {
+            match child_nodes
+                .next()
+                .context("Failed to parse child nodes")
+                .as_die_result(db, self)?
+            {
+                Some(child) => {
                     let child_offset = child.entry().offset();
                     let child_die = Die::new(db, self.file(db), self.cu_offset(db), child_offset);
                     children.push(child_die);
                 }
-                Ok(None) => break,
-                Err(e) => {
-                    db.report_critical(format!("Failed to parse child nodes: {e}"));
-                    continue;
-                }
+                None => break,
             }
         }
 
-        children
+        Ok(children)
     }
 
+    pub fn make_error<E: Into<anyhow::Error>>(&self, db: &'db dyn Db, error: E) -> DieAccessError {
+        DieAccessError {
+            inner: error.into(),
+            location: DieLocation {
+                path: self.file(db).file(db).path(db).to_string(),
+                die_offset: self.die_offset(db).0,
+            },
+        }
+    }
     pub fn format_with_location<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
         format!(
             "{} for {} {:#010x}",
@@ -83,13 +136,12 @@ impl<'db> Die<'db> {
         )
     }
 
-    pub fn get_unit_ref(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<Option<Die<'db>>> {
+    pub fn get_unit_ref(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<Die<'db>> {
         self.with_entry_and_unit(db, |entry, _| {
-            get_unit_ref_attr(entry, attr).map(|ok| {
-                ok.map(|unit_offset| Die::new(db, self.file(db), self.cu_offset(db), unit_offset))
-            })
-        })
-        .with_context(|| self.format_with_location(db, "Failed to get DIE entry"))?
+            get_unit_ref_attr(entry, attr)
+                .map(|unit_offset| Die::new(db, self.file(db), self.cu_offset(db), unit_offset))
+                .as_die_result(db, self)
+        })?
     }
 
     pub fn tag(&self, db: &'db dyn Db) -> gimli::DwTag {
@@ -97,16 +149,18 @@ impl<'db> Die<'db> {
             .unwrap_or(gimli::DW_TAG_null)
     }
 
-    pub fn name(&self, db: &'db dyn Db) -> Option<String> {
+    pub fn name(&self, db: &'db dyn Db) -> Result<String> {
         self.string_attr(db, gimli::DW_AT_name)
     }
 
     // GROUP 3: Attribute Access (Keep - building blocks for other operations)
 
-    pub fn get_member(&self, db: &'db dyn Db, name: &str) -> Option<Die<'db>> {
-        self.children(db)
+    pub fn get_member(&self, db: &'db dyn Db, name: &str) -> Result<Die<'db>> {
+        self.children(db)?
             .into_iter()
             .find(|child| child.name(db).map_or(false, |n| n == name))
+            .with_context(|| format!("Failed to find member `{name}`"))
+            .as_die_result(db, self)
     }
 
     pub fn get_member_attribute(
@@ -114,59 +168,68 @@ impl<'db> Die<'db> {
         db: &'db dyn Db,
         name: &str,
         attr: gimli::DwAt,
-    ) -> Option<gimli::AttributeValue<DwarfReader>> {
-        self.children(db)
+    ) -> Result<gimli::AttributeValue<DwarfReader>> {
+        self.children(db)?
             .into_iter()
             .find(|child| {
                 child.tag(db) == gimli::DW_TAG_member && child.name(db).map_or(false, |n| n == name)
             })
-            .and_then(|member| member.get_attr(db, attr))
+            .with_context(|| format!("Failed to find member `{name}`"))
+            .as_die_result(db, self)?
+            .get_attr(db, attr)
     }
 
-    pub fn get_generic_type_entry(&self, db: &'db dyn Db, name: &str) -> Option<Die<'db>> {
-        self.children(db)
+    pub fn get_generic_type_entry(&self, db: &'db dyn Db, name: &str) -> Result<Die<'db>> {
+        self.children(db)?
             .into_iter()
             .find(|child| {
                 child.tag(db) == gimli::DW_TAG_template_type_parameter
                     && child.name(db).map_or(false, |n| n == name)
             })
-            .and_then(|member| member.get_unit_ref(db, gimli::DW_AT_type).ok().flatten())
+            .with_context(|| format!("Failed to find generic type entry `{name}`"))
+            .as_die_result(db, self)
+            .and_then(|member| member.get_unit_ref(db, gimli::DW_AT_type))
     }
 
     pub fn get_attr(
         &self,
         db: &'db dyn Db,
         attr: gimli::DwAt,
-    ) -> Option<gimli::AttributeValue<DwarfReader>> {
-        self.with_entry(db, |entry| entry.attr(attr))?
-            .ok()
-            .flatten()
-            .map(|v| v.value())
+    ) -> Result<gimli::AttributeValue<DwarfReader>> {
+        Ok(self
+            .with_entry(db, |entry| entry.attr(attr))?
+            .with_context(|| format!("error fetching attribute {attr}"))
+            .as_die_result(db, self)?
+            .with_context(|| format!("attribute {attr} not found"))
+            .as_die_result(db, self)?
+            .value())
     }
 
-    pub fn string_attr(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Option<String> {
+    pub fn string_attr(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<String> {
         self.with_entry_and_unit(db, |entry, unit_ref| {
-            parse_die_string_attribute(entry, attr, unit_ref)
+            parse_die_string_attribute(entry, attr, unit_ref).as_die_result(db, self)
         })?
-        .ok()?
     }
 
-    pub fn udata_attr(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Option<usize> {
+    pub fn udata_attr(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<usize> {
         self.with_entry(db, |entry| {
-            entry
-                .attr(attr)
-                .ok()?
-                .and_then(|attr| attr.udata_value())
+            let v = self.get_attr(db, attr)?;
+
+            v.udata_value()
+                .with_context(|| format!("attr {attr} is not a udata value, got: {v:?}"))
                 .map(|v| v as usize)
-        })
-        .flatten()
+        })?
+        .as_die_result(db, self)
     }
 
     pub fn print(&self, db: &'db dyn Db) -> String {
         self.with_entry_and_unit(db, |entry, unit_ref| {
             super::utils::pretty_print_die_entry(entry, unit_ref)
         })
-        .unwrap_or_else(|| "entry not found".to_string())
+        .unwrap_or_else(|e| {
+            tracing::error!("Failed to print DIE entry: {e}");
+            "entry not found".to_string()
+        })
     }
 
     // GROUP 5: Low-Level Access (Make private - implementation details)
@@ -175,64 +238,60 @@ impl<'db> Die<'db> {
         &self,
         db: &'db dyn Db,
         f: F,
-    ) -> Option<T> {
+    ) -> Result<T> {
         let unit_ref = self.unit_ref(db)?;
         let entry = self.entry(db, &unit_ref)?;
-        Some(f(&entry, &unit_ref))
+        Ok(f(&entry, &unit_ref))
     }
 
-    pub(super) fn unit_ref(&self, db: &'db dyn Db) -> Option<UnitRef<'db>> {
-        self.cu(db).unit_ref(db)
+    pub(super) fn unit_ref(&self, db: &'db dyn Db) -> Result<UnitRef<'db>> {
+        self.cu(db)
+            .unit_ref(db)
+            .context("Failed to get unit reference")
+            .as_die_result(db, self)
     }
 
-    fn with_entry<F: FnOnce(&RawDie<'_>) -> T, T>(&self, db: &'db dyn Db, f: F) -> Option<T> {
+    fn with_entry<F: FnOnce(&RawDie<'_>) -> T, T>(&self, db: &'db dyn Db, f: F) -> Result<T> {
         let unit_ref = self.unit_ref(db)?;
         let entry = self.entry(db, &unit_ref)?;
-        Some(f(&entry))
+        Ok(f(&entry))
     }
 
-    fn entry<'a>(&self, db: &'db dyn Db, unit_ref: &'a UnitRef<'db>) -> Option<RawDie<'a>> {
-        let entry = unit_ref
+    fn entry<'a>(&self, db: &'db dyn Db, unit_ref: &'a UnitRef<'db>) -> Result<RawDie<'a>> {
+        unit_ref
             .entry(self.die_offset(db))
-            .inspect_err(|e| {
-                db.report_critical(format!("Failed to parse entry: {e}"));
-            })
-            .ok()?;
-        Some(entry)
+            .context("Failed to get DIE entry")
+            .as_die_result(db, self)
     }
 }
 
 /// Get the declaration file for a DIE entry
-pub fn declaration_file<'db>(db: &'db dyn Db, entry: Die<'db>) -> Option<SourceFile<'db>> {
-    let decl_file_attr = entry.get_attr(db, gimli::DW_AT_decl_file);
-    let Some(gimli::AttributeValue::FileIndex(file_idx)) = decl_file_attr else {
-        db.report_critical(format!(
-            "Failed to get decl_file attribute, got: {decl_file_attr:?}"
+pub fn declaration_file<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<SourceFile<'db>> {
+    let decl_file_attr = entry.get_attr(db, gimli::DW_AT_decl_file)?;
+    let gimli::AttributeValue::FileIndex(file_idx) = decl_file_attr else {
+        return Err(entry.make_error(
+            db,
+            anyhow::anyhow!("Expected DW_AT_decl_file to be a FileIndex, got: {decl_file_attr:?}"),
         ));
-        return None;
     };
 
     let unit_ref = entry.unit_ref(db)?;
 
     // Get the file from the line program
     let Some(line_program) = unit_ref.line_program.clone() else {
-        db.report_critical(format!("Failed to parse line program"));
-        return None;
+        return Err(entry.make_error(db, anyhow::anyhow!("Failed to parse line program")));
     };
-
     let header = line_program.header();
     let Some(file) = header.file(file_idx) else {
-        db.report_critical(format!(
-            "Failed to parse file index: {:#?}",
-            header.file_names()
+        return Err(entry.make_error(
+            db,
+            anyhow::anyhow!("Failed to parse file index: {:#?}", header.file_names()),
         ));
-        return None;
     };
 
     let Some(path) = file_entry_to_path(file, &unit_ref) else {
-        db.report_critical(format!("Failed to convert file entry to path"));
-        return None;
+        return Err(entry.make_error(db, anyhow::anyhow!("Failed to convert file entry to path")));
     };
 
-    Some(SourceFile::new(db, path))
+    Ok(SourceFile::new(db, path))
 }
