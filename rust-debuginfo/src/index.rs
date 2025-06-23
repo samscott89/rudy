@@ -277,10 +277,16 @@ pub fn resolve_type<'db>(
             match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
                 Ok(typedef) => {
                     // Successfully resolved the type
+                    tracing::info!(
+                        "Resolved type '{type_name}' to {typedef:#?} in {}",
+                        entry
+                            .die(db)
+                            .format_with_location(db, entry.die(db).print(db))
+                    );
                     return Ok(Some(typedef));
                 }
                 Err(e) => {
-                    tracing::debug!("Failed to resolve type '{type_name}': {e:#}");
+                    tracing::debug!("Failed to resolve type '{type_name}': {e:?}");
                 }
             }
         }

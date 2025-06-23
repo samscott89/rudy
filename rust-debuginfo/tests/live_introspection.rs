@@ -224,7 +224,7 @@ fn test_introspect_option() -> Result<()> {
 
     // Find Option<u32> type using the public API
     let typedef = debug_info
-        .resolve_type("Option")?
+        .resolve_type("Option<u32>")?
         .expect("Failed to resolve Option type");
 
     // Test Some variant - Option is implemented and should work

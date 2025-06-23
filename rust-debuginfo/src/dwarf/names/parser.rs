@@ -440,7 +440,11 @@ impl Path {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Option(OptionDef { inner_type: inner }));
+                            return TypeDef::Std(StdDef::Option(OptionDef {
+                                inner_type: inner,
+                                discriminant_offset: 0,
+                                some_offset: 0,
+                            }));
                         }
                         "Result" => {
                             let mut generics_iter = get_generics().into_iter();
@@ -973,7 +977,14 @@ mod test {
             "alloc::vec::Vec<u8, alloc::alloc::Global>",
             VecDef::new(UnsignedIntDef::u8()),
         );
-        infer("core::option::Option<i32>", OptionDef::new(IntDef::i32()));
+        infer(
+            "core::option::Option<i32>",
+            OptionDef {
+                inner_type: Arc::new(IntDef::i32().into()),
+                discriminant_offset: 0,
+                some_offset: 0,
+            },
+        );
         infer(
             "alloc::boxed::Box<i32>",
             SmartPtrDef {

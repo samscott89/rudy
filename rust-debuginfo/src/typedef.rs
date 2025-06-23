@@ -684,15 +684,9 @@ pub enum MapVariant {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct OptionDef {
+    pub discriminant_offset: usize,
+    pub some_offset: usize,
     pub inner_type: Arc<TypeDef>,
-}
-
-impl OptionDef {
-    pub fn new<T: Into<TypeDef>>(inner_type: T) -> Self {
-        Self {
-            inner_type: Arc::new(inner_type.into()),
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]

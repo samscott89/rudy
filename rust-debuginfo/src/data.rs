@@ -284,15 +284,20 @@ fn read_std_from_memory(
 ) -> Result<crate::Value> {
     let value = match def {
         StdDef::Option(option_def) => {
-            let address = data_resolver.read_address(address)?;
-            if address == 0 {
+            let first_byte = data_resolver.read_memory(address, 1)?;
+            if first_byte[0] == 0 {
                 return Ok(crate::Value::Scalar {
                     ty: "Option".to_string(),
                     value: "None".to_string(),
                 });
             }
 
-            read_from_memory(db, address, &option_def.inner_type, data_resolver)?
+            read_from_memory(
+                db,
+                address + option_def.some_offset as u64,
+                &option_def.inner_type,
+                data_resolver,
+            )?
         }
         StdDef::Vec(v) => {
             // // let ptr = v.

@@ -228,36 +228,25 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
                     continue;
                 };
                 if name == "Some" {
-                    for grandchild in child.children(db) {
-                        match grandchild.tag(db) {
-                            gimli::DW_TAG_template_type_parameter => {
-                                // formally, this tells us the type
-                                // of the option generic `T`
-                                return Ok(OptionDef {
-                                    inner_type: Arc::new(resolve_entry_type_shallow(
-                                        db, grandchild,
-                                    )?),
-                                });
-                            }
-                            gimli::DW_TAG_member => {
-                                // formally, this is a reference to the tuple field(s)
-                                // of the enum -- in the case of option we should have
-                                // a single one that points at the field.
-                                debug_assert_eq!(
-                                    grandchild
-                                        .get_attr(db, gimli::DW_AT_data_member_location)
-                                        .and_then(|attr| attr.udata_value())
-                                        .unwrap_or(u64::MAX),
-                                    0
-                                )
-                            }
-                            t => {
-                                return Err(grandchild
-                                    .format_with_location(db, format!("unexpected tag: {t}"))
-                                    .into());
-                            }
-                        }
-                    }
+                    // the struct type for the `Some` variant
+                    let member_type = child
+                        .get_generic_type_entry(db, "T")
+                        .context("could not find generic type T for Some")?;
+                    let inner_type = resolve_type_offset(db, member_type)
+                        .context("could not resolve inner type for Some")?;
+
+                    let some_offset = child
+                        .get_member_attribute(db, "__0", gimli::DW_AT_data_member_location)
+                        .context("could not find __0 offset for Some")?
+                        .udata_value()
+                        .map(|v| v as u64)
+                        .context("__0 offset is not a valid udata")?;
+
+                    return Ok(OptionDef {
+                        inner_type: Arc::new(inner_type),
+                        discriminant_offset: 0, // discriminant is always at offset 0
+                        some_offset: some_offset as usize,
+                    });
                 }
             }
             t => {
