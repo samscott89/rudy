@@ -7,8 +7,9 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    ArrayDef, MapDef, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef, StdDef,
-    StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef, VecDef,
+    ArrayDef, MapDef, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef, SmartPtrDef,
+    SmartPtrVariant, StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef, TypeRef,
+    VecDef,
 };
 
 use anyhow::Context;
@@ -110,68 +111,118 @@ fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDe
 
 /// Resolve Map type layout from DWARF
 fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef> {
-    let Some(size) = entry
-        .get_attr(db, gimli::DW_AT_byte_size)
-        .and_then(|attr| attr.udata_value())
-    else {
-        return Err(entry.format_with_location(db, "Map size not found").into());
-    };
-
-    let Some(typename) = get_die_typename(db, entry) else {
-        return Err(entry
-            .format_with_location(db, "Map typename not found")
-            .into());
-    };
-
-    // match &typename.typedef {
-    //     TypeDef::Std(StdDef::Map(map_def)) => {
-    //         let mut resolved_map = map_def.clone();
-    //         resolved_map.size = size as usize;
-    //         Ok(TypeDef::Std(StdDef::Map(resolved_map)))
-    //     }
-    //     _ => Err(entry
-    //         .format_with_location(db, "Expected Map type in typename")
-    //         .into()),
-    // }
     todo!()
 }
 
 /// Resolve Result type layout from DWARF
 fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<ResultDef> {
-    // Result is an enum type with Ok and Err variants
-    let Some(typename) = get_die_typename(db, entry) else {
-        return Err(entry
-            .format_with_location(db, "Result typename not found")
-            .into());
-    };
-
-    // match &typename.typedef {
-    //     TypeDef::Std(StdDef::Result(result_def)) => {
-    //         Ok(TypeDef::Std(StdDef::Result(result_def.clone())))
-    //     }
-    //     _ => Err(entry
-    //         .format_with_location(db, "Expected Result type in typename")
-    //         .into()),
-    // }
     todo!()
 }
 
 /// Resolve smart pointer type layout from DWARF
-fn resolve_smart_ptr_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    let Some(typename) = get_die_typename(db, entry) else {
-        return Err(entry
-            .format_with_location(db, "SmartPtr typename not found")
-            .into());
+fn resolve_smart_ptr_type<'db>(
+    db: &'db dyn Db,
+    entry: Die<'db>,
+    variant: SmartPtrVariant,
+) -> Result<SmartPtrDef> {
+    let inner_type = match variant {
+        // `Box` is output as a pointer_type and has the type in the entry itself
+        SmartPtrVariant::Box => resolve_entry_type_shallow(db, entry)
+            .context("Failed to resolve inner type for smart pointer")?,
+        // `Rc` and `Arc` are output as struct types, with generic type parameters
+        SmartPtrVariant::Arc | SmartPtrVariant::Rc => {
+            let type_entry = entry
+                .get_generic_type_entry(db, "T")
+                .context("could not find inner type")?;
+
+            shallow_resolve_type(db, type_entry).context("failed to resolve the inner type")?
+        }
+        _ => {
+            todo!(
+                "{}",
+                entry.format_with_location(
+                    db,
+                    format!("Smart pointer variant `{variant:?}` not yet implemented")
+                )
+            )
+        }
     };
 
-    match &typename.typedef {
-        TypeDef::Std(StdDef::SmartPtr(smart_ptr_def)) => {
-            Ok(TypeDef::Std(StdDef::SmartPtr(smart_ptr_def.clone())))
+    let (inner_ptr_offset, data_ptr_offset) = match variant {
+        SmartPtrVariant::Box => (0, 0), // Box has no offset, it's just a pointer
+        SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
+            // Arc.ptr -> NonNull<ArcInner<T>>
+
+            let mut inner_offset = 0;
+
+            let ptr = entry
+                .get_member(db, "ptr")
+                .with_context(|| entry.format_with_location(db, "Failed to get ptr member"))?;
+
+            inner_offset += ptr
+                .udata_attr(db, gimli::DW_AT_data_member_location)
+                .context("could not find ptr offset")?;
+
+            let nonnull_entry = ptr
+                .get_unit_ref(db, gimli::DW_AT_type)?
+                .context(ptr.format_with_location(db, "Failed to get type for ptr member"))?;
+
+            // NonNull.pointer -> * ArcInner
+
+            let pointer = nonnull_entry.get_member(db, "pointer").with_context(|| {
+                nonnull_entry.format_with_location(db, "Failed to get pointer member")
+            })?;
+
+            inner_offset += pointer
+                .udata_attr(db, gimli::DW_AT_data_member_location)
+                .context("could not find pointer offset")?;
+
+            let arcinner_pointer = pointer.get_unit_ref(db, gimli::DW_AT_type)?.context(
+                pointer.format_with_location(db, "Failed to get type for pointer member"),
+            )?;
+
+            // pointer type that needs to be dereferenced to get the inner type
+            // then we have _another_ offset to get the data
+
+            let arc_inner = arcinner_pointer
+                .get_unit_ref(db, gimli::DW_AT_type)?
+                .context(
+                    arcinner_pointer
+                        .format_with_location(db, "Failed to get type for pointer member"),
+                )?;
+
+            // within {Arc,Rc}Inner, we need to find the actual data pointer offset
+            let name = match variant {
+                SmartPtrVariant::Arc => "data",
+                SmartPtrVariant::Rc => "value",
+                _ => unreachable!(),
+            };
+            let data_ptr_offset = arc_inner
+                .get_member_attribute(db, name, gimli::DW_AT_data_member_location)
+                .with_context(|| arc_inner.format_with_location(db, "could not find data offset"))?
+                .udata_value()
+                .map(|v| v as usize)
+                .context("data offset is not a valid udata")?;
+
+            (inner_offset, data_ptr_offset)
         }
-        _ => Err(entry
-            .format_with_location(db, "Expected SmartPtr type in typename")
-            .into()),
-    }
+        _ => {
+            todo!(
+                "{}",
+                entry.format_with_location(
+                    db,
+                    format!("Smart pointer variant `{variant:?}` not yet implemented")
+                )
+            )
+        }
+    };
+
+    Ok(SmartPtrDef {
+        variant,
+        inner_type: Arc::new(inner_type),
+        inner_ptr_offset,
+        data_ptr_offset,
+    })
 }
 
 /// Resolve Option type structure
@@ -406,9 +457,10 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                     // Result types need layout resolution
                     resolve_result_type(db, entry).map(|r| Some(TypeDef::Std(StdDef::Result(r))))
                 }
-                StdDef::SmartPtr(_) => {
+                StdDef::SmartPtr(s) => {
                     // Smart pointers like Box, Rc, Arc need layout resolution
-                    resolve_smart_ptr_type(db, entry).map(Some)
+                    resolve_smart_ptr_type(db, entry, s.variant)
+                        .map(|s| Some(TypeDef::Std(StdDef::SmartPtr(s))))
                 }
             }
         }

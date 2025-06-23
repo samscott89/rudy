@@ -49,6 +49,39 @@ pub enum Value {
     },
 }
 
+impl Value {
+    pub(crate) fn map_type<F>(&self, type_map: F) -> Self
+    where
+        F: Fn(&str) -> String,
+    {
+        match self {
+            Value::Scalar { value, ty } => Value::Scalar {
+                ty: type_map(ty),
+                value: value.clone(),
+            },
+            Value::Array { items, ty } => Value::Array {
+                ty: type_map(ty),
+                items: items.clone(),
+            },
+            Value::Struct { fields, ty } => Value::Struct {
+                ty: type_map(ty),
+                fields: fields.clone(),
+            },
+        }
+    }
+
+    /// Creates a new value with where the current type is prefixed with `prefix`.
+    pub(crate) fn prefix_type<T: AsRef<str>>(&self, prefix: T) -> Self {
+        let prefix = prefix.as_ref();
+        self.map_type(|ty| format!("{prefix}{ty}"))
+    }
+    /// Creates a new value with where the current type is wrapped in `{new_ty}<{current_ty}>`.
+    pub(crate) fn wrap_type<T: AsRef<str>>(&self, new_ty: T) -> Self {
+        let new_ty = new_ty.as_ref();
+        self.map_type(|ty| format!("{new_ty}<{ty}>"))
+    }
+}
+
 /// Type information for a variable or field.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Type {

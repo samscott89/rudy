@@ -1,6 +1,7 @@
 //! Live introspection tests that read debug info from a running process
 
 use anyhow::Result;
+use itertools::Itertools;
 use rust_debuginfo::{DataResolver, DebugDb, DebugInfo, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -23,6 +24,9 @@ impl DataResolver for SelfProcessResolver {
     }
 
     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
+        if size > 4096 {
+            return Err(anyhow::anyhow!("Attempting to read too much memory"));
+        }
         // Read from our own process memory
         // This is safe because we're only reading memory we own
         let ptr = address as *const u8;
@@ -31,6 +35,20 @@ impl DataResolver for SelfProcessResolver {
         unsafe {
             std::ptr::copy_nonoverlapping(ptr, buffer.as_mut_ptr(), size);
         }
+
+        tracing::debug!(
+            "Read {size} bytes from address {address:#016x}: {:?}",
+            buffer
+                .iter()
+                .chunks(2)
+                .into_iter()
+                .map(|chunk| {
+                    chunk
+                        .map(|byte| format!("{:02x}", byte))
+                        .collect::<String>()
+                })
+                .join(" ")
+        );
 
         Ok(buffer)
     }
@@ -105,7 +123,7 @@ fn test_introspect_string() -> Result<()> {
     // Verify we got the expected value
     match value {
         Value::Scalar { ty, value } if ty == "String" => {
-            assert_eq!(value, "Hello, Debugger!");
+            assert_eq!(value, "\"Hello, Debugger!\"");
         }
         _ => panic!("Expected string value, got: {:?}", value),
     }
@@ -363,40 +381,103 @@ fn test_introspect_smart_pointers() -> Result<()> {
     // Create test data with smart pointers
     let test_box: Box<String> = Box::new(String::from("Boxed string"));
     let test_arc: Arc<Vec<i32>> = Arc::new(vec![1, 2, 3]);
-    let test_rc: std::rc::Rc<TestPoint> = std::rc::Rc::new(TestPoint { x: 1.0, y: 2.0 });
+    let test_rc: std::rc::Rc<i32> = std::rc::Rc::new(42);
+    let test_mutex: std::sync::Mutex<i32> = std::sync::Mutex::new(42);
+    let test_cell: std::cell::RefCell<i32> = std::cell::RefCell::new(100);
 
     let box_ptr = &test_box as *const Box<String> as u64;
     let arc_ptr = &test_arc as *const Arc<Vec<i32>> as u64;
-    let rc_ptr = &test_rc as *const std::rc::Rc<TestPoint> as u64;
+    let rc_ptr = &test_rc as *const std::rc::Rc<i32> as u64;
+    let mutex_ptr = &test_mutex as *const std::sync::Mutex<i32> as u64;
+    let cell_ptr = &test_cell as *const std::cell::RefCell<i32> as u64;
 
     let resolver = SelfProcessResolver::new();
 
     // Test Box - will fail when Box reading isn't implemented
     let box_typedef = debug_info
-        .resolve_type("Box")?
+        .resolve_type("Box<String>")?
         .expect("Box type should be found");
 
     let box_value = debug_info.address_to_value(box_ptr, &box_typedef, &resolver)?;
-    println!("Box value: {:?}", box_value);
+    assert_eq!(
+        box_value,
+        Value::Scalar {
+            ty: "Box<String>".to_string(),
+            value: "\"Boxed string\"".to_string(),
+        }
+    );
 
     // Test Arc - will fail when Arc reading isn't implemented
     let arc_typedef = debug_info
-        .resolve_type("Arc")?
+        .resolve_type("Arc<Vec<i32>>")?
         .expect("Arc type should be found");
 
     let arc_value = debug_info.address_to_value(arc_ptr, &arc_typedef, &resolver)?;
-    println!("Arc value: {:?}", arc_value);
+    assert_eq!(
+        arc_value,
+        Value::Array {
+            ty: "Arc<Vec<i32>>".to_string(),
+            items: vec![
+                Value::Scalar {
+                    ty: "i32".to_string(),
+                    value: "1".to_string(),
+                },
+                Value::Scalar {
+                    ty: "i32".to_string(),
+                    value: "2".to_string(),
+                },
+                Value::Scalar {
+                    ty: "i32".to_string(),
+                    value: "3".to_string(),
+                }
+            ]
+        }
+    );
 
     // Test Rc - will fail when Rc reading isn't implemented
     let rc_typedef = debug_info
-        .resolve_type("Rc")?
+        .resolve_type("Rc<i32>")?
         .expect("Rc type should be found");
 
     let rc_value = debug_info.address_to_value(rc_ptr, &rc_typedef, &resolver)?;
-    println!("Rc value: {:?}", rc_value);
+    assert_eq!(
+        rc_value,
+        Value::Scalar {
+            ty: "Rc<i32>".to_string(),
+            value: "42".to_string(),
+        }
+    );
+
+    // Test Mutex - will fail when Mutex reading isn't implemented
+    let mutex_typedef = debug_info
+        .resolve_type("Mutex<i32>")?
+        .expect("Mutex type should be found");
+
+    let mutex_value = debug_info.address_to_value(mutex_ptr, &mutex_typedef, &resolver)?;
+    assert_eq!(
+        mutex_value,
+        Value::Scalar {
+            ty: "Mutex<i32>".to_string(),
+            value: "42".to_string(),
+        }
+    );
+
+    // Test RefCell - will fail when RefCell reading isn't implemented
+    let cell_typedef = debug_info
+        .resolve_type("RefCell<i32>")?
+        .expect("RefCell type should be found");
+
+    let cell_value = debug_info.address_to_value(cell_ptr, &cell_typedef, &resolver)?;
+    assert_eq!(
+        cell_value,
+        Value::Scalar {
+            ty: "RefCell<i32>".to_string(),
+            value: "100".to_string(),
+        }
+    );
 
     // Keep data alive
-    let _ = (test_box, test_arc, test_rc);
+    let _ = (test_box, test_arc, test_rc, test_mutex, test_cell);
     Ok(())
 }
 

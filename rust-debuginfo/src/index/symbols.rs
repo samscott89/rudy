@@ -146,14 +146,14 @@ impl SymbolIndex {
     pub fn index_binary(&mut self, object: &object::File<'_>, debug_file: DebugFile) -> Result<()> {
         for s in object.symbols() {
             let Ok(name) = s.name_bytes() else {
-                tracing::debug!("Failed to parse symbol name at: {:#016x}", s.address());
+                tracing::debug!("Failed to parse symbol name at: {:#010x}", s.address());
                 continue;
             };
 
             let symbol = RawSymbol::new(name.to_vec());
 
             let Ok(demangled) = symbol.demangle() else {
-                tracing::trace!("Failed to demangle symbol at : {:#016x}", s.address());
+                tracing::trace!("Failed to demangle symbol at : {:#010x}", s.address());
                 continue;
             };
 
@@ -194,7 +194,7 @@ impl SymbolIndex {
             let symbol = RawSymbol::new(s.name().to_vec());
 
             let Ok(demangled) = symbol.demangle() else {
-                tracing::trace!("Failed to demangle symbol at : {:#016x}", s.address());
+                tracing::trace!("Failed to demangle symbol at : {:#010x}", s.address());
                 continue;
             };
 

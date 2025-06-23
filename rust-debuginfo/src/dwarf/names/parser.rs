@@ -521,6 +521,8 @@ impl Path {
                             };
                             return TypeDef::Std(StdDef::SmartPtr(SmartPtrDef {
                                 inner_type: inner,
+                                inner_ptr_offset: 0,
+                                data_ptr_offset: 0,
                                 variant,
                             }));
                         }
@@ -990,6 +992,8 @@ mod test {
             SmartPtrDef {
                 inner_type: Arc::new(IntDef::i32().into()),
                 variant: SmartPtrVariant::Box,
+                inner_ptr_offset: 0,
+                data_ptr_offset: 0,
             },
         );
         infer("alloc::String::String", string_def());

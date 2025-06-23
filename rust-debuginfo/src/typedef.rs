@@ -1,7 +1,6 @@
 //! Definition of types in the Rust language.
 
 use gimli::UnitSectionOffset;
-use std::cell::Ref;
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -51,19 +50,7 @@ impl TypeDef {
                 PrimitiveDef::Float(float_def) => {
                     format!("f{}", float_def.size * 8)
                 }
-                PrimitiveDef::Function(function_def) => {
-                    let arg_types = function_def
-                        .arg_types
-                        .iter()
-                        .map(|arg| arg.display_name())
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    if let Some(return_type) = &function_def.return_type {
-                        format!("fn({}) -> {}", arg_types, return_type.display_name())
-                    } else {
-                        format!("fn({})", arg_types)
-                    }
-                }
+                PrimitiveDef::Function(function_def) => function_def.display_name(),
                 PrimitiveDef::Int(int_def) => int_def.display_name(),
                 PrimitiveDef::Never(_) => "!".to_string(),
                 PrimitiveDef::Pointer(pointer_def) => {
@@ -520,6 +507,23 @@ pub struct FunctionDef {
     pub return_type: Option<Arc<TypeDef>>,
     pub arg_types: Vec<Arc<TypeDef>>,
 }
+
+impl FunctionDef {
+    pub fn display_name(&self) -> String {
+        let arg_types = self
+            .arg_types
+            .iter()
+            .map(|arg| arg.display_name())
+            .collect::<Vec<_>>()
+            .join(", ");
+        if let Some(return_type) = &self.return_type {
+            format!("fn({}) -> {}", arg_types, return_type.display_name())
+        } else {
+            format!("fn({})", arg_types)
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct IntDef {
     pub size: usize,
@@ -652,10 +656,12 @@ impl StdDef {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SmartPtrDef {
     pub inner_type: Arc<TypeDef>,
+    pub inner_ptr_offset: usize,
+    pub data_ptr_offset: usize,
     pub variant: SmartPtrVariant,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub enum SmartPtrVariant {
     Box,
     Rc,
@@ -665,6 +671,21 @@ pub enum SmartPtrVariant {
     RwLock,
     Cell,
     UnsafeCell,
+}
+
+impl SmartPtrVariant {
+    pub fn name(&self) -> &'static str {
+        match self {
+            SmartPtrVariant::Box => "Box",
+            SmartPtrVariant::Rc => "Rc",
+            SmartPtrVariant::Arc => "Arc",
+            SmartPtrVariant::RefCell => "RefCell",
+            SmartPtrVariant::Mutex => "Mutex",
+            SmartPtrVariant::RwLock => "RwLock",
+            SmartPtrVariant::Cell => "Cell",
+            SmartPtrVariant::UnsafeCell => "UnsafeCell",
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]

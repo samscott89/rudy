@@ -6,7 +6,8 @@ use std::collections::BTreeMap;
 
 use crate::database::Db;
 use crate::typedef::{
-    ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, StdDef, StrSliceDef, TypeDef, UnsignedIntDef,
+    ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, SliceDef, SmartPtrVariant, StdDef,
+    StrSliceDef, TypeDef, VecDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -153,12 +154,13 @@ pub fn read_from_memory<'db>(
 
             read_from_memory(db, address, &def, data_resolver)
         }
-        d => {
-            todo!("read_from_memory: {d:#?}");
-        } // TypeData::String => todo!(),
-          // TypeData::Struct { .. } => todo!(),
-          // TypeData::Unsupported => todo!(),
-          // TypeData::Pointer(_) => todo!(),
+        TypeDef::Enum(enum_def) => {
+            todo!("read_from_memory: EnumDef not implemented yet: {enum_def:#?}")
+        }
+        TypeDef::Other { name } => {
+            tracing::warn!("read_from_memory: unsupported type {name}");
+            Err(anyhow::anyhow!("Unsupported type: {name}"))
+        }
     }
 }
 
@@ -169,7 +171,6 @@ fn read_primitive_from_memory(
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::Value> {
     let value = match def {
-        // PrimitiveDef::Array(array_def) => todo!(),
         PrimitiveDef::Bool(_) => {
             let memory = data_resolver.read_memory(address, 1)?;
             let bool_value = memory[0] != 0;
@@ -178,20 +179,23 @@ fn read_primitive_from_memory(
                 value: bool_value.to_string(),
             }
         }
-        // PrimitiveDef::Char(char_def) => todo!(),
-        // PrimitiveDef::Float(float_def) => todo!(),
-        // PrimitiveDef::Function(function_def) => todo!(),
-        // PrimitiveDef::Int(int_def) => todo!(),
-        // PrimitiveDef::Reference(reference_def) => todo!(),
-        // PrimitiveDef::Slice(slice_def) => todo!(),
-        // PrimitiveDef::Str(str_def) => todo!(),
-        // PrimitiveDef::Tuple(tuple_def) => todo!(),
-        // PrimitiveDef::Unit(unit_def) => todo!(),
+        PrimitiveDef::Char(()) => {
+            let memory = data_resolver.read_memory(address, 4)?;
+            let char_value = char::from_u32(u32::from_le_bytes(memory.try_into().unwrap()))
+                .ok_or_else(|| anyhow::anyhow!("Invalid char value at address {address:#x}"))?;
+            crate::Value::Scalar {
+                ty: "char".to_string(),
+                value: format!("'{char_value}'"),
+            }
+        }
+        PrimitiveDef::Function(function_def) => crate::Value::Scalar {
+            ty: function_def.display_name(),
+            value: format!("fn at {address:#x}"),
+        },
         PrimitiveDef::Array(ArrayDef {
             element_type,
             length,
         }) => {
-            let mut values = Vec::new();
             let element_size = element_type.size().with_context(|| {
                 format!(
                     "inner type: {} has unknown size",
@@ -200,6 +204,7 @@ fn read_primitive_from_memory(
             })? as u64;
 
             let mut address = address;
+            let mut values = Vec::with_capacity(*length);
             for _ in 0..*length {
                 let value = read_from_memory(db, address, element_type, data_resolver)?;
                 values.push(value);
@@ -212,11 +217,40 @@ fn read_primitive_from_memory(
         }
         PrimitiveDef::Pointer(PointerDef { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
-            read_from_memory(db, address, pointed_type, data_resolver)?
+            read_from_memory(db, address, pointed_type, data_resolver)?.prefix_type("*")
         }
         PrimitiveDef::Reference(ReferenceDef { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
-            read_from_memory(db, address, pointed_type, data_resolver)?
+            read_from_memory(db, address, pointed_type, data_resolver)?.prefix_type("&")
+        }
+        PrimitiveDef::Slice(SliceDef {
+            element_type,
+            data_ptr_offset,
+            length_offset,
+            size: _,
+        }) => {
+            let length = address + *length_offset as u64;
+            let length_bytes = data_resolver.read_memory(length, 8)?;
+            let length = u64::from_le_bytes(length_bytes.try_into().unwrap());
+            tracing::debug!("length: {length}");
+
+            let element_size = element_type.size().with_context(|| {
+                format!(
+                    "inner type: {} has unknown size",
+                    element_type.display_name()
+                )
+            })? as u64;
+            let mut data_ptr = address + *data_ptr_offset as u64;
+            let mut values = Vec::with_capacity(length as usize);
+            for _ in 0..length {
+                let value = read_from_memory(db, data_ptr, element_type, data_resolver)?;
+                values.push(value);
+                data_ptr += element_size;
+            }
+            crate::Value::Array {
+                ty: format!("&[{}]", element_type.display_name()),
+                items: values,
+            }
         }
         PrimitiveDef::StrSlice(StrSliceDef {
             data_ptr_offset,
@@ -246,10 +280,37 @@ fn read_primitive_from_memory(
                 2 => u16::from_le_bytes(memory.try_into().unwrap()).to_string(),
                 4 => u32::from_le_bytes(memory.try_into().unwrap()).to_string(),
                 8 => u64::from_le_bytes(memory.try_into().unwrap()).to_string(),
-                _ => todo!("read_primitive_from_memory: {unsigned_int_def:#?}"),
+                16 => u128::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                _ => {
+                    anyhow::bail!(
+                        "read_primitive_from_memory: unsupported UnsignedIntDef size {} at address {address:#x}",
+                        unsigned_int_def.size
+                    )
+                }
             };
             crate::Value::Scalar {
                 ty: unsigned_int_def.display_name(),
+                value: num_string,
+            }
+        }
+        PrimitiveDef::Float(float_def) => {
+            let memory = data_resolver.read_memory(address, float_def.size)?;
+
+            let num_string = match float_def.size {
+                4 => f32::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                8 => f64::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                16 => {
+                    anyhow::bail!("f128 is not supported yet, found at address {address:#x}");
+                }
+                _ => {
+                    anyhow::bail!(
+                        "read_primitive_from_memory: unsupported FloatDef size {} at address {address:#x}",
+                        float_def.size
+                    )
+                }
+            };
+            crate::Value::Scalar {
+                ty: format!("f{}", float_def.size * 8),
                 value: num_string,
             }
         }
@@ -261,15 +322,38 @@ fn read_primitive_from_memory(
                 2 => i16::from_le_bytes(memory.try_into().unwrap()).to_string(),
                 4 => i32::from_le_bytes(memory.try_into().unwrap()).to_string(),
                 8 => i64::from_le_bytes(memory.try_into().unwrap()).to_string(),
-                _ => todo!("read_primitive_from_memory: {int_def:#?}"),
+                16 => i128::from_le_bytes(memory.try_into().unwrap()).to_string(),
+                _ => {
+                    anyhow::bail!(
+                        "read_primitive_from_memory: unsupported IntDef size {} at address {address:#x}",
+                        int_def.size
+                    )
+                }
             };
             crate::Value::Scalar {
                 ty: int_def.display_name(),
                 value: num_string,
             }
         }
-        def => {
-            todo!("read_primitive_from_memory: {def:#?}");
+        PrimitiveDef::Never(_) => {
+            // The Never type is a zero-sized type, so we return a placeholder value.
+            crate::Value::Scalar {
+                ty: "Never".to_string(),
+                value: "unreachable".to_string(),
+            }
+        }
+        PrimitiveDef::Str(()) => {
+            todo!("read_primitive_from_memory: bare `str` is not supported yet");
+        }
+        PrimitiveDef::Tuple(tuple_def) => {
+            todo!("read_primitive_from_memory: TupleDef not implemented yet: {tuple_def:#?}");
+        }
+        PrimitiveDef::Unit(_) => {
+            // The Unit type is a zero-sized type, so we return a placeholder value.
+            crate::Value::Scalar {
+                ty: "()".to_string(),
+                value: "()".to_string(),
+            }
         }
     };
 
@@ -298,35 +382,49 @@ fn read_std_from_memory(
                 &option_def.inner_type,
                 data_resolver,
             )?
+            .wrap_type("Option::Some")
         }
-        StdDef::Vec(v) => {
-            // // let ptr = v.
-            // todo!()
-
-            let mut values = Vec::new();
-            let element_type = &v.inner_type;
-            let element_size = v.inner_type.size().with_context(|| {
+        StdDef::Vec(VecDef {
+            length_offset,
+            data_ptr_offset,
+            inner_type,
+        }) => {
+            tracing::debug!(
+                "reading Vec at {address:#x}, length_offset: {length_offset:#x}, data_ptr_offset: {data_ptr_offset:#x}",
+            );
+            let element_type = inner_type;
+            let element_size = element_type.size().with_context(|| {
                 format!(
                     "inner type: {} has unknown size",
-                    v.inner_type.display_name()
+                    element_type.display_name()
                 )
             })? as u64;
 
             let length = data_resolver
-                .read_memory(address + v.length_offset as u64, 8)?
+                .read_memory(address + *length_offset as u64, 8)?
                 .try_into()
                 .map(usize::from_le_bytes)
                 .map_err(|_| {
                     anyhow::anyhow!("Failed to read length for Vec at address {address:#x}")
                 })?;
-            let mut address = address;
+            tracing::debug!("Vec length: {length}");
+            let mut values = Vec::with_capacity(length);
+            let mut address = data_resolver
+                .read_address(address + *data_ptr_offset as u64)
+                .with_context(|| {
+                    format!(
+                        "Failed to read Vec data pointer at {:#x}",
+                        address + *data_ptr_offset as u64
+                    )
+                })?;
+            tracing::debug!("reading Vec data at {address:#016x}");
             for _ in 0..length {
                 let value = read_from_memory(db, address, element_type, data_resolver)?;
                 values.push(value);
                 address += element_size;
             }
             crate::Value::Array {
-                ty: format!("[{}; {length}]", element_type.display_name()),
+                ty: format!("Vec<{}>", element_type.display_name()),
                 items: values,
             }
         }
@@ -354,19 +452,33 @@ fn read_std_from_memory(
             let value = String::from_utf8_lossy(&bytes).to_string();
             crate::Value::Scalar {
                 ty: "String".to_string(),
-                value,
+                value: format!("\"{value}\""),
             }
         }
-        StdDef::Map(def) => match def.variant {
-            crate::typedef::MapVariant::HashMap => {
-                // super hacky...
-                todo!()
+        StdDef::Map(def) => {
+            todo!("read_std_from_memory: MapDef not implemented yet: {def:#?}")
+        }
+        StdDef::SmartPtr(s) => match s.variant {
+            SmartPtrVariant::Box => {
+                let inner_type = s.inner_type.clone();
+                let address = data_resolver.read_address(address)?;
+                read_from_memory(db, address, &inner_type, data_resolver)?
+                    .wrap_type(s.variant.name())
             }
-            crate::typedef::MapVariant::BTreeMap => todo!(),
-            crate::typedef::MapVariant::IndexMap => todo!(),
+            SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
+                let inner_type = s.inner_type.clone();
+                let inner_address =
+                    data_resolver.read_address(address + s.inner_ptr_offset as u64)?;
+                let data_address = inner_address + s.data_ptr_offset as u64;
+                read_from_memory(db, data_address, &inner_type, data_resolver)?
+                    .wrap_type(s.variant.name())
+            }
+            _ => {
+                todo!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
+            }
         },
-        def => {
-            todo!("read_std_from_memory: {def:#?}");
+        StdDef::Result(result_def) => {
+            todo!("read_std_from_memory: ResultDef not implemented yet: {result_def:#?}")
         }
     };
 

@@ -76,10 +76,10 @@ impl<'db> Die<'db> {
 
     pub fn format_with_location<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
         format!(
-            "{} for {:#010x} in {}",
+            "{} for {} {:#010x}",
             message.as_ref(),
+            self.file(db).file(db).path(db),
             self.die_offset(db).0,
-            self.file(db).file(db).path(db)
         )
     }
 
