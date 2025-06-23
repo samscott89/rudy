@@ -370,19 +370,19 @@ fn read_std_from_memory(
         StdDef::Option(option_def) => {
             let first_byte = data_resolver.read_memory(address, 1)?;
             if first_byte[0] == 0 {
-                return Ok(crate::Value::Scalar {
-                    ty: "Option".to_string(),
+                crate::Value::Scalar {
+                    ty: option_def.inner_type.display_name(),
                     value: "None".to_string(),
-                });
+                }
+            } else {
+                read_from_memory(
+                    db,
+                    address + option_def.some_offset as u64,
+                    &option_def.inner_type,
+                    data_resolver,
+                )?
             }
-
-            read_from_memory(
-                db,
-                address + option_def.some_offset as u64,
-                &option_def.inner_type,
-                data_resolver,
-            )?
-            .wrap_type("Option::Some")
+            .wrap_type("Option")
         }
         StdDef::Vec(VecDef {
             length_offset,
@@ -459,6 +459,12 @@ fn read_std_from_memory(
             todo!("read_std_from_memory: MapDef not implemented yet: {def:#?}")
         }
         StdDef::SmartPtr(s) => match s.variant {
+            SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {
+                let inner_type = s.inner_type.clone();
+                let address = address + s.inner_ptr_offset as u64;
+                read_from_memory(db, address, &inner_type, data_resolver)?
+                    .wrap_type(s.variant.name())
+            }
             SmartPtrVariant::Box => {
                 let inner_type = s.inner_type.clone();
                 let address = data_resolver.read_address(address)?;

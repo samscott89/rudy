@@ -252,12 +252,12 @@ fn test_introspect_option() -> Result<()> {
 
     match some_value {
         Value::Scalar { ty, value } => {
-            assert_eq!(ty, "u32");
+            assert_eq!(ty, "Option<u32>");
             assert_eq!(value, "42");
             println!("✓ Option::Some correctly read as: {} = {}", ty, value);
         }
         _ => panic!(
-            "Expected Some(42) to be read as Scalar {{ ty: u32, value: 42 }}, got: {:?}",
+            "Expected Some(42) to be read as Scalar {{ ty: Option<u32>, value: 42 }}, got: {:?}",
             some_value
         ),
     }
@@ -269,12 +269,12 @@ fn test_introspect_option() -> Result<()> {
 
     match none_value {
         Value::Scalar { ty, value } => {
-            assert_eq!(ty, "Option");
+            assert_eq!(ty, "Option<u32>");
             assert_eq!(value, "None");
             println!("✓ Option::None correctly read as: {} = {}", ty, value);
         }
         _ => panic!(
-            "Expected None to be read as Scalar {{ ty: Option, value: None }}, got: {:?}",
+            "Expected None to be read as Scalar {{ ty: Option<i32>, value: None }}, got: {:?}",
             none_value
         ),
     }

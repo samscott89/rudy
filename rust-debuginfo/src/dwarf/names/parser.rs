@@ -534,7 +534,7 @@ impl Path {
 
         // Default case: treat as a custom type (struct/enum) or alias
         TypeDef::Other {
-            name: self.to_string(),
+            name: last_segment.clone(),
         }
     }
 }

@@ -110,7 +110,10 @@ fn resolve_smart_ptr_type<'db>(
         SmartPtrVariant::Box => resolve_entry_type_shallow(db, entry)
             .context("Failed to resolve inner type for smart pointer")?,
         // `Rc` and `Arc` are output as struct types, with generic type parameters
-        SmartPtrVariant::Arc | SmartPtrVariant::Rc | SmartPtrVariant::Mutex => {
+        SmartPtrVariant::Arc
+        | SmartPtrVariant::Rc
+        | SmartPtrVariant::Mutex
+        | SmartPtrVariant::RefCell => {
             let type_entry = entry
                 .get_generic_type_entry(db, "T")
                 .context("could not find inner type")?;
@@ -130,15 +133,31 @@ fn resolve_smart_ptr_type<'db>(
 
     let (inner_ptr_offset, data_ptr_offset) = match variant {
         SmartPtrVariant::Box => (0, 0), // Box has no offset, it's just a pointer
-        SmartPtrVariant::Mutex => {
+
+        SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {
             // Mutex.data -> UnsafeCell<T>
             let mut inner_offset = 0;
 
-            let data = entry.get_member(db, "data")?;
+            let inner_name = match variant {
+                SmartPtrVariant::Mutex => "data",
+                SmartPtrVariant::RefCell => "value",
+                _ => unreachable!(),
+            };
+
+            let data = entry.get_member(db, inner_name)?;
 
             inner_offset += data.udata_attr(db, gimli::DW_AT_data_member_location)?;
 
-            todo!()
+            let unsafe_cell_entry = data.get_unit_ref(db, gimli::DW_AT_type)?;
+
+            // UnsafeCell.value -> T
+            inner_offset += unsafe_cell_entry
+                .get_member_attribute(db, "value", gimli::DW_AT_data_member_location)?
+                .udata_value()
+                .map(|v| v as usize)
+                .context("UnsafeCell value offset is not a valid udata")?;
+
+            (inner_offset, 0)
         }
         SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
             // Arc.ptr -> NonNull<ArcInner<T>>
@@ -155,9 +174,7 @@ fn resolve_smart_ptr_type<'db>(
 
             // NonNull.pointer -> * ArcInner
 
-            let pointer = nonnull_entry.get_member(db, "pointer").with_context(|| {
-                nonnull_entry.format_with_location(db, "Failed to get pointer member")
-            })?;
+            let pointer = nonnull_entry.get_member(db, "pointer")?;
 
             inner_offset += pointer
                 .udata_attr(db, gimli::DW_AT_data_member_location)
@@ -290,14 +307,6 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
 }
 
 fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    // let Some(size) = entry
-    //     .get_attr(db, gimli::DW_AT_byte_size)
-    //     .and_then(|attr| attr.udata_value())
-    // else {
-    //     return Err(entry
-    //         .format_with_location(db, "struct size not found")
-    //         .into());
-    // };
     let data_ptr_offset = entry
         .get_member_attribute(db, "data_ptr", gimli::DW_AT_data_member_location)
         .context("could not find data_ptr")?;
