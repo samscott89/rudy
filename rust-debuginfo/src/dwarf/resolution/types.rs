@@ -101,6 +101,42 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
     match variant {
         MapVariant::HashMap { .. } => {
             // first, let's detect what kind of hashmap we're dealing with by inspecting the inner type
+            let fully_qualified_type_name = get_die_typename(db, entry)
+                .context("could not get fully qualified type name for table")?;
+
+            match fully_qualified_type_name.module.segments[0].as_str() {
+                "hashbrown" => {
+                    // this is a hashbrown hashmap
+                    tracing::debug!(
+                        "detected hashbrown hashmap: {}",
+                        fully_qualified_type_name.name
+                    );
+                }
+                "std" | "alloc" => {
+                    // this is a std or alloc hashmap
+                    tracing::debug!(
+                        "detected std/alloc hashmap: {}",
+                        fully_qualified_type_name.name
+                    );
+
+                    // As of Rust 1.52 or so, it seems like hashbrown is used as the
+                    // implementation for std::collections::HashMap, so we can treat it as such
+
+                    let base = entry
+                        .get_member(db, "base")
+                        .context("could not find base field for HashMap")?
+                        .get_unit_ref(db, gimli::DW_AT_type)
+                        .context("could not get type for base field")?;
+
+                    return resolve_map_type(db, base, variant);
+                }
+                s => {
+                    return Err(entry
+                        .format_with_location(db, format!("unexpected hashmap type: {s}"))
+                        .into());
+                }
+            }
+
             let table = entry
                 .get_member(db, "table")
                 .context("could not find table field for HashMap")?;
@@ -112,88 +148,62 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 .get_unit_ref(db, gimli::DW_AT_type)
                 .context("could not get type for table field")?;
 
-            let fully_qualified_type_name = get_die_typename(db, inner_table_type)
-                .context("could not get fully qualified type name for table")?;
+            // we also need to get the offsets + size of the (k, v) pairs
+            // stored in the rawtable
+            let kv_type = inner_table_type
+                .get_generic_type_entry(db, "T")
+                .context("could not get (k, v) type for raw table")?;
+            let pair_size = kv_type
+                .udata_attr(db, gimli::DW_AT_byte_size)
+                .context("could not get (k, v) pair size for raw table")?;
+            let key_offset = kv_type
+                .get_udata_member_attribute(db, "__0", gimli::DW_AT_data_member_location)
+                .context("could not get key offset for raw table")?;
+            let value_offset = kv_type
+                .get_udata_member_attribute(db, "__1", gimli::DW_AT_data_member_location)
+                .context("could not get value offset for raw table")?;
 
-            match fully_qualified_type_name.module.segments.first() {
-                Some(t) if t == "hashbrown" => {
-                    // this should be the `hashbrown::raw::RawTable`
-                    debug_assert!(
-                        fully_qualified_type_name.name.starts_with("RawTable"),
-                        "got: {}",
-                        fully_qualified_type_name.name
-                    );
-                    // inner_type_type is hashbrown::raw::RawTable
+            let member = inner_table_type.get_member(db, "table")?;
+            table_offset += member
+                .udata_attr(db, gimli::DW_AT_data_member_location)
+                .context("could not find member offset for HashMap")?
+                as usize;
 
-                    // we also need to get the offsets + size of the (k, v) pairs
-                    // stored in the rawtable
-                    let kv_type = inner_table_type
-                        .get_generic_type_entry(db, "T")
-                        .context("could not get (k, v) type for raw table")?;
-                    let pair_size = kv_type
-                        .udata_attr(db, gimli::DW_AT_byte_size)
-                        .context("could not get (k, v) pair size for raw table")?;
-                    let key_offset = kv_type
-                        .get_udata_member_attribute(db, "__0", gimli::DW_AT_data_member_location)
-                        .context("could not get key offset for raw table")?;
-                    let value_offset = kv_type
-                        .get_udata_member_attribute(db, "__1", gimli::DW_AT_data_member_location)
-                        .context("could not get value offset for raw table")?;
+            // hashbrow::raw::RawTableInner type entry
+            let raw_type_inner = member
+                .get_unit_ref(db, gimli::DW_AT_type)
+                .context("could not get type for member field")?;
 
-                    let member = inner_table_type.get_member(db, "table")?;
-                    table_offset += member
-                        .udata_attr(db, gimli::DW_AT_data_member_location)
-                        .context("could not find member offset for HashMap")?
-                        as usize;
+            // Extract field offsets from RawTableInner
+            let bucket_mask_offset = raw_type_inner.get_udata_member_attribute(
+                db,
+                "bucket_mask",
+                gimli::DW_AT_data_member_location,
+            )?;
+            let ctrl_offset = raw_type_inner.get_udata_member_attribute(
+                db,
+                "ctrl",
+                gimli::DW_AT_data_member_location,
+            )?;
+            let items_offset = raw_type_inner.get_udata_member_attribute(
+                db,
+                "items",
+                gimli::DW_AT_data_member_location,
+            )?;
 
-                    // hashbrow::raw::RawTableInner type entry
-                    let raw_type_inner = member
-                        .get_unit_ref(db, gimli::DW_AT_type)
-                        .context("could not get type for member field")?;
-
-                    // Extract field offsets from RawTableInner
-                    let bucket_mask_offset = raw_type_inner.get_udata_member_attribute(
-                        db,
-                        "bucket_mask",
-                        gimli::DW_AT_data_member_location,
-                    )?;
-                    let ctrl_offset = raw_type_inner.get_udata_member_attribute(
-                        db,
-                        "ctrl",
-                        gimli::DW_AT_data_member_location,
-                    )?;
-                    let items_offset = raw_type_inner.get_udata_member_attribute(
-                        db,
-                        "items",
-                        gimli::DW_AT_data_member_location,
-                    )?;
-
-                    Ok(MapDef {
-                        key_type,
-                        value_type,
-                        variant: MapVariant::HashMap {
-                            bucket_mask_offset,
-                            ctrl_offset,
-                            items_offset,
-                            pair_size,
-                            key_offset,
-                            value_offset,
-                        },
-                        table_offset,
-                    })
-                }
-                Some(t) => {
-                    todo!(
-                        "HashMap variant `{t}` not yet implemented: {}",
-                        entry.format_with_location(db, "")
-                    );
-                }
-                _ => Err(anyhow::anyhow!(
-                    "HashMap variant not recognized: {}",
-                    entry.format_with_location(db, "")
-                )
-                .into()),
-            }
+            Ok(MapDef {
+                key_type,
+                value_type,
+                variant: MapVariant::HashMap {
+                    bucket_mask_offset,
+                    ctrl_offset,
+                    items_offset,
+                    pair_size,
+                    key_offset,
+                    value_offset,
+                },
+                table_offset,
+            })
         }
         _ => {
             todo!(
@@ -568,6 +578,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
+#[salsa::tracked]
 pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
     Ok(
         if let Some(builtin_ty) = resolve_as_builtin_type(db, entry)? {
