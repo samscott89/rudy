@@ -6,12 +6,14 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::typedef::{
-    ArrayDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef,
-    SmartPtrDef, SmartPtrVariant, StdDef, StrSliceDef, StringDef, StructDef, StructField, TypeDef,
-    TypeRef, VecDef,
+    ArrayDef, EnumDef, EnumStructVariant, EnumTupleVariant, EnumUnitVariant, EnumVariant,
+    FunctionDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef,
+    SliceDef, SmartPtrDef, SmartPtrVariant, StdDef, StrSliceDef, StringDef, StructDef, StructField,
+    TupleDef, TypeDef, TypeRef, VecDef,
 };
 
 use anyhow::Context;
+use gimli::UnitOffset;
 
 type Result<T> = std::result::Result<T, super::Error>;
 
@@ -676,6 +678,261 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                 .into());
         }
     })
+}
+
+/// Ensure that a type is fully resolved, including resolving any aliases
+/// or references to other types. This is useful for ensuring that the type
+/// is ready for use in contexts where a complete type definition is required.
+pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<TypeDef> {
+    let res = match typedef.clone() {
+        TypeDef::Primitive(prim) => {
+            use PrimitiveDef::*;
+            let prim = match prim {
+                Array(ArrayDef {
+                    element_type,
+                    length,
+                }) => {
+                    let element_type = fully_resolve_type(db, element_type.as_ref())?;
+                    Array(ArrayDef {
+                        element_type: Arc::new(element_type),
+                        length,
+                    })
+                }
+                Function(FunctionDef {
+                    return_type,
+                    arg_types,
+                }) => {
+                    let return_type = return_type
+                        .map(|ty| fully_resolve_type(db, ty.as_ref()))
+                        .transpose()?
+                        .map(Arc::new);
+                    let arg_types = arg_types
+                        .into_iter()
+                        .map(|ty| fully_resolve_type(db, ty.as_ref()))
+                        .collect::<Result<Vec<_>>>()?;
+                    Function(FunctionDef {
+                        return_type,
+                        arg_types: arg_types.into_iter().map(Arc::new).collect(),
+                    })
+                }
+                Pointer(PointerDef {
+                    mutable,
+                    pointed_type,
+                }) => {
+                    let pointed_type = fully_resolve_type(db, pointed_type.as_ref())?;
+                    Pointer(PointerDef {
+                        mutable,
+                        pointed_type: Arc::new(pointed_type),
+                    })
+                }
+                Reference(ReferenceDef {
+                    mutable,
+                    pointed_type,
+                }) => {
+                    let pointed_type = fully_resolve_type(db, pointed_type.as_ref())?;
+                    Reference(ReferenceDef {
+                        mutable,
+                        pointed_type: Arc::new(pointed_type),
+                    })
+                }
+                Slice(SliceDef {
+                    element_type,
+                    data_ptr_offset,
+                    length_offset,
+                    size,
+                }) => {
+                    let element_type = fully_resolve_type(db, element_type.as_ref())?;
+                    Slice(SliceDef {
+                        element_type: Arc::new(element_type),
+                        data_ptr_offset,
+                        length_offset,
+                        size,
+                    })
+                }
+                Tuple(TupleDef {
+                    element_types,
+                    alignment,
+                    size,
+                }) => {
+                    let element_types = element_types
+                        .into_iter()
+                        .map(|ty| fully_resolve_type(db, ty.as_ref()))
+                        .collect::<Result<Vec<_>>>()?;
+                    Tuple(TupleDef {
+                        element_types: element_types.into_iter().map(Arc::new).collect(),
+                        alignment,
+                        size,
+                    })
+                }
+                p @ (Bool(_) | Char(_) | Float(_) | Int(_) | Never(_) | Str(_) | StrSlice(_)
+                | Unit(_) | UnsignedInt(_)) => p,
+            };
+            TypeDef::Primitive(prim)
+        }
+        TypeDef::Std(std_def) => {
+            use StdDef::*;
+            let std_def = match std_def {
+                SmartPtr(SmartPtrDef {
+                    inner_type,
+                    inner_ptr_offset,
+                    data_ptr_offset,
+                    variant,
+                }) => {
+                    let inner_type = fully_resolve_type(db, inner_type.as_ref())?;
+                    SmartPtr(SmartPtrDef {
+                        inner_type: Arc::new(inner_type),
+                        inner_ptr_offset,
+                        data_ptr_offset,
+                        variant,
+                    })
+                }
+                Map(MapDef {
+                    key_type,
+                    value_type,
+                    variant,
+                    table_offset,
+                }) => {
+                    let key_type = fully_resolve_type(db, key_type.as_ref())?;
+                    let value_type = fully_resolve_type(db, value_type.as_ref())?;
+                    Map(MapDef {
+                        key_type: Arc::new(key_type),
+                        value_type: Arc::new(value_type),
+                        variant,
+                        table_offset,
+                    })
+                }
+                Option(OptionDef {
+                    discriminant_offset,
+                    some_offset,
+                    inner_type,
+                }) => {
+                    let inner_type = fully_resolve_type(db, inner_type.as_ref())?;
+                    Option(OptionDef {
+                        discriminant_offset,
+                        some_offset,
+                        inner_type: Arc::new(inner_type),
+                    })
+                }
+                Result(ResultDef { ok_type, err_type }) => {
+                    let ok_type = fully_resolve_type(db, ok_type.as_ref())?;
+                    let err_type = fully_resolve_type(db, err_type.as_ref())?;
+                    Result(ResultDef {
+                        ok_type: Arc::new(ok_type),
+                        err_type: Arc::new(err_type),
+                    })
+                }
+                String(string_def) => String(string_def),
+                Vec(VecDef {
+                    length_offset,
+                    data_ptr_offset,
+                    inner_type,
+                }) => {
+                    let inner_type = fully_resolve_type(db, inner_type.as_ref())?;
+                    Vec(VecDef {
+                        length_offset,
+                        data_ptr_offset,
+                        inner_type: Arc::new(inner_type),
+                    })
+                }
+            };
+            TypeDef::Std(std_def)
+        }
+        TypeDef::Struct(StructDef {
+            name,
+            size,
+            alignment,
+            fields,
+        }) => {
+            // For structs, we need to resolve each field's type
+            let fields = fields
+                .into_iter()
+                .map(|field| {
+                    let ty = fully_resolve_type(db, field.ty.as_ref())?;
+                    Ok(StructField {
+                        name: field.name,
+                        offset: field.offset,
+                        ty: Arc::new(ty),
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            TypeDef::Struct(StructDef {
+                name,
+                size,
+                alignment,
+                fields,
+            })
+        }
+        TypeDef::Enum(EnumDef {
+            name,
+            repr,
+            variants,
+            size,
+        }) => {
+            // For enums, we need to resolve each variant's type
+            let variants = variants
+                .into_iter()
+                .map(|variant| {
+                    use EnumVariant::*;
+                    let variant = match variant {
+                        Unit(EnumUnitVariant { name }) => {
+                            EnumVariant::Unit(EnumUnitVariant { name })
+                        }
+                        Tuple(EnumTupleVariant { name, fields }) => {
+                            let fields = fields
+                                .into_iter()
+                                .map(|StructField { name, offset, ty }| {
+                                    let ty = fully_resolve_type(db, ty.as_ref())?;
+                                    Ok(StructField {
+                                        name,
+                                        offset,
+                                        ty: Arc::new(ty),
+                                    })
+                                })
+                                .collect::<Result<Vec<_>>>()?;
+                            EnumVariant::Tuple(EnumTupleVariant { name, fields })
+                        }
+                        Struct(EnumStructVariant { name, fields }) => {
+                            let fields = fields
+                                .into_iter()
+                                .map(|StructField { name, offset, ty }| {
+                                    let ty = fully_resolve_type(db, ty.as_ref())?;
+                                    Ok(StructField {
+                                        name,
+                                        offset,
+                                        ty: Arc::new(ty),
+                                    })
+                                })
+                                .collect::<Result<Vec<_>>>()?;
+                            EnumVariant::Struct(EnumStructVariant { name, fields })
+                        }
+                    };
+                    Ok(variant)
+                })
+                .collect::<Result<Vec<_>>>()?;
+
+            TypeDef::Enum(EnumDef {
+                name,
+                repr,
+                variants,
+                size,
+            })
+        }
+        TypeDef::Alias(TypeRef {
+            file,
+            cu_offset,
+            die_offset,
+        }) => {
+            let die = Die::new(db, file, cu_offset, UnitOffset(die_offset));
+            resolve_type_offset(db, die).context("Failed to resolve alias type")?
+        }
+        TypeDef::Other { name } => {
+            // Other types are not fully resolved, return as is
+            TypeDef::Other { name }
+        }
+    };
+
+    Ok(res)
 }
 
 #[cfg(test)]

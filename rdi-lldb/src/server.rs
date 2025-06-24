@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 use rust_debuginfo::{DebugDb, DebugInfo};
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     evaluator::EvalContext,
@@ -19,7 +19,7 @@ use crate::{
 pub fn run_server(host: &str, port: u16) -> Result<()> {
     let addr = format!("{}:{}", host, port);
     let listener = TcpListener::bind(&addr)?;
-    info!("Listening on {addr}");
+    debug!("Listening on {addr}");
 
     // create a new debug database instance
     let db = DebugDb::new();
@@ -28,7 +28,7 @@ pub fn run_server(host: &str, port: u16) -> Result<()> {
 
     loop {
         let (stream, addr) = listener.accept()?;
-        info!("New connection from {addr} (session: {session_id})",);
+        debug!("New connection from {addr} (session: {session_id})",);
 
         let db_ref = db.get_sync_ref();
         stream.set_nonblocking(false).unwrap();
@@ -36,7 +36,7 @@ pub fn run_server(host: &str, port: u16) -> Result<()> {
             let db = db_ref.get_db();
             let mut connection = ClientConnection::new(session_id, stream);
             if let Err(e) = connection.run_server_loop(db) {
-                error!("Connection error: {} (session: {session_id})", e);
+                warn!("Connection error: {} (session: {session_id})", e);
             }
         });
         session_id += 1;
@@ -66,7 +66,7 @@ impl ClientConnection {
         let bytes_read = self.reader.read_line(&mut self.line_buffer)?;
 
         if bytes_read == 0 {
-            info!("Client disconnected (session: {})", self.session_id);
+            debug!("Client disconnected (session: {})", self.session_id);
             return Ok(None);
         }
 
@@ -75,16 +75,15 @@ impl ClientConnection {
             return Err(anyhow!("Received empty line"));
         }
 
-        trace!("Received: {}", line);
         // Parse the client message
         let msg: ClientMessage = serde_json::from_str(line)
             .with_context(|| format!("Failed to parse message: {}", line))?;
-        debug!("Received: {msg:#?}");
+        trace!("Received: {msg:#?}");
         Ok(Some(msg))
     }
 
     fn write_message(&mut self, response: &ServerMessage) -> Result<()> {
-        debug!("Sending: {response:#?}");
+        trace!("Sending: {response:#?}");
         let response_json = serde_json::to_string(response)? + "\n";
         self.writer.write_all(response_json.as_bytes())?;
         self.writer.flush()?;
@@ -128,7 +127,7 @@ impl ClientConnection {
                     continue;
                 }
             };
-            debug!("Received message: {:?}", msg);
+            trace!("Received message: {:?}", msg);
             // Handle the message
             let response = match msg {
                 ClientMessage::Command { cmd, args } => {
@@ -169,7 +168,7 @@ impl ClientConnection {
                 ));
             }
         };
-        debug!("Received event response: {:?}", response);
+        trace!("Received event response: {:?}", response);
         Ok(response)
     }
 

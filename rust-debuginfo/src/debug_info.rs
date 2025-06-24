@@ -310,6 +310,89 @@ impl<'db> DebugInfo<'db> {
     /// println!("Found {} parameters, {} locals, {} globals",
     ///          params.len(), locals.len(), globals.len());
     /// ```
+    pub fn resolve_variable_at_address(
+        &self,
+        address: u64,
+        name: &str,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<Option<crate::Variable>> {
+        let db = self.db;
+        let address = Address::new(db, address);
+        let f = lookup_address(db, self.binary, address);
+        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
+        handle_diagnostics(&diagnostics)?;
+
+        let Some((function_name, loc)) = f else {
+            tracing::debug!("no function found for address {:#x}", address.address(db));
+            return Ok(Default::default());
+        };
+
+        let index = crate::index::debug_index(db, self.binary);
+        let Some((_, fie)) = index.get_function(db, &function_name) else {
+            tracing::debug!("no function found for {function_name}");
+            return Ok(Default::default());
+        };
+
+        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
+
+        let vars = dwarf::resolve_function_variables(db, function_die)?;
+        let diagnostics: Vec<&Diagnostic> =
+            dwarf::resolve_function_variables::accumulated(db, function_die);
+        handle_diagnostics(&diagnostics)?;
+
+        let base_addr = crate::index::debug_index(db, self.binary)
+            .symbol_index(db)
+            .get_function(&function_name)
+            .context("Failed to get base address for function")?
+            .address;
+
+        if let Some(param) = vars.params(db).into_iter().find(|var| var.name(db) == name) {
+            return output_variable(db, fie.declaration_die, base_addr, param, data_resolver)
+                .map(Some);
+        }
+        if let Some(param) = vars.locals(db).into_iter().find(|var| var.name(db) == name) {
+            return output_variable(db, fie.declaration_die, base_addr, param, data_resolver)
+                .map(Some);
+        }
+
+        Ok(None)
+    }
+
+    /// Resolves variables visible at a given memory address.
+    ///
+    /// This method returns three categories of variables:
+    /// - Function parameters
+    /// - Local variables
+    /// - Global variables
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The memory address to inspect
+    /// * `data_resolver` - Interface for reading memory and register values
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (parameters, locals, globals)
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, DataResolver};
+    /// # struct MyResolver;
+    /// # impl DataResolver for MyResolver {
+    /// #     fn base_address(&self) -> u64 { 0 }
+    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// # }
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let resolver = MyResolver;
+    /// let (params, locals, globals) = debug_info
+    ///     .resolve_variables_at_address(0x12345, &resolver)
+    ///     .unwrap();
+    /// println!("Found {} parameters, {} locals, {} globals",
+    ///          params.len(), locals.len(), globals.len());
+    /// ```
     pub fn resolve_variables_at_address(
         &self,
         address: u64,
@@ -447,13 +530,10 @@ fn output_variable<'db>(
     let location =
         dwarf::resolve_data_location(db, function, base_address, var.origin(db), data_resolver)?;
 
+    // before resolving the value, we'll need to full resolve the type
+    let ty = crate::dwarf::fully_resolve_type(db, var.ty(db))?;
     let value = if let Some(addr) = location {
-        Some(crate::data::read_from_memory(
-            db,
-            addr,
-            var.ty(db),
-            data_resolver,
-        )?)
+        Some(crate::data::read_from_memory(db, addr, &ty, data_resolver)?)
     } else {
         None
     };
@@ -463,7 +543,7 @@ fn output_variable<'db>(
     Ok(crate::Variable {
         name: var.name(db).to_string(),
         ty: Some(crate::Type {
-            name: var.ty(db).display_name(),
+            name: ty.display_name(),
         }),
         value,
     })

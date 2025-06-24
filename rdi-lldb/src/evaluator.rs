@@ -187,14 +187,22 @@ pub struct EvalResult {
     pub type_name: String,
 }
 
+fn indent(s: &str, level: usize) -> String {
+    let indent = " ".repeat(level * 2);
+    s.lines()
+        .map(|line| format!("{indent}{line}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Format a Value for display
 fn format_value(value: &Value) -> String {
     match value {
         Value::Scalar { ty: _, value } => value.clone(),
         Value::Array { ty: _, items } => {
-            if items.len() <= 3 {
+            if items.len() <= 10 {
                 let items_str: Vec<String> = items.iter().map(format_value).collect();
-                format!("[{}]", items_str.join(", "))
+                format!("[\n{}\n]", indent(&items_str.join(",\n"), 1))
             } else {
                 format!("[{} items]", items.len())
             }
@@ -204,15 +212,15 @@ fn format_value(value: &Value) -> String {
                 .iter()
                 .map(|(k, v)| format!("{}: {}", k, format_value(v)))
                 .collect();
-            format!("{ty} {{ {} }}", fields_str.join(", "))
+            format!("{ty} {{\n{}\n}}", indent(&fields_str.join(",\n"), 1))
         }
         Value::Map { entries, .. } => {
-            if entries.len() <= 3 {
+            if entries.len() <= 10 {
                 let fields_str: Vec<String> = entries
                     .iter()
-                    .map(|(k, v)| format!("{}: {}", k, format_value(v)))
+                    .map(|(k, v)| format!("{}: {}", format_value(k), format_value(v)))
                     .collect();
-                format!("{{ {} }}", fields_str.join(", "))
+                format!("{{\n{}\n}}", indent(&fields_str.join(",\n"), 1))
             } else {
                 format!("{{ {} entries }}", entries.len())
             }

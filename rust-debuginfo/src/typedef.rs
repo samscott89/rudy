@@ -11,9 +11,9 @@ use crate::file::DebugFile;
 /// Reference to a type in DWARF debug information
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeRef {
-    file: DebugFile,
-    cu_offset: UnitSectionOffset<usize>,
-    die_offset: usize,
+    pub file: DebugFile,
+    pub cu_offset: UnitSectionOffset<usize>,
+    pub die_offset: usize,
 }
 
 impl TypeRef {

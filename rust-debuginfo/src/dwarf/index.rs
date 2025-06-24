@@ -315,19 +315,19 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                                 // update the relative address range
                                 declaration.relative_address_range.replace((start, end));
                             } else {
-                                tracing::debug!(
+                                tracing::trace!(
                                     "No address range found for function: {}",
                                     pretty_print_die_entry(&entry, &unit_ref)
                                 );
                             }
                         }
                     } else {
-                        tracing::debug!(
+                        tracing::trace!(
                             "No function declaration found for offset: {declaration_offset:?}"
                         );
                     }
                 } else {
-                    tracing::debug!(
+                    tracing::trace!(
                         "No function declaration found for offset: {declaration_offset:?}"
                     );
                 }
@@ -372,7 +372,7 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         entry: RawDie<'a>,
         unit_ref: UnitRef<'a>,
     ) {
-        visit_type(walker, entry, unit_ref);
+        // these don't expose a name so we'll just skip them
     }
 }
 
@@ -401,7 +401,7 @@ fn visit_type<'a, 'db>(
     let name = match TypeName::parse(&walker.visitor.current_path, &name) {
         Ok(n) => n,
         Err(e) => {
-            tracing::debug!(
+            tracing::trace!(
                 "Failed to parse type name `{name}`: {e} for entry: {}",
                 pretty_print_die_entry(&entry, &unit_ref)
             );

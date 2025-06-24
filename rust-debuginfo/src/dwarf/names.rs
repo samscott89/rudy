@@ -73,7 +73,7 @@ impl TypeName {
             format!("{}::{}", module_path.join("::"), name)
         };
 
-        tracing::debug!(
+        tracing::trace!(
             "TypeName::parse - module_path: {:?}, name: {}, full_name: {}",
             module_path,
             name,
@@ -90,7 +90,7 @@ impl TypeName {
         // let type_name = parsed_type.to_string();
         let typedef = parsed_type.as_typedef();
 
-        tracing::debug!("TypeName::parse - name: {name}, typedef: {typedef:?}",);
+        tracing::trace!("TypeName::parse - name: {name}, typedef: {typedef:?}",);
 
         Ok(TypeName {
             module: ModuleName {

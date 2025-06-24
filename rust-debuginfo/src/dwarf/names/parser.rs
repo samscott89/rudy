@@ -382,7 +382,7 @@ impl Path {
         let is_std = segments[0] == "std" || segments[0] == "core" || segments[0] == "alloc";
         let is_hashbrown = segments[0] == "hashbrown";
 
-        tracing::debug!("Parser segments: {:?}, is_std: {}", segments, is_std);
+        tracing::trace!("Parser segments: {:?}, is_std: {}", segments, is_std);
 
         if is_std || is_hashbrown || segments.len() == 1 {
             // Parse the last segment for generic types
@@ -403,11 +403,11 @@ impl Path {
                         )
                     };
 
-                    tracing::debug!("Checking std type: '{}' against known types", type_name);
+                    tracing::trace!("Checking std type: '{}' against known types", type_name);
 
                     match type_name.as_str() {
                         "String" => {
-                            tracing::debug!("Matched String type!");
+                            tracing::trace!("Matched String type!");
                             return TypeDef::Std(StdDef::String(StringDef(VecDef {
                                 length_offset: 0,
                                 data_ptr_offset: 0,
@@ -496,7 +496,7 @@ impl Path {
                                 "BTreeMap" => MapVariant::BTreeMap,
                                 _ => unreachable!(),
                             };
-                            tracing::debug!("Matched Map type: '{type_name}'");
+                            tracing::trace!("Matched Map type: '{type_name}'");
                             return TypeDef::Std(StdDef::Map(MapDef {
                                 key_type,
                                 value_type,

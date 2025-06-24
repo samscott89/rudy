@@ -2,6 +2,7 @@
 
 use crate::database::Db;
 use crate::dwarf::die::declaration_file;
+use crate::dwarf::visitor::{self, DieVisitor};
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
 use crate::file::SourceFile;
 use crate::typedef::TypeDef;
@@ -27,6 +28,73 @@ pub struct ResolvedVariables<'db> {
     pub locals: Vec<Variable<'db>>,
 }
 
+struct VariableVisitor<'db> {
+    params: Vec<Variable<'db>>,
+    locals: Vec<Variable<'db>>,
+}
+
+impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
+    fn visit_function<'a>(
+        walker: &mut visitor::DieWalker<'a, 'db, Self>,
+        _entry: crate::dwarf::loader::RawDie<'a>,
+        _unit_ref: crate::dwarf::unit::UnitRef<'a>,
+    ) {
+        tracing::debug!("function: {}", walker.get_die(_entry).print(walker.db));
+        walker.walk_children();
+    }
+
+    fn visit_lexical_block<'a>(
+        walker: &mut crate::dwarf::visitor::DieWalker<'a, 'db, Self>,
+        _entry: crate::dwarf::loader::RawDie<'a>,
+        _unit_ref: crate::dwarf::unit::UnitRef<'a>,
+    ) {
+        tracing::debug!("lexical block: {}", walker.get_die(_entry).print(walker.db));
+        walker.walk_children();
+    }
+
+    fn visit_variable<'a>(
+        walker: &mut crate::dwarf::visitor::DieWalker<'a, 'db, Self>,
+        entry: crate::dwarf::loader::RawDie<'a>,
+        _unit_ref: crate::dwarf::unit::UnitRef<'a>,
+    ) {
+        let entry = walker.get_die(entry);
+        let db = walker.db;
+        tracing::debug!("variable: {}", entry.print(db));
+        match resolve_variable_entry(db, entry) {
+            Ok(var) => {
+                walker.visitor.locals.push(var);
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to resolve variable: {e} {}",
+                    entry.format_with_location(db, "")
+                );
+            }
+        }
+    }
+
+    fn visit_parameter<'a>(
+        walker: &mut crate::dwarf::visitor::DieWalker<'a, 'db, Self>,
+        entry: crate::dwarf::loader::RawDie<'a>,
+        _unit_ref: crate::dwarf::unit::UnitRef<'a>,
+    ) {
+        let entry = walker.get_die(entry);
+        let db = walker.db;
+        tracing::debug!("param: {}", entry.print(db));
+        match resolve_variable_entry(db, entry) {
+            Ok(var) => {
+                walker.visitor.params.push(var);
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to resolve parameter: {e} {}",
+                    entry.format_with_location(db, "")
+                );
+            }
+        }
+    }
+}
+
 /// Resolve all variables in a function
 ///
 /// TODO(Sam): I think I should move globals outside of this
@@ -42,58 +110,12 @@ pub fn resolve_function_variables<'db>(
         die.format_with_location(db, "resolving function variables")
     );
 
-    let mut params = vec![];
-    let mut locals = vec![];
-
-    // recurse function to find params + locals
-    for child in die.children(db)? {
-        match child.tag(db) {
-            gimli::DW_TAG_formal_parameter => {
-                tracing::debug!("parameter: {}", child.print(db));
-                let param = resolve_function_parameter_entry(db, child)?;
-                params.push(param);
-            }
-            gimli::DW_TAG_variable => {
-                tracing::debug!("variable: {}", child.print(db));
-
-                for grandchild in child.children(db)? {
-                    tracing::debug!("variable child: {}", grandchild.print(db));
-                }
-            }
-            gimli::DW_TAG_lexical_block => {
-                tracing::debug!("block: {}", child.print(db));
-                for grandchild in child.children(db)? {
-                    if grandchild.tag(db) == gimli::DW_TAG_variable {
-                        tracing::debug!("variable child: {}", grandchild.print(db));
-                        let var = resolve_variable_entry(db, grandchild)?;
-                        locals.push(var);
-                    } else {
-                        tracing::debug!("other block child: {}", grandchild.print(db));
-                    }
-                }
-            }
-            t => {
-                // not a variable -- skip it
-                tracing::debug!("skipping non-variable entry: {t}: {}", child.print(db));
-            }
-        }
-    }
-    Ok(ResolvedVariables::new(db, params, locals))
-}
-
-fn resolve_function_parameter_entry<'db>(
-    db: &'db dyn Db,
-    entry: Die<'db>,
-) -> Result<Variable<'db>> {
-    let name = entry.name(db)?;
-
-    let type_entry = entry.get_unit_ref(db, gimli::DW_AT_type)?;
-    let ty = resolve_type_offset(db, type_entry)?;
-
-    let file = declaration_file(db, entry)?;
-    let line = entry.udata_attr(db, gimli::DW_AT_decl_line)?;
-
-    Ok(Variable::new(db, name, ty, file, line as u64, entry))
+    let mut visitor = VariableVisitor {
+        params: vec![],
+        locals: vec![],
+    };
+    visitor::walk_die(db, die, &mut visitor)?;
+    Ok(ResolvedVariables::new(db, visitor.params, visitor.locals))
 }
 
 fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Variable<'db>> {

@@ -58,6 +58,35 @@ pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
     }
 }
 
+pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
+    db: &'db dyn Db,
+    die: Die<'db>,
+    visitor: &'a mut V,
+) -> anyhow::Result<()> {
+    tracing::trace!("Walking DWARF for DIE: {}", die.print(db));
+
+    die.with_entry_and_unit(db, |entry, unit_ref| {
+        let cursor = unit_ref.entries_at_offset(entry.offset())?;
+        let mut walker = DieWalker {
+            db,
+            visitor,
+            file: die.file(db),
+            unit_offset: die.cu_offset(db),
+            unit_ref,
+            cursor,
+            current_depth: 0,
+            next_entry: None,
+            depth: 0,
+        };
+        let Some(die) = walker.next() else {
+            tracing::error!("No entries found in DIE: {}", die.print(db));
+            return Ok(());
+        };
+        V::visit_die(&mut walker, die, unit_ref.clone());
+        Ok(())
+    })?
+}
+
 impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
     pub fn get_die(&self, raw: RawDie<'a>) -> Die<'db> {
         Die::new(self.db, self.file, self.unit_offset, raw.offset())
@@ -169,7 +198,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         let tag = root.tag();
         if tag != gimli::DW_TAG_compile_unit {
             self.db.report_error(format!(
-                "Expected root DIE to be a compilation unit, found: {tag:?}"
+                "Expected root DIE to be a compilation unit, found: {tag}"
             ));
             return;
         }
@@ -179,7 +208,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         V::visit_cu(self, root, unit_ref);
     }
 
-    fn walk_children(&mut self) {
+    pub fn walk_children(&mut self) {
         let current_offset = self.cursor.current().map_or(0, |c| c.offset().0);
 
         if !self.has_children() {
@@ -225,6 +254,7 @@ pub trait DieVisitor<'db>: Sized {
         die: RawDie<'a>,
         unit_ref: UnitRef<'a>,
     ) {
+        tracing::trace!("Visiting DIE: {:#010x}", die.offset().0,);
         // Default: dispatch to specific visit methods based on tag
         match die.tag() {
             gimli::DW_TAG_namespace => Self::visit_namespace(walker, die, unit_ref),
@@ -232,8 +262,12 @@ pub trait DieVisitor<'db>: Sized {
             gimli::DW_TAG_structure_type => Self::visit_struct(walker, die, unit_ref),
             gimli::DW_TAG_enumeration_type => Self::visit_enum(walker, die, unit_ref),
             gimli::DW_TAG_variable => Self::visit_variable(walker, die, unit_ref),
+            gimli::DW_TAG_formal_parameter => Self::visit_parameter(walker, die, unit_ref),
             gimli::DW_TAG_base_type => Self::visit_base_type(walker, die, unit_ref),
             gimli::DW_TAG_pointer_type => Self::visit_pointer_type(walker, die, unit_ref),
+            gimli::DW_TAG_array_type => Self::visit_array_type(walker, die, unit_ref),
+            gimli::DW_TAG_lexical_block => Self::visit_lexical_block(walker, die, unit_ref),
+
             gimli::DW_TAG_subroutine_type => {
                 // these don't seem to contain much, so we'll skip
             }
@@ -287,6 +321,14 @@ pub trait DieVisitor<'db>: Sized {
     ) {
     }
 
+    /// Visit a variable
+    fn visit_parameter<'a>(
+        _walker: &mut DieWalker<'a, 'db, Self>,
+        _entry: RawDie<'a>,
+        _unit_ref: UnitRef<'a>,
+    ) {
+    }
+
     /// Visit a base type
     fn visit_base_type<'a>(
         _walker: &mut DieWalker<'a, 'db, Self>,
@@ -306,6 +348,13 @@ pub trait DieVisitor<'db>: Sized {
     /// Visit a array type
     #[allow(unused)]
     fn visit_array_type<'a>(
+        _walker: &mut DieWalker<'a, 'db, Self>,
+        _entry: RawDie<'a>,
+        _unit_ref: UnitRef<'a>,
+    ) {
+    }
+
+    fn visit_lexical_block<'a>(
         _walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,

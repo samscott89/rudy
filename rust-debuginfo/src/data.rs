@@ -128,7 +128,7 @@ pub fn read_from_memory<'db>(
     ty: &TypeDef,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
-    tracing::debug!("read_from_memory {address:#x} {}", ty.display_name());
+    tracing::trace!("read_from_memory {address:#x} {}", ty.display_name());
     match &ty {
         TypeDef::Primitive(primitive_def) => {
             read_primitive_from_memory(db, address, &primitive_def, data_resolver)
@@ -233,7 +233,7 @@ fn read_primitive_from_memory(
             let length = address + *length_offset as u64;
             let length_bytes = data_resolver.read_memory(length, 8)?;
             let length = u64::from_le_bytes(length_bytes.try_into().unwrap());
-            tracing::debug!("length: {length}");
+            tracing::trace!("length: {length}");
 
             let element_size = element_type.size().with_context(|| {
                 format!(
@@ -264,7 +264,7 @@ fn read_primitive_from_memory(
             let data_address = data_resolver.read_address(data_ptr)?;
             let memory = data_resolver.read_memory(length, 8)?;
             let length = u64::from_le_bytes(memory.try_into().unwrap());
-            tracing::debug!("length: {length}");
+            tracing::trace!("length: {length}");
 
             let memory = data_resolver.read_memory(data_address, length as usize)?;
             let string_value = String::from_utf8_lossy(&memory).to_string();
@@ -390,7 +390,7 @@ fn read_std_from_memory(
             data_ptr_offset,
             inner_type,
         }) => {
-            tracing::debug!(
+            tracing::trace!(
                 "reading Vec at {address:#x}, length_offset: {length_offset:#x}, data_ptr_offset: {data_ptr_offset:#x}",
             );
             let element_type = inner_type;
@@ -408,7 +408,7 @@ fn read_std_from_memory(
                 .map_err(|_| {
                     anyhow::anyhow!("Failed to read length for Vec at address {address:#x}")
                 })?;
-            tracing::debug!("Vec length: {length}");
+            tracing::trace!("Vec length: {length}");
             let mut values = Vec::with_capacity(length);
             let mut address = data_resolver
                 .read_address(address + *data_ptr_offset as u64)
@@ -418,7 +418,7 @@ fn read_std_from_memory(
                         address + *data_ptr_offset as u64
                     )
                 })?;
-            tracing::debug!("reading Vec data at {address:#016x}");
+            tracing::trace!("reading Vec data at {address:#016x}");
             for _ in 0..length {
                 let value = read_from_memory(db, address, element_type, data_resolver)?;
                 values.push(value);
@@ -431,7 +431,7 @@ fn read_std_from_memory(
         }
         StdDef::String(s) => {
             let v = &s.0;
-            tracing::debug!(
+            tracing::trace!(
                 "reading String length at {:#x}",
                 address + v.length_offset as u64
             );
@@ -442,13 +442,13 @@ fn read_std_from_memory(
                 .map_err(|_| {
                     anyhow::anyhow!("Failed to read length for Vec at address {address:#x}")
                 })?;
-            tracing::debug!("String length: {length}");
+            tracing::trace!("String length: {length}");
             // read the bytes from the data pointer
             let data_address = address + s.0.data_ptr_offset as u64;
             let data = data_resolver.read_address(data_address).with_context(|| {
                 format!("Failed to read String data pointer at {data_address:#x}")
             })?;
-            tracing::debug!("reading String data at {data:#016x}");
+            tracing::trace!("reading String data at {data:#016x}");
             let bytes = data_resolver.read_memory(data, length)?;
             let value = String::from_utf8_lossy(&bytes).to_string();
             Value::Scalar {
@@ -487,7 +487,7 @@ fn read_std_from_memory(
                         });
                     }
 
-                    tracing::debug!(
+                    tracing::trace!(
                         "reading HashMap at {address:#x}, items: {items}, bucket_mask_addr: {bucket_mask_address:#x}, ctrl_addr: {ctrl_address:#x}"
                     );
 
@@ -498,7 +498,7 @@ fn read_std_from_memory(
                     // Read control bytes pointer
                     let ctrl_ptr = data_resolver.read_address(ctrl_address)?;
 
-                    tracing::debug!(
+                    tracing::trace!(
                         "HashMap capacity: {capacity}, ctrl_ptr: {ctrl_ptr:#x}, items: {items}"
                     );
 
