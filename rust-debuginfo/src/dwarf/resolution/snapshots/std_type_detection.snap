@@ -5,6 +5,18 @@ snapshot_kind: text
 ---
 Std(
     String(
-        StringDef,
+        StringDef(
+            VecDef {
+                length_offset: 16,
+                data_ptr_offset: 8,
+                inner_type: Primitive(
+                    UnsignedInt(
+                        UnsignedIntDef {
+                            size: 1,
+                        },
+                    ),
+                ),
+            },
+        ),
     ),
 )

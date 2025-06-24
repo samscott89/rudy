@@ -5,6 +5,7 @@
 use anyhow::Result;
 use rust_debuginfo::{DataResolver, DebugDb, DebugInfo};
 use std::time::{Duration, Instant};
+use tracing_subscriber::EnvFilter;
 
 struct DummyResolver;
 impl DataResolver for DummyResolver {
@@ -20,6 +21,9 @@ impl DataResolver for DummyResolver {
 }
 
 fn main() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .try_init();
     let binary = std::env::args()
         .nth(1)
         .unwrap_or_else(|| "./target/debug/rust_debuginfo".to_string());

@@ -267,7 +267,9 @@ pub trait DieVisitor<'db>: Sized {
             gimli::DW_TAG_pointer_type => Self::visit_pointer_type(walker, die, unit_ref),
             gimli::DW_TAG_array_type => Self::visit_array_type(walker, die, unit_ref),
             gimli::DW_TAG_lexical_block => Self::visit_lexical_block(walker, die, unit_ref),
-
+            gimli::DW_TAG_union_type => {
+                Self::visit_union_type(walker, die, unit_ref);
+            }
             gimli::DW_TAG_subroutine_type => {
                 // these don't seem to contain much, so we'll skip
             }
@@ -346,8 +348,13 @@ pub trait DieVisitor<'db>: Sized {
     }
 
     /// Visit a array type
-    #[allow(unused)]
     fn visit_array_type<'a>(
+        _walker: &mut DieWalker<'a, 'db, Self>,
+        _entry: RawDie<'a>,
+        _unit_ref: UnitRef<'a>,
+    ) {
+    }
+    fn visit_union_type<'a>(
         _walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
@@ -407,10 +414,9 @@ mod test {
                 gimli::DW_TAG_variable => Self::visit_variable(walker, die, unit_ref),
                 gimli::DW_TAG_base_type => Self::visit_base_type(walker, die, unit_ref),
                 gimli::DW_TAG_compile_unit => {}
-                _ => {
-                    walker.walk_children();
-                }
+                _ => {}
             }
+            walker.walk_children();
         }
     }
 
@@ -463,6 +469,22 @@ mod test {
     }
 
     impl<'db> super::DieVisitor<'db> for ModuleFunctionVisitor {
+        fn visit_cu<'a>(
+            walker: &mut super::DieWalker<'a, 'db, Self>,
+            _die: crate::dwarf::loader::RawDie<'a>,
+            _unit_ref: crate::dwarf::unit::UnitRef<'a>,
+        ) {
+            walker.walk_children();
+        }
+
+        fn visit_struct<'a>(
+            walker: &mut super::DieWalker<'a, 'db, Self>,
+            _entry: crate::dwarf::loader::RawDie<'a>,
+            _unit_ref: crate::dwarf::unit::UnitRef<'a>,
+        ) {
+            walker.walk_children();
+        }
+
         fn visit_namespace<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
             entry: crate::dwarf::loader::RawDie<'a>,

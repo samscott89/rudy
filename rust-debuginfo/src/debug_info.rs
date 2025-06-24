@@ -153,14 +153,15 @@ impl<'db> DebugInfo<'db> {
             index::find_closest_function::accumulated(self.db, self.binary, function);
         handle_diagnostics(&diagnostics)?;
 
-        let symbol_index = index::debug_index(self.db, self.binary).symbol_index(self.db);
+        let index = crate::index::debug_index(self.db, self.binary);
+        let symbol_index = index.symbol_index(self.db);
 
         let symbol = symbol_index.get_function(&name).cloned().with_context(|| {
             tracing::debug!(?name, "{:#?}", symbol_index);
             "Failed to get base address for function"
         })?;
 
-        let (_debug_file, fie) = crate::index::debug_index(self.db, self.binary)
+        let (_debug_file, fie) = index
             .get_function(self.db, &name)
             .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
 

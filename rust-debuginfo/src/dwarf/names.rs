@@ -34,7 +34,7 @@ impl fmt::Debug for TypeName {
 
 impl PartialEq for TypeName {
     fn eq(&self, other: &Self) -> bool {
-        self.module == other.module && self.full_name == other.full_name
+        self.module == other.module && self.name == other.name
     }
 }
 impl Eq for TypeName {}
@@ -48,14 +48,14 @@ impl Ord for TypeName {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.module
             .cmp(&other.module)
-            .then_with(|| self.full_name.cmp(&other.full_name))
+            .then_with(|| self.name.cmp(&other.name))
     }
 }
 
 impl std::hash::Hash for TypeName {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.module.hash(state);
-        self.full_name.hash(state);
+        self.name.hash(state);
     }
 }
 

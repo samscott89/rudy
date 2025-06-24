@@ -285,11 +285,11 @@ mod test {
         let db = DebugDb::new();
         let exe_path = current_exe().unwrap();
         let exe_path = exe_path.to_str().unwrap();
+        let start = std::time::Instant::now();
         let binary = db
             .analyze_file(exe_path)
             .expect("Failed to analyze binary file")
             .0;
-        let start = std::time::Instant::now();
         let (_debug_files, symbol_index) = index_symbol_map(&db, binary).unwrap();
         let symbol_index_time = start.elapsed();
 

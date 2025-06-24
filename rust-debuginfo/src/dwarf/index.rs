@@ -368,9 +368,9 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         visit_type(walker, entry, unit_ref);
     }
     fn visit_array_type<'a>(
-        walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
+        _walker: &mut DieWalker<'a, 'db, Self>,
+        _entry: RawDie<'a>,
+        _unit_ref: UnitRef<'a>,
     ) {
         // these don't expose a name so we'll just skip them
     }

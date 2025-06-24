@@ -30,13 +30,24 @@ impl<'db> Index<'db> {
         let sym = self
             .symbol_index(db)
             .get_functions_by_lookup_name(&name.lookup_name)?
-            .get(name)?
+            .get(name)
+            .or_else(|| {
+                tracing::info!("{name} not found in root symbol index");
+                None
+            })?
             .clone();
         let indexed = dwarf::debug_file_index(db, sym.debug_file).data(db);
         indexed
             .functions
             .get(name)
             .cloned()
+            .or_else(|| {
+                tracing::debug!(
+                    "Function {name} not found in debug file {}",
+                    sym.debug_file.name(db)
+                );
+                None
+            })
             .map(|entry| (sym.debug_file, entry))
     }
     // #[allow(dead_code)]

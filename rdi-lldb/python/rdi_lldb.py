@@ -21,7 +21,7 @@ from typing import Optional
 # Configuration
 RDI_HOST = os.environ.get("RDI_HOST", "127.0.0.1")
 RDI_PORT = int(os.environ.get("RDI_PORT", "9001"))
-RDI_DEBUG = os.environ.get("RDI_DEBUG", "1").lower() in ("1", "true", "on", "yes")
+RDI_DEBUG = os.environ.get("RDI_DEBUG", "").lower() in ("1", "true", "on", "yes")
 
 
 def debug_print(msg: str):

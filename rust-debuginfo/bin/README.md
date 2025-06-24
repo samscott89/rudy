@@ -21,7 +21,7 @@ This directory contains performance benchmarks comparing rust-debuginfo with LLD
 ### Operation Benchmarks
 Measure rust-debuginfo performance for specific operations:
 ```bash
-cargo run --release --bin operations [binary_path]
+cargo run --release --bin bench_operations [binary_path]
 ```
 
 ### Comparison Benchmarks

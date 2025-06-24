@@ -18,10 +18,10 @@ for binary in bin/test_binaries/{small,medium,large}; do
         echo "=========================================="
         
         echo -e "\n--- Operation Benchmarks ---"
-        cargo run --release --bin operations "$binary"
+        cargo run --release --bin bench_operations "$binary"
         
         echo -e "\n--- Comparison Benchmarks ---"
-        cargo run --release --bin comparison "$binary"
+        cargo run --release --bin bench_comparison "$binary"
         
         echo -e "\n"
     fi
