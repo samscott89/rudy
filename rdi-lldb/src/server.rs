@@ -198,7 +198,7 @@ impl ClientConnection {
                     }
                 };
 
-                let eval_context = EvalContext::new(debug_info.clone(), self);
+                let mut eval_context = EvalContext::new(debug_info.clone(), self);
                 let result = eval_context
                     .evaluate(&expr)
                     .with_context(|| format!("Failed to evaluate expression: {expr:#?}"));

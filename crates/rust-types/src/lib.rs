@@ -66,7 +66,7 @@ impl TypeDef {
                 StdDef::Map(map_def) => {
                     let key_type = map_def.key_type.display_name();
                     let value_type = map_def.value_type.display_name();
-                    format!("{:?}<{}, {}>", map_def.variant, key_type, value_type)
+                    format!("{}<{}, {}>", map_def.variant.name(), key_type, value_type)
                 }
                 StdDef::Option(option_def) => {
                     let inner_type = option_def.inner_type.display_name();
@@ -680,6 +680,16 @@ pub enum MapVariant {
     },
     BTreeMap,
     IndexMap,
+}
+
+impl MapVariant {
+    pub fn name(&self) -> &'static str {
+        match self {
+            MapVariant::HashMap { .. } => "HashMap",
+            MapVariant::BTreeMap => "BTreeMap",
+            MapVariant::IndexMap => "IndexMap",
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]

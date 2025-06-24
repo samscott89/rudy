@@ -3,7 +3,7 @@
 //! This module evaluates parsed expressions by looking up debug information
 //! and reading memory through event callbacks.
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use rust_debuginfo::{DataResolver, DebugInfo, Value};
 use std::cell::RefCell;
 
@@ -103,6 +103,7 @@ pub struct EvalContext<'a> {
     /// Debug information for the current binary
     debug_info: DebugInfo<'a>,
     conn: RemoteDataAccess<'a>,
+    pc: Option<u64>,
 }
 
 impl<'a> EvalContext<'a> {
@@ -110,13 +111,44 @@ impl<'a> EvalContext<'a> {
         Self {
             debug_info,
             conn: RemoteDataAccess::new(conn),
+            pc: None, // Program counter will be set when evaluating expressions
         }
+    }
+
+    /// Set the current program counter (used for variable resolution)
+    fn get_pc(&mut self) -> Result<u64> {
+        if let Some(pc) = self.pc {
+            Ok(pc)
+        } else {
+            // Fetch the current program counter from the client connection
+            let EventResponseData::FrameInfo { pc, .. } = self
+                .conn
+                .conn
+                .borrow_mut()
+                .send_event_request(EventRequest::GetFrameInfo)?
+            else {
+                return Err(anyhow!("Unexpected response type for GetFrameInfo"));
+            };
+            self.pc = Some(pc);
+            Ok(pc)
+        }
+    }
+
+    /// Convert a ValueRef to a final EvalResult by reading and formatting the value
+    fn value_ref_to_result(&mut self, value_ref: &ValueRef) -> Result<EvalResult> {
+        let value =
+            self.debug_info
+                .address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+        Ok(EvalResult {
+            value: format_value(&value),
+            type_name: value_ref.type_def.display_name(),
+        })
     }
 
     /// Resolve variables at the current program counter
     #[allow(dead_code)]
     fn resolve_variables_at_address(
-        &self,
+        &mut self,
         address: u64,
         resolver: &dyn DataResolver,
     ) -> Result<(
@@ -129,7 +161,7 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Evaluates an expression, potentially generating events for the client
-    pub fn evaluate(&self, expr: &Expression) -> Result<EvalResult> {
+    pub fn evaluate(&mut self, expr: &Expression) -> Result<EvalResult> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable(name),
             Expression::FieldAccess { base, field } => self.evaluate_field_access(base, field),
@@ -144,60 +176,92 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    fn evaluate_variable(&self, name: &str) -> Result<EvalResult> {
-        let EventResponseData::FrameInfo { pc, .. } = self
-            .conn
-            .conn
-            .borrow_mut()
-            .send_event_request(EventRequest::GetFrameInfo)?
-        else {
-            return Err(anyhow!("unexpected response type for GetFrameInfo"));
-        };
-        // Try to resolve variables at the current PC
-        let (params, locals, _globals) = self
-            .debug_info
-            .resolve_variables_at_address(pc, &self.conn)?;
-        // Search for the variable by name in parameters and locals
-        let mut all_vars = params.iter().chain(locals.iter());
-
-        if let Some(variable) = all_vars.find(|var| var.name == name) {
-            // Found the variable! Extract type and value information
-            let type_name = variable
-                .ty
-                .as_ref()
-                .map(|t| t.name.clone())
-                .unwrap_or_else(|| "Unknown".to_string());
-
-            let value_str = match &variable.value {
-                Some(value) => format_value(value),
-                None => "<value not available>".to_string(),
-            };
-
-            Ok(EvalResult {
-                value: value_str,
-                type_name,
-            })
-        } else {
-            // Variable not found at this location
-            Ok(EvalResult {
-                value: "<not found>".to_string(),
-                type_name: "Unknown".to_string(),
-            })
+    /// Evaluates an expression to a ValueRef (for intermediate computation)
+    fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<ValueRef> {
+        match expr {
+            Expression::Variable(name) => self.evaluate_variable_to_ref(name),
+            Expression::FieldAccess { base, field } => {
+                self.evaluate_field_access_to_ref(base, field)
+            }
+            Expression::Index { base, index } => self.evaluate_index_to_ref(base, index),
+            Expression::Deref(inner) => self.evaluate_deref_to_ref(inner),
+            // Literals and address-of don't have memory locations
+            _ => Err(anyhow!(
+                "Expression {:?} cannot be evaluated to a memory reference",
+                expr
+            )),
         }
     }
 
-    fn evaluate_field_access(&self, base: &Expression, field: &str) -> Result<EvalResult> {
-        // First evaluate the base expression
-        let base_result = self.evaluate(base)?;
+    fn evaluate_variable(&mut self, name: &str) -> Result<EvalResult> {
+        // Try to get a ValueRef, then convert to result
+        let value_ref = self.evaluate_variable_to_ref(name)?;
+        self.value_ref_to_result(&value_ref)
+    }
 
-        // For now, return a placeholder - full implementation needs type resolution
-        Ok(EvalResult {
-            value: format!("<field {} of {}>", field, base_result.value),
-            type_name: format!("{}.{}", base_result.type_name, field),
+    fn evaluate_variable_to_ref(&mut self, name: &str) -> Result<ValueRef> {
+        let pc = self.get_pc()?;
+
+        let var_info = self
+            .debug_info
+            .get_variable_at_pc(pc, name, &self.conn)?
+            .with_context(|| format!("Failed to resolve variable '{name}'",))?;
+
+        let address = var_info
+            .address
+            .with_context(|| format!("Variable '{name}' has no memory address"))?;
+        Ok(ValueRef {
+            address,
+            type_def: var_info.type_def,
         })
     }
 
-    fn evaluate_index(&self, base: &Expression, index: &Expression) -> Result<EvalResult> {
+    fn evaluate_field_access(&mut self, base: &Expression, field: &str) -> Result<EvalResult> {
+        // Get the field as a ValueRef, then convert to result
+        let field_ref = self.evaluate_field_access_to_ref(base, field)?;
+        self.value_ref_to_result(&field_ref)
+    }
+
+    fn evaluate_field_access_to_ref(&mut self, base: &Expression, field: &str) -> Result<ValueRef> {
+        // First evaluate the base expression to a ValueRef
+        let base_ref = self.evaluate_to_ref(base)?;
+
+        // Try to find the field in the type definition
+        match &base_ref.type_def {
+            rust_debuginfo::TypeDef::Struct(struct_def) => {
+                // Look for the field in the struct
+                let field_info = struct_def
+                    .fields
+                    .iter()
+                    .find(|f| f.name == field)
+                    .with_context(|| {
+                        format!("Field '{field}' not found in struct '{}'", struct_def.name)
+                    })?;
+                let field_addr = base_ref.address + field_info.offset as u64;
+
+                Ok(ValueRef {
+                    address: field_addr,
+                    type_def: (*field_info.ty).clone(),
+                })
+            }
+            _ => Err(anyhow!(
+                "Cannot access field '{}' on non-struct type",
+                field
+            )),
+        }
+    }
+
+    fn evaluate_index_to_ref(&mut self, base: &Expression, index: &Expression) -> Result<ValueRef> {
+        // TODO: Implement array/slice indexing
+        Err(anyhow!("Array indexing not yet implemented"))
+    }
+
+    fn evaluate_deref_to_ref(&mut self, expr: &Expression) -> Result<ValueRef> {
+        // TODO: Implement pointer dereferencing
+        Err(anyhow!("Pointer dereferencing not yet implemented"))
+    }
+
+    fn evaluate_index(&mut self, base: &Expression, index: &Expression) -> Result<EvalResult> {
         // Evaluate both base and index
         let base_result = self.evaluate(base)?;
         let index_result = self.evaluate(index)?;
@@ -209,7 +273,7 @@ impl<'a> EvalContext<'a> {
         })
     }
 
-    fn evaluate_deref(&self, expr: &Expression) -> Result<EvalResult> {
+    fn evaluate_deref(&mut self, expr: &Expression) -> Result<EvalResult> {
         // Evaluate the inner expression
         let inner_result = self.evaluate(expr)?;
 
@@ -220,7 +284,7 @@ impl<'a> EvalContext<'a> {
         })
     }
 
-    fn evaluate_address_of(&self, expr: &Expression) -> Result<EvalResult> {
+    fn evaluate_address_of(&mut self, expr: &Expression) -> Result<EvalResult> {
         // Evaluate the inner expression
         let inner_result = self.evaluate(expr)?;
 
@@ -232,8 +296,17 @@ impl<'a> EvalContext<'a> {
     }
 }
 
-/// Result of evaluating an expression
-#[derive(Debug, serde::Serialize)]
+/// Reference to a typed value in memory (used for intermediate evaluation)
+#[derive(Debug, Clone)]
+struct ValueRef {
+    /// Memory address where the value is stored
+    address: u64,
+    /// Full type definition for the value
+    type_def: rust_debuginfo::TypeDef,
+}
+
+/// Final result of evaluating an expression (for display/serialization)
+#[derive(Debug, serde::Serialize, Clone)]
 pub struct EvalResult {
     /// The evaluated value (formatted for display)
     pub value: String,
