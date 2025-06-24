@@ -168,8 +168,6 @@ impl<'a> EvalContext<'a> {
             Expression::Variable(name) => self.evaluate_variable(name),
             Expression::FieldAccess { base, field } => self.evaluate_field_access(base, field),
             Expression::Index { base, index } => self.evaluate_index(base, index),
-            Expression::Deref(inner) => self.evaluate_deref(inner),
-            Expression::AddressOf { mutable: _, expr } => self.evaluate_address_of(expr),
             Expression::NumberLiteral(value) => Ok(EvalResult {
                 value: value.to_string(),
                 type_name: "u64".to_string(),
@@ -179,7 +177,19 @@ impl<'a> EvalContext<'a> {
                 type_name: "String".to_string(),
             }),
             Expression::Parenthesized(inner) => self.evaluate(inner),
+            Expression::Deref(_) => Err(anyhow!(
+                "Pointer dereferencing not supported - values are automatically dereferenced"
+            )),
+            Expression::AddressOf { .. } => Err(anyhow!(
+                "Address-of operator not supported in debugging context"
+            )),
         }
+    }
+
+    /// Get the type of an expression without evaluating its value
+    pub fn get_expression_type(&mut self, expr: &Expression) -> Result<rust_types::TypeDef> {
+        let value_ref = self.evaluate_to_ref(expr)?;
+        Ok((*value_ref.type_def).clone())
     }
 
     /// Evaluates an expression to a ValueRef (for intermediate computation)
@@ -190,8 +200,7 @@ impl<'a> EvalContext<'a> {
                 self.evaluate_field_access_to_ref(base, field)
             }
             Expression::Index { base, index } => self.evaluate_index_to_ref(base, index),
-            Expression::Deref(inner) => self.evaluate_deref_to_ref(inner),
-            // Literals and address-of don't have memory locations
+            // Literals, deref, and address-of don't have memory locations
             _ => Err(anyhow!(
                 "Expression {:?} cannot be evaluated to a memory reference",
                 expr
@@ -311,10 +320,6 @@ impl<'a> EvalContext<'a> {
                 let element_ref = self.evaluate_index_to_ref(base, index)?;
                 self.read_integer_from_memory(&element_ref)
             }
-            Expression::Deref(inner) => {
-                let deref_ref = self.evaluate_deref_to_ref(inner)?;
-                self.read_integer_from_memory(&deref_ref)
-            }
             Expression::Parenthesized(inner) => self.evaluate_to_int(inner),
             _ => Err(anyhow!("Cannot evaluate expression to integer: {:?}", expr)),
         }
@@ -335,10 +340,6 @@ impl<'a> EvalContext<'a> {
             Expression::Index { base, index } => {
                 let element_ref = self.evaluate_index_to_ref(base, index)?;
                 self.read_string_from_memory(&element_ref)
-            }
-            Expression::Deref(inner) => {
-                let deref_ref = self.evaluate_deref_to_ref(inner)?;
-                self.read_string_from_memory(&deref_ref)
             }
             Expression::Parenthesized(inner) => self.evaluate_to_string(inner),
             // String literals would need to be added to the parser
@@ -391,11 +392,6 @@ impl<'a> EvalContext<'a> {
             }
             _ => Err(anyhow!("Expected scalar string value, got: {:?}", value)),
         }
-    }
-
-    fn evaluate_deref_to_ref(&mut self, expr: &Expression) -> Result<ValueRef> {
-        // TODO: Implement pointer dereferencing
-        Err(anyhow!("Pointer dereferencing not yet implemented"))
     }
 
     fn evaluate_index(&mut self, base: &Expression, index: &Expression) -> Result<EvalResult> {
@@ -456,28 +452,6 @@ impl<'a> EvalContext<'a> {
             self.value_ref_to_result(&element_ref)
         }
     }
-
-    fn evaluate_deref(&mut self, expr: &Expression) -> Result<EvalResult> {
-        // Evaluate the inner expression
-        let inner_result = self.evaluate(expr)?;
-
-        // For now, return a placeholder
-        Ok(EvalResult {
-            value: format!("<*{}>", inner_result.value),
-            type_name: format!("*{}", inner_result.type_name),
-        })
-    }
-
-    fn evaluate_address_of(&mut self, expr: &Expression) -> Result<EvalResult> {
-        // Evaluate the inner expression
-        let inner_result = self.evaluate(expr)?;
-
-        // For now, return a placeholder
-        Ok(EvalResult {
-            value: format!("<&{}>", inner_result.value),
-            type_name: format!("&{}", inner_result.type_name),
-        })
-    }
 }
 
 /// Reference to a typed value in memory (used for intermediate evaluation)
@@ -495,6 +469,7 @@ pub struct EvalResult {
     /// The evaluated value (formatted for display)
     pub value: String,
     /// The type of the value
+    #[serde(rename = "type")]
     pub type_name: String,
 }
 
