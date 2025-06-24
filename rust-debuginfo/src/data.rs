@@ -6,9 +6,10 @@ use std::collections::BTreeMap;
 
 use crate::Value;
 use crate::database::Db;
+use crate::outputs::TypedPointer;
 use rust_types::{
-    ArrayDef, MapVariant, PointerDef, PrimitiveDef, ReferenceDef, SliceDef, SmartPtrVariant,
-    StdDef, StrSliceDef, TypeDef, VecDef,
+    ArrayDef, MapDef, MapVariant, PointerDef, PrimitiveDef, ReferenceDef, SliceDef,
+    SmartPtrVariant, StdDef, StrSliceDef, TypeDef, VecDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -122,6 +123,93 @@ pub trait DataResolver {
     }
 }
 
+/// Returns a list of map entries from a memory address.
+pub fn read_map_entries(
+    address: u64,
+    def: &MapDef,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<Vec<(TypedPointer, TypedPointer)>> {
+    tracing::trace!("read_map_entries {address:#x} {}", def.display_name());
+    // todo!("read_std_from_memory: MapDef not implemented yet: {def:#?}")
+    let table_offset = def.table_offset as u64;
+
+    match def.variant {
+        MapVariant::HashMap {
+            bucket_mask_offset,
+            ctrl_offset,
+            items_offset,
+            pair_size,
+            key_offset,
+            value_offset,
+        } => {
+            let bucket_mask_address = address + table_offset + bucket_mask_offset as u64;
+            let ctrl_address = address + table_offset + ctrl_offset as u64;
+            let items_address = address + table_offset + items_offset as u64;
+            // Read item count
+            let items = data_resolver.read_memory(items_address, 8)?;
+            let items = usize::from_le_bytes(items.try_into().unwrap());
+
+            if items == 0 {
+                return Ok(vec![]);
+            }
+
+            tracing::trace!(
+                "reading HashMap at {address:#x}, items: {items}, bucket_mask_addr: {bucket_mask_address:#x}, ctrl_addr: {ctrl_address:#x}"
+            );
+
+            // Read bucket mask to get capacity
+            let bucket_mask = data_resolver.read_memory(bucket_mask_address, 8)?;
+            let capacity = usize::from_le_bytes(bucket_mask.try_into().unwrap()) + 1;
+
+            // Read control bytes pointer
+            let ctrl_ptr = data_resolver.read_address(ctrl_address)?;
+
+            tracing::trace!(
+                "HashMap capacity: {capacity}, ctrl_ptr: {ctrl_ptr:#x}, items: {items}"
+            );
+
+            // Calculate size of key-value pair
+            // Data starts BEFORE the control bytes, counting backwards!
+            let mut slot_addr = ctrl_ptr - pair_size as u64;
+
+            // Read control bytes
+            let ctrl_bytes = data_resolver.read_memory(ctrl_ptr, capacity)?;
+
+            let mut entries = Vec::new();
+
+            for &ctrl in &ctrl_bytes {
+                if ctrl < 0x80 {
+                    // Occupied slot
+                    let key = TypedPointer {
+                        address: slot_addr + key_offset as u64,
+                        type_def: def.key_type.clone(),
+                    };
+                    let value = TypedPointer {
+                        address: slot_addr + value_offset as u64,
+                        type_def: def.value_type.clone(),
+                    };
+
+                    entries.push((key, value));
+
+                    // Stop if we've found all items
+                    if entries.len() >= items {
+                        break;
+                    }
+                }
+                // decrement address for the next slot
+                slot_addr -= pair_size as u64;
+            }
+            Ok(entries)
+        }
+        MapVariant::BTreeMap => {
+            todo!("read_std_from_memory: MapVariant::BTreeMap not implemented yet: {def:#?}")
+        }
+        MapVariant::IndexMap => {
+            todo!("read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}")
+        }
+    }
+}
+
 pub fn read_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
@@ -163,6 +251,36 @@ pub fn read_from_memory<'db>(
             Err(anyhow::anyhow!("Unsupported type: {name}"))
         }
     }
+}
+
+/// Extract pointer, length, and capacity from a Vec Value
+pub fn extract_vec_info(
+    base_address: u64,
+    def: &VecDef,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<(u64, usize)> {
+    let VecDef {
+        length_offset,
+        data_ptr_offset,
+        ..
+    } = def;
+    let length = data_resolver
+        .read_memory(base_address + *length_offset as u64, 8)?
+        .try_into()
+        .map(usize::from_le_bytes)
+        .map_err(|_| {
+            anyhow::anyhow!("Failed to read length for Vec at address {base_address:#x}")
+        })?;
+    tracing::trace!("Vec length: {length}");
+    let address = data_resolver
+        .read_address(base_address + *data_ptr_offset as u64)
+        .with_context(|| {
+            format!(
+                "Failed to read Vec data pointer at {:#x}",
+                base_address + *data_ptr_offset as u64
+            )
+        })?;
+    Ok((address, length))
 }
 
 fn read_primitive_from_memory(
@@ -385,11 +503,13 @@ fn read_std_from_memory(
             }
             .wrap_type("Option")
         }
-        StdDef::Vec(VecDef {
-            length_offset,
-            data_ptr_offset,
-            inner_type,
-        }) => {
+        StdDef::Vec(
+            v @ VecDef {
+                length_offset,
+                data_ptr_offset,
+                inner_type,
+            },
+        ) => {
             tracing::trace!(
                 "reading Vec at {address:#x}, length_offset: {length_offset:#x}, data_ptr_offset: {data_ptr_offset:#x}",
             );
@@ -401,23 +521,8 @@ fn read_std_from_memory(
                 )
             })? as u64;
 
-            let length = data_resolver
-                .read_memory(address + *length_offset as u64, 8)?
-                .try_into()
-                .map(usize::from_le_bytes)
-                .map_err(|_| {
-                    anyhow::anyhow!("Failed to read length for Vec at address {address:#x}")
-                })?;
-            tracing::trace!("Vec length: {length}");
+            let (mut address, length) = extract_vec_info(address, v, data_resolver)?;
             let mut values = Vec::with_capacity(length);
-            let mut address = data_resolver
-                .read_address(address + *data_ptr_offset as u64)
-                .with_context(|| {
-                    format!(
-                        "Failed to read Vec data pointer at {:#x}",
-                        address + *data_ptr_offset as u64
-                    )
-                })?;
             tracing::trace!("reading Vec data at {address:#016x}");
             for _ in 0..length {
                 let value = read_from_memory(db, address, element_type, data_resolver)?;
@@ -457,104 +562,18 @@ fn read_std_from_memory(
             }
         }
         StdDef::Map(def) => {
-            // todo!("read_std_from_memory: MapDef not implemented yet: {def:#?}")
-            let table_offset = def.table_offset as u64;
-
-            match def.variant {
-                MapVariant::HashMap {
-                    bucket_mask_offset,
-                    ctrl_offset,
-                    items_offset,
-                    pair_size,
-                    key_offset,
-                    value_offset,
-                } => {
-                    let bucket_mask_address = address + table_offset + bucket_mask_offset as u64;
-                    let ctrl_address = address + table_offset + ctrl_offset as u64;
-                    let items_address = address + table_offset + items_offset as u64;
-                    // Read item count
-                    let items = data_resolver.read_memory(items_address, 8)?;
-                    let items = usize::from_le_bytes(items.try_into().unwrap());
-
-                    if items == 0 {
-                        return Ok(Value::Map {
-                            ty: format!(
-                                "HashMap<{}, {}>",
-                                def.key_type.display_name(),
-                                def.value_type.display_name()
-                            ),
-                            entries: Vec::with_capacity(items),
-                        });
-                    }
-
-                    tracing::trace!(
-                        "reading HashMap at {address:#x}, items: {items}, bucket_mask_addr: {bucket_mask_address:#x}, ctrl_addr: {ctrl_address:#x}"
-                    );
-
-                    // Read bucket mask to get capacity
-                    let bucket_mask = data_resolver.read_memory(bucket_mask_address, 8)?;
-                    let capacity = usize::from_le_bytes(bucket_mask.try_into().unwrap()) + 1;
-
-                    // Read control bytes pointer
-                    let ctrl_ptr = data_resolver.read_address(ctrl_address)?;
-
-                    tracing::trace!(
-                        "HashMap capacity: {capacity}, ctrl_ptr: {ctrl_ptr:#x}, items: {items}"
-                    );
-
-                    // Calculate size of key-value pair
-                    // Data starts BEFORE the control bytes, counting backwards!
-                    let mut slot_addr = ctrl_ptr - pair_size as u64;
-
-                    // Read control bytes
-                    let ctrl_bytes = data_resolver.read_memory(ctrl_ptr, capacity)?;
-
-                    let mut entries = Vec::new();
-
-                    for &ctrl in &ctrl_bytes {
-                        if ctrl < 0x80 {
-                            // Occupied slot
-                            // Read key
-                            let key = read_from_memory(
-                                db,
-                                slot_addr + key_offset as u64,
-                                &def.key_type,
-                                data_resolver,
-                            )?;
-
-                            // Read value (immediately after key)
-                            let value = read_from_memory(
-                                db,
-                                slot_addr + value_offset as u64,
-                                &def.value_type,
-                                data_resolver,
-                            )?;
-
-                            entries.push((key, value));
-
-                            // Stop if we've found all items
-                            if entries.len() >= items {
-                                break;
-                            }
-                        }
-                        // decrement address for the next slot
-                        slot_addr -= pair_size as u64;
-                    }
-                    Value::Map {
-                        ty: format!(
-                            "HashMap<{}, {}>",
-                            def.key_type.display_name(),
-                            def.value_type.display_name()
-                        ),
-                        entries,
-                    }
-                }
-                MapVariant::BTreeMap => todo!(
-                    "read_std_from_memory: MapVariant::BTreeMap not implemented yet: {def:#?}"
-                ),
-                MapVariant::IndexMap => todo!(
-                    "read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}"
-                ),
+            let entries = read_map_entries(address, def, data_resolver)?
+                .into_iter()
+                .map(|(key, value)| {
+                    Ok((
+                        read_from_memory(db, key.address, &key.type_def, data_resolver)?,
+                        read_from_memory(db, value.address, &value.type_def, data_resolver)?,
+                    ))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Value::Map {
+                ty: def.display_name(),
+                entries,
             }
         }
         StdDef::SmartPtr(s) => match s.variant {

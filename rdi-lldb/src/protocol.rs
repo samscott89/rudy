@@ -40,7 +40,7 @@ pub enum ServerMessage {
 impl From<anyhow::Error> for ServerMessage {
     fn from(err: anyhow::Error) -> Self {
         ServerMessage::Error {
-            error: format!("{err:#?}"),
+            error: format!("{err:?}"),
             backtrace: None, //Some(err.backtrace().to_string()),
         }
     }

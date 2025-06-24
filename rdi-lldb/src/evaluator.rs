@@ -5,7 +5,9 @@
 
 use anyhow::{Context, Result, anyhow};
 use rust_debuginfo::{DataResolver, DebugInfo, Value};
+use rust_types::{StdDef, TypeDef};
 use std::cell::RefCell;
+use std::sync::Arc;
 
 use crate::protocol::{EventRequest, EventResponseData};
 use crate::server::ClientConnection;
@@ -245,32 +247,49 @@ impl<'a> EvalContext<'a> {
 
     fn evaluate_index_to_ref(&mut self, base: &Expression, index: &Expression) -> Result<ValueRef> {
         let base_ref = self.evaluate_to_ref(base)?;
-        
+
         // Check if the base type supports string indexing (HashMap, etc.)
         if self.supports_string_indexing(&base_ref.type_def) {
             let key_string = self.evaluate_to_string(index)?;
             // Use get_index_by_value with string key
-            let key_value = Value::Scalar { 
-                ty: "String".to_string(), 
-                value: key_string 
+            let key_value = Value::Scalar {
+                ty: "String".to_string(),
+                value: key_string,
             };
             let element_info = self.debug_info.get_index_by_value(
-                base_ref.address, &base_ref.type_def, &key_value, &self.conn
+                base_ref.address,
+                &base_ref.type_def,
+                &key_value,
+                &self.conn,
             )?;
-            
+
+            // HashMap values don't have direct memory addresses, so we need special handling
+            if element_info.address.is_none() {
+                // For HashMap, we can't create a ValueRef since there's no memory address
+                // This means we need to handle HashMap indexing at the EvalResult level
+                return Err(anyhow!(
+                    "HashMap indexing requires special handling - use evaluate_index instead"
+                ));
+            }
+
             Ok(ValueRef {
-                address: element_info.address.ok_or_else(|| anyhow!("Element has no address"))?,
+                address: element_info.address.unwrap(),
                 type_def: element_info.type_def,
             })
         } else {
             // Default to integer indexing
             let index_int = self.evaluate_to_int(index)?;
             let element_info = self.debug_info.get_index_by_int(
-                base_ref.address, &base_ref.type_def, index_int, &self.conn
+                base_ref.address,
+                &base_ref.type_def,
+                index_int,
+                &self.conn,
             )?;
-            
+
             Ok(ValueRef {
-                address: element_info.address.ok_or_else(|| anyhow!("Element has no address"))?,
+                address: element_info
+                    .address
+                    .ok_or_else(|| anyhow!("Element has no address"))?,
                 type_def: element_info.type_def,
             })
         }
@@ -328,11 +347,9 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Check if a type supports string-based indexing (HashMap, etc.)
-    fn supports_string_indexing(&self, type_def: &rust_debuginfo::TypeDef) -> bool {
-        use rust_debuginfo::TypeDef;
+    fn supports_string_indexing(&self, type_def: &TypeDef) -> bool {
         match type_def {
             TypeDef::Std(std_def) => {
-                use rust_types::StdDef;
                 matches!(std_def, StdDef::Map(_))
             }
             _ => false,
@@ -341,7 +358,9 @@ impl<'a> EvalContext<'a> {
 
     /// Read an integer value from memory using a ValueRef
     fn read_integer_from_memory(&self, value_ref: &ValueRef) -> Result<u64> {
-        let value = self.debug_info.address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+        let value =
+            self.debug_info
+                .address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
                 // Try to parse as different number formats
@@ -360,7 +379,9 @@ impl<'a> EvalContext<'a> {
 
     /// Read a string value from memory using a ValueRef
     fn read_string_from_memory(&self, value_ref: &ValueRef) -> Result<String> {
-        let value = self.debug_info.address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+        let value =
+            self.debug_info
+                .address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
                 // For strings, the formatted value should be the string content
@@ -378,9 +399,62 @@ impl<'a> EvalContext<'a> {
     }
 
     fn evaluate_index(&mut self, base: &Expression, index: &Expression) -> Result<EvalResult> {
-        // Get the indexed element as a ValueRef, then convert to result
-        let element_ref = self.evaluate_index_to_ref(base, index)?;
-        self.value_ref_to_result(&element_ref)
+        let base_ref = self.evaluate_to_ref(base)?;
+
+        // Check if the base type supports string indexing (HashMap, etc.)
+        if self.supports_string_indexing(&base_ref.type_def) {
+            let key_string = self.evaluate_to_string(index)?;
+            tracing::debug!(
+                "Evaluating index with string key: {} for base type: {}",
+                key_string,
+                base_ref.type_def.display_name()
+            );
+            // Use get_index_by_value with string key
+            let key_value = Value::Scalar {
+                ty: "String".to_string(),
+                value: key_string,
+            };
+            let element_info = self.debug_info.get_index_by_value(
+                base_ref.address,
+                &base_ref.type_def,
+                &key_value,
+                &self.conn,
+            )?;
+
+            // HashMap values don't have direct memory addresses, so we need special handling
+            if element_info.address.is_none() {
+                // For HashMap, we need to read the value directly since it was already resolved
+                let value = self.debug_info.read_variable(&element_info, &self.conn)?;
+                return Ok(EvalResult {
+                    value: format_value(&value),
+                    type_name: element_info.type_def.display_name(),
+                });
+            }
+
+            // If we do have an address, create a ValueRef and convert normally
+            let element_ref = ValueRef {
+                address: element_info.address.unwrap(),
+                type_def: element_info.type_def,
+            };
+            self.value_ref_to_result(&element_ref)
+        } else {
+            // Default to integer indexing
+            let index_int = self.evaluate_to_int(index)?;
+            let element_info = self.debug_info.get_index_by_int(
+                base_ref.address,
+                &base_ref.type_def,
+                index_int,
+                &self.conn,
+            )?;
+
+            let element_ref = ValueRef {
+                address: element_info
+                    .address
+                    .ok_or_else(|| anyhow!("Element has no address"))?,
+                type_def: element_info.type_def,
+            };
+            self.value_ref_to_result(&element_ref)
+        }
     }
 
     fn evaluate_deref(&mut self, expr: &Expression) -> Result<EvalResult> {
@@ -412,7 +486,7 @@ struct ValueRef {
     /// Memory address where the value is stored
     address: u64,
     /// Full type definition for the value
-    type_def: rust_debuginfo::TypeDef,
+    type_def: Arc<TypeDef>,
 }
 
 /// Final result of evaluating an expression (for display/serialization)

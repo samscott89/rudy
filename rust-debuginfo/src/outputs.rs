@@ -1,6 +1,8 @@
 //! Output types that are part of the public interface of the debug info library.
 
-use std::{collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, fmt, sync::Arc};
+
+use rust_types::TypeDef;
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -40,7 +42,16 @@ pub struct VariableInfo {
     /// Memory address where variable is stored (if available)
     pub address: Option<u64>,
     /// Full type definition for the variable
-    pub type_def: rust_types::TypeDef,
+    pub type_def: Arc<TypeDef>,
+}
+
+/// A pointer to an entry in memory, with its type definition
+#[derive(Debug, Clone)]
+pub struct TypedPointer {
+    /// Memory address where variable is stored (if available)
+    pub address: u64,
+    /// Full type definition for the variable
+    pub type_def: Arc<TypeDef>,
 }
 
 /// A value read from memory, supporting scalars, arrays, and structs.

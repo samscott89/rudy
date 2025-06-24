@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 use crate::{
     ResolvedLocation,
@@ -697,29 +697,42 @@ impl<'db> DebugInfo<'db> {
         field_name: &str,
     ) -> Result<crate::VariableInfo> {
         use rust_types::TypeDef;
-        
+
         match base_type {
             TypeDef::Struct(struct_def) => {
-                let field = struct_def.fields.iter()
+                let field = struct_def
+                    .fields
+                    .iter()
                     .find(|f| f.name == field_name)
-                    .ok_or_else(|| anyhow::anyhow!("Field '{}' not found in struct '{}'", field_name, struct_def.name))?;
-                
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "Field '{}' not found in struct '{}'",
+                            field_name,
+                            struct_def.name
+                        )
+                    })?;
+
                 let field_address = base_address + field.offset as u64;
-                
+
                 Ok(crate::VariableInfo {
                     name: field_name.to_string(),
                     address: Some(field_address),
-                    type_def: (*field.ty).clone(),
+                    type_def: field.ty.clone(),
                 })
             }
             TypeDef::Enum(enum_def) => {
                 // For enums, field access might be variant data access
                 // This is complex - for now return an error
-                Err(anyhow::anyhow!("Enum field access not yet implemented for '{}'", enum_def.name))
+                Err(anyhow::anyhow!(
+                    "Enum field access not yet implemented for '{}'",
+                    enum_def.name
+                ))
             }
-            _ => {
-                Err(anyhow::anyhow!("Cannot access field '{}' on type '{}'", field_name, base_type.display_name()))
-            }
+            _ => Err(anyhow::anyhow!(
+                "Cannot access field '{}' on type '{}'",
+                field_name,
+                base_type.display_name()
+            )),
         }
     }
 
@@ -761,57 +774,90 @@ impl<'db> DebugInfo<'db> {
         index: u64,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
-        use rust_types::{TypeDef, PrimitiveDef};
-        
+        use rust_types::{PrimitiveDef, TypeDef};
+
         match base_type {
             TypeDef::Primitive(PrimitiveDef::Array(array_def)) => {
                 // Fixed-size array [T; N]
                 if index >= array_def.length as u64 {
-                    return Err(anyhow::anyhow!("Index {} out of bounds for array of length {}", index, array_def.length));
+                    return Err(anyhow::anyhow!(
+                        "Index {} out of bounds for array of length {}",
+                        index,
+                        array_def.length
+                    ));
                 }
-                
-                let element_size = get_type_size(&array_def.element_type.)?;
+
+                let element_size = array_def.element_type.size().with_context(|| {
+                    format!(
+                        "Failed to get size for array element type '{}'",
+                        array_def.element_type.display_name()
+                    )
+                })? as u64;
                 let element_address = base_address + (index * element_size);
-                
+
                 Ok(crate::VariableInfo {
                     name: format!("[{}]", index),
                     address: Some(element_address),
-                    type_def: (*array_def.element_type).clone(),
+                    type_def: array_def.element_type.clone(),
                 })
             }
             TypeDef::Primitive(PrimitiveDef::Slice(slice_def)) => {
                 // Slice [T] - need to read the fat pointer to get actual data pointer and length
-                let slice_value = crate::data::read_from_memory(self.db, base_address, base_type, data_resolver)?;
+                let slice_value =
+                    crate::data::read_from_memory(self.db, base_address, base_type, data_resolver)?;
                 let (data_ptr, slice_len) = extract_slice_info(&slice_value)?;
-                
+
                 if index >= slice_len {
-                    return Err(anyhow::anyhow!("Index {} out of bounds for slice of length {}", index, slice_len));
+                    return Err(anyhow::anyhow!(
+                        "Index {} out of bounds for slice of length {}",
+                        index,
+                        slice_len
+                    ));
                 }
-                
+
                 let element_size = get_type_size(&slice_def.element_type)?;
                 let element_address = data_ptr + (index * element_size);
-                
+
                 Ok(crate::VariableInfo {
                     name: format!("[{}]", index),
                     address: Some(element_address),
-                    type_def: (*slice_def.element_type).clone(),
+                    type_def: slice_def.element_type.clone(),
                 })
             }
             TypeDef::Std(std_def) => {
                 use rust_types::StdDef;
                 match std_def {
-                    StdDef::Vec(_vec_def) => {
-                        // Vec<T> indexing - would need to read Vec's internal structure
-                        Err(anyhow::anyhow!("Vec indexing not yet implemented"))
+                    StdDef::Vec(vec_def) => {
+                        let (data_ptr, vec_len) =
+                            crate::data::extract_vec_info(base_address, vec_def, data_resolver)?;
+
+                        if index as usize >= vec_len {
+                            return Err(anyhow::anyhow!(
+                                "Index {} out of bounds for Vec of length {}",
+                                index,
+                                vec_len
+                            ));
+                        }
+
+                        let element_size = get_type_size(&vec_def.inner_type)?;
+                        let element_address = data_ptr + (index * element_size);
+
+                        Ok(crate::VariableInfo {
+                            name: format!("[{}]", index),
+                            address: Some(element_address),
+                            type_def: vec_def.inner_type.clone(),
+                        })
                     }
-                    _ => {
-                        Err(anyhow::anyhow!("Cannot index std type '{}' by integer", base_type.display_name()))
-                    }
+                    _ => Err(anyhow::anyhow!(
+                        "Cannot index std type '{}' by integer",
+                        base_type.display_name()
+                    )),
                 }
             }
-            _ => {
-                Err(anyhow::anyhow!("Cannot index type '{}' by integer", base_type.display_name()))
-            }
+            _ => Err(anyhow::anyhow!(
+                "Cannot index type '{}' by integer",
+                base_type.display_name()
+            )),
         }
     }
 
@@ -849,14 +895,52 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn get_index_by_value(
         &self,
-        _base_address: u64,
+        base_address: u64,
         base_type: &rust_types::TypeDef,
-        _key: &crate::Value,
-        _data_resolver: &dyn crate::DataResolver,
+        key: &crate::Value,
+        data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
-        // HashMap/BTreeMap indexing is quite complex and would require understanding
-        // the internal structure of these collections. For now, return not implemented.
-        Err(anyhow::anyhow!("Value-based indexing not yet implemented for type '{}'", base_type.display_name()))
+        use rust_types::{StdDef, TypeDef};
+
+        match base_type {
+            TypeDef::Std(StdDef::Map(map_def)) => {
+                // For maps, we'll iterate through all key-value pairs
+                // and return the variable info for the value that matches the key.
+
+                let map_entries =
+                    crate::data::read_map_entries(base_address, map_def, data_resolver)?;
+
+                for (k, v) in map_entries {
+                    let map_key = crate::data::read_from_memory(
+                        self.db,
+                        k.address,
+                        &map_def.key_type,
+                        data_resolver,
+                    )?;
+
+                    if values_equal(key, &map_key) {
+                        // For HashMap indexing, we can't return a direct memory address
+                        // since the value might be stored in a complex hash table structure.
+                        // Instead, we return the value itself as if it were at a fake address.
+                        // This is a simplification for developer experience.
+                        return Ok(crate::VariableInfo {
+                            name: format!("[{}]", format_value_key(key)),
+                            address: Some(v.address), // No direct memory address for HashMap values
+                            type_def: v.type_def.clone(),
+                        });
+                    }
+                }
+
+                Err(anyhow::anyhow!(
+                    "Key '{}' not found in map",
+                    format_value_key(key)
+                ))
+            }
+            _ => Err(anyhow::anyhow!(
+                "Value-based indexing not supported for type '{}'",
+                base_type.display_name()
+            )),
+        }
     }
 }
 
@@ -907,13 +991,13 @@ fn variable_info<'db>(
     Ok(crate::VariableInfo {
         name: var.name(db).to_string(),
         address: location,
-        type_def: ty,
+        type_def: Arc::new(ty),
     })
 }
 
 /// Calculate the size in bytes of a type
 fn get_type_size(type_def: &rust_types::TypeDef) -> Result<u64> {
-    use rust_types::{TypeDef, PrimitiveDef};
+    use rust_types::{PrimitiveDef, TypeDef};
     match type_def {
         TypeDef::Primitive(prim) => {
             Ok(match prim {
@@ -928,7 +1012,7 @@ fn get_type_size(type_def: &rust_types::TypeDef) -> Result<u64> {
                     element_size * array_def.length as u64
                 }
                 PrimitiveDef::Slice(_) => 16, // Fat pointer: ptr + len (8 + 8 = 16 bytes)
-                PrimitiveDef::Str(_) => 0, // str is unsized
+                PrimitiveDef::Str(_) => 0,    // str is unsized
                 PrimitiveDef::StrSlice(_) => 16, // &str is fat pointer: ptr + len
                 PrimitiveDef::Tuple(tuple_def) => {
                     // Calculate total size of all tuple elements
@@ -938,8 +1022,8 @@ fn get_type_size(type_def: &rust_types::TypeDef) -> Result<u64> {
                     }
                     total_size
                 }
-                PrimitiveDef::Unit(_) => 0, // () has zero size
-                PrimitiveDef::Never(_) => 0, // ! has zero size
+                PrimitiveDef::Unit(_) => 0,     // () has zero size
+                PrimitiveDef::Never(_) => 0,    // ! has zero size
                 PrimitiveDef::Function(_) => 8, // Function pointers are 8 bytes
             })
         }
@@ -966,20 +1050,25 @@ fn extract_slice_info(slice_value: &crate::Value) -> Result<(u64, u64)> {
     match slice_value {
         crate::Value::Struct { fields, .. } => {
             // Look for ptr/data_ptr and len fields
-            let ptr = fields.get("data_ptr")
+            let ptr = fields
+                .get("data_ptr")
                 .or_else(|| fields.get("ptr"))
                 .ok_or_else(|| anyhow::anyhow!("Slice missing data pointer field"))?;
-            
-            let len = fields.get("len")
+
+            let len = fields
+                .get("len")
                 .or_else(|| fields.get("length"))
                 .ok_or_else(|| anyhow::anyhow!("Slice missing length field"))?;
-            
+
             let ptr_value = extract_numeric_value(ptr)?;
             let len_value = extract_numeric_value(len)?;
-            
+
             Ok((ptr_value, len_value))
         }
-        _ => Err(anyhow::anyhow!("Expected struct representation for slice, got: {:?}", slice_value)),
+        _ => Err(anyhow::anyhow!(
+            "Expected struct representation for slice, got: {:?}",
+            slice_value
+        )),
     }
 }
 
@@ -998,6 +1087,31 @@ fn extract_numeric_value(value: &crate::Value) -> Result<u64> {
             }
         }
         _ => Err(anyhow::anyhow!("Expected scalar value, got: {:?}", value)),
+    }
+}
+
+/// Compare two Values for equality (approximate, for HashMap key matching)
+fn values_equal(a: &crate::Value, b: &crate::Value) -> bool {
+    match (a, b) {
+        (crate::Value::Scalar { value: a_val, .. }, crate::Value::Scalar { value: b_val, .. }) => {
+            // For strings, compare the actual string content (strip quotes if present)
+            let a_clean = a_val.trim_matches('"');
+            let b_clean = b_val.trim_matches('"');
+            a_clean == b_clean
+        }
+        // For more complex types, could add more sophisticated comparison
+        _ => false,
+    }
+}
+
+/// Format a Value as a key for display purposes
+fn format_value_key(value: &crate::Value) -> String {
+    match value {
+        crate::Value::Scalar { value, .. } => {
+            // Strip quotes for cleaner display
+            value.trim_matches('"').to_string()
+        }
+        _ => format!("{:?}", value),
     }
 }
 

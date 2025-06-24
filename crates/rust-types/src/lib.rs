@@ -63,11 +63,7 @@ impl TypeDef {
                         _ => format!("{:?}<{}>", smart_ptr_def.variant, inner),
                     }
                 }
-                StdDef::Map(map_def) => {
-                    let key_type = map_def.key_type.display_name();
-                    let value_type = map_def.value_type.display_name();
-                    format!("{}<{}, {}>", map_def.variant.name(), key_type, value_type)
-                }
+                StdDef::Map(map_def) => map_def.display_name(),
                 StdDef::Option(option_def) => {
                     let inner_type = option_def.inner_type.display_name();
                     format!("Option<{}>", inner_type)
@@ -666,6 +662,17 @@ pub struct MapDef {
     pub value_type: Arc<TypeDef>,
     pub variant: MapVariant,
     pub table_offset: usize, // offset to RawTable
+}
+
+impl MapDef {
+    pub fn display_name(&self) -> String {
+        format!(
+            "{}<{}, {}>",
+            self.variant.name(),
+            self.key_type.display_name(),
+            self.value_type.display_name()
+        )
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
