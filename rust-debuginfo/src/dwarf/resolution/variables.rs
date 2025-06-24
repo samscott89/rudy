@@ -36,10 +36,10 @@ struct VariableVisitor<'db> {
 impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
     fn visit_function<'a>(
         walker: &mut visitor::DieWalker<'a, 'db, Self>,
-        _entry: crate::dwarf::loader::RawDie<'a>,
+        entry: crate::dwarf::loader::RawDie<'a>,
         _unit_ref: crate::dwarf::unit::UnitRef<'a>,
     ) {
-        tracing::debug!("function: {}", walker.get_die(_entry).print(walker.db));
+        tracing::debug!("function: {}", walker.get_die(entry).print(walker.db));
         walker.walk_children();
     }
 

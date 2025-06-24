@@ -35,7 +35,6 @@ pub struct FileIndexData<'db> {
     pub functions: BTreeMap<SymbolName, FunctionIndexEntry<'db>>,
     pub symbols: BTreeMap<SymbolName, Vec<SymbolIndexEntry<'db>>>,
     pub types: BTreeMap<TypeName, Vec<TypeIndexEntry<'db>>>,
-    pub sources: BTreeSet<SourceFile<'db>>,
     pub function_addresses: AddressTree,
     pub die_to_type: BTreeMap<Die<'db>, TypeName>,
     function_declarations: BTreeMap<Offset, SymbolName>,
@@ -88,7 +87,7 @@ struct FileIndexBuilder<'db> {
 }
 
 pub fn get_die_typename<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<&'db TypeName> {
-    let debug_file_index = debug_file_index(db, die.file(db));
+    let debug_file_index = index_debug_file_full(db, die.file(db));
     let res = debug_file_index.data(db).die_to_type.get(&die);
     if res.is_none() {
         let index = debug_file_index
@@ -108,23 +107,6 @@ pub fn get_die_typename<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<&'db Type
 impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
     fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
         if is_rust_cu(walker.db, &die, &unit_ref) {
-            // get all referenced files
-            let files = unit_ref
-                .line_program
-                .as_ref()
-                .map(|lp| {
-                    lp.header()
-                        .file_names()
-                        .iter()
-                        .flat_map(|f| {
-                            file_entry_to_path(f, &unit_ref)
-                                .map(|path| SourceFile::new(walker.db, path))
-                        })
-                        .collect::<BTreeSet<_>>()
-                })
-                .unwrap_or_default();
-            walker.visitor.data.sources.extend(files);
-
             tracing::trace!(
                 "walking cu: {:#010x}",
                 unit_ref.header.offset().as_debug_info_offset().unwrap().0
@@ -187,9 +169,9 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
             .or_default()
             .push(TypeIndexEntry::new(walker.db, die));
         walker.visitor.data.die_to_type.insert(die, name);
-        // walker.visitor.current_path.push(struct_name.clone());
-        // walker.walk_struct();
-        // walker.visitor.current_path.pop();
+        walker.visitor.current_path.push(struct_name.clone());
+        walker.walk_children();
+        walker.visitor.current_path.pop();
     }
 
     fn visit_function<'a>(
@@ -423,7 +405,45 @@ fn visit_type<'a, 'db>(
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
 #[salsa::tracked(returns(ref))]
-pub fn debug_file_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileIndex<'db> {
+pub fn index_debug_file_sources<'db>(
+    db: &'db dyn Db,
+    debug_file: DebugFile,
+) -> BTreeSet<SourceFile<'db>> {
+    let mut sources = BTreeSet::new();
+
+    let roots = super::navigation::get_roots(db, debug_file);
+    for (_unit_offset, unit_ref) in &roots {
+        let mut entries = unit_ref.entries();
+        let Some((_, root)) = entries.next_dfs().ok().flatten() else {
+            continue;
+        };
+        if is_rust_cu(db, root, unit_ref) {
+            // get all referenced files
+            let files = unit_ref
+                .line_program
+                .as_ref()
+                .map(|lp| {
+                    lp.header()
+                        .file_names()
+                        .iter()
+                        .flat_map(|f| {
+                            file_entry_to_path(f, &unit_ref).map(|path| SourceFile::new(db, path))
+                        })
+                        .collect::<BTreeSet<_>>()
+                })
+                .unwrap_or_default();
+            sources.extend(files);
+        }
+    }
+
+    sources
+}
+
+/// Build an index of all types + functions (using fully qualified names
+/// that can be extracted from demangled symbols) to their
+/// corresponding DIE entry in the DWARF information.
+#[salsa::tracked(returns(ref))]
+pub fn index_debug_file_full<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FileIndex<'db> {
     let mut builder = FileIndexBuilder::default();
     tracing::debug!("Indexing file: {}", debug_file.name(db));
     walk_file(db, debug_file, &mut builder);

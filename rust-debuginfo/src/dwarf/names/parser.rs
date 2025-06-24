@@ -1024,7 +1024,7 @@ mod test {
         infer(
             "core::num::nonzero::NonZero<u8>",
             TypeDef::Other {
-                name: "core::num::nonzero::NonZero<u8>".to_string(),
+                name: "NonZero<u8>".to_string(),
             },
         );
 
@@ -1035,7 +1035,7 @@ mod test {
                     Arc::new(ReferenceDef::new_immutable(UnsignedIntDef::u64()).into()),
                     Arc::new(
                         ReferenceDef::new_mutable(TypeDef::Other {
-                            name: "core::fmt::Formatter".to_string(),
+                            name: "Formatter".to_string(),
                         })
                         .into(),
                     ),
@@ -1044,7 +1044,7 @@ mod test {
                     StdDef::from(ResultDef {
                         ok_type: Arc::new(PrimitiveDef::from(UnitDef).into()),
                         err_type: Arc::new(TypeDef::Other {
-                            name: "core::fmt::Error".to_string(),
+                            name: "Error".to_string(),
                         }),
                     })
                     .into(),

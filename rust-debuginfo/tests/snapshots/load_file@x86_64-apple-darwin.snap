@@ -199,7 +199,7 @@ DebugInfo {
         },
     ],
     index: Index {
-        [salsa id]: Id(2400),
+        [salsa id]: Id(1400),
         debug_files: {
             (
                 "/Users/sam/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/x86_64-apple-darwin/lib/liballoc-62326b1a230d9193.rlib",

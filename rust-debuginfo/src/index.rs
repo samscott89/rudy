@@ -36,7 +36,7 @@ impl<'db> Index<'db> {
                 None
             })?
             .clone();
-        let indexed = dwarf::debug_file_index(db, sym.debug_file).data(db);
+        let indexed = dwarf::index_debug_file_full(db, sym.debug_file).data(db);
         indexed
             .functions
             .get(name)
@@ -132,8 +132,8 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     let mut source_file_index: BTreeMap<SourceFile<'_>, Vec<DebugFile>> = Default::default();
 
     for debug_file in &indexed_debug_files {
-        let indexed = dwarf::debug_file_index(db, *debug_file).data(db);
-        for source in indexed.sources.iter() {
+        let sources = dwarf::index_debug_file_sources(db, *debug_file);
+        for source in sources {
             source_file_index
                 .entry(*source)
                 .or_default()
@@ -196,7 +196,7 @@ pub fn find_all_by_address<'db>(
 
 
             let debug_file = s.debug_file;
-            let indexed = dwarf::debug_file_index(db, debug_file).data(db);
+            let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
             let Some(f) = indexed.functions.get(&s.name) else {
                 tracing::warn!(
                     "No function found for symbol {} in debug file {}",
@@ -258,7 +258,7 @@ pub fn resolve_type<'db>(
 
     // Search through all debug files to find the type
     for debug_file in indexed_debug_files {
-        let indexed = dwarf::debug_file_index(db, debug_file).data(db);
+        let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
 
         // Look for types that match the given name
         let entries = indexed

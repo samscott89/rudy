@@ -106,8 +106,11 @@ fn benchmark_rust_debuginfo(
     }
 
     // Warm queries - benefit from caching
-    let warm_start = Instant::now();
     let mut found = 0;
+    for (addr, _name) in test_addresses {
+        let _ = debug_info.address_to_line(*addr);
+    }
+    let warm_start = Instant::now();
     for (addr, _name) in test_addresses {
         if debug_info.address_to_line(*addr).is_some() {
             found += 1;
@@ -258,14 +261,11 @@ fn benchmark_lldb_cli(
         commands.push(format!("image lookup -a {:#x}", addr));
     }
     commands.push("quit".to_string());
-    let batch_commands = commands.join("\n");
 
     // Init only - just create target
     let init_start = Instant::now();
     let _output = Command::new("lldb")
         .arg("-b")
-        .arg("-o")
-        .arg(&commands[0])
         .arg("-o")
         .arg("quit")
         .output()?;
@@ -282,7 +282,7 @@ fn benchmark_lldb_cli(
         .arg("-o")
         .arg("quit")
         .output()?;
-    let cold_start = cold_start_begin.elapsed() - init_only; // Subtract init time
+    let cold_start = cold_start_begin.elapsed().saturating_sub(init_only); // Subtract init time
 
     // Quick validation check
     let output_str = String::from_utf8_lossy(&output.stdout);
@@ -294,17 +294,11 @@ fn benchmark_lldb_cli(
     let warm_start = Instant::now();
     let _output = Command::new("lldb")
         .arg("-b")
-        .arg("-s")
-        .arg("-")
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?
-        .stdin
-        .as_mut()
-        .unwrap()
-        .write_all(batch_commands.as_bytes())?;
-    let warm_queries = warm_start.elapsed();
+        .args(commands.iter().flat_map(|cmd| vec!["-o", cmd.as_str()]))
+        .arg("-o")
+        .arg("quit")
+        .output()?;
+    let warm_queries = warm_start.elapsed().saturating_sub(init_only);
 
     // Memory is harder to measure for CLI
     let memory_mb = 0.0; // Would need to monitor externally
