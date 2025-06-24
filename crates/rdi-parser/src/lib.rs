@@ -4,8 +4,8 @@
 //! for both type parsing (used in DWARF name resolution) and expression parsing
 //! (used in LLDB integration).
 
-pub mod types;
 pub mod expressions;
+pub mod types;
 
-pub use types::{parse_type, parse_symbol, Type, Path, ParsedSymbol};
-pub use expressions::{parse_expression, Expression};
+pub use expressions::{Expression, parse_expression};
+pub use types::{ParsedSymbol, Path, Type, parse_symbol, parse_type};

@@ -1,42 +1,42 @@
 //! Expression parsing for debugger evaluation
 //!
-//! This module provides parsing for Rust-like expressions for use in 
+//! This module provides parsing for Rust-like expressions for use in
 //! debugger evaluation. Supports field access, array indexing, dereferencing,
 //! and other common expression forms.
 
+use anyhow::{Result, anyhow};
 use std::fmt;
-use anyhow::{anyhow, Result};
 
 /// Represents a parsed expression
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     /// Simple variable reference (e.g., `foo`)
     Variable(String),
-    
+
     /// Field access (e.g., `foo.bar`, `self.field`)
     FieldAccess {
         base: Box<Expression>,
         field: String,
     },
-    
+
     /// Array/slice indexing (e.g., `arr[5]`, `slice[idx]`)
     Index {
         base: Box<Expression>,
         index: Box<Expression>,
     },
-    
+
     /// Pointer dereferencing (e.g., `*ptr`, `**ptr_ptr`)
     Deref(Box<Expression>),
-    
+
     /// Address-of operator (e.g., `&var`, `&mut var`)
     AddressOf {
         mutable: bool,
         expr: Box<Expression>,
     },
-    
+
     /// Literal number (e.g., `42`, `0xff`)
     Literal(u64),
-    
+
     /// Parenthesized expression (e.g., `(foo)`)
     Parenthesized(Box<Expression>),
 }
@@ -86,17 +86,17 @@ impl<'a> Tokenizer<'a> {
     fn new(input: &'a str) -> Self {
         Self { input, position: 0 }
     }
-    
+
     fn current_char(&self) -> Option<char> {
         self.input.chars().nth(self.position)
     }
-    
+
     fn advance(&mut self) {
         if self.position < self.input.len() {
             self.position += 1;
         }
     }
-    
+
     fn skip_whitespace(&mut self) {
         while let Some(ch) = self.current_char() {
             if ch.is_whitespace() {
@@ -106,7 +106,7 @@ impl<'a> Tokenizer<'a> {
             }
         }
     }
-    
+
     fn read_identifier(&mut self) -> String {
         let start = self.position;
         while let Some(ch) = self.current_char() {
@@ -118,12 +118,14 @@ impl<'a> Tokenizer<'a> {
         }
         self.input[start..self.position].to_string()
     }
-    
+
     fn read_number(&mut self) -> Result<u64> {
         let start = self.position;
-        
+
         // Check for hex prefix
-        if self.input[self.position..].starts_with("0x") || self.input[self.position..].starts_with("0X") {
+        if self.input[self.position..].starts_with("0x")
+            || self.input[self.position..].starts_with("0X")
+        {
             self.advance(); // skip '0'
             self.advance(); // skip 'x'
             while let Some(ch) = self.current_char() {
@@ -144,13 +146,15 @@ impl<'a> Tokenizer<'a> {
                     break;
                 }
             }
-            self.input[start..self.position].parse().map_err(|e| anyhow!("Invalid number: {}", e))
+            self.input[start..self.position]
+                .parse()
+                .map_err(|e| anyhow!("Invalid number: {}", e))
         }
     }
-    
+
     fn next_token(&mut self) -> Result<Token> {
         self.skip_whitespace();
-        
+
         match self.current_char() {
             None => Ok(Token::Eof),
             Some('.') => {
@@ -208,7 +212,7 @@ impl Parser {
     fn new(input: &str) -> Result<Self> {
         let mut tokenizer = Tokenizer::new(input);
         let mut tokens = Vec::new();
-        
+
         loop {
             let token = tokenizer.next_token()?;
             let is_eof = token == Token::Eof;
@@ -217,37 +221,44 @@ impl Parser {
                 break;
             }
         }
-        
-        Ok(Self { tokens, position: 0 })
+
+        Ok(Self {
+            tokens,
+            position: 0,
+        })
     }
-    
+
     fn current_token(&self) -> &Token {
         self.tokens.get(self.position).unwrap_or(&Token::Eof)
     }
-    
+
     fn advance(&mut self) {
         if self.position < self.tokens.len() {
             self.position += 1;
         }
     }
-    
+
     fn expect(&mut self, expected: Token) -> Result<()> {
         if std::mem::discriminant(self.current_token()) == std::mem::discriminant(&expected) {
             self.advance();
             Ok(())
         } else {
-            Err(anyhow!("Expected {:?}, found {:?}", expected, self.current_token()))
+            Err(anyhow!(
+                "Expected {:?}, found {:?}",
+                expected,
+                self.current_token()
+            ))
         }
     }
-    
+
     pub fn parse(&mut self) -> Result<Expression> {
         self.parse_expression()
     }
-    
+
     fn parse_expression(&mut self) -> Result<Expression> {
         self.parse_unary()
     }
-    
+
     fn parse_unary(&mut self) -> Result<Expression> {
         match self.current_token() {
             Token::Star => {
@@ -270,10 +281,10 @@ impl Parser {
             _ => self.parse_postfix(),
         }
     }
-    
+
     fn parse_postfix(&mut self) -> Result<Expression> {
         let mut expr = self.parse_primary()?;
-        
+
         loop {
             match self.current_token() {
                 Token::Dot => {
@@ -301,10 +312,10 @@ impl Parser {
                 _ => break,
             }
         }
-        
+
         Ok(expr)
     }
-    
+
     fn parse_primary(&mut self) -> Result<Expression> {
         match self.current_token() {
             Token::Identifier(name) => {
@@ -323,7 +334,10 @@ impl Parser {
                 self.expect(Token::RightParen)?;
                 Ok(Expression::Parenthesized(Box::new(expr)))
             }
-            _ => Err(anyhow!("Expected identifier, number, or '(', found {:?}", self.current_token())),
+            _ => Err(anyhow!(
+                "Expected identifier, number, or '(', found {:?}",
+                self.current_token()
+            )),
         }
     }
 }
@@ -356,7 +370,7 @@ mod tests {
     fn test_literal() {
         let expr = parse("42");
         assert_eq!(expr, Expression::Literal(42));
-        
+
         let expr = parse("0xff");
         assert_eq!(expr, Expression::Literal(0xff));
     }
@@ -364,82 +378,105 @@ mod tests {
     #[test]
     fn test_field_access() {
         let expr = parse("foo.bar");
-        assert_eq!(expr, Expression::FieldAccess {
-            base: Box::new(Expression::Variable("foo".to_string())),
-            field: "bar".to_string(),
-        });
+        assert_eq!(
+            expr,
+            Expression::FieldAccess {
+                base: Box::new(Expression::Variable("foo".to_string())),
+                field: "bar".to_string(),
+            }
+        );
     }
 
     #[test]
     fn test_chained_field_access() {
         let expr = parse("foo.bar.baz");
-        assert_eq!(expr, Expression::FieldAccess {
-            base: Box::new(Expression::FieldAccess {
-                base: Box::new(Expression::Variable("foo".to_string())),
-                field: "bar".to_string(),
-            }),
-            field: "baz".to_string(),
-        });
+        assert_eq!(
+            expr,
+            Expression::FieldAccess {
+                base: Box::new(Expression::FieldAccess {
+                    base: Box::new(Expression::Variable("foo".to_string())),
+                    field: "bar".to_string(),
+                }),
+                field: "baz".to_string(),
+            }
+        );
     }
 
     #[test]
     fn test_index_access() {
         let expr = parse("arr[0]");
-        assert_eq!(expr, Expression::Index {
-            base: Box::new(Expression::Variable("arr".to_string())),
-            index: Box::new(Expression::Literal(0)),
-        });
+        assert_eq!(
+            expr,
+            Expression::Index {
+                base: Box::new(Expression::Variable("arr".to_string())),
+                index: Box::new(Expression::Literal(0)),
+            }
+        );
     }
 
     #[test]
     fn test_deref() {
         let expr = parse("*ptr");
-        assert_eq!(expr, Expression::Deref(
-            Box::new(Expression::Variable("ptr".to_string()))
-        ));
+        assert_eq!(
+            expr,
+            Expression::Deref(Box::new(Expression::Variable("ptr".to_string())))
+        );
     }
 
     #[test]
     fn test_address_of() {
         let expr = parse("&var");
-        assert_eq!(expr, Expression::AddressOf {
-            mutable: false,
-            expr: Box::new(Expression::Variable("var".to_string())),
-        });
+        assert_eq!(
+            expr,
+            Expression::AddressOf {
+                mutable: false,
+                expr: Box::new(Expression::Variable("var".to_string())),
+            }
+        );
 
         let expr = parse("&mut var");
-        assert_eq!(expr, Expression::AddressOf {
-            mutable: true,
-            expr: Box::new(Expression::Variable("var".to_string())),
-        });
+        assert_eq!(
+            expr,
+            Expression::AddressOf {
+                mutable: true,
+                expr: Box::new(Expression::Variable("var".to_string())),
+            }
+        );
     }
 
     #[test]
     fn test_parenthesized() {
         let expr = parse("(foo)");
-        assert_eq!(expr, Expression::Parenthesized(
-            Box::new(Expression::Variable("foo".to_string()))
-        ));
+        assert_eq!(
+            expr,
+            Expression::Parenthesized(Box::new(Expression::Variable("foo".to_string())))
+        );
     }
 
     #[test]
     fn test_complex_expressions() {
         // Test field access with indexing: obj.field[0]
         let expr = parse("obj.field[0]");
-        assert_eq!(expr, Expression::Index {
-            base: Box::new(Expression::FieldAccess {
-                base: Box::new(Expression::Variable("obj".to_string())),
-                field: "field".to_string(),
-            }),
-            index: Box::new(Expression::Literal(0)),
-        });
+        assert_eq!(
+            expr,
+            Expression::Index {
+                base: Box::new(Expression::FieldAccess {
+                    base: Box::new(Expression::Variable("obj".to_string())),
+                    field: "field".to_string(),
+                }),
+                index: Box::new(Expression::Literal(0)),
+            }
+        );
 
         // Test dereferencing field access: *obj.ptr
         let expr = parse("*obj.ptr");
-        assert_eq!(expr, Expression::Deref(Box::new(Expression::FieldAccess {
-            base: Box::new(Expression::Variable("obj".to_string())),
-            field: "ptr".to_string(),
-        })));
+        assert_eq!(
+            expr,
+            Expression::Deref(Box::new(Expression::FieldAccess {
+                base: Box::new(Expression::Variable("obj".to_string())),
+                field: "ptr".to_string(),
+            }))
+        );
     }
 
     #[test]

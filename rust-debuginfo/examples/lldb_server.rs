@@ -62,7 +62,7 @@ fn handle_request(state: &mut ServerState, request: Request) -> Response {
                         result: None,
                         error: Some(format!("Invalid params: {}", e)),
                         id: request.id,
-                    }
+                    };
                 }
             };
 
@@ -85,7 +85,7 @@ fn handle_request(state: &mut ServerState, request: Request) -> Response {
                         result: None,
                         error: Some(format!("Failed to load binary: {}", e)),
                         id: request.id,
-                    }
+                    },
                 }
             } else {
                 state.current_binary = Some(params.binary_path.clone());

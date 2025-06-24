@@ -1,5 +1,5 @@
 //! Demo program to test LLDB integration
-//! 
+//!
 //! Compile with: rustc -g examples/lldb_demo.rs -o target/debug/lldb_demo
 
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ impl User {
         let mut metadata = HashMap::new();
         metadata.insert("created".to_string(), "2024-01-01".to_string());
         metadata.insert("role".to_string(), "admin".to_string());
-        
+
         User {
             id,
             name: name.to_string(),
@@ -45,10 +45,10 @@ fn create_session(user: User) -> Session {
 fn main() {
     let user = User::new(42, "Alice Smith", "alice@example.com");
     let session = create_session(user);
-    
+
     // Set a breakpoint here to inspect with LLDB
     println!("Session created: {:?}", session);
-    
+
     // Create some more complex data
     let mut users = Vec::new();
     for i in 0..5 {
@@ -58,6 +58,6 @@ fn main() {
             &format!("user{}@example.com", i),
         ));
     }
-    
+
     println!("Created {} users", users.len());
 }

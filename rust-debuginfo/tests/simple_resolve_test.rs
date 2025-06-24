@@ -11,15 +11,20 @@ fn test_simple_resolve_debug() -> Result<()> {
 
     let db = DebugDb::new();
     let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info = DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
     println!("Starting resolve_type call...");
     let start = std::time::Instant::now();
-    
+
     // Try to resolve a simple type
     match debug_info.resolve_type("u32") {
         Ok(Some(typedef)) => {
-            println!("Found u32 type in {:?}: {}", start.elapsed(), typedef.display_name());
+            println!(
+                "Found u32 type in {:?}: {}",
+                start.elapsed(),
+                typedef.display_name()
+            );
         }
         Ok(None) => {
             println!("u32 type not found in {:?}", start.elapsed());

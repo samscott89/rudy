@@ -32,6 +32,17 @@ pub struct Variable {
     pub ty: Option<Type>,
 }
 
+/// Variable metadata without resolved value - used for expression evaluation.
+#[derive(Debug, Clone)]
+pub struct VariableInfo {
+    /// Variable name
+    pub name: String,
+    /// Memory address where variable is stored (if available)
+    pub address: Option<u64>,
+    /// Full type definition for the variable
+    pub type_def: rust_types::TypeDef,
+}
+
 /// A value read from memory, supporting scalars, arrays, and structs.
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 pub enum Value {

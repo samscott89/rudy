@@ -205,4 +205,3 @@ fn test_generated_benchmarks(#[case] target: &str) {
 }
 
 // TODO: add a test that we correctly resolve inlined functions
-

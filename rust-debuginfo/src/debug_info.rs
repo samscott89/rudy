@@ -276,11 +276,93 @@ impl<'db> DebugInfo<'db> {
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }
 
-    /// Resolves variables visible at a given memory address.
+    /// Gets metadata for a specific variable at a memory address without reading its value.
+    ///
+    /// This method is useful for expression evaluation where you need type information
+    /// and memory addresses without immediately reading the value.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The memory address to inspect
+    /// * `name` - The name of the variable to find
+    /// * `data_resolver` - Interface for reading memory and register values
+    ///
+    /// # Returns
+    ///
+    /// Variable metadata if found, or `None` if the variable is not found
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, DataResolver};
+    /// # struct MyResolver;
+    /// # impl DataResolver for MyResolver {
+    /// #     fn base_address(&self) -> u64 { 0 }
+    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// # }
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let resolver = MyResolver;
+    /// if let Some(var_info) = debug_info.get_variable_at_pc(0x12345, "foo", &resolver).unwrap() {
+    ///     println!("Variable '{}' at address {:?}", var_info.name, var_info.address);
+    /// }
+    /// ```
+    pub fn get_variable_at_pc(
+        &self,
+        address: u64,
+        name: &str,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<Option<crate::VariableInfo>> {
+        let db = self.db;
+        let address = Address::new(db, address);
+        let f = lookup_address(db, self.binary, address);
+        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
+        handle_diagnostics(&diagnostics)?;
+
+        let Some((function_name, _loc)) = f else {
+            tracing::debug!("no function found for address {:#x}", address.address(db));
+            return Ok(None);
+        };
+
+        let index = crate::index::debug_index(db, self.binary);
+        let Some((_, fie)) = index.get_function(db, &function_name) else {
+            tracing::debug!("no function found for {function_name}");
+            return Ok(None);
+        };
+
+        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
+        let vars = dwarf::resolve_function_variables(db, function_die)?;
+        let diagnostics: Vec<&Diagnostic> =
+            dwarf::resolve_function_variables::accumulated(db, function_die);
+        handle_diagnostics(&diagnostics)?;
+
+        let base_addr = crate::index::debug_index(db, self.binary)
+            .symbol_index(db)
+            .get_function(&function_name)
+            .context("Failed to get base address for function")?
+            .address;
+
+        // Check parameters first
+        if let Some(param) = vars.params(db).into_iter().find(|var| var.name(db) == name) {
+            return variable_info(db, fie.declaration_die, base_addr, param, data_resolver)
+                .map(Some);
+        }
+
+        // Then check locals
+        if let Some(local) = vars.locals(db).into_iter().find(|var| var.name(db) == name) {
+            return variable_info(db, fie.declaration_die, base_addr, local, data_resolver)
+                .map(Some);
+        }
+
+        Ok(None)
+    }
+
+    /// Gets metadata for all variables at a memory address without reading their values.
     ///
     /// This method returns three categories of variables:
     /// - Function parameters
-    /// - Local variables
+    /// - Local variables  
     /// - Global variables
     ///
     /// # Arguments
@@ -306,24 +388,27 @@ impl<'db> DebugInfo<'db> {
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
     /// let (params, locals, globals) = debug_info
-    ///     .resolve_variables_at_address(0x12345, &resolver)
+    ///     .get_all_variables_at_pc(0x12345, &resolver)
     ///     .unwrap();
     /// println!("Found {} parameters, {} locals, {} globals",
     ///          params.len(), locals.len(), globals.len());
     /// ```
-    pub fn resolve_variable_at_address(
+    pub fn get_all_variables_at_pc(
         &self,
         address: u64,
-        name: &str,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<Option<crate::Variable>> {
+    ) -> Result<(
+        Vec<crate::VariableInfo>,
+        Vec<crate::VariableInfo>,
+        Vec<crate::VariableInfo>,
+    )> {
         let db = self.db;
         let address = Address::new(db, address);
         let f = lookup_address(db, self.binary, address);
         let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
         handle_diagnostics(&diagnostics)?;
 
-        let Some((function_name, _loc)) = f else {
+        let Some((function_name, loc)) = f else {
             tracing::debug!("no function found for address {:#x}", address.address(db));
             return Ok(Default::default());
         };
@@ -335,7 +420,6 @@ impl<'db> DebugInfo<'db> {
         };
 
         let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
-
         let vars = dwarf::resolve_function_variables(db, function_die)?;
         let diagnostics: Vec<&Diagnostic> =
             dwarf::resolve_function_variables::accumulated(db, function_die);
@@ -347,24 +431,79 @@ impl<'db> DebugInfo<'db> {
             .context("Failed to get base address for function")?
             .address;
 
-        if let Some(param) = vars.params(db).into_iter().find(|var| var.name(db) == name) {
-            return output_variable(db, fie.declaration_die, base_addr, param, data_resolver)
-                .map(Some);
-        }
-        if let Some(param) = vars.locals(db).into_iter().find(|var| var.name(db) == name) {
-            return output_variable(db, fie.declaration_die, base_addr, param, data_resolver)
-                .map(Some);
-        }
+        let params = vars
+            .params(db)
+            .into_iter()
+            .map(|param| variable_info(db, fie.declaration_die, base_addr, param, data_resolver))
+            .collect::<Result<Vec<_>>>()?;
 
-        Ok(None)
+        let locals = vars
+            .locals(db)
+            .into_iter()
+            .filter(|var| {
+                // for local variables, we want to make sure the variable
+                // is defined before the current location
+                loc.line(db) > var.line(db)
+            })
+            .map(|local| variable_info(db, fie.declaration_die, base_addr, local, data_resolver))
+            .collect::<Result<Vec<_>>>()?;
+
+        // TODO: handle globals
+        Ok((params, locals, vec![]))
     }
 
-    /// Resolves variables visible at a given memory address.
+    /// Reads and formats a variable's value from its metadata.
     ///
-    /// This method returns three categories of variables:
-    /// - Function parameters
-    /// - Local variables
-    /// - Global variables
+    /// This method takes variable metadata (from `get_variable_at_pc` or `get_all_variables_at_pc`)
+    /// and reads the actual value from memory, formatting it for display.
+    ///
+    /// # Arguments
+    ///
+    /// * `var_info` - Variable metadata containing address and type information
+    /// * `data_resolver` - Interface for reading memory and register values
+    ///
+    /// # Returns
+    ///
+    /// The formatted variable value
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, DataResolver};
+    /// # struct MyResolver;
+    /// # impl DataResolver for MyResolver {
+    /// #     fn base_address(&self) -> u64 { 0 }
+    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// # }
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let resolver = MyResolver;
+    /// if let Some(var_info) = debug_info.get_variable_at_pc(0x12345, "foo", &resolver).unwrap() {
+    ///     let value = debug_info.read_variable(&var_info, &resolver).unwrap();
+    ///     println!("Variable value: {:?}", value);
+    /// }
+    /// ```
+    pub fn read_variable(
+        &self,
+        var_info: &crate::VariableInfo,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<crate::Value> {
+        if let Some(address) = var_info.address {
+            crate::data::read_from_memory(self.db, address, &var_info.type_def, data_resolver)
+        } else {
+            // Variable doesn't have a memory location (e.g., optimized out)
+            Err(anyhow::anyhow!(
+                "Variable '{}' has no memory location",
+                var_info.name
+            ))
+        }
+    }
+
+    /// Resolves variables visible at a given memory address (legacy method).
+    ///
+    /// This method combines `get_all_variables_at_pc` and `read_variable` for convenience.
+    /// For better performance or more control, prefer using the separate methods.
     ///
     /// # Arguments
     ///
@@ -403,58 +542,66 @@ impl<'db> DebugInfo<'db> {
         Vec<crate::Variable>,
         Vec<crate::Variable>,
     )> {
-        let db = self.db;
-        let address = Address::new(db, address);
-        let f = lookup_address(db, self.binary, address);
-        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
-        handle_diagnostics(&diagnostics)?;
+        // Use the new interface internally
+        let (param_infos, local_infos, global_infos) =
+            self.get_all_variables_at_pc(address, data_resolver)?;
 
-        let Some((function_name, loc)) = f else {
-            tracing::debug!("no function found for address {:#x}", address.address(db));
-            return Ok(Default::default());
-        };
-
-        let index = crate::index::debug_index(db, self.binary);
-        let Some((_, fie)) = index.get_function(db, &function_name) else {
-            tracing::debug!("no function found for {function_name}");
-            return Ok(Default::default());
-        };
-
-        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
-
-        let vars = dwarf::resolve_function_variables(db, function_die)?;
-        let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(db, function_die);
-        handle_diagnostics(&diagnostics)?;
-
-        let base_addr = crate::index::debug_index(db, self.binary)
-            .symbol_index(db)
-            .get_function(&function_name)
-            .context("Failed to get base address for function")?
-            .address;
-
-        let params = vars
-            .params(db)
+        // Convert to Variables by reading values
+        let params = param_infos
             .into_iter()
-            .map(|param| output_variable(db, fie.declaration_die, base_addr, param, data_resolver))
-            .collect::<Result<Vec<_>>>()?;
-        let locals = vars
-            .locals(db)
-            .into_iter()
-            .filter(|var| {
-                // for local variables, we want to make sure the variable
-                // is defined before the current location
-                loc.line(db) > var.line(db)
+            .map(|info| {
+                let value = if info.address.is_some() {
+                    self.read_variable(&info, data_resolver).ok()
+                } else {
+                    None
+                };
+                crate::Variable {
+                    name: info.name,
+                    ty: Some(crate::Type {
+                        name: info.type_def.display_name(),
+                    }),
+                    value,
+                }
             })
-            .map(|param| output_variable(db, fie.declaration_die, base_addr, param, data_resolver))
-            .collect::<Result<Vec<_>>>()?;
-        // TODO: handle globals
-        // let globals = vars
-        //     .globals(self.db)
-        //     .into_iter()
-        //     .map(|(var, address)| output_global_variable(self.db, var, address, data_resolver))
-        //     .collect::<Result<Vec<_>>>()?;
-        Ok((params, locals, vec![]))
+            .collect();
+
+        let locals = local_infos
+            .into_iter()
+            .map(|info| {
+                let value = if info.address.is_some() {
+                    self.read_variable(&info, data_resolver).ok()
+                } else {
+                    None
+                };
+                crate::Variable {
+                    name: info.name,
+                    ty: Some(crate::Type {
+                        name: info.type_def.display_name(),
+                    }),
+                    value,
+                }
+            })
+            .collect();
+
+        let globals = global_infos
+            .into_iter()
+            .map(|info| {
+                let value = if info.address.is_some() {
+                    self.read_variable(&info, data_resolver).ok()
+                } else {
+                    None
+                };
+                crate::Variable {
+                    name: info.name,
+                    ty: Some(crate::Type {
+                        name: info.type_def.display_name(),
+                    }),
+                    value,
+                }
+            })
+            .collect();
+
+        Ok((params, locals, globals))
     }
 
     /// Resolve a type by name in the debug information
@@ -547,6 +694,28 @@ fn output_variable<'db>(
             name: ty.display_name(),
         }),
         value,
+    })
+}
+
+fn variable_info<'db>(
+    db: &'db dyn Db,
+    function: Die<'db>,
+    base_address: u64,
+    var: dwarf::Variable<'db>,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<crate::VariableInfo> {
+    let die = var.origin(db);
+    let location = dwarf::resolve_data_location(db, function, base_address, die, data_resolver)?;
+
+    // before resolving the value, we'll need to full resolve the type
+    let ty = crate::dwarf::fully_resolve_type(db, die.file(db), var.ty(db))?;
+
+    tracing::debug!("variable info: {} at {:?}", var.name(db), location);
+
+    Ok(crate::VariableInfo {
+        name: var.name(db).to_string(),
+        address: location,
+        type_def: ty,
     })
 }
 
