@@ -127,6 +127,15 @@ impl<'db> Die<'db> {
             },
         }
     }
+
+    pub fn location(&self, db: &'db dyn Db) -> String {
+        format!(
+            "{} {:#010x}",
+            self.file(db).file(db).path(db),
+            self.die_offset(db).0,
+        )
+    }
+
     pub fn format_with_location<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
         format!(
             "{} for {} {:#010x}",
@@ -160,6 +169,14 @@ impl<'db> Die<'db> {
             .into_iter()
             .find(|child| child.name(db).map_or(false, |n| n == name))
             .with_context(|| format!("Failed to find member `{name}`"))
+            .as_die_result(db, self)
+    }
+
+    pub fn get_member_by_tag(&self, db: &'db dyn Db, tag: gimli::DwTag) -> Result<Die<'db>> {
+        self.children(db)?
+            .into_iter()
+            .find(|child| child.tag(db) == tag)
+            .with_context(|| format!("Failed to find member with tag `{tag:?}`"))
             .as_die_result(db, self)
     }
 

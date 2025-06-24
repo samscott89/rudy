@@ -3,6 +3,7 @@
 use std::mem::size_of;
 use std::sync::Arc;
 
+use itertools::Itertools;
 use salsa::Update;
 
 /// Reference to a type in DWARF debug information
@@ -44,13 +45,12 @@ impl TypeDef {
                     format!("&str",)
                 }
                 PrimitiveDef::Tuple(tuple_def) => {
-                    let element_types = tuple_def
-                        .element_types
+                    let elements = tuple_def
+                        .elements
                         .iter()
-                        .map(|element| element.display_name())
-                        .collect::<Vec<_>>()
+                        .map(|(_, element)| element.display_name())
                         .join(", ");
-                    format!("({})", element_types)
+                    format!("({})", elements)
                 }
                 PrimitiveDef::Unit(_) => "()".to_string(),
                 PrimitiveDef::UnsignedInt(unsigned_int_def) => unsigned_int_def.display_name(),
@@ -447,13 +447,13 @@ impl PrimitiveDef {
             }
 
             (PrimitiveDef::Tuple(l), PrimitiveDef::Tuple(r)) => {
-                if l.element_types.len() != r.element_types.len() {
+                if l.elements.len() != r.elements.len() {
                     return false;
                 }
-                l.element_types
+                l.elements
                     .iter()
-                    .zip(r.element_types.iter())
-                    .all(|(l, r)| l.matching_type(r))
+                    .zip(r.elements.iter())
+                    .all(|((_, l), (_, r))| l.matching_type(r))
             }
             _ => false,
         }
@@ -472,7 +472,7 @@ pub struct FloatDef {
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct FunctionDef {
-    pub return_type: Option<Arc<TypeDef>>,
+    pub return_type: Arc<TypeDef>,
     pub arg_types: Vec<Arc<TypeDef>>,
 }
 
@@ -484,11 +484,16 @@ impl FunctionDef {
             .map(|arg| arg.display_name())
             .collect::<Vec<_>>()
             .join(", ");
-        if let Some(return_type) = &self.return_type {
-            format!("fn({}) -> {}", arg_types, return_type.display_name())
-        } else {
-            format!("fn({})", arg_types)
+
+        let mut signature = format!("fn({arg_types})");
+
+        if !matches!(
+            self.return_type.as_ref(),
+            &TypeDef::Primitive(PrimitiveDef::Unit(_))
+        ) {
+            signature += format!(" -> {}", self.return_type.display_name()).as_str();
         }
+        signature
     }
 }
 
@@ -534,8 +539,8 @@ pub struct StrSliceDef {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct TupleDef {
-    pub element_types: Vec<Arc<TypeDef>>,
-    pub alignment: usize,
+    /// List of elements + offsets to their data
+    pub elements: Vec<(usize, Arc<TypeDef>)>,
     pub size: usize,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -745,42 +750,27 @@ pub struct StructField {
     pub offset: usize,
     pub ty: Arc<TypeDef>,
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub enum Discriminant {
+    Int(IntDef),
+    UnsignedInt(UnsignedIntDef),
+    Implicit,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumDef {
     pub name: String,
-    pub repr: EnumRepr,
+    pub discriminant: Discriminant,
     pub variants: Vec<EnumVariant>,
     pub size: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum EnumRepr {
-    C,
-    Rust,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum EnumVariant {
-    Unit(EnumUnitVariant),
-    Tuple(EnumTupleVariant),
-    Struct(EnumStructVariant),
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumUnitVariant {
+pub struct EnumVariant {
     pub name: String,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumTupleVariant {
-    pub name: String,
-    pub fields: Vec<StructField>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumStructVariant {
-    pub name: String,
-    pub fields: Vec<StructField>,
+    pub discriminant: u64,
+    pub layout: Arc<TypeDef>,
 }
 
 // Helper functions for common patterns

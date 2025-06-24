@@ -815,7 +815,12 @@ impl<'db> DebugInfo<'db> {
                     ));
                 }
 
-                let element_size = get_type_size(&slice_def.element_type)?;
+                let element_size = slice_def.element_type.size().with_context(|| {
+                    format!(
+                        "Failed to get size for slice element type '{}'",
+                        slice_def.element_type.display_name()
+                    )
+                })? as u64;
                 let element_address = data_ptr + (index * element_size);
 
                 Ok(crate::VariableInfo {
@@ -839,7 +844,12 @@ impl<'db> DebugInfo<'db> {
                             ));
                         }
 
-                        let element_size = get_type_size(&vec_def.inner_type)?;
+                        let element_size = vec_def.inner_type.size().with_context(|| {
+                            format!(
+                                "Failed to get size for Vec element type '{}'",
+                                vec_def.inner_type.display_name()
+                            )
+                        })? as u64;
                         let element_address = data_ptr + (index * element_size);
 
                         Ok(crate::VariableInfo {
@@ -942,6 +952,241 @@ impl<'db> DebugInfo<'db> {
             )),
         }
     }
+
+    /// Discover actual methods for a type from DWARF debug information
+    ///
+    /// This searches through all functions in the debug info to find methods
+    /// that operate on the given type (functions with &self, &mut self, or self parameters).
+    ///
+    /// # Arguments
+    ///
+    /// * `target_type` - The type to find methods for
+    ///
+    /// # Returns
+    ///
+    /// A list of discovered methods with their signatures
+    pub fn discover_methods_for_type(
+        &self,
+        target_type: &rust_types::TypeDef,
+    ) -> Result<Vec<DiscoveredMethod>> {
+        let index = crate::index::debug_index(self.db, self.binary);
+        let symbol_index = index.symbol_index(self.db);
+        let mut discovered_methods = Vec::new();
+
+        // Iterate through all functions that have symbols in the binary
+        for symbol in symbol_index.functions.values().flat_map(|map| map.values()) {
+            // Check if this function exists in DWARF debug info
+            if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
+                // Get the function's DIE (prefer specification over declaration)
+                let function_die = function_entry
+                    .specification_die
+                    .unwrap_or(function_entry.declaration_die);
+
+                // Resolve function variables to get parameters
+                if let Ok(variables) =
+                    crate::dwarf::resolve_function_variables(self.db, function_die)
+                {
+                    let parameters = variables.params(self.db);
+
+                    // Check if this is a method for our target type
+                    if let Some(method) = self.analyze_function_as_method(
+                        target_type,
+                        &symbol.name.to_string(),
+                        parameters,
+                        symbol,
+                        debug_file,
+                    )? {
+                        discovered_methods.push(method);
+                    }
+                }
+            }
+        }
+
+        Ok(discovered_methods)
+    }
+
+    /// Discover all methods in the binary and organize them by type
+    ///
+    /// This provides a comprehensive view of all available methods across all types.
+    ///
+    /// # Returns
+    ///
+    /// A map from type names to their discovered methods
+    pub fn discover_all_methods(
+        &self,
+    ) -> Result<std::collections::HashMap<String, Vec<DiscoveredMethod>>> {
+        let index = crate::index::debug_index(self.db, self.binary);
+        let symbol_index = index.symbol_index(self.db);
+        let mut methods_by_type = std::collections::HashMap::new();
+
+        // Iterate through all functions that have symbols in the binary
+        for symbol in symbol_index.functions.values().flat_map(|map| map.values()) {
+            // Check if this function exists in DWARF debug info
+            if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
+                // Get the function's DIE (prefer specification over declaration)
+                let function_die = function_entry
+                    .specification_die
+                    .unwrap_or(function_entry.declaration_die);
+
+                // Resolve function variables to get parameters
+                if let Ok(variables) =
+                    crate::dwarf::resolve_function_variables(self.db, function_die)
+                {
+                    let parameters = variables.params(self.db);
+
+                    // Check if this is a method (has self parameter)
+                    if let Some((self_type, method)) = self.analyze_function_for_any_method(
+                        &symbol.name.to_string(),
+                        parameters,
+                        symbol,
+                        debug_file,
+                    )? {
+                        let type_name = self_type.display_name();
+                        methods_by_type
+                            .entry(type_name)
+                            .or_insert_with(Vec::new)
+                            .push(method);
+                    }
+                }
+            }
+        }
+
+        Ok(methods_by_type)
+    }
+
+    /// Analyze a function to see if it's a method for the target type
+    fn analyze_function_as_method(
+        &self,
+        target_type: &rust_types::TypeDef,
+        function_name: &str,
+        parameters: Vec<crate::dwarf::Variable>,
+        symbol: &crate::index::symbols::Symbol,
+        debug_file: crate::file::DebugFile,
+    ) -> Result<Option<DiscoveredMethod>> {
+        // Must have at least one parameter to be a method
+        if parameters.is_empty() {
+            return Ok(None);
+        }
+
+        // Get the first parameter (potential self parameter)
+        let first_param = &parameters[0];
+        let first_param_name = first_param.name(self.db);
+
+        // Check if first parameter is self-like
+        if !matches!(first_param_name.as_str(), "self" | "&self" | "&mut self") {
+            return Ok(None);
+        }
+
+        // Resolve the first parameter's type
+        let param_type = first_param.ty(self.db);
+        let resolved_param_type =
+            crate::dwarf::fully_resolve_type(self.db, debug_file, param_type)?;
+
+        // Check if the parameter type matches our target type
+        if !target_type.matching_type(&resolved_param_type) {
+            return Ok(None);
+        }
+
+        // Extract method name from full function name
+        let method_name = self.extract_method_name(function_name);
+
+        // Build method signature
+        let signature = self.build_method_signature(function_name, &parameters)?;
+
+        Ok(Some(DiscoveredMethod {
+            name: method_name,
+            full_name: function_name.to_string(),
+            signature,
+            address: symbol.address,
+            self_type: SelfType::from_param_name(first_param_name.as_str()),
+            parameter_count: parameters.len(),
+            callable: true, // Has symbol, so it's callable
+        }))
+    }
+
+    /// Analyze a function to see if it's a method for any type
+    fn analyze_function_for_any_method(
+        &self,
+        function_name: &str,
+        parameters: Vec<crate::dwarf::Variable>,
+        symbol: &crate::index::symbols::Symbol,
+        debug_file: crate::file::DebugFile,
+    ) -> Result<Option<(rust_types::TypeDef, DiscoveredMethod)>> {
+        // Must have at least one parameter to be a method
+        if parameters.is_empty() {
+            return Ok(None);
+        }
+
+        // Get the first parameter (potential self parameter)
+        let first_param = &parameters[0];
+        let first_param_name = first_param.name(self.db);
+
+        // Check if first parameter is self-like
+        if !matches!(first_param_name.as_str(), "self" | "&self" | "&mut self") {
+            return Ok(None);
+        }
+
+        // Resolve the first parameter's type
+        let param_type = first_param.ty(self.db);
+        let resolved_param_type =
+            crate::dwarf::fully_resolve_type(self.db, debug_file, param_type)?;
+
+        // Extract method name from full function name
+        let method_name = self.extract_method_name(function_name);
+
+        // Build method signature
+        let signature = self.build_method_signature(function_name, &parameters)?;
+
+        let method = DiscoveredMethod {
+            name: method_name,
+            full_name: function_name.to_string(),
+            signature,
+            address: symbol.address,
+            self_type: SelfType::from_param_name(first_param_name.as_str()),
+            parameter_count: parameters.len(),
+            callable: true, // Has symbol, so it's callable
+        };
+
+        Ok(Some((resolved_param_type, method)))
+    }
+
+    /// Extract the method name from a full function name
+    /// e.g., "std::vec::Vec<T>::len" -> "len"
+    fn extract_method_name(&self, full_name: &str) -> String {
+        full_name
+            .split("::")
+            .last()
+            .unwrap_or(full_name)
+            .to_string()
+    }
+
+    /// Build a method signature from function name and parameters
+    fn build_method_signature(
+        &self,
+        _function_name: &str,
+        parameters: &[crate::dwarf::Variable],
+    ) -> Result<String> {
+        let mut signature = String::from("fn(");
+
+        for (i, param) in parameters.iter().enumerate() {
+            if i > 0 {
+                signature.push_str(", ");
+            }
+
+            let param_name = param.name(self.db);
+            let param_type = param.ty(self.db);
+
+            signature.push_str(&format!("{}: {}", param_name, param_type.display_name()));
+        }
+
+        signature.push(')');
+
+        // TODO: Extract return type from function debug info
+        // For now, just indicate unknown return type
+        signature.push_str(" -> ?");
+
+        Ok(signature)
+    }
 }
 
 fn output_variable<'db>(
@@ -993,56 +1238,6 @@ fn variable_info<'db>(
         address: location,
         type_def: Arc::new(ty),
     })
-}
-
-/// Calculate the size in bytes of a type
-fn get_type_size(type_def: &rust_types::TypeDef) -> Result<u64> {
-    use rust_types::{PrimitiveDef, TypeDef};
-    match type_def {
-        TypeDef::Primitive(prim) => {
-            Ok(match prim {
-                PrimitiveDef::UnsignedInt(uint_def) => uint_def.size as u64,
-                PrimitiveDef::Int(int_def) => int_def.size as u64,
-                PrimitiveDef::Bool(_) => 1, // bool is 1 byte
-                PrimitiveDef::Float(float_def) => float_def.size as u64,
-                PrimitiveDef::Char(_) => 4, // char is 4 bytes in Rust
-                PrimitiveDef::Pointer(_) | PrimitiveDef::Reference(_) => 8, // Assume 64-bit pointers
-                PrimitiveDef::Array(array_def) => {
-                    let element_size = get_type_size(&array_def.element_type)?;
-                    element_size * array_def.length as u64
-                }
-                PrimitiveDef::Slice(_) => 16, // Fat pointer: ptr + len (8 + 8 = 16 bytes)
-                PrimitiveDef::Str(_) => 0,    // str is unsized
-                PrimitiveDef::StrSlice(_) => 16, // &str is fat pointer: ptr + len
-                PrimitiveDef::Tuple(tuple_def) => {
-                    // Calculate total size of all tuple elements
-                    let mut total_size = 0;
-                    for element in &tuple_def.element_types {
-                        total_size += get_type_size(element)?;
-                    }
-                    total_size
-                }
-                PrimitiveDef::Unit(_) => 0,     // () has zero size
-                PrimitiveDef::Never(_) => 0,    // ! has zero size
-                PrimitiveDef::Function(_) => 8, // Function pointers are 8 bytes
-            })
-        }
-        TypeDef::Struct(struct_def) => Ok(struct_def.size as u64),
-        TypeDef::Enum(enum_def) => Ok(enum_def.size as u64),
-        TypeDef::Std(std_def) => {
-            use rust_types::StdDef;
-            match std_def {
-                StdDef::Vec(_) => Ok(24), // Vec has ptr + capacity + len (8 + 8 + 8 = 24 bytes)
-                StdDef::String(_) => Ok(24), // String is Vec<u8> internally
-                StdDef::Option(_) => Ok(type_def.size().unwrap_or(0) as u64),
-                StdDef::Result(_) => Ok(type_def.size().unwrap_or(0) as u64),
-                StdDef::Map(_) => Ok(type_def.size().unwrap_or(0) as u64),
-                StdDef::SmartPtr(_) => Ok(8), // Box, Rc, Arc are pointer-sized
-            }
-        }
-        TypeDef::Alias(_) => Err(anyhow::anyhow!("Cannot determine size of aliased type")),
-        TypeDef::Other { .. } => Err(anyhow::anyhow!("Cannot determine size of unknown type")),
-    }
 }
 
 /// Extract pointer and length from a slice Value
@@ -1138,4 +1333,45 @@ fn output_global_variable<'db>(
         }),
         value,
     })
+}
+
+/// Information about a method discovered from debug information
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DiscoveredMethod {
+    /// Short method name (e.g., "len")
+    pub name: String,
+    /// Full qualified function name (e.g., "std::vec::Vec<T>::len")
+    pub full_name: String,
+    /// Method signature
+    pub signature: String,
+    /// Address in binary where method is located
+    pub address: u64,
+    /// Type of self parameter
+    pub self_type: SelfType,
+    /// Number of parameters including self
+    pub parameter_count: usize,
+    /// Whether this method can be called (has symbol)
+    pub callable: bool,
+}
+
+/// Type of self parameter in a method
+#[derive(Debug, Clone, Copy, serde::Serialize, PartialEq, Eq)]
+pub enum SelfType {
+    /// `self` - takes ownership
+    Owned,
+    /// `&self` - immutable reference
+    Borrowed,
+    /// `&mut self` - mutable reference
+    BorrowedMut,
+}
+
+impl SelfType {
+    fn from_param_name(param_name: &str) -> Self {
+        match param_name {
+            "self" => SelfType::Owned,
+            "&self" => SelfType::Borrowed,
+            "&mut self" => SelfType::BorrowedMut,
+            _ => SelfType::Borrowed, // fallback
+        }
+    }
 }

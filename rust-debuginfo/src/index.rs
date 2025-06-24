@@ -12,7 +12,7 @@ use crate::dwarf::{self, FunctionIndexEntry, SymbolName, TypeName};
 use crate::file::{Binary, DebugFile, SourceFile};
 use crate::index::symbols::{DebugFiles, SymbolIndex};
 
-mod symbols;
+pub mod symbols;
 
 #[salsa::tracked(debug)]
 pub struct Index<'db> {

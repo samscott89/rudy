@@ -1,16 +1,17 @@
 //! Type resolution from DWARF debugging information
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::file::DebugFile;
+use crate::{database::Db, index::resolve_type};
 use rust_types::{
-    ArrayDef, EnumDef, EnumStructVariant, EnumTupleVariant, EnumUnitVariant, EnumVariant,
-    FunctionDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef,
-    SliceDef, SmartPtrDef, SmartPtrVariant, StdDef, StrSliceDef, StringDef, StructDef, StructField,
-    TupleDef, TypeDef, TypeRef, VecDef,
+    ArrayDef, Discriminant, EnumDef, EnumVariant, FunctionDef, MapDef, MapVariant, OptionDef,
+    PointerDef, PrimitiveDef, ReferenceDef, ResultDef, SliceDef, SmartPtrDef, SmartPtrVariant,
+    StdDef, StrSliceDef, StringDef, StructDef, StructField, TupleDef, TypeDef, TypeRef, UnitDef,
+    VecDef,
 };
 
 use anyhow::Context;
@@ -211,15 +212,25 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
         _ => {
             todo!(
                 "Map variant `{variant:?}` not yet implemented: {}",
-                entry.format_with_location(db, "")
+                entry.location(db)
             )
         }
     }
 }
 
 /// Resolve Result type layout from DWARF
-fn resolve_result_type<'db>(_db: &'db dyn Db, _entry: Die<'db>) -> Result<ResultDef> {
-    todo!()
+fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<ResultDef> {
+    let enum_def = resolve_enum_type(db, entry).context("Failed to resolve Result type")?;
+    if enum_def.variants.len() != 2 {
+        return Err(entry
+            .format_with_location(db, "Result type must have exactly 2 variants")
+            .into());
+    }
+
+    Ok(ResultDef {
+        ok_type: enum_def.variants[0].layout.clone(),
+        err_type: enum_def.variants[1].layout.clone(),
+    })
 }
 
 /// Resolve smart pointer type layout from DWARF
@@ -236,7 +247,9 @@ fn resolve_smart_ptr_type<'db>(
         SmartPtrVariant::Arc
         | SmartPtrVariant::Rc
         | SmartPtrVariant::Mutex
-        | SmartPtrVariant::RefCell => {
+        | SmartPtrVariant::Cell
+        | SmartPtrVariant::RefCell
+        | SmartPtrVariant::UnsafeCell => {
             let type_entry = entry
                 .get_generic_type_entry(db, "T")
                 .context("could not find inner type")?;
@@ -257,13 +270,13 @@ fn resolve_smart_ptr_type<'db>(
     let (inner_ptr_offset, data_ptr_offset) = match variant {
         SmartPtrVariant::Box => (0, 0), // Box has no offset, it's just a pointer
 
-        SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {
+        SmartPtrVariant::Mutex | SmartPtrVariant::RefCell | SmartPtrVariant::Cell => {
             // Mutex.data -> UnsafeCell<T>
             let mut inner_offset = 0;
 
             let inner_name = match variant {
                 SmartPtrVariant::Mutex => "data",
-                SmartPtrVariant::RefCell => "value",
+                SmartPtrVariant::RefCell | SmartPtrVariant::Cell => "value",
                 _ => unreachable!(),
             };
 
@@ -275,6 +288,15 @@ fn resolve_smart_ptr_type<'db>(
 
             // UnsafeCell.value -> T
             inner_offset += unsafe_cell_entry
+                .get_udata_member_attribute(db, "value", gimli::DW_AT_data_member_location)
+                .context("UnsafeCell value offset is not a valid udata")?;
+
+            (inner_offset, 0)
+        }
+
+        SmartPtrVariant::UnsafeCell => {
+            // UnsafeCell.value -> T
+            let inner_offset = entry
                 .get_udata_member_attribute(db, "value", gimli::DW_AT_data_member_location)
                 .context("UnsafeCell value offset is not a valid udata")?;
 
@@ -389,9 +411,7 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
             }
             gimli::DW_TAG_structure_type => {
                 // the type definitions
-                let Ok(name) = child.name(db) else {
-                    continue;
-                };
+                let name = child.name(db)?;
                 if name == "Some" {
                     // the struct type for the `Some` variant
                     let member_type = child.get_generic_type_entry(db, "T")?;
@@ -423,28 +443,29 @@ fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDe
         .into())
 }
 
-fn resolve_str_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    let data_ptr_offset = entry
-        .get_udata_member_attribute(db, "data_ptr", gimli::DW_AT_data_member_location)
-        .context("could not find data_ptr")?;
+fn resolve_tuple_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TupleDef> {
+    let mut elements = Vec::new();
+    let size = entry
+        .udata_attr(db, gimli::DW_AT_byte_size)
+        .context("could not get size for tuple type")?;
 
-    let length_offset = entry
-        .get_udata_member_attribute(db, "length", gimli::DW_AT_data_member_location)
-        .context("could not find length")?;
+    for child in entry.children(db)? {
+        let offset = child
+            .udata_attr(db, gimli::DW_AT_data_member_location)
+            .context("could not get data member location for tuple element")?;
+        let ty = resolve_entry_type(db, child)?;
+        elements.push((offset, Arc::new(ty)));
+    }
 
-    Ok(TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
-        data_ptr_offset,
-        length_offset,
-        size: 0, // TODO: remove?
-    })))
+    Ok(TupleDef { elements, size })
 }
 
-fn resolve_as_primitive_type<'db>(
+fn resolve_primitive_type<'db>(
     db: &'db dyn Db,
     entry: Die<'db>,
-    primitive_def: &PrimitiveDef,
-) -> Result<Option<TypeDef>> {
-    match primitive_def {
+    def: &PrimitiveDef,
+) -> Result<PrimitiveDef> {
+    let def = match def {
         // these "scalar" types are already fully resolved
         PrimitiveDef::Int(_)
         | PrimitiveDef::Bool(_)
@@ -453,37 +474,59 @@ fn resolve_as_primitive_type<'db>(
         | PrimitiveDef::Never(_)
         | PrimitiveDef::Str(_)
         | PrimitiveDef::UnsignedInt(_)
-        | PrimitiveDef::Unit(_) => Ok(Some(TypeDef::Primitive(primitive_def.clone()))),
+        | PrimitiveDef::Unit(_) => def.clone(),
 
         // these types need to be resolved further
-        PrimitiveDef::StrSlice(_) => resolve_str_type(db, entry).map(Some),
-        PrimitiveDef::Array(_array_def) => todo!(
-            "array def at:\n\n{}",
-            entry.format_with_location(db, entry.print(db))
-        ),
-        PrimitiveDef::Function(_function_def) => {
-            todo!(
-                "function def at:\n\n{}",
-                entry.format_with_location(db, entry.print(db))
-            )
+        PrimitiveDef::StrSlice(_) => {
+            let data_ptr_offset = entry
+                .get_udata_member_attribute(db, "data_ptr", gimli::DW_AT_data_member_location)
+                .context("could not find data_ptr")?;
+
+            let length_offset = entry
+                .get_udata_member_attribute(db, "length", gimli::DW_AT_data_member_location)
+                .context("could not find length")?;
+
+            PrimitiveDef::StrSlice(StrSliceDef {
+                data_ptr_offset,
+                length_offset,
+                size: 0, // TODO: remove?
+            })
+        }
+        PrimitiveDef::Array(array_def) => {
+            let inner = resolve_entry_type(db, entry)?;
+            PrimitiveDef::Array(ArrayDef {
+                element_type: Arc::new(inner),
+                length: array_def.length,
+            })
+        }
+        PrimitiveDef::Function(_) => {
+            // to resolve a function, type, we need to get the return type and argument types
+            let return_type = Arc::new(resolve_entry_type(db, entry)?);
+            let arg_types = entry
+                .children(db)?
+                .into_iter()
+                .filter(|c| c.tag(db) == gimli::DW_TAG_formal_parameter)
+                .map(|c| resolve_entry_type(db, c).map(Arc::new))
+                .collect::<Result<Vec<_>>>()?;
+
+            PrimitiveDef::Function(FunctionDef {
+                return_type,
+                arg_types,
+            })
         }
         PrimitiveDef::Pointer(pointer_def) => {
             let inner = resolve_entry_type(db, entry)?;
-            Ok(Some(TypeDef::Primitive(PrimitiveDef::Pointer(
-                PointerDef {
-                    mutable: pointer_def.mutable,
-                    pointed_type: Arc::new(inner),
-                },
-            ))))
+            PrimitiveDef::Pointer(PointerDef {
+                mutable: pointer_def.mutable,
+                pointed_type: Arc::new(inner),
+            })
         }
         PrimitiveDef::Reference(reference_def) => {
             let inner = resolve_entry_type(db, entry)?;
-            Ok(Some(TypeDef::Primitive(PrimitiveDef::Reference(
-                ReferenceDef {
-                    mutable: reference_def.mutable,
-                    pointed_type: Arc::new(inner),
-                },
-            ))))
+            PrimitiveDef::Reference(ReferenceDef {
+                mutable: reference_def.mutable,
+                pointed_type: Arc::new(inner),
+            })
         }
         PrimitiveDef::Slice(_slice_def) => {
             todo!(
@@ -491,13 +534,10 @@ fn resolve_as_primitive_type<'db>(
                 entry.format_with_location(db, entry.print(db))
             )
         }
-        PrimitiveDef::Tuple(_tuple_def) => {
-            todo!(
-                "tuple def at:\n\n{}",
-                entry.format_with_location(db, entry.print(db))
-            )
-        }
-    }
+        PrimitiveDef::Tuple(_) => PrimitiveDef::Tuple(resolve_tuple_type(db, entry)?),
+    };
+
+    Ok(def)
 }
 
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
@@ -524,7 +564,9 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
     tracing::info!("resolve_as_builtin_type: typedef: {:?}", typename.typedef);
 
     match &typename.typedef {
-        TypeDef::Primitive(primitive_def) => resolve_as_primitive_type(db, entry, primitive_def),
+        TypeDef::Primitive(primitive_def) => {
+            resolve_primitive_type(db, entry, primitive_def).map(|p| Some(TypeDef::Primitive(p)))
+        }
         TypeDef::Std(std_def) => {
             // For std types, we need to do additional resolution based on DWARF
             // to get layout information, but we can use the parsed generic types
@@ -600,6 +642,111 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
     )
 }
 
+fn resolve_enum_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
+    // general idea of resolving an enum type:
+    // 1. get the name of the enum
+    // 2. we have one child which is the variant part
+    //    which contains the discriminant and the variants,
+    // 3. For each variant, we have a structure_type child (to be validate)
+    //    and so we can get the type of the variant
+
+    let name = entry.name(db)?;
+    tracing::debug!("resolving enum type: {name} {}", entry.print(db));
+
+    let mut variants = vec![];
+    let size = entry.udata_attr(db, gimli::DW_AT_byte_size)?;
+
+    // get the variant part
+    let variants_entry = entry.get_member_by_tag(db, gimli::DW_TAG_variant_part)?;
+
+    let discriminant = if let Ok(discriminant) = variants_entry.get_unit_ref(db, gimli::DW_AT_discr)
+    {
+        // we have an explicit discriminant
+        // resolve it to a type
+        let discriminant_type = resolve_entry_type(db, discriminant)?;
+        match discriminant_type {
+            TypeDef::Primitive(PrimitiveDef::Int(i)) => Discriminant::Int(i),
+            TypeDef::Primitive(PrimitiveDef::UnsignedInt(u)) => Discriminant::UnsignedInt(u),
+            _ => {
+                tracing::warn!(
+                    "discriminant type is not an integer: {discriminant_type:?} {}",
+                    entry.location(db)
+                );
+                Discriminant::Implicit
+            }
+        }
+    } else {
+        // no explicit discriminant, so we assume it's implicit
+        Discriminant::Implicit
+    };
+
+    for variant in variants_entry.children(db)? {
+        if variant.tag(db) != gimli::DW_TAG_variant {
+            tracing::debug!("skipping non-variant entry: {}", variant.print(db));
+            continue;
+        }
+        tracing::debug!("variant: {}", variant.print(db));
+
+        let discriminant = variant
+            .udata_attr(db, gimli::DW_AT_discr_value)
+            .unwrap_or(variants.len()) as u64;
+
+        // should have a single member
+        let member = variant
+            .get_member_by_tag(db, gimli::DW_TAG_member)
+            .context("variant part should have a single member")?;
+
+        let variant_type = Arc::new(resolve_entry_type_shallow(db, member)?);
+        variants.push(EnumVariant {
+            name: member.name(db)?,
+            discriminant,
+            layout: variant_type,
+        });
+    }
+
+    Ok(EnumDef {
+        name,
+        variants,
+        size,
+        discriminant,
+    })
+}
+
+fn resolve_struct_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StructDef> {
+    // let index = crate::index::build_index(db);
+    // let type_name = index.data(db).die_to_type_name.get(&entry).copied();
+    // get some basic info
+    let name = entry.name(db)?;
+    let size = entry.udata_attr(db, gimli::DW_AT_byte_size)?;
+    let alignment = entry.udata_attr(db, gimli::DW_AT_alignment)?;
+
+    // iterate children to get fields
+    let mut fields = vec![];
+    for child in entry.children(db)? {
+        if child.tag(db) != gimli::DW_TAG_member {
+            tracing::debug!("skipping non-member entry: {}", child.print(db));
+            continue;
+        }
+        let field_name = child.name(db)?;
+        let offset = child.udata_attr(db, gimli::DW_AT_data_member_location)?;
+
+        let type_entry = child.get_unit_ref(db, gimli::DW_AT_type)?;
+        let ty = shallow_resolve_type(db, type_entry)?;
+
+        fields.push(StructField {
+            name: field_name,
+            offset: offset as usize,
+            ty: Arc::new(ty),
+        });
+    }
+    Ok(StructDef {
+        name,
+        fields,
+        size: size as usize,
+        alignment: alignment as usize,
+    })
+}
+
 /// Fully resolve a type from a DWARF DIE entry
 #[salsa::tracked]
 pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
@@ -639,45 +786,33 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                 .any(|c| c.tag(db) == gimli::DW_TAG_variant_part);
 
             if is_enum {
-                return Err(entry
-                    .format_with_location(db, "enums are not yet supported")
-                    .into());
+                TypeDef::Enum(resolve_enum_type(db, entry)?)
             } else {
                 // we have a struct type and it's _not_ a builtin -- we'll handle it now
-
-                // let index = crate::index::build_index(db);
-                // let type_name = index.data(db).die_to_type_name.get(&entry).copied();
-                // get some basic info
-                let name = entry.name(db)?;
-                let size = entry.udata_attr(db, gimli::DW_AT_byte_size)?;
-                let alignment = entry.udata_attr(db, gimli::DW_AT_alignment)?;
-
-                // iterate children to get fields
-                let mut fields = vec![];
-                for child in entry.children(db)? {
-                    if child.tag(db) != gimli::DW_TAG_member {
-                        tracing::debug!("skipping non-member entry: {}", child.print(db));
-                        continue;
-                    }
-                    let field_name = child.name(db)?;
-                    let offset = child.udata_attr(db, gimli::DW_AT_data_member_location)?;
-
-                    let type_entry = child.get_unit_ref(db, gimli::DW_AT_type)?;
-                    let ty = shallow_resolve_type(db, type_entry)?;
-
-                    fields.push(StructField {
-                        name: field_name,
-                        offset: offset as usize,
-                        ty: Arc::new(ty),
-                    });
-                }
-                TypeDef::Struct(StructDef {
-                    name,
-                    fields,
-                    size: size as usize,
-                    alignment: alignment as usize,
-                })
+                TypeDef::Struct(resolve_struct_type(db, entry)?)
             }
+        }
+        gimli::DW_TAG_subroutine_type => {
+            let return_type = entry.get_unit_ref(db, gimli::DW_AT_type).map_or_else(
+                |_| {
+                    // we'll ignore errors -- subroutines with no type field
+                    // have no return type
+                    Ok(Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))))
+                },
+                |ty| resolve_entry_type(db, ty).map(Arc::new),
+            )?;
+
+            let arg_types = entry
+                .children(db)?
+                .into_iter()
+                .filter(|c| c.tag(db) == gimli::DW_TAG_formal_parameter)
+                .map(|c| resolve_entry_type(db, c).map(Arc::new))
+                .collect::<Result<Vec<_>>>()?;
+
+            TypeDef::Primitive(PrimitiveDef::Function(FunctionDef {
+                return_type,
+                arg_types,
+            }))
         }
         t => {
             return Err(entry
@@ -713,10 +848,7 @@ pub fn fully_resolve_type<'db>(
                     return_type,
                     arg_types,
                 }) => {
-                    let return_type = return_type
-                        .map(|ty| fully_resolve_type(db, file, ty.as_ref()))
-                        .transpose()?
-                        .map(Arc::new);
+                    let return_type = Arc::new(fully_resolve_type(db, file, return_type.as_ref())?);
                     let arg_types = arg_types
                         .into_iter()
                         .map(|ty| fully_resolve_type(db, file, ty.as_ref()))
@@ -760,20 +892,15 @@ pub fn fully_resolve_type<'db>(
                         size,
                     })
                 }
-                Tuple(TupleDef {
-                    element_types,
-                    alignment,
-                    size,
-                }) => {
-                    let element_types = element_types
+                Tuple(TupleDef { elements, size }) => {
+                    let elements = elements
                         .into_iter()
-                        .map(|ty| fully_resolve_type(db, file, ty.as_ref()))
+                        .map(|(offset, ty)| {
+                            fully_resolve_type(db, file, ty.as_ref())
+                                .map(|ty| (offset, Arc::new(ty)))
+                        })
                         .collect::<Result<Vec<_>>>()?;
-                    Tuple(TupleDef {
-                        element_types: element_types.into_iter().map(Arc::new).collect(),
-                        alignment,
-                        size,
-                    })
+                    Tuple(TupleDef { elements, size })
                 }
                 p @ (Bool(_) | Char(_) | Float(_) | Int(_) | Never(_) | Str(_) | StrSlice(_)
                 | Unit(_) | UnsignedInt(_)) => p,
@@ -876,55 +1003,32 @@ pub fn fully_resolve_type<'db>(
         }
         TypeDef::Enum(EnumDef {
             name,
-            repr,
             variants,
             size,
+            discriminant,
         }) => {
             // For enums, we need to resolve each variant's type
             let variants = variants
                 .into_iter()
-                .map(|variant| {
-                    use EnumVariant::*;
-                    let variant = match variant {
-                        Unit(EnumUnitVariant { name }) => {
-                            EnumVariant::Unit(EnumUnitVariant { name })
-                        }
-                        Tuple(EnumTupleVariant { name, fields }) => {
-                            let fields = fields
-                                .into_iter()
-                                .map(|StructField { name, offset, ty }| {
-                                    let ty = fully_resolve_type(db, file, ty.as_ref())?;
-                                    Ok(StructField {
-                                        name,
-                                        offset,
-                                        ty: Arc::new(ty),
-                                    })
-                                })
-                                .collect::<Result<Vec<_>>>()?;
-                            EnumVariant::Tuple(EnumTupleVariant { name, fields })
-                        }
-                        Struct(EnumStructVariant { name, fields }) => {
-                            let fields = fields
-                                .into_iter()
-                                .map(|StructField { name, offset, ty }| {
-                                    let ty = fully_resolve_type(db, file, ty.as_ref())?;
-                                    Ok(StructField {
-                                        name,
-                                        offset,
-                                        ty: Arc::new(ty),
-                                    })
-                                })
-                                .collect::<Result<Vec<_>>>()?;
-                            EnumVariant::Struct(EnumStructVariant { name, fields })
-                        }
-                    };
-                    Ok(variant)
-                })
-                .collect::<Result<Vec<_>>>()?;
+                .map(
+                    |EnumVariant {
+                         name,
+                         discriminant,
+                         layout,
+                     }| {
+                        let layout = fully_resolve_type(db, file, layout.as_ref())?;
+                        Ok(EnumVariant {
+                            name,
+                            discriminant,
+                            layout: Arc::new(layout),
+                        })
+                    },
+                )
+                .collect::<Result<_>>()?;
 
             TypeDef::Enum(EnumDef {
                 name,
-                repr,
+                discriminant,
                 variants,
                 size,
             })

@@ -460,10 +460,10 @@ impl Type {
                 }))
             }
             Type::Tuple(tuple) => {
-                let elements: Vec<Arc<TypeDef>> = tuple
+                let elements: Vec<_> = tuple
                     .inner()
                     .iter()
-                    .map(|t| Arc::new(t.as_typedef()))
+                    .map(|t| (0, Arc::new(t.as_typedef())))
                     .collect();
 
                 // 0-arity tuple is a unit
@@ -471,9 +471,8 @@ impl Type {
                     TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))
                 } else {
                     TypeDef::Primitive(PrimitiveDef::Tuple(TupleDef {
-                        element_types: elements,
-                        alignment: 0, // Would need to calculate from DWARF
-                        size: 0,      // Would need to calculate from DWARF
+                        elements,
+                        size: 0, // Would need to calculate from DWARF
                     }))
                 }
             }
@@ -484,7 +483,11 @@ impl Type {
                 }
             }
             Type::Function(fn_type) => TypeDef::Primitive(PrimitiveDef::Function(FunctionDef {
-                return_type: fn_type.ret().map(|r| Arc::new(r.as_typedef())),
+                return_type: Arc::new(
+                    fn_type
+                        .ret()
+                        .map_or(PrimitiveDef::Unit(UnitDef).into(), |r| r.as_typedef()),
+                ),
                 arg_types: fn_type
                     .args()
                     .iter()
@@ -891,20 +894,18 @@ mod test {
         infer(
             "(u8,)",
             PrimitiveDef::Tuple(TupleDef {
-                element_types: vec![Arc::new(UnsignedIntDef::u8().into())],
-                alignment: 0, // Would need to calculate from DWARF
-                size: 0,      // Would need to calculate from DWARF
+                elements: vec![(0, Arc::new(UnsignedIntDef::u8().into()))],
+                size: 0, // Would need to calculate from DWARF
             }),
         );
         infer(
             "(u8,u64)",
             PrimitiveDef::Tuple(TupleDef {
-                element_types: vec![
-                    Arc::new(UnsignedIntDef::u8().into()),
-                    Arc::new(UnsignedIntDef::u64().into()),
+                elements: vec![
+                    (0, Arc::new(UnsignedIntDef::u8().into())),
+                    (0, Arc::new(UnsignedIntDef::u64().into())),
                 ],
-                alignment: 0, // Would need to calculate from DWARF
-                size: 0,      // Would need to calculate from DWARF
+                size: 0, // Would need to calculate from DWARF
             }),
         );
         infer("&u8", ReferenceDef::new_immutable(UnsignedIntDef::u8()));
@@ -978,7 +979,7 @@ mod test {
                         .into(),
                     ),
                 ],
-                return_type: Some(Arc::new(
+                return_type: Arc::new(
                     StdDef::from(ResultDef {
                         ok_type: Arc::new(PrimitiveDef::from(UnitDef).into()),
                         err_type: Arc::new(TypeDef::Other {
@@ -986,7 +987,7 @@ mod test {
                         }),
                     })
                     .into(),
-                )),
+                ),
             })),
         );
     }

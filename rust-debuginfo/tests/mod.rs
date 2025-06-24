@@ -205,3 +205,38 @@ fn test_generated_benchmarks(#[case] target: &str) {
 }
 
 // TODO: add a test that we correctly resolve inlined functions
+
+#[rstest]
+#[case("small")]
+fn test_method_discovery(#[case] target: &str) {
+    setup!(target);
+    let path = format!("bin/test_binaries/{target}");
+
+    if !std::fs::exists(&path).unwrap() {
+        panic!(
+            "Please run `cargo run --bin generate_test_binaries` to generate the test binaries first."
+        );
+    }
+
+    let db = DebugDb::new();
+    let debug_info = DebugInfo::new(&db, &path).unwrap();
+
+    // Test 1: Discover all methods in the binary
+    let methods_by_type = debug_info
+        .discover_all_methods()
+        .expect("Method discovery should succeed");
+
+    insta::assert_debug_snapshot!(methods_by_type);
+
+    // Test 2: Test specific type resolution and method discovery
+    let test_struct0_type = debug_info
+        .resolve_type("TestStruct0")
+        .expect("Type resolution should succeed")
+        .expect("TestStruct0 type should be found");
+
+    let methods = debug_info
+        .discover_methods_for_type(&test_struct0_type)
+        .expect("Method discovery for TestStruct0 should succeed");
+
+    insta::assert_debug_snapshot!(methods);
+}
