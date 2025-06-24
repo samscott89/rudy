@@ -666,6 +666,198 @@ impl<'db> DebugInfo<'db> {
     ) -> Result<crate::Value> {
         crate::data::read_from_memory(self.db, address, typedef, data_resolver)
     }
+
+    /// Access a field of a struct/union/enum value
+    ///
+    /// # Arguments
+    ///
+    /// * `base_address` - Memory address of the base value
+    /// * `base_type` - Type definition of the base value
+    /// * `field_name` - Name of the field to access
+    ///
+    /// # Returns
+    ///
+    /// Variable information for the field if found
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, VariableInfo};
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let var_info: VariableInfo = unimplemented!();
+    /// if let Ok(field_info) = debug_info.get_field(var_info.address.unwrap(), &var_info.type_def, "name") {
+    ///     println!("Field 'name' at address {:?}", field_info.address);
+    /// }
+    /// ```
+    pub fn get_field(
+        &self,
+        base_address: u64,
+        base_type: &rust_types::TypeDef,
+        field_name: &str,
+    ) -> Result<crate::VariableInfo> {
+        use rust_types::TypeDef;
+        
+        match base_type {
+            TypeDef::Struct(struct_def) => {
+                let field = struct_def.fields.iter()
+                    .find(|f| f.name == field_name)
+                    .ok_or_else(|| anyhow::anyhow!("Field '{}' not found in struct '{}'", field_name, struct_def.name))?;
+                
+                let field_address = base_address + field.offset as u64;
+                
+                Ok(crate::VariableInfo {
+                    name: field_name.to_string(),
+                    address: Some(field_address),
+                    type_def: (*field.ty).clone(),
+                })
+            }
+            TypeDef::Enum(enum_def) => {
+                // For enums, field access might be variant data access
+                // This is complex - for now return an error
+                Err(anyhow::anyhow!("Enum field access not yet implemented for '{}'", enum_def.name))
+            }
+            _ => {
+                Err(anyhow::anyhow!("Cannot access field '{}' on type '{}'", field_name, base_type.display_name()))
+            }
+        }
+    }
+
+    /// Index into an array/slice/vector by integer index
+    ///
+    /// # Arguments
+    ///
+    /// * `base_address` - Memory address of the base array/slice/vector
+    /// * `base_type` - Type definition of the base value
+    /// * `index` - Integer index to access
+    /// * `data_resolver` - Interface for reading memory and register values
+    ///
+    /// # Returns
+    ///
+    /// Variable information for the element at the given index
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, VariableInfo, DataResolver};
+    /// # struct MyResolver;
+    /// # impl DataResolver for MyResolver {
+    /// #     fn base_address(&self) -> u64 { 0 }
+    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// # }
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let resolver = MyResolver;
+    /// # let var_info: VariableInfo = unimplemented!();
+    /// if let Ok(element_info) = debug_info.get_index_by_int(var_info.address.unwrap(), &var_info.type_def, 0, &resolver) {
+    ///     println!("Element 0 at address {:?}", element_info.address);
+    /// }
+    /// ```
+    pub fn get_index_by_int(
+        &self,
+        base_address: u64,
+        base_type: &rust_types::TypeDef,
+        index: u64,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<crate::VariableInfo> {
+        use rust_types::{TypeDef, PrimitiveDef};
+        
+        match base_type {
+            TypeDef::Primitive(PrimitiveDef::Array(array_def)) => {
+                // Fixed-size array [T; N]
+                if index >= array_def.length as u64 {
+                    return Err(anyhow::anyhow!("Index {} out of bounds for array of length {}", index, array_def.length));
+                }
+                
+                let element_size = get_type_size(&array_def.element_type.)?;
+                let element_address = base_address + (index * element_size);
+                
+                Ok(crate::VariableInfo {
+                    name: format!("[{}]", index),
+                    address: Some(element_address),
+                    type_def: (*array_def.element_type).clone(),
+                })
+            }
+            TypeDef::Primitive(PrimitiveDef::Slice(slice_def)) => {
+                // Slice [T] - need to read the fat pointer to get actual data pointer and length
+                let slice_value = crate::data::read_from_memory(self.db, base_address, base_type, data_resolver)?;
+                let (data_ptr, slice_len) = extract_slice_info(&slice_value)?;
+                
+                if index >= slice_len {
+                    return Err(anyhow::anyhow!("Index {} out of bounds for slice of length {}", index, slice_len));
+                }
+                
+                let element_size = get_type_size(&slice_def.element_type)?;
+                let element_address = data_ptr + (index * element_size);
+                
+                Ok(crate::VariableInfo {
+                    name: format!("[{}]", index),
+                    address: Some(element_address),
+                    type_def: (*slice_def.element_type).clone(),
+                })
+            }
+            TypeDef::Std(std_def) => {
+                use rust_types::StdDef;
+                match std_def {
+                    StdDef::Vec(_vec_def) => {
+                        // Vec<T> indexing - would need to read Vec's internal structure
+                        Err(anyhow::anyhow!("Vec indexing not yet implemented"))
+                    }
+                    _ => {
+                        Err(anyhow::anyhow!("Cannot index std type '{}' by integer", base_type.display_name()))
+                    }
+                }
+            }
+            _ => {
+                Err(anyhow::anyhow!("Cannot index type '{}' by integer", base_type.display_name()))
+            }
+        }
+    }
+
+    /// Index into a map/dictionary by value key
+    ///
+    /// # Arguments
+    ///
+    /// * `base_address` - Memory address of the base map
+    /// * `base_type` - Type definition of the base map
+    /// * `key` - Key value to look up
+    /// * `data_resolver` - Interface for reading memory and register values
+    ///
+    /// # Returns
+    ///
+    /// Variable information for the value at the given key
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rust_debuginfo::{DebugDb, DebugInfo, VariableInfo, DataResolver, Value};
+    /// # struct MyResolver;
+    /// # impl DataResolver for MyResolver {
+    /// #     fn base_address(&self) -> u64 { 0 }
+    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
+    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// # }
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// # let resolver = MyResolver;
+    /// # let var_info: VariableInfo = unimplemented!();
+    /// # let key: Value = unimplemented!();
+    /// if let Ok(value_info) = debug_info.get_index_by_value(var_info.address.unwrap(), &var_info.type_def, &key, &resolver) {
+    ///     println!("Map value at address {:?}", value_info.address);
+    /// }
+    /// ```
+    pub fn get_index_by_value(
+        &self,
+        _base_address: u64,
+        base_type: &rust_types::TypeDef,
+        _key: &crate::Value,
+        _data_resolver: &dyn crate::DataResolver,
+    ) -> Result<crate::VariableInfo> {
+        // HashMap/BTreeMap indexing is quite complex and would require understanding
+        // the internal structure of these collections. For now, return not implemented.
+        Err(anyhow::anyhow!("Value-based indexing not yet implemented for type '{}'", base_type.display_name()))
+    }
 }
 
 fn output_variable<'db>(
@@ -717,6 +909,96 @@ fn variable_info<'db>(
         address: location,
         type_def: ty,
     })
+}
+
+/// Calculate the size in bytes of a type
+fn get_type_size(type_def: &rust_types::TypeDef) -> Result<u64> {
+    use rust_types::{TypeDef, PrimitiveDef};
+    match type_def {
+        TypeDef::Primitive(prim) => {
+            Ok(match prim {
+                PrimitiveDef::UnsignedInt(uint_def) => uint_def.size as u64,
+                PrimitiveDef::Int(int_def) => int_def.size as u64,
+                PrimitiveDef::Bool(_) => 1, // bool is 1 byte
+                PrimitiveDef::Float(float_def) => float_def.size as u64,
+                PrimitiveDef::Char(_) => 4, // char is 4 bytes in Rust
+                PrimitiveDef::Pointer(_) | PrimitiveDef::Reference(_) => 8, // Assume 64-bit pointers
+                PrimitiveDef::Array(array_def) => {
+                    let element_size = get_type_size(&array_def.element_type)?;
+                    element_size * array_def.length as u64
+                }
+                PrimitiveDef::Slice(_) => 16, // Fat pointer: ptr + len (8 + 8 = 16 bytes)
+                PrimitiveDef::Str(_) => 0, // str is unsized
+                PrimitiveDef::StrSlice(_) => 16, // &str is fat pointer: ptr + len
+                PrimitiveDef::Tuple(tuple_def) => {
+                    // Calculate total size of all tuple elements
+                    let mut total_size = 0;
+                    for element in &tuple_def.element_types {
+                        total_size += get_type_size(element)?;
+                    }
+                    total_size
+                }
+                PrimitiveDef::Unit(_) => 0, // () has zero size
+                PrimitiveDef::Never(_) => 0, // ! has zero size
+                PrimitiveDef::Function(_) => 8, // Function pointers are 8 bytes
+            })
+        }
+        TypeDef::Struct(struct_def) => Ok(struct_def.size as u64),
+        TypeDef::Enum(enum_def) => Ok(enum_def.size as u64),
+        TypeDef::Std(std_def) => {
+            use rust_types::StdDef;
+            match std_def {
+                StdDef::Vec(_) => Ok(24), // Vec has ptr + capacity + len (8 + 8 + 8 = 24 bytes)
+                StdDef::String(_) => Ok(24), // String is Vec<u8> internally
+                StdDef::Option(_) => Ok(type_def.size().unwrap_or(0) as u64),
+                StdDef::Result(_) => Ok(type_def.size().unwrap_or(0) as u64),
+                StdDef::Map(_) => Ok(type_def.size().unwrap_or(0) as u64),
+                StdDef::SmartPtr(_) => Ok(8), // Box, Rc, Arc are pointer-sized
+            }
+        }
+        TypeDef::Alias(_) => Err(anyhow::anyhow!("Cannot determine size of aliased type")),
+        TypeDef::Other { .. } => Err(anyhow::anyhow!("Cannot determine size of unknown type")),
+    }
+}
+
+/// Extract pointer and length from a slice Value
+fn extract_slice_info(slice_value: &crate::Value) -> Result<(u64, u64)> {
+    match slice_value {
+        crate::Value::Struct { fields, .. } => {
+            // Look for ptr/data_ptr and len fields
+            let ptr = fields.get("data_ptr")
+                .or_else(|| fields.get("ptr"))
+                .ok_or_else(|| anyhow::anyhow!("Slice missing data pointer field"))?;
+            
+            let len = fields.get("len")
+                .or_else(|| fields.get("length"))
+                .ok_or_else(|| anyhow::anyhow!("Slice missing length field"))?;
+            
+            let ptr_value = extract_numeric_value(ptr)?;
+            let len_value = extract_numeric_value(len)?;
+            
+            Ok((ptr_value, len_value))
+        }
+        _ => Err(anyhow::anyhow!("Expected struct representation for slice, got: {:?}", slice_value)),
+    }
+}
+
+/// Extract a numeric value from a Value (handles various scalar representations)
+fn extract_numeric_value(value: &crate::Value) -> Result<u64> {
+    match value {
+        crate::Value::Scalar { value, .. } => {
+            // Try to parse as different number formats
+            if let Ok(num) = value.parse::<u64>() {
+                Ok(num)
+            } else if value.starts_with("0x") {
+                u64::from_str_radix(&value[2..], 16)
+                    .with_context(|| format!("Failed to parse hex value: {}", value))
+            } else {
+                Err(anyhow::anyhow!("Could not parse numeric value: {}", value))
+            }
+        }
+        _ => Err(anyhow::anyhow!("Expected scalar value, got: {:?}", value)),
+    }
 }
 
 #[allow(dead_code)]

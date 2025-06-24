@@ -168,9 +168,13 @@ impl<'a> EvalContext<'a> {
             Expression::Index { base, index } => self.evaluate_index(base, index),
             Expression::Deref(inner) => self.evaluate_deref(inner),
             Expression::AddressOf { mutable: _, expr } => self.evaluate_address_of(expr),
-            Expression::Literal(value) => Ok(EvalResult {
+            Expression::NumberLiteral(value) => Ok(EvalResult {
                 value: value.to_string(),
                 type_name: "u64".to_string(),
+            }),
+            Expression::StringLiteral(value) => Ok(EvalResult {
+                value: format!("\"{}\"", value),
+                type_name: "String".to_string(),
             }),
             Expression::Parenthesized(inner) => self.evaluate(inner),
         }
@@ -226,34 +230,146 @@ impl<'a> EvalContext<'a> {
         // First evaluate the base expression to a ValueRef
         let base_ref = self.evaluate_to_ref(base)?;
 
-        // Try to find the field in the type definition
-        match &base_ref.type_def {
-            rust_debuginfo::TypeDef::Struct(struct_def) => {
-                // Look for the field in the struct
-                let field_info = struct_def
-                    .fields
-                    .iter()
-                    .find(|f| f.name == field)
-                    .with_context(|| {
-                        format!("Field '{field}' not found in struct '{}'", struct_def.name)
-                    })?;
-                let field_addr = base_ref.address + field_info.offset as u64;
+        // Use the new rust-debuginfo method for field access
+        let field_info = self
+            .debug_info
+            .get_field(base_ref.address, &base_ref.type_def, field)?;
 
-                Ok(ValueRef {
-                    address: field_addr,
-                    type_def: (*field_info.ty).clone(),
-                })
-            }
-            _ => Err(anyhow!(
-                "Cannot access field '{}' on non-struct type",
-                field
-            )),
-        }
+        Ok(ValueRef {
+            address: field_info
+                .address
+                .ok_or_else(|| anyhow!("Field has no address"))?,
+            type_def: field_info.type_def,
+        })
     }
 
     fn evaluate_index_to_ref(&mut self, base: &Expression, index: &Expression) -> Result<ValueRef> {
-        // TODO: Implement array/slice indexing
-        Err(anyhow!("Array indexing not yet implemented"))
+        let base_ref = self.evaluate_to_ref(base)?;
+        
+        // Check if the base type supports string indexing (HashMap, etc.)
+        if self.supports_string_indexing(&base_ref.type_def) {
+            let key_string = self.evaluate_to_string(index)?;
+            // Use get_index_by_value with string key
+            let key_value = Value::Scalar { 
+                ty: "String".to_string(), 
+                value: key_string 
+            };
+            let element_info = self.debug_info.get_index_by_value(
+                base_ref.address, &base_ref.type_def, &key_value, &self.conn
+            )?;
+            
+            Ok(ValueRef {
+                address: element_info.address.ok_or_else(|| anyhow!("Element has no address"))?,
+                type_def: element_info.type_def,
+            })
+        } else {
+            // Default to integer indexing
+            let index_int = self.evaluate_to_int(index)?;
+            let element_info = self.debug_info.get_index_by_int(
+                base_ref.address, &base_ref.type_def, index_int, &self.conn
+            )?;
+            
+            Ok(ValueRef {
+                address: element_info.address.ok_or_else(|| anyhow!("Element has no address"))?,
+                type_def: element_info.type_def,
+            })
+        }
+    }
+
+    /// Evaluate an expression to an integer value
+    fn evaluate_to_int(&mut self, expr: &Expression) -> Result<u64> {
+        match expr {
+            Expression::NumberLiteral(val) => Ok(*val),
+            Expression::Variable(name) => {
+                let var_ref = self.evaluate_variable_to_ref(name)?;
+                self.read_integer_from_memory(&var_ref)
+            }
+            Expression::FieldAccess { base, field } => {
+                let field_ref = self.evaluate_field_access_to_ref(base, field)?;
+                self.read_integer_from_memory(&field_ref)
+            }
+            Expression::Index { base, index } => {
+                let element_ref = self.evaluate_index_to_ref(base, index)?;
+                self.read_integer_from_memory(&element_ref)
+            }
+            Expression::Deref(inner) => {
+                let deref_ref = self.evaluate_deref_to_ref(inner)?;
+                self.read_integer_from_memory(&deref_ref)
+            }
+            Expression::Parenthesized(inner) => self.evaluate_to_int(inner),
+            _ => Err(anyhow!("Cannot evaluate expression to integer: {:?}", expr)),
+        }
+    }
+
+    /// Evaluate an expression to a string value  
+    fn evaluate_to_string(&mut self, expr: &Expression) -> Result<String> {
+        match expr {
+            Expression::StringLiteral(value) => Ok(value.clone()),
+            Expression::Variable(name) => {
+                let var_ref = self.evaluate_variable_to_ref(name)?;
+                self.read_string_from_memory(&var_ref)
+            }
+            Expression::FieldAccess { base, field } => {
+                let field_ref = self.evaluate_field_access_to_ref(base, field)?;
+                self.read_string_from_memory(&field_ref)
+            }
+            Expression::Index { base, index } => {
+                let element_ref = self.evaluate_index_to_ref(base, index)?;
+                self.read_string_from_memory(&element_ref)
+            }
+            Expression::Deref(inner) => {
+                let deref_ref = self.evaluate_deref_to_ref(inner)?;
+                self.read_string_from_memory(&deref_ref)
+            }
+            Expression::Parenthesized(inner) => self.evaluate_to_string(inner),
+            // String literals would need to be added to the parser
+            _ => Err(anyhow!("Cannot evaluate expression to string: {:?}", expr)),
+        }
+    }
+
+    /// Check if a type supports string-based indexing (HashMap, etc.)
+    fn supports_string_indexing(&self, type_def: &rust_debuginfo::TypeDef) -> bool {
+        use rust_debuginfo::TypeDef;
+        match type_def {
+            TypeDef::Std(std_def) => {
+                use rust_types::StdDef;
+                matches!(std_def, StdDef::Map(_))
+            }
+            _ => false,
+        }
+    }
+
+    /// Read an integer value from memory using a ValueRef
+    fn read_integer_from_memory(&self, value_ref: &ValueRef) -> Result<u64> {
+        let value = self.debug_info.address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+        match value {
+            Value::Scalar { value, .. } => {
+                // Try to parse as different number formats
+                if let Ok(num) = value.parse::<u64>() {
+                    Ok(num)
+                } else if value.starts_with("0x") {
+                    u64::from_str_radix(&value[2..], 16)
+                        .with_context(|| format!("Failed to parse hex value: {}", value))
+                } else {
+                    Err(anyhow!("Could not parse integer value: {}", value))
+                }
+            }
+            _ => Err(anyhow!("Expected scalar integer value, got: {:?}", value)),
+        }
+    }
+
+    /// Read a string value from memory using a ValueRef
+    fn read_string_from_memory(&self, value_ref: &ValueRef) -> Result<String> {
+        let value = self.debug_info.address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+        match value {
+            Value::Scalar { value, .. } => {
+                // For strings, the formatted value should be the string content
+                // We might need to strip quotes depending on formatting
+                let trimmed = value.trim_matches('"');
+                Ok(trimmed.to_string())
+            }
+            _ => Err(anyhow!("Expected scalar string value, got: {:?}", value)),
+        }
     }
 
     fn evaluate_deref_to_ref(&mut self, expr: &Expression) -> Result<ValueRef> {
@@ -262,15 +378,9 @@ impl<'a> EvalContext<'a> {
     }
 
     fn evaluate_index(&mut self, base: &Expression, index: &Expression) -> Result<EvalResult> {
-        // Evaluate both base and index
-        let base_result = self.evaluate(base)?;
-        let index_result = self.evaluate(index)?;
-
-        // For now, return a placeholder
-        Ok(EvalResult {
-            value: format!("<{}[{}]>", base_result.value, index_result.value),
-            type_name: format!("{}[]", base_result.type_name),
-        })
+        // Get the indexed element as a ValueRef, then convert to result
+        let element_ref = self.evaluate_index_to_ref(base, index)?;
+        self.value_ref_to_result(&element_ref)
     }
 
     fn evaluate_deref(&mut self, expr: &Expression) -> Result<EvalResult> {

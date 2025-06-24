@@ -35,7 +35,10 @@ pub enum Expression {
     },
 
     /// Literal number (e.g., `42`, `0xff`)
-    Literal(u64),
+    NumberLiteral(u64),
+
+    /// String literal (e.g., `"hello"`, `"created"`)
+    StringLiteral(String),
 
     /// Parenthesized expression (e.g., `(foo)`)
     Parenthesized(Box<Expression>),
@@ -55,7 +58,8 @@ impl fmt::Display for Expression {
                     write!(f, "&{}", expr)
                 }
             }
-            Expression::Literal(value) => write!(f, "{}", value),
+            Expression::NumberLiteral(value) => write!(f, "{}", value),
+            Expression::StringLiteral(value) => write!(f, "\"{}\"", value),
             Expression::Parenthesized(expr) => write!(f, "({})", expr),
         }
     }
@@ -66,6 +70,7 @@ impl fmt::Display for Expression {
 enum Token {
     Identifier(String),
     Number(u64),
+    String(String),
     Dot,
     Star,
     Ampersand,
@@ -152,6 +157,31 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
+    fn read_string(&mut self) -> Result<String> {
+        // Skip opening quote
+        self.advance(); 
+        let start = self.position;
+        
+        while let Some(ch) = self.current_char() {
+            if ch == '"' {
+                // Found closing quote
+                let content = self.input[start..self.position].to_string();
+                self.advance(); // Skip closing quote
+                return Ok(content);
+            } else if ch == '\\' {
+                // Handle escape sequences (basic support)
+                self.advance(); // Skip backslash
+                if self.current_char().is_some() {
+                    self.advance(); // Skip escaped character
+                }
+            } else {
+                self.advance();
+            }
+        }
+        
+        Err(anyhow!("Unterminated string literal"))
+    }
+
     fn next_token(&mut self) -> Result<Token> {
         self.skip_whitespace();
 
@@ -196,6 +226,10 @@ impl<'a> Tokenizer<'a> {
             Some(ch) if ch.is_ascii_digit() => {
                 let number = self.read_number()?;
                 Ok(Token::Number(number))
+            }
+            Some('"') => {
+                let string = self.read_string()?;
+                Ok(Token::String(string))
             }
             Some(ch) => Err(anyhow!("Unexpected character: '{}'", ch)),
         }
@@ -326,7 +360,12 @@ impl Parser {
             Token::Number(value) => {
                 let value = *value;
                 self.advance();
-                Ok(Expression::Literal(value))
+                Ok(Expression::NumberLiteral(value))
+            }
+            Token::String(value) => {
+                let value = value.clone();
+                self.advance();
+                Ok(Expression::StringLiteral(value))
             }
             Token::LeftParen => {
                 self.advance();
@@ -335,7 +374,7 @@ impl Parser {
                 Ok(Expression::Parenthesized(Box::new(expr)))
             }
             _ => Err(anyhow!(
-                "Expected identifier, number, or '(', found {:?}",
+                "Expected identifier, number, string, or '(', found {:?}",
                 self.current_token()
             )),
         }
@@ -367,12 +406,21 @@ mod tests {
     }
 
     #[test]
-    fn test_literal() {
+    fn test_number_literal() {
         let expr = parse("42");
-        assert_eq!(expr, Expression::Literal(42));
+        assert_eq!(expr, Expression::NumberLiteral(42));
 
         let expr = parse("0xff");
-        assert_eq!(expr, Expression::Literal(0xff));
+        assert_eq!(expr, Expression::NumberLiteral(0xff));
+    }
+
+    #[test]
+    fn test_string_literal() {
+        let expr = parse(r#""hello""#);
+        assert_eq!(expr, Expression::StringLiteral("hello".to_string()));
+
+        let expr = parse(r#""created""#);
+        assert_eq!(expr, Expression::StringLiteral("created".to_string()));
     }
 
     #[test]
@@ -409,7 +457,17 @@ mod tests {
             expr,
             Expression::Index {
                 base: Box::new(Expression::Variable("arr".to_string())),
-                index: Box::new(Expression::Literal(0)),
+                index: Box::new(Expression::NumberLiteral(0)),
+            }
+        );
+
+        // Test string indexing
+        let expr = parse(r#"map["key"]"#);
+        assert_eq!(
+            expr,
+            Expression::Index {
+                base: Box::new(Expression::Variable("map".to_string())),
+                index: Box::new(Expression::StringLiteral("key".to_string())),
             }
         );
     }
@@ -464,7 +522,7 @@ mod tests {
                     base: Box::new(Expression::Variable("obj".to_string())),
                     field: "field".to_string(),
                 }),
-                index: Box::new(Expression::Literal(0)),
+                index: Box::new(Expression::NumberLiteral(0)),
             }
         );
 
@@ -483,8 +541,10 @@ mod tests {
     fn test_display_formatting() {
         assert_eq!(parse("foo").to_string(), "foo");
         assert_eq!(parse("42").to_string(), "42");
+        assert_eq!(parse(r#""hello""#).to_string(), r#""hello""#);
         assert_eq!(parse("foo.bar").to_string(), "foo.bar");
         assert_eq!(parse("arr[0]").to_string(), "arr[0]");
+        assert_eq!(parse(r#"map["key"]"#).to_string(), r#"map["key"]"#);
         assert_eq!(parse("*ptr").to_string(), "*ptr");
         assert_eq!(parse("&var").to_string(), "&var");
         assert_eq!(parse("&mut var").to_string(), "&mut var");
