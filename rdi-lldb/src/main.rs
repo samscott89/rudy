@@ -3,7 +3,6 @@
 //! Event-driven RPC server for LLDB integration with rust-debuginfo
 
 mod evaluator;
-mod expression;
 mod protocol;
 mod server;
 

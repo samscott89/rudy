@@ -7,9 +7,9 @@ use anyhow::{Result, anyhow};
 use rust_debuginfo::{DataResolver, DebugInfo, Value};
 use std::cell::RefCell;
 
-use crate::expression::Expression;
 use crate::protocol::{EventRequest, EventResponseData};
 use crate::server::ClientConnection;
+use rdi_parser::Expression;
 
 /// Remote client access for synchronous data fetching
 pub struct RemoteDataAccess<'conn> {
@@ -132,6 +132,15 @@ impl<'a> EvalContext<'a> {
     pub fn evaluate(&self, expr: &Expression) -> Result<EvalResult> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable(name),
+            Expression::FieldAccess { base, field } => self.evaluate_field_access(base, field),
+            Expression::Index { base, index } => self.evaluate_index(base, index),
+            Expression::Deref(inner) => self.evaluate_deref(inner),
+            Expression::AddressOf { mutable: _, expr } => self.evaluate_address_of(expr),
+            Expression::Literal(value) => Ok(EvalResult {
+                value: value.to_string(),
+                type_name: "u64".to_string(),
+            }),
+            Expression::Parenthesized(inner) => self.evaluate(inner),
         }
     }
 
@@ -175,6 +184,51 @@ impl<'a> EvalContext<'a> {
                 type_name: "Unknown".to_string(),
             })
         }
+    }
+
+    fn evaluate_field_access(&self, base: &Expression, field: &str) -> Result<EvalResult> {
+        // First evaluate the base expression
+        let base_result = self.evaluate(base)?;
+
+        // For now, return a placeholder - full implementation needs type resolution
+        Ok(EvalResult {
+            value: format!("<field {} of {}>", field, base_result.value),
+            type_name: format!("{}.{}", base_result.type_name, field),
+        })
+    }
+
+    fn evaluate_index(&self, base: &Expression, index: &Expression) -> Result<EvalResult> {
+        // Evaluate both base and index
+        let base_result = self.evaluate(base)?;
+        let index_result = self.evaluate(index)?;
+
+        // For now, return a placeholder
+        Ok(EvalResult {
+            value: format!("<{}[{}]>", base_result.value, index_result.value),
+            type_name: format!("{}[]", base_result.type_name),
+        })
+    }
+
+    fn evaluate_deref(&self, expr: &Expression) -> Result<EvalResult> {
+        // Evaluate the inner expression
+        let inner_result = self.evaluate(expr)?;
+
+        // For now, return a placeholder
+        Ok(EvalResult {
+            value: format!("<*{}>", inner_result.value),
+            type_name: format!("*{}", inner_result.type_name),
+        })
+    }
+
+    fn evaluate_address_of(&self, expr: &Expression) -> Result<EvalResult> {
+        // Evaluate the inner expression
+        let inner_result = self.evaluate(expr)?;
+
+        // For now, return a placeholder
+        Ok(EvalResult {
+            value: format!("<&{}>", inner_result.value),
+            type_name: format!("&{}", inner_result.type_name),
+        })
     }
 }
 
@@ -227,9 +281,3 @@ fn format_value(value: &Value) -> String {
         }
     }
 }
-
-// Future implementations:
-// - evaluate_field_access
-// - evaluate_index
-// - evaluate_deref
-// - evaluate_method_call

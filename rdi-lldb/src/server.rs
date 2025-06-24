@@ -6,12 +6,12 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
+use rdi_parser::parse_expression;
 use rust_debuginfo::{DebugDb, DebugInfo};
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     evaluator::EvalContext,
-    expression,
     protocol::{ClientMessage, EventRequest, EventResponseData, ServerMessage},
 };
 
@@ -191,7 +191,7 @@ impl ClientConnection {
                 let input = &args[0];
 
                 // Parse the expression
-                let expr = match expression::parse(input) {
+                let expr = match parse_expression(input) {
                     Ok(expr) => expr,
                     Err(e) => {
                         return Ok(e.into());
