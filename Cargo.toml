@@ -1,11 +1,26 @@
 [workspace]
-members = ["rdi-lldb", "rust-debuginfo"]
+members = ["crates/*", "rdi-lldb", "rust-debuginfo"]
 resolver = "3"
 
 [workspace.dependencies]
+# internal deps
 rust-debuginfo = { path = "rust-debuginfo" }
+rust-types = { path = "crates/rust-types" }
+rdi-parser = { path = "crates/rdi-parser" }
+
+# external deps
+anyhow = "1.0.97"
+insta = { version = "1.42.2", features = ["filters"] }
+itertools = "0.14.0"
+pretty_assertions = "1.4.1"
+salsa = "0.22.0"
+serde = { version = "1.0.219", features = ["derive"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "time"] }
 
 
 [profile.dev.package]
 insta.opt-level = 3
 similar.opt-level = 3
+rdi-parser.opt-level = 3
+salsa.opt-level = 3

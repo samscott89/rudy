@@ -13,23 +13,29 @@ keywords = ["debug", "dwarf", "debuginfo", "debugging", "rust"]
 categories = ["debugging", "development-tools", "parser-implementations"]
 
 [dependencies]
-anyhow = "1.0.97"
-chalk-ir = "0.100.0"
+anyhow.workspace = true
 gimli = { version = "0.31.1", default-features = false, features = [
     "std",
     "read",
     "endian-reader",
 ] }
-itertools = "0.14.0"
+itertools.workspace = true
 memmap2 = "0.9.5"
 object = { git = "https://github.com/gimli-rs/object", rev = "a74579249e21ab8fcd3a86be588de336f18297cb" }
+rust-types.workspace = true
+rdi-parser.workspace = true
 rustc-demangle = "0.1"
-salsa = "0.22.0"
-serde = { version = "1.0.219", features = ["derive"] }
+salsa.workspace = true
+serde.workspace = true
 serde_json = "1.0"
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter", "time"] }
-unsynn = { version = "0.1.1" }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+pretty_assertions.workspace = true
+rstest = "0.25"
+rstest_reuse = { version = "0.7" }
 
 
 [[bin]]
@@ -46,9 +52,3 @@ test = false
 name = "generate_test_binaries"
 path = "bin/generate_test_binaries.rs"
 test = false
-
-[dev-dependencies]
-insta = { version = "1.42.2", features = ["filters"] }
-pretty_assertions = "1.4.1"
-rstest = "0.25"
-rstest_reuse = { version = "0.7" }

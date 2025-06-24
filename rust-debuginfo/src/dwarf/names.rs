@@ -4,9 +4,8 @@ use std::fmt;
 
 use anyhow::Context;
 
-mod parser;
-
-use crate::typedef::TypeDef;
+use rdi_parser as parser;
+use rust_types::TypeDef;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleName {

@@ -1,5 +1,7 @@
 //! Live introspection tests that read debug info from a running process
 
+#![allow(dead_code)]
+
 use anyhow::Result;
 use itertools::Itertools;
 use rust_debuginfo::{DataResolver, DebugDb, DebugInfo, Value};

@@ -163,36 +163,13 @@ impl<'db> Die<'db> {
             .as_die_result(db, self)
     }
 
-    pub fn get_member_attribute(
-        &self,
-        db: &'db dyn Db,
-        name: &str,
-        attr: gimli::DwAt,
-    ) -> Result<gimli::AttributeValue<DwarfReader>> {
-        self.children(db)?
-            .into_iter()
-            .find(|child| {
-                child.tag(db) == gimli::DW_TAG_member && child.name(db).map_or(false, |n| n == name)
-            })
-            .with_context(|| format!("Failed to find member `{name}`"))
-            .as_die_result(db, self)?
-            .get_attr(db, attr)
-    }
-
     pub fn get_udata_member_attribute(
         &self,
         db: &'db dyn Db,
         name: &str,
         attr: gimli::DwAt,
     ) -> Result<usize> {
-        self.children(db)?
-            .into_iter()
-            .find(|child| {
-                child.tag(db) == gimli::DW_TAG_member && child.name(db).map_or(false, |n| n == name)
-            })
-            .with_context(|| format!("Failed to find member `{name}`"))
-            .as_die_result(db, self)?
-            .udata_attr(db, attr)
+        self.get_member(db, name)?.udata_attr(db, attr)
     }
 
     pub fn get_generic_type_entry(&self, db: &'db dyn Db, name: &str) -> Result<Die<'db>> {

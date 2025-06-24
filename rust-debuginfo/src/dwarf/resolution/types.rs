@@ -5,7 +5,8 @@ use std::sync::Arc;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
-use crate::typedef::{
+use crate::file::DebugFile;
+use rust_types::{
     ArrayDef, EnumDef, EnumStructVariant, EnumTupleVariant, EnumUnitVariant, EnumVariant,
     FunctionDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, ReferenceDef, ResultDef,
     SliceDef, SmartPtrDef, SmartPtrVariant, StdDef, StrSliceDef, StringDef, StructDef, StructField,
@@ -13,7 +14,7 @@ use crate::typedef::{
 };
 
 use anyhow::Context;
-use gimli::UnitOffset;
+use gimli::{DebugInfoOffset, UnitOffset};
 
 type Result<T> = std::result::Result<T, super::Error>;
 
@@ -588,7 +589,13 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
             tracing::debug!("builtin: {builtin_ty:?}");
             builtin_ty
         } else {
-            TypeDef::Alias(TypeRef::from_die(&entry, db))
+            TypeDef::Alias(TypeRef {
+                cu_offset: entry
+                    .cu_offset(db)
+                    .as_debug_info_offset()
+                    .map_or(0, |o| o.0),
+                die_offset: entry.die_offset(db).0,
+            })
         },
     )
 }
@@ -683,7 +690,11 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
 /// Ensure that a type is fully resolved, including resolving any aliases
 /// or references to other types. This is useful for ensuring that the type
 /// is ready for use in contexts where a complete type definition is required.
-pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<TypeDef> {
+pub fn fully_resolve_type<'db>(
+    db: &'db dyn Db,
+    file: DebugFile,
+    typedef: &TypeDef,
+) -> Result<TypeDef> {
     let res = match typedef.clone() {
         TypeDef::Primitive(prim) => {
             use PrimitiveDef::*;
@@ -692,7 +703,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     element_type,
                     length,
                 }) => {
-                    let element_type = fully_resolve_type(db, element_type.as_ref())?;
+                    let element_type = fully_resolve_type(db, file, element_type.as_ref())?;
                     Array(ArrayDef {
                         element_type: Arc::new(element_type),
                         length,
@@ -703,12 +714,12 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     arg_types,
                 }) => {
                     let return_type = return_type
-                        .map(|ty| fully_resolve_type(db, ty.as_ref()))
+                        .map(|ty| fully_resolve_type(db, file, ty.as_ref()))
                         .transpose()?
                         .map(Arc::new);
                     let arg_types = arg_types
                         .into_iter()
-                        .map(|ty| fully_resolve_type(db, ty.as_ref()))
+                        .map(|ty| fully_resolve_type(db, file, ty.as_ref()))
                         .collect::<Result<Vec<_>>>()?;
                     Function(FunctionDef {
                         return_type,
@@ -719,7 +730,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     mutable,
                     pointed_type,
                 }) => {
-                    let pointed_type = fully_resolve_type(db, pointed_type.as_ref())?;
+                    let pointed_type = fully_resolve_type(db, file, pointed_type.as_ref())?;
                     Pointer(PointerDef {
                         mutable,
                         pointed_type: Arc::new(pointed_type),
@@ -729,7 +740,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     mutable,
                     pointed_type,
                 }) => {
-                    let pointed_type = fully_resolve_type(db, pointed_type.as_ref())?;
+                    let pointed_type = fully_resolve_type(db, file, pointed_type.as_ref())?;
                     Reference(ReferenceDef {
                         mutable,
                         pointed_type: Arc::new(pointed_type),
@@ -741,7 +752,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     length_offset,
                     size,
                 }) => {
-                    let element_type = fully_resolve_type(db, element_type.as_ref())?;
+                    let element_type = fully_resolve_type(db, file, element_type.as_ref())?;
                     Slice(SliceDef {
                         element_type: Arc::new(element_type),
                         data_ptr_offset,
@@ -756,7 +767,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                 }) => {
                     let element_types = element_types
                         .into_iter()
-                        .map(|ty| fully_resolve_type(db, ty.as_ref()))
+                        .map(|ty| fully_resolve_type(db, file, ty.as_ref()))
                         .collect::<Result<Vec<_>>>()?;
                     Tuple(TupleDef {
                         element_types: element_types.into_iter().map(Arc::new).collect(),
@@ -778,7 +789,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     data_ptr_offset,
                     variant,
                 }) => {
-                    let inner_type = fully_resolve_type(db, inner_type.as_ref())?;
+                    let inner_type = fully_resolve_type(db, file, inner_type.as_ref())?;
                     SmartPtr(SmartPtrDef {
                         inner_type: Arc::new(inner_type),
                         inner_ptr_offset,
@@ -792,8 +803,8 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     variant,
                     table_offset,
                 }) => {
-                    let key_type = fully_resolve_type(db, key_type.as_ref())?;
-                    let value_type = fully_resolve_type(db, value_type.as_ref())?;
+                    let key_type = fully_resolve_type(db, file, key_type.as_ref())?;
+                    let value_type = fully_resolve_type(db, file, value_type.as_ref())?;
                     Map(MapDef {
                         key_type: Arc::new(key_type),
                         value_type: Arc::new(value_type),
@@ -806,7 +817,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     some_offset,
                     inner_type,
                 }) => {
-                    let inner_type = fully_resolve_type(db, inner_type.as_ref())?;
+                    let inner_type = fully_resolve_type(db, file, inner_type.as_ref())?;
                     Option(OptionDef {
                         discriminant_offset,
                         some_offset,
@@ -814,8 +825,8 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     })
                 }
                 Result(ResultDef { ok_type, err_type }) => {
-                    let ok_type = fully_resolve_type(db, ok_type.as_ref())?;
-                    let err_type = fully_resolve_type(db, err_type.as_ref())?;
+                    let ok_type = fully_resolve_type(db, file, ok_type.as_ref())?;
+                    let err_type = fully_resolve_type(db, file, err_type.as_ref())?;
                     Result(ResultDef {
                         ok_type: Arc::new(ok_type),
                         err_type: Arc::new(err_type),
@@ -827,7 +838,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                     data_ptr_offset,
                     inner_type,
                 }) => {
-                    let inner_type = fully_resolve_type(db, inner_type.as_ref())?;
+                    let inner_type = fully_resolve_type(db, file, inner_type.as_ref())?;
                     Vec(VecDef {
                         length_offset,
                         data_ptr_offset,
@@ -847,7 +858,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
             let fields = fields
                 .into_iter()
                 .map(|field| {
-                    let ty = fully_resolve_type(db, field.ty.as_ref())?;
+                    let ty = fully_resolve_type(db, file, field.ty.as_ref())?;
                     Ok(StructField {
                         name: field.name,
                         offset: field.offset,
@@ -882,7 +893,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                             let fields = fields
                                 .into_iter()
                                 .map(|StructField { name, offset, ty }| {
-                                    let ty = fully_resolve_type(db, ty.as_ref())?;
+                                    let ty = fully_resolve_type(db, file, ty.as_ref())?;
                                     Ok(StructField {
                                         name,
                                         offset,
@@ -896,7 +907,7 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
                             let fields = fields
                                 .into_iter()
                                 .map(|StructField { name, offset, ty }| {
-                                    let ty = fully_resolve_type(db, ty.as_ref())?;
+                                    let ty = fully_resolve_type(db, file, ty.as_ref())?;
                                     Ok(StructField {
                                         name,
                                         offset,
@@ -919,11 +930,12 @@ pub fn fully_resolve_type<'db>(db: &'db dyn Db, typedef: &TypeDef) -> Result<Typ
             })
         }
         TypeDef::Alias(TypeRef {
-            file,
             cu_offset,
             die_offset,
         }) => {
-            let die = Die::new(db, file, cu_offset, UnitOffset(die_offset));
+            let die_offset = UnitOffset(die_offset);
+            let cu_offset = gimli::UnitSectionOffset::from(DebugInfoOffset(cu_offset));
+            let die = Die::new(db, file, cu_offset, die_offset);
             resolve_type_offset(db, die).context("Failed to resolve alias type")?
         }
         TypeDef::Other { name } => {

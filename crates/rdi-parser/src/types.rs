@@ -1,9 +1,10 @@
-use std::fmt;
+//! Type parsing using unsynn
 
 use itertools::Itertools;
-use unsynn::*;
+use std::{fmt, sync::Arc};
 
-use crate::typedef::{FunctionDef, TypeDef, UnitDef};
+use ::rust_types::*;
+use unsynn::*;
 
 // Define some types
 unsynn! {
@@ -38,22 +39,6 @@ unsynn! {
         // correctly
         Unparsed(AngleTokenTree)
     }
-
-    // pub struct QualifiedSelf {
-    //     lt: Lt,
-    //     pub ty_name: Ident,
-    //     keyword: As,
-    //     // this is a path
-    //     pub trait_name: PathSepDelimitedVec<Ident>,
-    //     gt: Gt,
-    // }
-
-    // pub struct ImplTrait {
-    //     impl_kw: Impl,
-    //     pub trait_name: Path,
-    //     for_kw: For,
-    //     pub ty_name: Path,
-    // }
 
     keyword VTable = "vtable";
     keyword Shim = "shim";
@@ -235,11 +220,211 @@ impl fmt::Display for Array {
     }
 }
 
+impl fmt::Display for DynTrait {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "dyn {}",
+            self.traits.0.iter().map(|t| &t.value).join(" + ")
+        )
+    }
+}
+
+impl PtrType {
+    pub fn is_mutable(&self) -> bool {
+        matches!(self.pointer_type.second, Either::Second(Mut(_)))
+    }
+}
+impl RefType {
+    pub fn is_mutable(&self) -> bool {
+        self.mutability.0.len() > 0
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.segments().join("::"))
+    }
+}
+
+impl fmt::Display for FnType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "fn")?;
+        if !self.args.content.0.is_empty() {
+            write!(
+                f,
+                "({})",
+                self.args.content.0.iter().map(|t| &t.value).join(", ")
+            )?;
+        } else {
+            write!(f, "()")?;
+        }
+        if let Some(ret) = &self.ret.0.first() {
+            write!(f, " -> {}", ret.value.ret)?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Ref(r) => {
+                write!(f, "&")?;
+                if r.is_mutable() {
+                    write!(f, "mut ")?;
+                }
+                write!(f, "{}", r.inner)
+            }
+            Type::Array(a) => write!(f, "{a}"),
+            Type::DynTrait(d) => write!(f, "{d}"),
+            Type::Tuple(t) => {
+                let elements = t.inner();
+                if elements.len() == 1 {
+                    write!(f, "({},)", elements[0])
+                } else {
+                    write!(f, "({})", elements.iter().map(|e| e.to_string()).join(", "))
+                }
+            }
+            Type::Ptr(p) => write!(f, "{}{}", p.pointer_type.tokens_to_string(), p.inner),
+            Type::Path(p) => write!(f, "{p}"),
+            Type::Function(fn_type) => write!(f, "{fn_type}"),
+            Type::Never(_) => write!(f, "!"),
+        }
+    }
+}
+
+impl Path {
+    pub fn segments(&self) -> Vec<String> {
+        self.segments
+            .0
+            .iter()
+            .map(|path_segment| match &path_segment.value {
+                PathSegment::Segment(segment) => {
+                    format!(
+                        "{}{}",
+                        segment.ident,
+                        match segment.generics.0.first().as_ref().map(|g| &g.value) {
+                            Some(GenericArgs::Parsed {
+                                _lt: _,
+                                inner,
+                                _gt: _,
+                            }) => {
+                                format!(
+                                    "<{}>",
+                                    inner.0.iter().map(|d| d.value.to_string()).join(", ")
+                                )
+                            }
+                            Some(GenericArgs::Unparsed(angle_token_tree)) => {
+                                angle_token_tree.tokens_to_string()
+                            }
+                            None => String::new(),
+                        }
+                    )
+                }
+                p => p.tokens_to_string(),
+            })
+            .collect()
+    }
+}
+
+pub type ParsedSymbol = (Vec<String>, String, Option<String>);
+
+/// A simpler parsing approach for symbols
+///
+/// All we truly care about is splitting it into:
+///
+/// - the module path prefix
+/// - the type name
+/// - the hash (if present)
+///
+/// e.g. `core::num::nonzero::NonZero<u8>::ilog2::hc1106854ed63a858`
+/// would be parsed into:
+/// - `["core", "num", "nonzero", "NonZero<u8>"]`
+/// - `ilog2`
+/// - `Some("hc1106854ed63a858")`
+///
+/// We can do that without incurring the parsing overhead of the full
+/// `Path` and `Type` parsers, which are more complex and handle
+/// more cases than we need here.
+pub fn parse_symbol(s: &str) -> anyhow::Result<ParsedSymbol> {
+    // First, we need to split the string by `::` while respecting angle brackets
+    let mut segments = Vec::with_capacity(4);
+    let mut current_segment = String::with_capacity(64);
+    let mut angle_depth = 0;
+    let mut chars = s.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        match ch {
+            '<' => {
+                angle_depth += 1;
+                current_segment.push(ch);
+            }
+            '>' => {
+                angle_depth -= 1;
+                current_segment.push(ch);
+            }
+            ':' if angle_depth == 0 && chars.peek() == Some(&':') => {
+                // We found `::` at the top level
+                chars.next(); // consume the second ':'
+                if !current_segment.is_empty() {
+                    segments.push(current_segment.trim().to_string());
+                    current_segment.clear();
+                }
+            }
+            '\n' | '\r' | '\t' | ' ' => {
+                // Ignore consecutive whitespace characters
+                // and replace with a single space character
+                if !current_segment.is_empty() {
+                    if !current_segment.ends_with(' ') {
+                        current_segment.push(' ');
+                    }
+                }
+            }
+            _ => {
+                current_segment.push(ch);
+            }
+        }
+    }
+
+    // Don't forget the last segment
+    if !current_segment.is_empty() {
+        segments.push(current_segment.trim().to_string());
+    }
+
+    if segments.is_empty() {
+        anyhow::bail!("Empty symbol path");
+    }
+
+    // Now we need to identify the hash, function name, and module path
+    let hash = if let Some(last) = segments.last() {
+        if last.starts_with('h') && last.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
+            segments.pop()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let Some(function_name) = segments.pop() else {
+        anyhow::bail!("No function name found");
+    };
+
+    segments.shrink_to_fit();
+    let module_path = segments;
+
+    Ok((module_path, function_name, hash))
+}
+
+pub fn parse_type(s: &str) -> unsynn::Result<Type> {
+    let mut iter = s.to_token_iter();
+    let ty = Cons::<Type, EndOfStream>::parse(&mut iter)?;
+    Ok(ty.first)
+}
+
 impl Type {
     pub fn as_typedef(&self) -> TypeDef {
-        use crate::typedef::{ArrayDef, PointerDef, PrimitiveDef, ReferenceDef, TupleDef};
-        use std::sync::Arc;
-
         match self {
             Type::Path(path) => {
                 // Convert path to typedef
@@ -316,12 +501,6 @@ impl Type {
 
 impl Path {
     fn as_typedef(&self) -> TypeDef {
-        use crate::typedef::{
-            FloatDef, IntDef, MapDef, MapVariant, OptionDef, PrimitiveDef, ResultDef, SmartPtrDef,
-            SmartPtrVariant, StdDef, StringDef, UnitDef, UnsignedIntDef, VecDef,
-        };
-        use std::sync::Arc;
-
         // First, let's extract the segments
         let segments = self.segments();
         if segments.is_empty() {
@@ -546,209 +725,6 @@ impl Path {
     }
 }
 
-impl fmt::Display for DynTrait {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "dyn {}",
-            self.traits.0.iter().map(|t| &t.value).join(" + ")
-        )
-    }
-}
-
-impl PtrType {
-    pub fn is_mutable(&self) -> bool {
-        matches!(self.pointer_type.second, Either::Second(Mut(_)))
-    }
-}
-impl RefType {
-    pub fn is_mutable(&self) -> bool {
-        self.mutability.0.len() > 0
-    }
-}
-
-impl fmt::Display for Path {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.segments().join("::"))
-    }
-}
-
-impl fmt::Display for FnType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "fn")?;
-        if !self.args.content.0.is_empty() {
-            write!(
-                f,
-                "({})",
-                self.args.content.0.iter().map(|t| &t.value).join(", ")
-            )?;
-        } else {
-            write!(f, "()")?;
-        }
-        if let Some(ret) = &self.ret.0.first() {
-            write!(f, " -> {}", ret.value.ret)?;
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Type::Ref(r) => {
-                write!(f, "&")?;
-                if r.is_mutable() {
-                    write!(f, "mut ")?;
-                }
-                write!(f, "{}", r.inner)
-            }
-            Type::Array(a) => write!(f, "{a}"),
-            Type::DynTrait(d) => write!(f, "{d}"),
-            Type::Tuple(t) => {
-                let elements = t.inner();
-                if elements.len() == 1 {
-                    write!(f, "({},)", elements[0])
-                } else {
-                    write!(f, "({})", elements.iter().map(|e| e.to_string()).join(", "))
-                }
-            }
-            Type::Ptr(p) => write!(f, "{}{}", p.pointer_type.tokens_to_string(), p.inner),
-            Type::Path(p) => write!(f, "{p}"),
-            Type::Function(fn_type) => write!(f, "{fn_type}"),
-            Type::Never(_) => write!(f, "!"),
-        }
-    }
-}
-
-impl Path {
-    pub fn segments(&self) -> Vec<String> {
-        self.segments
-            .0
-            .iter()
-            .map(|path_segment| match &path_segment.value {
-                PathSegment::Segment(segment) => {
-                    format!(
-                        "{}{}",
-                        segment.ident,
-                        match segment.generics.0.first().as_ref().map(|g| &g.value) {
-                            Some(GenericArgs::Parsed {
-                                _lt: _,
-                                inner,
-                                _gt: _,
-                            }) => {
-                                format!(
-                                    "<{}>",
-                                    inner.0.iter().map(|d| d.value.to_string()).join(", ")
-                                )
-                            }
-                            Some(GenericArgs::Unparsed(angle_token_tree)) => {
-                                angle_token_tree.tokens_to_string()
-                            }
-                            None => String::new(),
-                        }
-                    )
-                }
-                p => p.tokens_to_string(),
-            })
-            .collect()
-    }
-}
-
-pub type ParsedSymbol = (Vec<String>, String, Option<String>);
-
-/// A simpler parsing approach for symbols
-///
-/// All we truly care about is splitting it into:
-///
-/// - the module path prefix
-/// - the type name
-/// - the hash (if present)
-///
-/// e.g. `core::num::nonzero::NonZero<u8>::ilog2::hc1106854ed63a858`
-/// would be parsed into:
-/// - `["core", "num", "nonzero", "NonZero<u8>"]`
-/// - `ilog2`
-/// - `Some("hc1106854ed63a858")`
-///
-/// We can do that without incurring the parsing overhead of the full
-/// `Path` and `Type` parsers, which are more complex and handle
-/// more cases than we need here.
-pub fn parse_symbol(s: &str) -> anyhow::Result<ParsedSymbol> {
-    // First, we need to split the string by `::` while respecting angle brackets
-    let mut segments = Vec::with_capacity(4);
-    let mut current_segment = String::with_capacity(64);
-    let mut angle_depth = 0;
-    let mut chars = s.chars().peekable();
-
-    while let Some(ch) = chars.next() {
-        match ch {
-            '<' => {
-                angle_depth += 1;
-                current_segment.push(ch);
-            }
-            '>' => {
-                angle_depth -= 1;
-                current_segment.push(ch);
-            }
-            ':' if angle_depth == 0 && chars.peek() == Some(&':') => {
-                // We found `::` at the top level
-                chars.next(); // consume the second ':'
-                if !current_segment.is_empty() {
-                    segments.push(current_segment.trim().to_string());
-                    current_segment.clear();
-                }
-            }
-            '\n' | '\r' | '\t' | ' ' => {
-                // Ignore consecutive whitespace characters
-                // and replace with a single space character
-                if !current_segment.is_empty() {
-                    if !current_segment.ends_with(' ') {
-                        current_segment.push(' ');
-                    }
-                }
-            }
-            _ => {
-                current_segment.push(ch);
-            }
-        }
-    }
-
-    // Don't forget the last segment
-    if !current_segment.is_empty() {
-        segments.push(current_segment.trim().to_string());
-    }
-
-    if segments.is_empty() {
-        anyhow::bail!("Empty symbol path");
-    }
-
-    // Now we need to identify the hash, function name, and module path
-    let hash = if let Some(last) = segments.last() {
-        if last.starts_with('h') && last.chars().skip(1).all(|c| c.is_ascii_hexdigit()) {
-            segments.pop()
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let Some(function_name) = segments.pop() else {
-        anyhow::bail!("No function name found");
-    };
-
-    segments.shrink_to_fit();
-    let module_path = segments;
-
-    Ok((module_path, function_name, hash))
-}
-
-pub fn parse_type(s: &str) -> Result<Type> {
-    let mut iter = s.to_token_iter();
-    let ty = Cons::<Type, EndOfStream>::parse(&mut iter)?;
-    Ok(ty.first)
-}
-
 #[cfg(test)]
 mod test {
     use std::sync::Arc;
@@ -756,10 +732,7 @@ mod test {
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
 
-    use crate::typedef::{
-        IntDef, MapDef, MapVariant, OptionDef, PrimitiveDef, ReferenceDef, ResultDef, SmartPtrDef,
-        SmartPtrVariant, StdDef, StringDef, TupleDef, TypeDef, UnitDef, UnsignedIntDef, VecDef,
-    };
+    use ::rust_types::*;
 
     use super::*;
 
@@ -904,41 +877,6 @@ mod test {
                 UnsignedIntDef { size: 1 },
             ))),
         })))
-    }
-
-    // Helper functions for common patterns
-    impl UnsignedIntDef {
-        pub fn u8() -> Self {
-            Self { size: 1 }
-        }
-        pub fn u32() -> Self {
-            Self { size: 4 }
-        }
-        pub fn u64() -> Self {
-            Self { size: 8 }
-        }
-    }
-
-    impl IntDef {
-        pub fn i32() -> Self {
-            Self { size: 4 }
-        }
-    }
-
-    impl ReferenceDef {
-        pub fn new_mutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
-            Self {
-                mutable: true,
-                pointed_type: Arc::new(pointed_type.into()),
-            }
-        }
-
-        pub fn new_immutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
-            Self {
-                mutable: false,
-                pointed_type: Arc::new(pointed_type.into()),
-            }
-        }
     }
 
     #[test]

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use crate::Value;
 use crate::database::Db;
-use crate::typedef::{
+use rust_types::{
     ArrayDef, MapVariant, PointerDef, PrimitiveDef, ReferenceDef, SliceDef, SmartPtrVariant,
     StdDef, StrSliceDef, TypeDef, VecDef,
 };
@@ -148,15 +148,15 @@ pub fn read_from_memory<'db>(
             })
         }
         TypeDef::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
-        TypeDef::Alias(entry) => {
-            let die = entry.to_die(db);
-            let def = crate::dwarf::resolve_type_offset(db, die)
-                .with_context(|| format!("could not resolve type: {:?}", entry))?;
-
-            read_from_memory(db, address, &def, data_resolver)
-        }
         TypeDef::Enum(enum_def) => {
             todo!("read_from_memory: EnumDef not implemented yet: {enum_def:#?}")
+        }
+        TypeDef::Alias(entry) => {
+            tracing::warn!("read_from_memory: unresolved type alias {entry:?}");
+            Err(anyhow::anyhow!(
+                "read_from_memory: unresolved type alias {:?}",
+                entry
+            ))
         }
         TypeDef::Other { name } => {
             tracing::warn!("read_from_memory: unsupported type {name}");

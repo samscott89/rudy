@@ -1,39 +1,15 @@
 //! Definition of types in the Rust language.
 
-use gimli::UnitSectionOffset;
 use std::mem::size_of;
 use std::sync::Arc;
 
 use salsa::Update;
 
-use crate::file::DebugFile;
-
 /// Reference to a type in DWARF debug information
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeRef {
-    pub file: DebugFile,
-    pub cu_offset: UnitSectionOffset<usize>,
+    pub cu_offset: usize,
     pub die_offset: usize,
-}
-
-impl TypeRef {
-    /// Create a TypeRef from a Die
-    pub fn from_die<'db>(die: &crate::dwarf::Die<'db>, db: &'db dyn crate::database::Db) -> Self {
-        Self {
-            file: die.file(db),
-            cu_offset: die.cu_offset(db),
-            die_offset: die.die_offset(db).0,
-        }
-    }
-
-    pub fn to_die<'db>(&self, db: &'db dyn crate::database::Db) -> crate::dwarf::Die<'db> {
-        crate::dwarf::Die::new(
-            db,
-            self.file.clone(),
-            self.cu_offset,
-            gimli::UnitOffset(self.die_offset),
-        )
-    }
 }
 
 impl TypeDef {
@@ -114,11 +90,7 @@ impl TypeDef {
             TypeDef::Alias(type_ref) => {
                 // For now, just return a placeholder name
                 // In a real implementation, you'd resolve this using the TypeRef
-                format!(
-                    "<alias@{:x}:{:x}>",
-                    type_ref.cu_offset.as_debug_info_offset().unwrap().0,
-                    type_ref.die_offset
-                )
+                format!("<alias@{:x}:{:x}>", type_ref.cu_offset, type_ref.die_offset)
             }
             TypeDef::Other { name } => name.to_string(),
         }
@@ -792,4 +764,39 @@ pub struct EnumTupleVariant {
 pub struct EnumStructVariant {
     pub name: String,
     pub fields: Vec<StructField>,
+}
+
+// Helper functions for common patterns
+impl UnsignedIntDef {
+    pub fn u8() -> Self {
+        Self { size: 1 }
+    }
+    pub fn u32() -> Self {
+        Self { size: 4 }
+    }
+    pub fn u64() -> Self {
+        Self { size: 8 }
+    }
+}
+
+impl IntDef {
+    pub fn i32() -> Self {
+        Self { size: 4 }
+    }
+}
+
+impl ReferenceDef {
+    pub fn new_mutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
+        Self {
+            mutable: true,
+            pointed_type: Arc::new(pointed_type.into()),
+        }
+    }
+
+    pub fn new_immutable<T: Into<TypeDef>>(pointed_type: T) -> Self {
+        Self {
+            mutable: false,
+            pointed_type: Arc::new(pointed_type.into()),
+        }
+    }
 }

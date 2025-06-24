@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Context;
 use itertools::Itertools;
+use rust_types::TypeDef;
 
 use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;
@@ -241,7 +242,7 @@ pub fn resolve_type<'db>(
     db: &'db dyn Db,
     binary: Binary,
     type_name: &str,
-) -> anyhow::Result<Option<crate::typedef::TypeDef>> {
+) -> anyhow::Result<Option<TypeDef>> {
     let parsed = TypeName::parse(&[], type_name)?;
     tracing::info!("Finding type '{parsed}'");
     let index = debug_index(db, binary);
@@ -294,7 +295,10 @@ pub fn resolve_type<'db>(
                             .die(db)
                             .format_with_location(db, entry.die(db).print(db))
                     );
-                    return Ok(Some(typedef));
+                    // nowe we've found a match, we can fully resolve the type
+                    return Ok(Some(crate::dwarf::fully_resolve_type(
+                        db, debug_file, &typedef,
+                    )?));
                 }
                 Err(e) => {
                     tracing::warn!("Failed to resolve type '{type_name}': {e:?}");

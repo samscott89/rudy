@@ -5,7 +5,7 @@ use crate::dwarf::die::declaration_file;
 use crate::dwarf::visitor::{self, DieVisitor};
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
 use crate::file::SourceFile;
-use crate::typedef::TypeDef;
+use rust_types::TypeDef;
 
 type Result<T> = std::result::Result<T, super::Error>;
 

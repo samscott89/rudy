@@ -323,7 +323,7 @@ impl<'db> DebugInfo<'db> {
         let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
         handle_diagnostics(&diagnostics)?;
 
-        let Some((function_name, loc)) = f else {
+        let Some((function_name, _loc)) = f else {
             tracing::debug!("no function found for address {:#x}", address.address(db));
             return Ok(Default::default());
         };
@@ -477,7 +477,7 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
-    pub fn resolve_type(&self, type_name: &str) -> Result<Option<crate::typedef::TypeDef>> {
+    pub fn resolve_type(&self, type_name: &str) -> Result<Option<rust_types::TypeDef>> {
         crate::index::resolve_type(self.db, self.binary, type_name)
     }
 
@@ -514,7 +514,7 @@ impl<'db> DebugInfo<'db> {
     pub fn address_to_value(
         &self,
         address: u64,
-        typedef: &crate::typedef::TypeDef,
+        typedef: &rust_types::TypeDef,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::Value> {
         crate::data::read_from_memory(self.db, address, typedef, data_resolver)
@@ -528,11 +528,11 @@ fn output_variable<'db>(
     var: dwarf::Variable<'db>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::Variable> {
-    let location =
-        dwarf::resolve_data_location(db, function, base_address, var.origin(db), data_resolver)?;
+    let die = var.origin(db);
+    let location = dwarf::resolve_data_location(db, function, base_address, die, data_resolver)?;
 
     // before resolving the value, we'll need to full resolve the type
-    let ty = crate::dwarf::fully_resolve_type(db, var.ty(db))?;
+    let ty = crate::dwarf::fully_resolve_type(db, die.file(db), var.ty(db))?;
     let value = if let Some(addr) = location {
         Some(crate::data::read_from_memory(db, addr, &ty, data_resolver)?)
     } else {
