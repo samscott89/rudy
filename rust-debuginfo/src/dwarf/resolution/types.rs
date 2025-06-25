@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
-use crate::dwarf::resolution::parser::Parser;
+use crate::dwarf::resolution::parser::{Parser, field_type};
 use crate::file::DebugFile;
 use crate::{database::Db, dwarf::resolution::parser::vec_parser};
 use rust_types::*;
@@ -28,18 +28,11 @@ pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Resu
 
 /// Resolve String type layout from DWARF
 fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDef> {
-    // string should just have a single child member for the vec
-    let vec_field = entry
-        .get_member(db, "vec")
-        .context("could not find vec field for string")?;
-    let vec_type = vec_field
-        .get_unit_ref(db, gimli::DW_AT_type)
-        .context("could not get type for vec field")?;
-    let vec = vec_parser()
-        .parse(db, vec_type)
-        .with_context(|| vec_type.format_with_location(db, "Failed to resolve vec for string"))?;
-
-    Ok(StringDef(vec))
+    // Get the vec field type and parse it as a Vec
+    field_type("vec")
+        .then(vec_parser())
+        .parse(db, entry)
+        .map(StringDef)
 }
 
 /// Resolve Map type layout from DWARF

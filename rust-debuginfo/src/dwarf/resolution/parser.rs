@@ -6,7 +6,6 @@
 
 use crate::database::Db;
 use crate::dwarf::Die;
-use anyhow::Context as AnyhowContext;
 use rust_types::*;
 use std::sync::Arc;
 
