@@ -745,8 +745,17 @@ impl Path {
                                     value_offset: 0,
                                 },
                                 "BTreeMap" => MapVariant::BTreeMap {
-                                    length_offset: 0, // TODO: proper parsing
-                                    root_offset: 0,   // TODO: proper parsing
+                                    length_offset: 0,
+                                    root_offset: 0,
+                                    root_layout: EnumDef {
+                                        name: "Unknown".to_string(),
+                                        discriminant: Discriminant {
+                                            ty: DiscriminantType::Implicit,
+                                            offset: 0,
+                                        },
+                                        variants: Vec::new(),
+                                        size: 0,
+                                    },
                                 },
                                 _ => unreachable!(),
                             };

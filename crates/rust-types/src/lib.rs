@@ -667,7 +667,7 @@ impl MapDef {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum MapVariant {
     HashMap {
         bucket_mask_offset: usize, // offset within RawTableInner
@@ -680,6 +680,7 @@ pub enum MapVariant {
     BTreeMap {
         length_offset: usize, // offset to length field
         root_offset: usize,   // offset to root field
+        root_layout: EnumDef,
     },
     IndexMap,
 }

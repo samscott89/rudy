@@ -210,9 +210,8 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 .get_udata_member_attribute(db, "length", gimli::DW_AT_data_member_location)
                 .context("could not get length offset for BTreeMap")?;
 
-            let root_offset = entry
-                .get_udata_member_attribute(db, "root", gimli::DW_AT_data_member_location)
-                .context("could not find root field for BTreeMap")?;
+            // Try to resolve LeafNode structure from DWARF to get actual offsets
+            let (root_offset, root_layout) = resolve_leaf_node_layout(db, entry)?;
 
             Ok(MapDef {
                 key_type,
@@ -220,6 +219,7 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 variant: MapVariant::BTreeMap {
                     length_offset,
                     root_offset,
+                    root_layout,
                 },
             })
         }
@@ -229,6 +229,52 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 entry.location(db)
             )
         }
+    }
+}
+
+/// Resolve LeafNode layout from DWARF debug information
+fn resolve_leaf_node_layout<'db>(
+    db: &'db dyn Db,
+    btree_entry: Die<'db>,
+) -> Result<(usize, EnumDef)> {
+    // From the BTreeMap entry, find the LeafNode type through the Root field
+    // BTreeMap -> root: Option<Root<K, V>> -> Root<K, V> -> node: NodeRef<...> -> LeafNode<K, V>
+
+    // Get the root field type
+    let root_member = btree_entry
+        .get_member(db, "root")
+        .context("could not find root member in BTreeMap")?;
+
+    let root_offset = root_member
+        .udata_attr(db, gimli::DW_AT_data_member_location)
+        .context("could not get root field offset")? as usize;
+
+    // Option<NodeRef<...>
+    let root_type = root_member
+        .get_unit_ref(db, gimli::DW_AT_type)
+        .context("could not get root field type")?;
+
+    // just return the optional noderef definition directly
+    Ok((
+        root_offset,
+        resolve_enum_type(db, root_type).context("could not resolve type for root field")?,
+    ))
+}
+
+/// Extract array capacity from a DWARF array type
+fn extract_array_capacity<'db>(db: &'db dyn Db, array_die: Die<'db>) -> Result<usize> {
+    // Look for subrange_type child that contains the array bounds
+    let subrange = array_die
+        .get_member_by_tag(db, gimli::DW_TAG_subrange_type)
+        .context("could not find subrange_type for array")?;
+
+    // Try to get DW_AT_count or DW_AT_upper_bound
+    if let Ok(count) = subrange.udata_attr(db, gimli::DW_AT_count) {
+        Ok(count)
+    } else if let Ok(upper_bound) = subrange.udata_attr(db, gimli::DW_AT_upper_bound) {
+        Ok(upper_bound + 1) // upper_bound is inclusive, so add 1
+    } else {
+        Err(anyhow::anyhow!("Could not determine array capacity").into())
     }
 }
 
@@ -500,8 +546,11 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
         return Ok(None);
     };
 
-    tracing::info!("resolve_as_builtin_type: checking typename: {typename}",);
-    tracing::info!("resolve_as_builtin_type: typedef: {:?}", typename.typedef);
+    tracing::info!(
+        "resolve_as_builtin_type: checking typename: {typename} {:#?} {}",
+        typename.typedef,
+        entry.location(db)
+    );
 
     match &typename.typedef {
         TypeDef::Primitive(primitive_def) => {
@@ -526,7 +575,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                 }
                 StdDef::Map(map) => {
                     // HashMap/BTreeMap need layout resolution
-                    resolve_map_type(db, entry, map.variant)
+                    resolve_map_type(db, entry, map.variant.clone())
                         .map(|m| Some(TypeDef::Std(StdDef::Map(m))))
                 }
                 StdDef::Result(_) => {
