@@ -37,6 +37,8 @@ fn generate_test_binary(
     // Generate headers
     code.push_str("#![allow(dead_code)]\n");
     code.push_str("use std::collections::HashMap;\n");
+    code.push_str("use std::collections::BTreeMap;\n");
+    code.push_str("use std::iter::FromIterator;\n");
     code.push_str("use std::vec::Vec;\n\n");
 
     // Generate structs with various types
@@ -51,6 +53,7 @@ pub struct TestStruct{i} {{
     pub data: Vec<u8>,
     pub flags: [bool; 8],
     pub map: HashMap<String, i32>,
+    pub btree_map: BTreeMap<String, i32>,
 }}
 
 impl TestStruct{i} {{
@@ -117,7 +120,8 @@ fn main() {
             name: "test{i}".to_string(),
             data: vec![1, 2, 3],
             flags: [false; 8],
-            map: HashMap::new(),
+            map: HashMap::from_iter([(String::from("key"), 0x42)]),
+            btree_map: BTreeMap::from_iter([(String::from("key"), 42)]),
         }};
         total += s.id;
         

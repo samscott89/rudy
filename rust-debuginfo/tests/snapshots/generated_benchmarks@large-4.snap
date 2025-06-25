@@ -5,7 +5,7 @@ snapshot_kind: text
 ---
 ResolvedFunction {
     name: "large::TestStruct1::method_1",
-    address: "0x10000342c",
+    address: "0x100007dd4",
     params: [
         Variable {
             name: "self",

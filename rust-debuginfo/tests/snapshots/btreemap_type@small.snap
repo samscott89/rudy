@@ -1,6 +1,6 @@
 ---
-source: rust-debuginfo/src/dwarf/resolution/types.rs
-expression: ty
+source: rust-debuginfo/tests/mod.rs
+expression: btreemap_type
 snapshot_kind: text
 ---
 Std(
@@ -30,13 +30,9 @@ Std(
                     },
                 ),
             ),
-            variant: HashMap {
-                bucket_mask_offset: 8,
-                ctrl_offset: 0,
-                items_offset: 24,
-                pair_size: 32,
-                key_offset: 0,
-                value_offset: 24,
+            variant: BTreeMap {
+                length_offset: 16,
+                root_offset: 0,
             },
         },
     ),

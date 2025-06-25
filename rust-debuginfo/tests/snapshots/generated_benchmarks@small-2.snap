@@ -1,10 +1,10 @@
 ---
-source: tests/mod.rs
+source: rust-debuginfo/tests/mod.rs
 expression: "debug_info.resolve_function(\"main\").unwrap().unwrap()"
 snapshot_kind: text
 ---
 ResolvedFunction {
     name: "small::main",
-    address: "0x100003e28",
+    address: "0x100008838",
     params: [],
 }

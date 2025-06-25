@@ -744,7 +744,10 @@ impl Path {
                                     key_offset: 0,
                                     value_offset: 0,
                                 },
-                                "BTreeMap" => MapVariant::BTreeMap,
+                                "BTreeMap" => MapVariant::BTreeMap {
+                                    length_offset: 0, // TODO: proper parsing
+                                    root_offset: 0,   // TODO: proper parsing
+                                },
                                 _ => unreachable!(),
                             };
                             tracing::trace!("Matched Map type: '{type_name}'");
@@ -752,7 +755,6 @@ impl Path {
                                 key_type,
                                 value_type,
                                 variant,
-                                table_offset: 0, // Would need to calculate from DWARF
                             }));
                         }
                         "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "UnsafeCell" | "Mutex"
@@ -1040,7 +1042,6 @@ mod test {
                     key_offset: 0,
                     value_offset: 0,
                 },
-                table_offset: 0,
             },
         );
 

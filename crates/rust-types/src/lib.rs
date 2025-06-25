@@ -579,7 +579,7 @@ impl StdDef {
             },
             StdDef::Map(map_def) => match map_def.variant {
                 MapVariant::HashMap { .. } => size_of::<std::collections::HashMap<(), ()>>(),
-                MapVariant::BTreeMap => size_of::<std::collections::BTreeMap<(), ()>>(),
+                MapVariant::BTreeMap { .. } => size_of::<std::collections::BTreeMap<(), ()>>(),
                 MapVariant::IndexMap => todo!(),
             },
             StdDef::Result(def) | StdDef::Option(def) => def.size,
@@ -654,7 +654,6 @@ pub struct MapDef {
     pub key_type: Arc<TypeDef>,
     pub value_type: Arc<TypeDef>,
     pub variant: MapVariant,
-    pub table_offset: usize, // offset to RawTable
 }
 
 impl MapDef {
@@ -678,7 +677,10 @@ pub enum MapVariant {
         key_offset: usize,         // offset to key within a pair
         value_offset: usize,       // offset to value within a pair
     },
-    BTreeMap,
+    BTreeMap {
+        length_offset: usize, // offset to length field
+        root_offset: usize,   // offset to root field
+    },
     IndexMap,
 }
 

@@ -273,6 +273,12 @@ pub trait DieVisitor<'db>: Sized {
             gimli::DW_TAG_subroutine_type => {
                 // these don't seem to contain much, so we'll skip
             }
+            gimli::DW_TAG_member
+            | gimli::DW_TAG_template_type_parameter
+            | gimli::DW_TAG_variant_part => {
+                // these should typically be visited explicitly
+                // as part of visiting the parent
+            }
             _ => {
                 tracing::debug!(
                     "Unhandled DIE tag: {} {}",
@@ -479,6 +485,25 @@ mod test {
 
         fn visit_struct<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
+            entry: crate::dwarf::loader::RawDie<'a>,
+            unit_ref: crate::dwarf::unit::UnitRef<'a>,
+        ) {
+            let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
+                .unwrap()
+                .unwrap_or_else(|| "<unnamed>".to_string());
+            walker.visitor.path.push(name);
+            walker.walk_children();
+            walker.visitor.path.pop();
+        }
+        fn visit_enum<'a>(
+            walker: &mut super::DieWalker<'a, 'db, Self>,
+            _entry: crate::dwarf::loader::RawDie<'a>,
+            _unit_ref: crate::dwarf::unit::UnitRef<'a>,
+        ) {
+            walker.walk_children();
+        }
+        fn visit_pointer_type<'a>(
+            walker: &mut super::DieWalker<'a, 'db, Self>,
             _entry: crate::dwarf::loader::RawDie<'a>,
             _unit_ref: crate::dwarf::unit::UnitRef<'a>,
         ) {
@@ -519,18 +544,16 @@ mod test {
             .try_init();
         let db = crate::database::DebugDatabaseImpl::new();
         // Load a test DWARF file
-        // db.analyze_file("bin/test_binaries/small")
+        let (_, debug_files) = db.analyze_file("bin/test_binaries/small").unwrap();
 
-        let file = File::build(
-            &db,
-            "bin/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
-            None,
-        )
-        .unwrap();
-        let file = super::DebugFile::new(&db, file, true);
         let mut visitor = ModuleFunctionVisitor::default();
+        for file in debug_files {
+            super::walk_file(&db, file, &mut visitor);
+        }
 
-        super::walk_file(&db, file, &mut visitor);
+        visitor.functions.retain(|f| f != "<unnamed>");
+        visitor.functions.dedup();
+        visitor.functions.sort();
 
         // Check that we visited the expected entries
         assert!(!visitor.functions.is_empty(), "No functions were visited");

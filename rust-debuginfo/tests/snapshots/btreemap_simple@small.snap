@@ -1,0 +1,8 @@
+---
+source: rust-debuginfo/tests/mod.rs
+expression: btreemap_simple
+snapshot_kind: text
+---
+Ok(
+    None,
+)

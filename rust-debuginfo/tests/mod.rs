@@ -240,3 +240,25 @@ fn test_method_discovery(#[case] target: &str) {
 
     insta::assert_debug_snapshot!(methods);
 }
+
+#[rstest]
+#[case("small")]
+fn test_btreemap_type_resolution(#[case] target: &str) {
+    setup!(target);
+    let path = format!("bin/test_binaries/{target}");
+
+    if !std::fs::exists(&path).unwrap() {
+        panic!(
+            "Please run `cargo run --bin generate_test_binaries` to generate the test binaries first."
+        );
+    }
+
+    let db = DebugDb::new();
+    let debug_info = DebugInfo::new(&db, &path).unwrap();
+
+    let btreemap_type = debug_info
+        .resolve_type("BTreeMap<String, i32>")
+        .unwrap()
+        .expect("BTreeMap type should be found");
+    insta::assert_debug_snapshot!("btreemap_type", btreemap_type);
+}

@@ -997,14 +997,20 @@ impl<'db> DebugInfo<'db> {
                 let parameters = variables.params(self.db);
 
                 // Check if this is a method for our target type
-                if let Some(method) = self.analyze_function_as_method(
-                    target_type,
-                    &symbol.name.to_string(),
-                    parameters,
-                    &return_type,
-                    symbol,
-                    debug_file,
-                )? {
+                if let Some(method) = self
+                    .analyze_function_as_method(
+                        target_type,
+                        &symbol.name.to_string(),
+                        parameters,
+                        &return_type,
+                        symbol,
+                        debug_file,
+                    )
+                    .unwrap_or_else(|e| {
+                        tracing::error!("Failed to analyze function '{}': {e}", symbol.name);
+                        None
+                    })
+                {
                     discovered_methods.push(method);
                 }
             }
@@ -1045,13 +1051,19 @@ impl<'db> DebugInfo<'db> {
                     let parameters = variables.params(self.db);
 
                     // Check if this is a method (has self parameter)
-                    if let Some((self_type, method)) = self.analyze_function_for_any_method(
-                        &symbol.name.to_string(),
-                        parameters,
-                        &return_type,
-                        symbol,
-                        debug_file,
-                    )? {
+                    if let Some((self_type, method)) = self
+                        .analyze_function_for_any_method(
+                            &symbol.name.to_string(),
+                            parameters,
+                            &return_type,
+                            symbol,
+                            debug_file,
+                        )
+                        .unwrap_or_else(|e| {
+                            tracing::error!("Failed to analyze function '{}': {e}", symbol.name);
+                            None
+                        })
+                    {
                         let type_name = self_type.dereferenced().display_name();
                         methods_by_type
                             .entry(type_name)

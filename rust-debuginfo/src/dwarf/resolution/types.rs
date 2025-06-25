@@ -173,21 +173,24 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 .context("could not get type for member field")?;
 
             // Extract field offsets from RawTableInner
-            let bucket_mask_offset = raw_type_inner.get_udata_member_attribute(
-                db,
-                "bucket_mask",
-                gimli::DW_AT_data_member_location,
-            )?;
-            let ctrl_offset = raw_type_inner.get_udata_member_attribute(
-                db,
-                "ctrl",
-                gimli::DW_AT_data_member_location,
-            )?;
-            let items_offset = raw_type_inner.get_udata_member_attribute(
-                db,
-                "items",
-                gimli::DW_AT_data_member_location,
-            )?;
+            let bucket_mask_offset = table_offset
+                + raw_type_inner.get_udata_member_attribute(
+                    db,
+                    "bucket_mask",
+                    gimli::DW_AT_data_member_location,
+                )?;
+            let ctrl_offset = table_offset
+                + raw_type_inner.get_udata_member_attribute(
+                    db,
+                    "ctrl",
+                    gimli::DW_AT_data_member_location,
+                )?;
+            let items_offset = table_offset
+                + raw_type_inner.get_udata_member_attribute(
+                    db,
+                    "items",
+                    gimli::DW_AT_data_member_location,
+                )?;
 
             Ok(MapDef {
                 key_type,
@@ -200,7 +203,24 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                     key_offset,
                     value_offset,
                 },
-                table_offset,
+            })
+        }
+        MapVariant::BTreeMap { .. } => {
+            let length_offset = entry
+                .get_udata_member_attribute(db, "length", gimli::DW_AT_data_member_location)
+                .context("could not get length offset for BTreeMap")?;
+
+            let root_offset = entry
+                .get_udata_member_attribute(db, "root", gimli::DW_AT_data_member_location)
+                .context("could not find root field for BTreeMap")?;
+
+            Ok(MapDef {
+                key_type,
+                value_type,
+                variant: MapVariant::BTreeMap {
+                    length_offset,
+                    root_offset,
+                },
             })
         }
         _ => {
@@ -743,6 +763,12 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                 arg_types,
             }))
         }
+        // gimli::DW_TAG_enumeration_type => {
+        //     todo!(
+        //         "enumeration type not yet implemented: {}",
+        //         entry.format_with_location(db, "enumeration type")
+        //     );
+        // }
         t => {
             return Err(entry
                 .format_with_location(db, format!("unsupported type: {t}"))
@@ -855,7 +881,6 @@ pub fn fully_resolve_type<'db>(
                     key_type,
                     value_type,
                     variant,
-                    table_offset,
                 }) => {
                     let key_type = fully_resolve_type(db, file, key_type.as_ref())?;
                     let value_type = fully_resolve_type(db, file, value_type.as_ref())?;
@@ -863,7 +888,6 @@ pub fn fully_resolve_type<'db>(
                         key_type: Arc::new(key_type),
                         value_type: Arc::new(value_type),
                         variant,
-                        table_offset,
                     })
                 }
                 Option(EnumDef {
