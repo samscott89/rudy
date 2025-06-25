@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
-use std::{fmt, sync::Arc};
+use rust_types::{PrimitiveDef, ReferenceDef, TypeDef, UnitDef};
+use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use crate::{
     ResolvedLocation,
@@ -624,7 +625,7 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
-    pub fn resolve_type(&self, type_name: &str) -> Result<Option<rust_types::TypeDef>> {
+    pub fn resolve_type(&self, type_name: &str) -> Result<Option<TypeDef>> {
         crate::index::resolve_type(self.db, self.binary, type_name)
     }
 
@@ -661,7 +662,7 @@ impl<'db> DebugInfo<'db> {
     pub fn address_to_value(
         &self,
         address: u64,
-        typedef: &rust_types::TypeDef,
+        typedef: &TypeDef,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::Value> {
         crate::data::read_from_memory(self.db, address, typedef, data_resolver)
@@ -693,7 +694,7 @@ impl<'db> DebugInfo<'db> {
     pub fn get_field(
         &self,
         base_address: u64,
-        base_type: &rust_types::TypeDef,
+        base_type: &TypeDef,
         field_name: &str,
     ) -> Result<crate::VariableInfo> {
         use rust_types::TypeDef;
@@ -770,7 +771,7 @@ impl<'db> DebugInfo<'db> {
     pub fn get_index_by_int(
         &self,
         base_address: u64,
-        base_type: &rust_types::TypeDef,
+        base_type: &TypeDef,
         index: u64,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
@@ -906,7 +907,7 @@ impl<'db> DebugInfo<'db> {
     pub fn get_index_by_value(
         &self,
         base_address: u64,
-        base_type: &rust_types::TypeDef,
+        base_type: &TypeDef,
         key: &crate::Value,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
@@ -967,7 +968,7 @@ impl<'db> DebugInfo<'db> {
     /// A list of discovered methods with their signatures
     pub fn discover_methods_for_type(
         &self,
-        target_type: &rust_types::TypeDef,
+        target_type: &TypeDef,
     ) -> Result<Vec<DiscoveredMethod>> {
         let index = crate::index::debug_index(self.db, self.binary);
         let symbol_index = index.symbol_index(self.db);
@@ -977,27 +978,34 @@ impl<'db> DebugInfo<'db> {
         for symbol in symbol_index.functions.values().flat_map(|map| map.values()) {
             // Check if this function exists in DWARF debug info
             if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
-                // Get the function's DIE (prefer specification over declaration)
+                let return_type =
+                    crate::dwarf::resolve_entry_type(self.db, function_entry.declaration_die)
+                        .unwrap_or_else(|_| TypeDef::Primitive(PrimitiveDef::Unit(UnitDef)));
+
+                // Get the function's DIE (prefer specification over declaration for variable resolution)
                 let function_die = function_entry
                     .specification_die
                     .unwrap_or(function_entry.declaration_die);
 
                 // Resolve function variables to get parameters
-                if let Ok(variables) =
-                    crate::dwarf::resolve_function_variables(self.db, function_die)
-                {
-                    let parameters = variables.params(self.db);
 
-                    // Check if this is a method for our target type
-                    if let Some(method) = self.analyze_function_as_method(
-                        target_type,
-                        &symbol.name.to_string(),
-                        parameters,
-                        symbol,
-                        debug_file,
-                    )? {
-                        discovered_methods.push(method);
-                    }
+                let variables = crate::dwarf::resolve_function_variables(self.db, function_die)?;
+                // we'll check error cases and log them here
+                let diagnostics: Vec<&Diagnostic> =
+                    crate::dwarf::resolve_function_variables::accumulated(self.db, function_die);
+                let _ = handle_diagnostics(&diagnostics)?;
+                let parameters = variables.params(self.db);
+
+                // Check if this is a method for our target type
+                if let Some(method) = self.analyze_function_as_method(
+                    target_type,
+                    &symbol.name.to_string(),
+                    parameters,
+                    &return_type,
+                    symbol,
+                    debug_file,
+                )? {
+                    discovered_methods.push(method);
                 }
             }
         }
@@ -1012,18 +1020,20 @@ impl<'db> DebugInfo<'db> {
     /// # Returns
     ///
     /// A map from type names to their discovered methods
-    pub fn discover_all_methods(
-        &self,
-    ) -> Result<std::collections::HashMap<String, Vec<DiscoveredMethod>>> {
+    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod>>> {
         let index = crate::index::debug_index(self.db, self.binary);
         let symbol_index = index.symbol_index(self.db);
-        let mut methods_by_type = std::collections::HashMap::new();
+        let mut methods_by_type = BTreeMap::new();
 
         // Iterate through all functions that have symbols in the binary
         for symbol in symbol_index.functions.values().flat_map(|map| map.values()) {
             // Check if this function exists in DWARF debug info
             if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
-                // Get the function's DIE (prefer specification over declaration)
+                let return_type =
+                    crate::dwarf::resolve_entry_type(self.db, function_entry.declaration_die)
+                        .unwrap_or_else(|_| TypeDef::Primitive(PrimitiveDef::Unit(UnitDef)));
+
+                // Get the function's DIE (prefer specification over declaration for parameter resolution)
                 let function_die = function_entry
                     .specification_die
                     .unwrap_or(function_entry.declaration_die);
@@ -1038,10 +1048,11 @@ impl<'db> DebugInfo<'db> {
                     if let Some((self_type, method)) = self.analyze_function_for_any_method(
                         &symbol.name.to_string(),
                         parameters,
+                        &return_type,
                         symbol,
                         debug_file,
                     )? {
-                        let type_name = self_type.display_name();
+                        let type_name = self_type.dereferenced().display_name();
                         methods_by_type
                             .entry(type_name)
                             .or_insert_with(Vec::new)
@@ -1057,9 +1068,10 @@ impl<'db> DebugInfo<'db> {
     /// Analyze a function to see if it's a method for the target type
     fn analyze_function_as_method(
         &self,
-        target_type: &rust_types::TypeDef,
+        target_type: &TypeDef,
         function_name: &str,
         parameters: Vec<crate::dwarf::Variable>,
+        return_type: &TypeDef,
         symbol: &crate::index::symbols::Symbol,
         debug_file: crate::file::DebugFile,
     ) -> Result<Option<DiscoveredMethod>> {
@@ -1083,7 +1095,7 @@ impl<'db> DebugInfo<'db> {
             crate::dwarf::fully_resolve_type(self.db, debug_file, param_type)?;
 
         // Check if the parameter type matches our target type
-        if !target_type.matching_type(&resolved_param_type) {
+        if !target_type.matching_type(&resolved_param_type.dereferenced()) {
             return Ok(None);
         }
 
@@ -1091,14 +1103,14 @@ impl<'db> DebugInfo<'db> {
         let method_name = self.extract_method_name(function_name);
 
         // Build method signature
-        let signature = self.build_method_signature(function_name, &parameters)?;
+        let signature = self.build_method_signature(function_name, &parameters, return_type)?;
 
         Ok(Some(DiscoveredMethod {
             name: method_name,
             full_name: function_name.to_string(),
             signature,
             address: symbol.address,
-            self_type: SelfType::from_param_name(first_param_name.as_str()),
+            self_type: SelfType::from_param_type(&resolved_param_type),
             parameter_count: parameters.len(),
             callable: true, // Has symbol, so it's callable
         }))
@@ -1109,9 +1121,10 @@ impl<'db> DebugInfo<'db> {
         &self,
         function_name: &str,
         parameters: Vec<crate::dwarf::Variable>,
+        return_type: &TypeDef,
         symbol: &crate::index::symbols::Symbol,
         debug_file: crate::file::DebugFile,
-    ) -> Result<Option<(rust_types::TypeDef, DiscoveredMethod)>> {
+    ) -> Result<Option<(TypeDef, DiscoveredMethod)>> {
         // Must have at least one parameter to be a method
         if parameters.is_empty() {
             return Ok(None);
@@ -1135,14 +1148,14 @@ impl<'db> DebugInfo<'db> {
         let method_name = self.extract_method_name(function_name);
 
         // Build method signature
-        let signature = self.build_method_signature(function_name, &parameters)?;
+        let signature = self.build_method_signature(function_name, &parameters, &return_type)?;
 
         let method = DiscoveredMethod {
             name: method_name,
             full_name: function_name.to_string(),
             signature,
             address: symbol.address,
-            self_type: SelfType::from_param_name(first_param_name.as_str()),
+            self_type: SelfType::from_param_type(&resolved_param_type),
             parameter_count: parameters.len(),
             callable: true, // Has symbol, so it's callable
         };
@@ -1165,6 +1178,7 @@ impl<'db> DebugInfo<'db> {
         &self,
         _function_name: &str,
         parameters: &[crate::dwarf::Variable],
+        return_type: &TypeDef,
     ) -> Result<String> {
         let mut signature = String::from("fn(");
 
@@ -1181,9 +1195,10 @@ impl<'db> DebugInfo<'db> {
 
         signature.push(')');
 
-        // TODO: Extract return type from function debug info
-        // For now, just indicate unknown return type
-        signature.push_str(" -> ?");
+        if !matches!(return_type, TypeDef::Primitive(PrimitiveDef::Unit(_))) {
+            signature.push_str(" -> ");
+            signature.push_str(&return_type.display_name());
+        }
 
         Ok(signature)
     }
@@ -1366,12 +1381,15 @@ pub enum SelfType {
 }
 
 impl SelfType {
-    fn from_param_name(param_name: &str) -> Self {
-        match param_name {
-            "self" => SelfType::Owned,
-            "&self" => SelfType::Borrowed,
-            "&mut self" => SelfType::BorrowedMut,
-            _ => SelfType::Borrowed, // fallback
+    pub fn from_param_type(param_type: &TypeDef) -> Self {
+        match param_type {
+            TypeDef::Primitive(PrimitiveDef::Reference(ReferenceDef { mutable: true, .. })) => {
+                Self::BorrowedMut
+            }
+            TypeDef::Primitive(PrimitiveDef::Reference(ReferenceDef {
+                mutable: false, ..
+            })) => Self::Borrowed,
+            _ => Self::Owned,
         }
     }
 }

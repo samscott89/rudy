@@ -34,7 +34,7 @@ unsafe impl salsa::Update for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::DieAccess(error) => write!(f, "Die access error: {error}"),
+            Error::DieAccess(error) => write!(f, "{error}"),
             Error::Gimli(error) => write!(f, "Gimli error: {error}"),
             Error::Resolution(error) => write!(f, "Resolution error: {error}"),
             Error::Custom(error) => write!(f, "{error}"),

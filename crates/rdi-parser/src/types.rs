@@ -15,6 +15,7 @@ unsynn! {
     keyword For = "for";
     keyword Impl = "impl";
     keyword Mut = "mut";
+    keyword Str = "str";
     keyword Unsafe = "unsafe";
     type Amp = PunctAny<'&'>;
 
@@ -129,7 +130,22 @@ unsynn! {
     }
 
     #[derive(Clone)]
+    pub struct Slice {
+        _amp: Amp,
+        inner: BracketGroupContaining<Box<Type>>,
+    }
+
+    #[derive(Clone)]
+    pub struct StrSlice {
+        _amp: Amp,
+        inner: Str,
+    }
+
+
+    #[derive(Clone)]
     pub enum Type {
+        Slice(Slice),
+        StrSlice(StrSlice),
         Ref(RefType),
         Never(PunctAny<'!'>),
         Array(Array),
@@ -276,6 +292,8 @@ impl fmt::Display for Type {
                 }
                 write!(f, "{}", r.inner)
             }
+            Type::Slice(s) => write!(f, "&[{}]", s.inner.content),
+            Type::StrSlice(_) => write!(f, "&str"),
             Type::Array(a) => write!(f, "{a}"),
             Type::DynTrait(d) => write!(f, "{d}"),
             Type::Tuple(t) => {
@@ -429,6 +447,21 @@ impl Type {
             Type::Path(path) => {
                 // Convert path to typedef
                 path.as_typedef()
+            }
+            Type::Slice(slice) => {
+                let inner = slice.inner.content.clone().as_typedef();
+                TypeDef::Primitive(PrimitiveDef::Slice(SliceDef {
+                    element_type: Arc::new(inner),
+                    data_ptr_offset: 0,
+                    length_offset: 0,
+                }))
+            }
+            Type::StrSlice(_) => {
+                // For str slices, we can just return a Str type
+                TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
+                    data_ptr_offset: 0,
+                    length_offset: 0,
+                }))
             }
             Type::Ref(ref_type) => {
                 let inner = ref_type.inner.as_typedef();
@@ -622,10 +655,27 @@ impl Path {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Option(OptionDef {
-                                inner_type: inner,
-                                discriminant_offset: 0,
-                                some_offset: 0,
+                            return TypeDef::Std(StdDef::Option(EnumDef {
+                                name: "Option".to_string(),
+                                discriminant: Discriminant {
+                                    offset: 0,
+                                    ty: DiscriminantType::Implicit,
+                                },
+                                variants: vec![
+                                    EnumVariant {
+                                        name: "Some".to_string(),
+                                        layout: inner,
+                                        discriminant: 0,
+                                    },
+                                    EnumVariant {
+                                        name: "None".to_string(),
+                                        layout: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(
+                                            UnitDef,
+                                        ))),
+                                        discriminant: 1,
+                                    },
+                                ],
+                                size: 0,
                             }));
                         }
                         "Result" => {
@@ -646,7 +696,26 @@ impl Path {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Result(ResultDef { ok_type, err_type }));
+                            return TypeDef::Std(StdDef::Result(EnumDef {
+                                name: "Result".to_string(),
+                                discriminant: Discriminant {
+                                    offset: 0,
+                                    ty: DiscriminantType::Implicit,
+                                },
+                                variants: vec![
+                                    EnumVariant {
+                                        name: "Ok".to_string(),
+                                        layout: ok_type,
+                                        discriminant: 0,
+                                    },
+                                    EnumVariant {
+                                        name: "Err".to_string(),
+                                        layout: err_type,
+                                        discriminant: 0,
+                                    },
+                                ],
+                                size: 0,
+                            }));
                         }
                         "HashMap" | "BTreeMap" => {
                             let mut generics_iter = get_generics().into_iter();
@@ -927,11 +996,26 @@ mod test {
         );
         infer(
             "core::option::Option<i32>",
-            OptionDef {
-                inner_type: Arc::new(IntDef::i32().into()),
-                discriminant_offset: 0,
-                some_offset: 0,
-            },
+            StdDef::Option(EnumDef {
+                name: "Option".to_string(),
+                discriminant: Discriminant {
+                    offset: 0,
+                    ty: DiscriminantType::Implicit,
+                },
+                variants: vec![
+                    EnumVariant {
+                        name: "Some".to_string(),
+                        layout: Arc::new(IntDef::i32().into()),
+                        discriminant: 0,
+                    },
+                    EnumVariant {
+                        name: "None".to_string(),
+                        layout: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))),
+                        discriminant: 1,
+                    },
+                ],
+                size: 0,
+            }),
         );
         infer(
             "alloc::boxed::Box<i32>",
@@ -980,16 +1064,47 @@ mod test {
                     ),
                 ],
                 return_type: Arc::new(
-                    StdDef::from(ResultDef {
-                        ok_type: Arc::new(PrimitiveDef::from(UnitDef).into()),
-                        err_type: Arc::new(TypeDef::Other {
-                            name: "Error".to_string(),
-                        }),
+                    StdDef::Result(EnumDef {
+                        name: "Result".to_string(),
+                        discriminant: Discriminant {
+                            offset: 0,
+                            ty: DiscriminantType::Implicit,
+                        },
+                        variants: vec![
+                            EnumVariant {
+                                name: "Ok".to_string(),
+                                layout: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))),
+                                discriminant: 0,
+                            },
+                            EnumVariant {
+                                name: "Err".to_string(),
+                                layout: Arc::new(TypeDef::Other {
+                                    name: "Error".to_string(),
+                                }),
+                                discriminant: 1,
+                            },
+                        ],
+                        size: 0,
                     })
                     .into(),
                 ),
             })),
         );
+        infer(
+            "&[u8]",
+            TypeDef::Primitive(PrimitiveDef::Slice(SliceDef {
+                element_type: Arc::new(UnsignedIntDef::u8().into()),
+                data_ptr_offset: 0,
+                length_offset: 0,
+            })),
+        );
+        infer(
+            "&str",
+            TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
+                data_ptr_offset: 0,
+                length_offset: 0,
+            })),
+        )
     }
 
     #[test]

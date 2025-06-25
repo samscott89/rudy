@@ -1,18 +1,12 @@
 //! Type resolution from DWARF debugging information
 
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::file::DebugFile;
-use crate::{database::Db, index::resolve_type};
-use rust_types::{
-    ArrayDef, Discriminant, EnumDef, EnumVariant, FunctionDef, MapDef, MapVariant, OptionDef,
-    PointerDef, PrimitiveDef, ReferenceDef, ResultDef, SliceDef, SmartPtrDef, SmartPtrVariant,
-    StdDef, StrSliceDef, StringDef, StructDef, StructField, TupleDef, TypeDef, TypeRef, UnitDef,
-    VecDef,
-};
+use rust_types::*;
 
 use anyhow::Context;
 use gimli::{DebugInfoOffset, UnitOffset};
@@ -218,21 +212,6 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
     }
 }
 
-/// Resolve Result type layout from DWARF
-fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<ResultDef> {
-    let enum_def = resolve_enum_type(db, entry).context("Failed to resolve Result type")?;
-    if enum_def.variants.len() != 2 {
-        return Err(entry
-            .format_with_location(db, "Result type must have exactly 2 variants")
-            .into());
-    }
-
-    Ok(ResultDef {
-        ok_type: enum_def.variants[0].layout.clone(),
-        err_type: enum_def.variants[1].layout.clone(),
-    })
-}
-
 /// Resolve smart pointer type layout from DWARF
 fn resolve_smart_ptr_type<'db>(
     db: &'db dyn Db,
@@ -361,88 +340,6 @@ fn resolve_smart_ptr_type<'db>(
     })
 }
 
-/// Resolve Option type structure
-fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDef> {
-    // we have an option type -- but we still need to get the inner
-    // type and we should double check the layout
-
-    tracing::debug!("option: {}", entry.print(db));
-
-    for child in entry.children(db)? {
-        tracing::debug!("option child: {}", child.print(db));
-
-        match child.tag(db) {
-            gimli::DW_TAG_variant_part => {
-                // this tells us how the variants are laid out
-                for grandchild in child.children(db)? {
-                    match grandchild.tag(db) {
-                        gimli::DW_TAG_member => {
-                            // the disciminant
-                            debug_assert_eq!(
-                                grandchild
-                                    .get_attr(db, gimli::DW_AT_data_member_location)?
-                                    .udata_value()
-                                    .unwrap_or(u64::MAX),
-                                0
-                            )
-                        }
-                        gimli::DW_TAG_variant => {
-                            // one of the variants
-                            if let Some(variant_entry) = grandchild.children(db)?.first() {
-                                // check the offset is at 0
-                                debug_assert_eq!(
-                                    variant_entry
-                                        .get_attr(db, gimli::DW_AT_data_member_location)?
-                                        .udata_value()
-                                        .unwrap_or(u64::MAX),
-                                    0
-                                )
-                            } else {
-                                tracing::warn!("no member found for variant");
-                            }
-                        }
-                        t => {
-                            return Err(grandchild
-                                .format_with_location(db, format!("unexpected tag: {t}"))
-                                .into());
-                        }
-                    }
-                }
-            }
-            gimli::DW_TAG_structure_type => {
-                // the type definitions
-                let name = child.name(db)?;
-                if name == "Some" {
-                    // the struct type for the `Some` variant
-                    let member_type = child.get_generic_type_entry(db, "T")?;
-                    let inner_type = resolve_type_offset(db, member_type)
-                        .context("could not resolve inner type for Some")?;
-
-                    let some_offset = child
-                        .get_udata_member_attribute(db, "__0", gimli::DW_AT_data_member_location)
-                        .context("__0 offset is not a valid udata")?;
-
-                    return Ok(OptionDef {
-                        inner_type: Arc::new(inner_type),
-                        discriminant_offset: 0, // discriminant is always at offset 0
-                        some_offset: some_offset as usize,
-                    });
-                }
-            }
-            t => {
-                return Err(entry
-                    .format_with_location(db, format!("unexpected tag: {t}"))
-                    .into());
-            }
-        }
-    }
-
-    // if we got here, then we should have found the inner type
-    Err(entry
-        .format_with_location(db, "failed to find option type")
-        .into())
-}
-
 fn resolve_tuple_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TupleDef> {
     let mut elements = Vec::new();
     let size = entry
@@ -489,7 +386,35 @@ fn resolve_primitive_type<'db>(
             PrimitiveDef::StrSlice(StrSliceDef {
                 data_ptr_offset,
                 length_offset,
-                size: 0, // TODO: remove?
+            })
+        }
+        PrimitiveDef::Slice(_) => {
+            // slices have two members: data_ptr and length
+            // the former also specifies the type of the slice
+            let data_ptr = entry
+                .get_member(db, "data_ptr")
+                .context("could not find data_ptr for slice")?;
+
+            let data_ptr_offset = data_ptr
+                .udata_attr(db, gimli::DW_AT_data_member_location)
+                .context("could not get data_ptr offset for slice")?;
+
+            let data_ptr_type_entry = data_ptr
+                .get_unit_ref(db, gimli::DW_AT_type)
+                .context("could not get type for data_ptr")?;
+
+            // data_entry is of type `*T` for slice `&[T]`, so we'll deference once more.
+            let element_type = resolve_entry_type(db, data_ptr_type_entry)
+                .context("could not resolve element type for slice")?;
+
+            let length_offset = entry
+                .get_udata_member_attribute(db, "length", gimli::DW_AT_data_member_location)
+                .context("could not find length for slice")?;
+
+            PrimitiveDef::Slice(SliceDef {
+                element_type: Arc::new(element_type),
+                data_ptr_offset,
+                length_offset,
             })
         }
         PrimitiveDef::Array(array_def) => {
@@ -528,12 +453,7 @@ fn resolve_primitive_type<'db>(
                 pointed_type: Arc::new(inner),
             })
         }
-        PrimitiveDef::Slice(_slice_def) => {
-            todo!(
-                "slice def at:\n\n{}",
-                entry.format_with_location(db, entry.print(db))
-            )
-        }
+
         PrimitiveDef::Tuple(_) => PrimitiveDef::Tuple(resolve_tuple_type(db, entry)?),
     };
 
@@ -573,7 +493,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
             match std_def {
                 StdDef::Option(_) => {
                     // Use the parsed Option type but resolve the actual layout
-                    let option_def = resolve_option_type(db, entry)?;
+                    let option_def = resolve_enum_type(db, entry)?;
                     Ok(Some(TypeDef::Std(StdDef::Option(option_def))))
                 }
                 StdDef::Vec(_) => {
@@ -591,7 +511,9 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                 }
                 StdDef::Result(_) => {
                     // Result types need layout resolution
-                    resolve_result_type(db, entry).map(|r| Some(TypeDef::Std(StdDef::Result(r))))
+                    Ok(Some(TypeDef::Std(StdDef::Result(resolve_enum_type(
+                        db, entry,
+                    )?))))
                 }
                 StdDef::SmartPtr(s) => {
                     // Smart pointers like Box, Rc, Arc need layout resolution
@@ -661,23 +583,30 @@ fn resolve_enum_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
 
     let discriminant = if let Ok(discriminant) = variants_entry.get_unit_ref(db, gimli::DW_AT_discr)
     {
+        let offset = variants_entry
+            .udata_attr(db, gimli::DW_AT_data_member_location)
+            .unwrap_or(0);
         // we have an explicit discriminant
         // resolve it to a type
         let discriminant_type = resolve_entry_type(db, discriminant)?;
-        match discriminant_type {
-            TypeDef::Primitive(PrimitiveDef::Int(i)) => Discriminant::Int(i),
-            TypeDef::Primitive(PrimitiveDef::UnsignedInt(u)) => Discriminant::UnsignedInt(u),
+        let ty = match discriminant_type {
+            TypeDef::Primitive(PrimitiveDef::Int(i)) => DiscriminantType::Int(i),
+            TypeDef::Primitive(PrimitiveDef::UnsignedInt(u)) => DiscriminantType::UnsignedInt(u),
             _ => {
                 tracing::warn!(
                     "discriminant type is not an integer: {discriminant_type:?} {}",
                     entry.location(db)
                 );
-                Discriminant::Implicit
+                DiscriminantType::Implicit
             }
-        }
+        };
+        Discriminant { ty, offset }
     } else {
         // no explicit discriminant, so we assume it's implicit
-        Discriminant::Implicit
+        Discriminant {
+            ty: DiscriminantType::Implicit,
+            offset: 0,
+        }
     };
 
     for variant in variants_entry.children(db)? {
@@ -778,8 +707,8 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
             }))
         }
         gimli::DW_TAG_structure_type => {
-            // DWARF info says struct, but in practice this could also be an enum
-
+            // rustc uses `structure_type` for a bunch of things.
+            // we need to do a little investigation to figure out what it actually is
             let is_enum = entry
                 .children(db)?
                 .iter()
@@ -882,14 +811,12 @@ pub fn fully_resolve_type<'db>(
                     element_type,
                     data_ptr_offset,
                     length_offset,
-                    size,
                 }) => {
                     let element_type = fully_resolve_type(db, file, element_type.as_ref())?;
                     Slice(SliceDef {
                         element_type: Arc::new(element_type),
                         data_ptr_offset,
                         length_offset,
-                        size,
                     })
                 }
                 Tuple(TupleDef { elements, size }) => {
@@ -939,24 +866,68 @@ pub fn fully_resolve_type<'db>(
                         table_offset,
                     })
                 }
-                Option(OptionDef {
-                    discriminant_offset,
-                    some_offset,
-                    inner_type,
+                Option(EnumDef {
+                    name,
+                    discriminant,
+                    variants,
+                    size,
                 }) => {
-                    let inner_type = fully_resolve_type(db, file, inner_type.as_ref())?;
-                    Option(OptionDef {
-                        discriminant_offset,
-                        some_offset,
-                        inner_type: Arc::new(inner_type),
+                    // For enums, we need to resolve each variant's type
+                    let variants = variants
+                        .into_iter()
+                        .map(
+                            |EnumVariant {
+                                 name,
+                                 discriminant,
+                                 layout,
+                             }| {
+                                let layout = fully_resolve_type(db, file, layout.as_ref())?;
+                                Ok(EnumVariant {
+                                    name,
+                                    discriminant,
+                                    layout: Arc::new(layout),
+                                })
+                            },
+                        )
+                        .collect::<anyhow::Result<_>>()?;
+
+                    StdDef::Option(EnumDef {
+                        name,
+                        discriminant,
+                        variants,
+                        size,
                     })
                 }
-                Result(ResultDef { ok_type, err_type }) => {
-                    let ok_type = fully_resolve_type(db, file, ok_type.as_ref())?;
-                    let err_type = fully_resolve_type(db, file, err_type.as_ref())?;
-                    Result(ResultDef {
-                        ok_type: Arc::new(ok_type),
-                        err_type: Arc::new(err_type),
+                Result(EnumDef {
+                    name,
+                    discriminant,
+                    variants,
+                    size,
+                }) => {
+                    // For enums, we need to resolve each variant's type
+                    let variants = variants
+                        .into_iter()
+                        .map(
+                            |EnumVariant {
+                                 name,
+                                 discriminant,
+                                 layout,
+                             }| {
+                                let layout = fully_resolve_type(db, file, layout.as_ref())?;
+                                Ok(EnumVariant {
+                                    name,
+                                    discriminant,
+                                    layout: Arc::new(layout),
+                                })
+                            },
+                        )
+                        .collect::<anyhow::Result<_>>()?;
+
+                    StdDef::Result(EnumDef {
+                        name,
+                        discriminant,
+                        variants,
+                        size,
                     })
                 }
                 String(string_def) => String(string_def),

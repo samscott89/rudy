@@ -408,6 +408,12 @@ fn test_introspect_complex_nested_types() -> Result<()> {
     // If we get here, complex struct reading is working
     println!("TestComplexData value: {:?}", value);
 
+    let methods = debug_info
+        .discover_methods_for_type(&typedef)
+        .expect("Method discovery for TestComplexData should succeed");
+
+    insta::assert_debug_snapshot!(methods);
+
     // Keep data alive
     let _ = test_data;
     Ok(())

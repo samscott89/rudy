@@ -346,7 +346,6 @@ fn read_primitive_from_memory(
             element_type,
             data_ptr_offset,
             length_offset,
-            size: _,
         }) => {
             let length = address + *length_offset as u64;
             let length_bytes = data_resolver.read_memory(length, 8)?;
@@ -374,7 +373,6 @@ fn read_primitive_from_memory(
         PrimitiveDef::StrSlice(StrSliceDef {
             data_ptr_offset,
             length_offset,
-            size: _,
         }) => {
             let data_ptr = address + *data_ptr_offset as u64;
             let length = address + *length_offset as u64;
@@ -486,20 +484,36 @@ fn read_std_from_memory(
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
     let value = match def {
-        StdDef::Option(option_def) => {
-            let first_byte = data_resolver.read_memory(address, 1)?;
+        StdDef::Option(enum_def) => {
+            let some_variant = &enum_def.variants[0];
+            let first_byte =
+                data_resolver.read_memory(address + enum_def.discriminant.offset as u64, 1)?;
             if first_byte[0] == 0 {
                 Value::Scalar {
-                    ty: option_def.inner_type.display_name(),
+                    ty: some_variant.layout.display_name(),
                     value: "None".to_string(),
                 }
             } else {
-                read_from_memory(
+                // we have a `Some` variant
+                // we should get the address of the inner value
+                let some_result = read_from_memory(
                     db,
-                    address + option_def.some_offset as u64,
-                    &option_def.inner_type,
+                    address,
+                    &some_variant.layout,
                     data_resolver,
-                )?
+                )?;
+
+                if let Value::Struct { fields, .. } = some_result {
+                    // We have a `Some` variant, so we need to extract the inner value.
+                    let inner_value = fields.get("__0").cloned().with_context(|| {
+                        format!(
+                            "Expected Some variant to have a field named '__0' at address {address:#x}"
+                        )
+                    })?;
+                    inner_value
+                } else {
+                    anyhow::bail!("Expected Some variant");
+                }
             }
             .wrap_type("Option")
         }

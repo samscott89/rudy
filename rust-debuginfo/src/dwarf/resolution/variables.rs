@@ -5,7 +5,7 @@ use crate::dwarf::die::declaration_file;
 use crate::dwarf::visitor::{self, DieVisitor};
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
 use crate::file::SourceFile;
-use rust_types::TypeDef;
+use rust_types::{TypeDef, UnitDef};
 
 type Result<T> = std::result::Result<T, super::Error>;
 
@@ -60,14 +60,14 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
         let entry = walker.get_die(entry);
         let db = walker.db;
         tracing::debug!("variable: {}", entry.print(db));
+
         match resolve_variable_entry(db, entry) {
             Ok(var) => {
                 walker.visitor.locals.push(var);
             }
             Err(e) => {
-                tracing::error!(
-                    "Failed to resolve variable: {e} {}",
-                    entry.format_with_location(db, "")
+                db.report_warning(
+                    entry.format_with_location(db, format!("Failed to resolve variable: {e}")),
                 );
             }
         }
@@ -81,14 +81,38 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
         let entry = walker.get_die(entry);
         let db = walker.db;
         tracing::debug!("param: {}", entry.print(db));
+        if entry.name(db).is_err() {
+            // we sometimes encounter anonymous parameters
+            // which we'll just push a dummy value
+            let file =
+                match declaration_file(db, entry) {
+                    Ok(file) => file,
+                    Err(e) => {
+                        db.report_warning(entry.format_with_location(
+                            db,
+                            format!("Failed to get declaration file: {e}"),
+                        ));
+                        return;
+                    }
+                };
+
+            walker.visitor.params.push(Variable::new(
+                db,
+                format!("__{}", walker.visitor.params.len()),
+                TypeDef::Primitive(rust_types::PrimitiveDef::Unit(UnitDef)),
+                file,
+                0,
+                entry,
+            ));
+            return;
+        }
         match resolve_variable_entry(db, entry) {
             Ok(var) => {
                 walker.visitor.params.push(var);
             }
             Err(e) => {
-                tracing::error!(
-                    "Failed to resolve parameter: {e} {}",
-                    entry.format_with_location(db, "")
+                db.report_warning(
+                    entry.format_with_location(db, format!("Failed to resolve parameter: {e}")),
                 );
             }
         }

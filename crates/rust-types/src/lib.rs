@@ -65,12 +65,12 @@ impl TypeDef {
                 }
                 StdDef::Map(map_def) => map_def.display_name(),
                 StdDef::Option(option_def) => {
-                    let inner_type = option_def.inner_type.display_name();
+                    let inner_type = option_def.variants[0].layout.display_name();
                     format!("Option<{}>", inner_type)
                 }
                 StdDef::Result(result_def) => {
-                    let ok_type = result_def.ok_type.display_name();
-                    let err_type = result_def.err_type.display_name();
+                    let ok_type = result_def.variants[0].layout.display_name();
+                    let err_type = result_def.variants[1].layout.display_name();
                     format!("Result<{}, {}>", ok_type, err_type)
                 }
                 StdDef::String(_) => {
@@ -129,6 +129,21 @@ impl TypeDef {
             mutable: false,
             pointed_type: Arc::new(self.clone()),
         }))
+    }
+
+    pub fn dereferenced(&self) -> &TypeDef {
+        match self {
+            TypeDef::Primitive(PrimitiveDef::Pointer(pointer_def)) => {
+                pointer_def.pointed_type.dereferenced()
+            }
+            TypeDef::Primitive(PrimitiveDef::Reference(reference_def)) => {
+                reference_def.pointed_type.dereferenced()
+            }
+            _ => {
+                // If it's not a pointer or reference, return self
+                self
+            }
+        }
     }
 }
 
@@ -243,18 +258,6 @@ impl From<MapDef> for StdDef {
     }
 }
 
-impl From<OptionDef> for StdDef {
-    fn from(option: OptionDef) -> Self {
-        StdDef::Option(option)
-    }
-}
-
-impl From<ResultDef> for StdDef {
-    fn from(result: ResultDef) -> Self {
-        StdDef::Result(result)
-    }
-}
-
 impl From<StringDef> for StdDef {
     fn from(string: StringDef) -> Self {
         StdDef::String(string)
@@ -308,12 +311,6 @@ impl From<StringDef> for TypeDef {
 impl From<VecDef> for TypeDef {
     fn from(vec: VecDef) -> Self {
         TypeDef::Std(StdDef::Vec(vec))
-    }
-}
-
-impl From<OptionDef> for TypeDef {
-    fn from(option: OptionDef) -> Self {
-        TypeDef::Std(StdDef::Option(option))
     }
 }
 
@@ -415,9 +412,9 @@ impl PrimitiveDef {
                 // never type is 0 bytes
                 0
             }
-            PrimitiveDef::Slice(slice_def) => slice_def.size,
+            PrimitiveDef::Slice(_) => size_of::<&[u8]>(),
             PrimitiveDef::Str(_) => todo!(),
-            PrimitiveDef::StrSlice(str_slice_def) => str_slice_def.size,
+            PrimitiveDef::StrSlice(_) => size_of::<&str>(),
             PrimitiveDef::Tuple(tuple_def) => tuple_def.size,
             PrimitiveDef::Unit(_) => 0,
             PrimitiveDef::UnsignedInt(unsigned_int_def) => {
@@ -527,14 +524,12 @@ pub struct SliceDef {
     pub element_type: Arc<TypeDef>,
     pub data_ptr_offset: usize,
     pub length_offset: usize,
-    pub size: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StrSliceDef {
     pub data_ptr_offset: usize,
     pub length_offset: usize,
-    pub size: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -563,8 +558,8 @@ impl UnsignedIntDef {
 pub enum StdDef {
     SmartPtr(SmartPtrDef),
     Map(MapDef),
-    Option(OptionDef),
-    Result(ResultDef),
+    Option(EnumDef),
+    Result(EnumDef),
     String(StringDef),
     Vec(VecDef),
 }
@@ -587,17 +582,7 @@ impl StdDef {
                 MapVariant::BTreeMap => size_of::<std::collections::BTreeMap<(), ()>>(),
                 MapVariant::IndexMap => todo!(),
             },
-            StdDef::Option(_) => {
-                // due to the way Rust handles options, the size of this
-                // will just be a single pointer
-                debug_assert_eq!(size_of::<usize>(), size_of::<Option<[u8; 16]>>());
-                size_of::<usize>()
-            }
-            StdDef::Result(result_def) => {
-                let res_size = result_def.ok_type.size()?;
-                let err_size = result_def.err_type.size()?;
-                std::cmp::max(res_size, err_size)
-            }
+            StdDef::Result(def) | StdDef::Option(def) => def.size,
             StdDef::String(_) | StdDef::Vec(_) => size_of::<Vec<()>>(),
         };
 
@@ -615,9 +600,12 @@ impl StdDef {
                     && l.key_type.matching_type(&r.key_type)
                     && l.value_type.matching_type(&r.value_type)
             }
-            (StdDef::Option(l), StdDef::Option(r)) => l.inner_type.matching_type(&r.inner_type),
+            (StdDef::Option(l), StdDef::Option(r)) => {
+                l.variants[0].layout.matching_type(&r.variants[0].layout)
+            }
             (StdDef::Result(l), StdDef::Result(r)) => {
-                l.ok_type.matching_type(&r.ok_type) && l.err_type.matching_type(&r.err_type)
+                l.variants[0].layout.matching_type(&r.variants[0].layout)
+                    && l.variants[1].layout.matching_type(&r.variants[1].layout)
             }
             (StdDef::String(_), StdDef::String(_)) => true,
             (StdDef::Vec(l), StdDef::Vec(r)) => l.inner_type.matching_type(&r.inner_type),
@@ -698,23 +686,10 @@ impl MapVariant {
     pub fn name(&self) -> &'static str {
         match self {
             MapVariant::HashMap { .. } => "HashMap",
-            MapVariant::BTreeMap => "BTreeMap",
+            MapVariant::BTreeMap { .. } => "BTreeMap",
             MapVariant::IndexMap => "IndexMap",
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct OptionDef {
-    pub discriminant_offset: usize,
-    pub some_offset: usize,
-    pub inner_type: Arc<TypeDef>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct ResultDef {
-    pub ok_type: Arc<TypeDef>,
-    pub err_type: Arc<TypeDef>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -752,7 +727,23 @@ pub struct StructField {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum Discriminant {
+pub struct Discriminant {
+    pub ty: DiscriminantType,
+    pub offset: usize,
+}
+
+impl Discriminant {
+    pub fn size(&self) -> usize {
+        match &self.ty {
+            DiscriminantType::Int(int_def) => int_def.size,
+            DiscriminantType::UnsignedInt(unsigned_int_def) => unsigned_int_def.size,
+            DiscriminantType::Implicit => 4, // no idea?
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub enum DiscriminantType {
     Int(IntDef),
     UnsignedInt(UnsignedIntDef),
     Implicit,
