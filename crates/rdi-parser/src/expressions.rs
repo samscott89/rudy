@@ -159,9 +159,9 @@ impl<'a> Tokenizer<'a> {
 
     fn read_string(&mut self) -> Result<String> {
         // Skip opening quote
-        self.advance(); 
+        self.advance();
         let start = self.position;
-        
+
         while let Some(ch) = self.current_char() {
             if ch == '"' {
                 // Found closing quote
@@ -178,7 +178,7 @@ impl<'a> Tokenizer<'a> {
                 self.advance();
             }
         }
-        
+
         Err(anyhow!("Unterminated string literal"))
     }
 

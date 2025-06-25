@@ -212,7 +212,7 @@ impl ClientConnection {
                     }
                 }
             }
-            
+
             "methods" => {
                 if args.is_empty() {
                     return Ok(ServerMessage::Error {
@@ -262,11 +262,18 @@ impl ClientConnection {
             }
         }
 
-        Err(anyhow!("Could not resolve '{}' as a type or expression", input))
+        Err(anyhow!(
+            "Could not resolve '{}' as a type or expression",
+            input
+        ))
     }
 
     /// Discover methods available for a given type using DWARF debug information
-    fn discover_methods_for_type(&self, type_def: &rust_types::TypeDef, debug_info: &DebugInfo) -> MethodDiscoveryResult {
+    fn discover_methods_for_type(
+        &self,
+        type_def: &rust_types::TypeDef,
+        debug_info: &DebugInfo,
+    ) -> MethodDiscoveryResult {
         // Use the real DWARF-based method discovery
         match debug_info.discover_methods_for_type(type_def) {
             Ok(discovered_methods) => {
