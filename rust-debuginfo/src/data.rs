@@ -8,7 +8,7 @@ use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
 use rust_types::{
-    ArrayDef, MapDef, MapVariant, PointerDef, PrimitiveDef, ReferenceDef, SliceDef,
+    ArrayDef, EnumDef, MapDef, MapVariant, PointerDef, PrimitiveDef, ReferenceDef, SliceDef,
     SmartPtrVariant, StdDef, StrSliceDef, TypeDef, VecDef,
 };
 
@@ -511,6 +511,58 @@ fn read_primitive_from_memory(
     Ok(value)
 }
 
+fn read_option_from_memory(
+    db: &dyn Db,
+    address: u64,
+    enum_def: &EnumDef,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<Value> {
+    let some_variant = enum_def
+        .variants
+        .iter()
+        .find(|v| v.name == "Some")
+        .ok_or_else(|| anyhow::anyhow!("Option enum does not have a 'Some' variant"))?;
+
+    let inner_type = if let TypeDef::Struct(s) = some_variant.layout.as_ref() {
+        s.fields
+            .get(0)
+            .cloned()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Expected 'Some' variant to have a single field, got: {s:#?}")
+            })?
+            .ty
+    } else {
+        anyhow::bail!(
+            "Expected 'Some' variant to be a struct, got: {}",
+            some_variant.layout.display_name()
+        );
+    };
+
+    let first_byte = data_resolver.read_memory(address + enum_def.discriminant.offset as u64, 1)?;
+    Ok(if first_byte[0] == 0 {
+        Value::Scalar {
+            ty: inner_type.display_name(),
+            value: "None".to_string(),
+        }
+    } else {
+        tracing::debug!("Found Some variant at {address:#x}: {some_variant:#?}");
+        // we have a `Some` variant
+        // we should get the address of the inner value
+        let some_result = read_from_memory(db, address, &some_variant.layout, data_resolver)?;
+
+        if let Value::Struct { fields, .. } = some_result {
+            // We have a `Some` variant, so we need to extract the inner value.
+            let inner_value = fields.get("__0").cloned().with_context(|| {
+                format!("Expected Some variant to have a field named '__0' at address {address:#x}")
+            })?;
+            inner_value
+        } else {
+            anyhow::bail!("Expected Some variant");
+        }
+    }
+    .wrap_type("Option"))
+}
+
 fn read_std_from_memory(
     db: &dyn Db,
     address: u64,
@@ -519,37 +571,8 @@ fn read_std_from_memory(
 ) -> Result<Value> {
     let value = match def {
         StdDef::Option(enum_def) => {
-            let some_variant = &enum_def.variants[0];
-            let first_byte =
-                data_resolver.read_memory(address + enum_def.discriminant.offset as u64, 1)?;
-            if first_byte[0] == 0 {
-                Value::Scalar {
-                    ty: some_variant.layout.display_name(),
-                    value: "None".to_string(),
-                }
-            } else {
-                // we have a `Some` variant
-                // we should get the address of the inner value
-                let some_result = read_from_memory(
-                    db,
-                    address,
-                    &some_variant.layout,
-                    data_resolver,
-                )?;
-
-                if let Value::Struct { fields, .. } = some_result {
-                    // We have a `Some` variant, so we need to extract the inner value.
-                    let inner_value = fields.get("__0").cloned().with_context(|| {
-                        format!(
-                            "Expected Some variant to have a field named '__0' at address {address:#x}"
-                        )
-                    })?;
-                    inner_value
-                } else {
-                    anyhow::bail!("Expected Some variant");
-                }
-            }
-            .wrap_type("Option")
+            tracing::trace!("reading Option at {address:#x}");
+            read_option_from_memory(db, address, enum_def, data_resolver)?
         }
         StdDef::Vec(
             v @ VecDef {
