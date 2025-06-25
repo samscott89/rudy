@@ -2,10 +2,11 @@
 
 use std::sync::Arc;
 
-use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
+use crate::dwarf::resolution::parser::Parser;
 use crate::file::DebugFile;
+use crate::{database::Db, dwarf::resolution::parser::vec_parser};
 use rust_types::*;
 
 use anyhow::Context;
@@ -25,48 +26,6 @@ pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Resu
     shallow_resolve_type(db, type_entry)
 }
 
-/// Resolve Vec type layout from DWARF
-fn resolve_vec_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<VecDef> {
-    let mut data_ptr_offset = 0;
-    // Vec.buf -> RawVec
-    let buf = entry.get_member(db, "buf")?;
-    data_ptr_offset += buf.udata_attr(db, gimli::DW_AT_data_member_location)?;
-
-    let rawvec = buf.get_unit_ref(db, gimli::DW_AT_type)?;
-
-    // RawVec.inner -> RawVecInner
-
-    let inner = rawvec.get_member(db, "inner")?;
-    data_ptr_offset += inner.udata_attr(db, gimli::DW_AT_data_member_location)?;
-
-    let rawvec_inner = inner.get_unit_ref(db, gimli::DW_AT_type)?;
-
-    // RawVecInner.ptr -> *mut T
-    let data_ptr = rawvec_inner
-        .get_udata_member_attribute(db, "ptr", gimli::DW_AT_data_member_location)
-        .context("could not get ptr for Vec")?;
-
-    data_ptr_offset += data_ptr;
-
-    let length_offset = entry
-        .get_udata_member_attribute(db, "len", gimli::DW_AT_data_member_location)
-        .context("could not get len for Vec")?;
-
-    let inner_type = entry.get_generic_type_entry(db, "T")?;
-    tracing::debug!(
-        "inner type for Vec: {}",
-        inner_type.format_with_location(db, inner_type.print(db))
-    );
-    let inner_type =
-        shallow_resolve_type(db, inner_type).context("could not resolve inner type of vec")?;
-
-    Ok(VecDef {
-        data_ptr_offset,
-        length_offset,
-        inner_type: Arc::new(inner_type),
-    })
-}
-
 /// Resolve String type layout from DWARF
 fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDef> {
     // string should just have a single child member for the vec
@@ -76,7 +35,8 @@ fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDe
     let vec_type = vec_field
         .get_unit_ref(db, gimli::DW_AT_type)
         .context("could not get type for vec field")?;
-    let vec = resolve_vec_type(db, vec_type)
+    let vec = vec_parser()
+        .parse(db, vec_type)
         .with_context(|| vec_type.format_with_location(db, "Failed to resolve vec for string"))?;
 
     Ok(StringDef(vec))
@@ -567,7 +527,9 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                 }
                 StdDef::Vec(_) => {
                     // For Vec, we need to resolve the actual layout from DWARF
-                    resolve_vec_type(db, entry).map(|v| Some(TypeDef::Std(StdDef::Vec(v))))
+                    vec_parser()
+                        .parse(db, entry)
+                        .map(|v| Some(TypeDef::Std(StdDef::Vec(v))))
                 }
                 StdDef::String(_) => {
                     // String has a known layout similar to Vec
