@@ -683,28 +683,101 @@ fn read_std_from_memory(
 /// Traverse a BTreeMap starting from the root node
 fn traverse_btree_from_root(
     root_addr: u64,
-    _def: &MapDef,
-    _data_resolver: &dyn crate::DataResolver,
+    def: &MapDef,
+    data_resolver: &dyn crate::DataResolver,
 ) -> Result<Vec<(TypedPointer, TypedPointer)>> {
     tracing::trace!("traverse_btree_from_root at {root_addr:#x}");
 
-    // For now, implement a basic version that tries to read what it can
-    // BTreeMap's internal structure is quite complex, involving:
-    // - NodeRef<marker, K, V, type>
-    // - LeafNode vs InternalNode
-    // - Complex pointer arithmetic
+    // Step 1: Read the Root structure
+    // Root contains: { node: NodeRef, height: usize }
+    let root_node = read_btree_root(root_addr, data_resolver)?;
 
-    // This is a simplified implementation that attempts to read basic structure
-    // A full implementation would need to:
-    // 1. Parse the node type (leaf vs internal)
-    // 2. Read the node's key-value arrays
-    // 3. For internal nodes, recursively traverse children
-    // 4. Implement proper iteration order
+    tracing::trace!(
+        "BTreeMap root node: {:#x}, height: {}",
+        root_node.node_ptr,
+        root_node.height
+    );
 
-    tracing::warn!("BTreeMap tree traversal is not fully implemented");
-    tracing::warn!("This would require parsing complex node structures and tree navigation");
-    tracing::warn!("For now, returning empty result");
+    // Step 2: Start traversal from the root node
+    collect_all_entries(root_node.node_ptr, root_node.height, def, data_resolver)
+}
 
-    // Return empty for now - this is where the complex traversal logic would go
+/// BTreeMap Root structure
+#[derive(Debug)]
+struct BTreeRoot {
+    node_ptr: u64, // Pointer to the actual node
+    height: usize, // Height of the tree (0 = leaf)
+}
+
+/// Read the Root structure from memory
+fn read_btree_root(root_addr: u64, data_resolver: &dyn crate::DataResolver) -> Result<BTreeRoot> {
+    // Root structure: { node: NodeRef, height: usize }
+    // NodeRef is essentially a pointer (8 bytes)
+    // height is usize (8 bytes)
+
+    // Read the node pointer (first 8 bytes)
+    let node_ptr_bytes = data_resolver.read_memory(root_addr, 8)?;
+    let node_ptr = u64::from_le_bytes(node_ptr_bytes.try_into().unwrap());
+
+    // Read the height (next 8 bytes)
+    let height_bytes = data_resolver.read_memory(root_addr + 8, 8)?;
+    let height = usize::from_le_bytes(height_bytes.try_into().unwrap());
+
+    Ok(BTreeRoot { node_ptr, height })
+}
+
+/// Collect all entries by traversing the tree
+fn collect_all_entries(
+    node_ptr: u64,
+    height: usize,
+    def: &MapDef,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<Vec<(TypedPointer, TypedPointer)>> {
+    if height == 0 {
+        // Leaf node - contains actual key-value pairs
+        tracing::trace!("Reading leaf node at {node_ptr:#x}");
+        read_leaf_node_entries(node_ptr, def, data_resolver)
+    } else {
+        // Internal node - contains keys and child pointers
+        tracing::trace!("Reading internal node at {node_ptr:#x}, height: {height}");
+        read_internal_node_entries(node_ptr, height, def, data_resolver)
+    }
+}
+
+/// Read entries from a leaf node
+fn read_leaf_node_entries(
+    node_ptr: u64,
+    _def: &MapDef,
+    _data_resolver: &dyn crate::DataResolver,
+) -> Result<Vec<(TypedPointer, TypedPointer)>> {
+    tracing::trace!("read_leaf_node_entries at {node_ptr:#x}");
+
+    // TODO: Implement leaf node reading
+    // Leaf nodes contain:
+    // - length: usize (number of key-value pairs)
+    // - keys: [K; length] (array of keys)
+    // - vals: [V; length] (array of values)
+
+    tracing::warn!("Leaf node reading not yet implemented");
+    Ok(vec![])
+}
+
+/// Read entries from an internal node (recursively)
+fn read_internal_node_entries(
+    node_ptr: u64,
+    height: usize,
+    def: &MapDef,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<Vec<(TypedPointer, TypedPointer)>> {
+    tracing::trace!("read_internal_node_entries at {node_ptr:#x}, height: {height}");
+
+    // TODO: Implement internal node reading
+    // Internal nodes contain:
+    // - length: usize (number of keys)
+    // - keys: [K; length] (array of keys)
+    // - vals: [V; length] (array of values - yes, internal nodes have values too!)
+    // - edges: [NodeRef; length + 1] (array of child pointers)
+
+    tracing::warn!("Internal node reading not yet implemented");
     Ok(vec![])
 }
