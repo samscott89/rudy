@@ -228,6 +228,220 @@ pub fn generic(name: &str) -> Generic {
     }
 }
 
+/// Collect multiple fields in a single DIE traversal
+pub struct AllFields {
+    names: Vec<String>,
+}
+
+impl<'db> Parser<'db, Vec<Die<'db>>> for AllFields {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<Die<'db>>> {
+        let mut results = vec![None; self.names.len()];
+        let mut found_count = 0;
+
+        // Single iteration through children
+        for child in entry.children(db)? {
+            if let Ok(name) = child.name(db) {
+                if let Some(index) = self.names.iter().position(|n| n == &name) {
+                    results[index] = Some(child);
+                    found_count += 1;
+
+                    // Early exit if we found everything
+                    if found_count == self.names.len() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Convert Option<Die> to Die, erroring on missing fields
+        results
+            .into_iter()
+            .zip(&self.names)
+            .map(|(opt_die, name)| {
+                opt_die.ok_or_else(|| {
+                    super::Error::from(anyhow::anyhow!("Failed to find field '{}'", name))
+                })
+            })
+            .collect()
+    }
+}
+
+/// Collect multiple field offsets in one pass
+pub struct AllFieldOffsets {
+    names: Vec<String>,
+}
+
+impl<'db> Parser<'db, Vec<usize>> for AllFieldOffsets {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<usize>> {
+        let mut results = vec![None; self.names.len()];
+        let mut found_count = 0;
+
+        // Single iteration through children
+        for child in entry.children(db)? {
+            if let Ok(name) = child.name(db) {
+                if let Some(index) = self.names.iter().position(|n| n == &name) {
+                    let offset = child
+                        .udata_attr(db, gimli::DW_AT_data_member_location)
+                        .map_err(|e| {
+                            super::Error::from(anyhow::anyhow!(
+                                "Failed to get offset for field '{}': {}",
+                                name,
+                                e
+                            ))
+                        })?;
+                    results[index] = Some(offset as usize);
+                    found_count += 1;
+
+                    // Early exit if we found everything
+                    if found_count == self.names.len() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Convert Option<usize> to usize, erroring on missing fields
+        results
+            .into_iter()
+            .zip(&self.names)
+            .map(|(opt_offset, name)| {
+                opt_offset.ok_or_else(|| {
+                    super::Error::from(anyhow::anyhow!(
+                        "Failed to find field offset for '{}'",
+                        name
+                    ))
+                })
+            })
+            .collect()
+    }
+}
+
+/// Collect multiple generics in one pass
+pub struct AllGenerics {
+    names: Vec<String>,
+}
+
+impl<'db> Parser<'db, Vec<Die<'db>>> for AllGenerics {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<Die<'db>>> {
+        self.names
+            .iter()
+            .map(|name| {
+                entry.get_generic_type_entry(db, name).map_err(|e| {
+                    super::Error::from(anyhow::anyhow!(
+                        "Failed to resolve generic parameter '{}': {}",
+                        name,
+                        e
+                    ))
+                })
+            })
+            .collect()
+    }
+}
+
+pub fn all_fields(names: &[&str]) -> AllFields {
+    AllFields {
+        names: names.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
+pub fn all_field_offsets(names: &[&str]) -> AllFieldOffsets {
+    AllFieldOffsets {
+        names: names.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
+pub fn all_generics(names: &[&str]) -> AllGenerics {
+    AllGenerics {
+        names: names.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
+/// Advanced combinator that collects fields and their information in one pass
+pub struct FieldBundle {
+    field_names: Vec<String>,
+    offset_names: Vec<String>,
+}
+
+#[derive(Debug)]
+pub struct FieldBundleResult<'db> {
+    pub fields: Vec<Die<'db>>,
+    pub offsets: Vec<usize>,
+}
+
+impl<'db> Parser<'db, FieldBundleResult<'db>> for FieldBundle {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<FieldBundleResult<'db>> {
+        let mut fields = vec![None; self.field_names.len()];
+        let mut offsets = vec![None; self.offset_names.len()];
+        let mut found_fields = 0;
+        let mut found_offsets = 0;
+        let total_needed = self.field_names.len() + self.offset_names.len();
+
+        // Single iteration through children
+        for child in entry.children(db)? {
+            if let Ok(name) = child.name(db) {
+                // Check if it's a field we need
+                if let Some(index) = self.field_names.iter().position(|n| n == &name) {
+                    fields[index] = Some(child);
+                    found_fields += 1;
+                }
+
+                // Check if it's an offset we need
+                if let Some(index) = self.offset_names.iter().position(|n| n == &name) {
+                    let offset = child
+                        .udata_attr(db, gimli::DW_AT_data_member_location)
+                        .map_err(|e| {
+                            super::Error::from(anyhow::anyhow!(
+                                "Failed to get offset for field '{}': {}",
+                                name,
+                                e
+                            ))
+                        })?;
+                    offsets[index] = Some(offset as usize);
+                    found_offsets += 1;
+                }
+
+                // Early exit if we found everything
+                if found_fields + found_offsets == total_needed {
+                    break;
+                }
+            }
+        }
+
+        // Convert results, erroring on missing items
+        let fields = fields
+            .into_iter()
+            .zip(&self.field_names)
+            .map(|(opt_die, name)| {
+                opt_die.ok_or_else(|| {
+                    super::Error::from(anyhow::anyhow!("Failed to find field '{}'", name))
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let offsets = offsets
+            .into_iter()
+            .zip(&self.offset_names)
+            .map(|(opt_offset, name)| {
+                opt_offset.ok_or_else(|| {
+                    super::Error::from(anyhow::anyhow!(
+                        "Failed to find field offset for '{}'",
+                        name
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(FieldBundleResult { fields, offsets })
+    }
+}
+
+pub fn field_bundle(field_names: &[&str], offset_names: &[&str]) -> FieldBundle {
+    FieldBundle {
+        field_names: field_names.iter().map(|s| s.to_string()).collect(),
+        offset_names: offset_names.iter().map(|s| s.to_string()).collect(),
+    }
+}
+
 /// Utility for accumulating offsets along a field path
 pub struct OffsetAccumulator {
     current_offset: usize,
@@ -383,6 +597,28 @@ pub fn vec_parser<'db>() -> impl Parser<'db, VecDef> {
         .context("Failed to parse Vec layout")
 }
 
+/// Example: Optimized BTreeMap parser using batch combinators
+pub fn optimized_btreemap_parser<'db>() -> impl Parser<'db, (Vec<Die<'db>>, Vec<usize>)> {
+    // Collect K, V generics + length, root offsets in minimal passes
+    all_generics(&["K", "V"]).and(
+        all_field_offsets(&["length", "root"]),
+        |generics, offsets| Ok((generics, offsets)),
+    )
+}
+
+/// Example: HashMap parser that shows performance optimization
+/// Before: 6+ separate DIE traversals
+/// After: 2 batched traversals  
+pub fn optimized_hashmap_parser<'db>() -> impl Parser<'db, (Vec<Die<'db>>, FieldBundleResult<'db>)>
+{
+    // Batch 1: Get generics (K, V)
+    all_generics(&["K", "V"]).and(
+        // Batch 2: Get table field + various offsets in one pass
+        field_bundle(&["table"], &["bucket_mask", "ctrl", "items"]),
+        |generics, bundle| Ok((generics, bundle)),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -392,10 +628,16 @@ mod tests {
 
     #[test]
     fn test_parser_api_compiles() {
-        // This test just ensures our API design compiles
+        // Test basic parsers
         let _field_parser = field("buf");
         let _offset_parser = field_offset("len");
         let _path_parser = path!["buf", "inner", "ptr"];
+
+        // Test batch parsers
+        let _all_fields_parser = all_fields(&["buf", "len"]);
+        let _all_offsets_parser = all_field_offsets(&["length", "root"]);
+        let _all_generics_parser = all_generics(&["K", "V"]);
+        let _bundle_parser = field_bundle(&["table"], &["offset1", "offset2"]);
 
         // Test that combinators chain properly
         let _combined = field("buf")
