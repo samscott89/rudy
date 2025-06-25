@@ -5,7 +5,7 @@
 use anyhow::Result;
 use itertools::Itertools;
 use rust_debuginfo::{DataResolver, DebugDb, DebugInfo, Value};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 /// A DataResolver that reads from the current process memory
@@ -360,6 +360,89 @@ fn test_introspect_hashmap() -> Result<()> {
     } else {
         panic!(
             "Expected HashMap<String, i32> to be read as Map, got: {:?}",
+            value
+        );
+    }
+
+    // Keep map alive
+    let _ = test_map;
+    Ok(())
+}
+
+#[test]
+fn test_introspect_btreemap() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
+    let db = DebugDb::new();
+
+    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+
+    // Create test data
+    let mut test_map = BTreeMap::new();
+    test_map.insert("one".to_string(), 1);
+    test_map.insert("two".to_string(), 2);
+    test_map.insert("three".to_string(), 3);
+
+    let map_ptr = &test_map as *const BTreeMap<String, i32> as u64;
+
+    let resolver = SelfProcessResolver::new();
+
+    // Find BTreeMap type using the public API
+    let typedef = debug_info
+        .resolve_type("BTreeMap<String, i32>")?
+        .expect("BTreeMap type should be found");
+
+    // Try to read BTreeMap - this will fail when BTreeMap reading isn't implemented
+    let mut value = debug_info.address_to_value(map_ptr, &typedef, &resolver)?;
+
+    // If we get here, BTreeMap reading is working
+    // sort the values to make comparison easier
+    if let Value::Map { ty, entries } = &mut value {
+        assert_eq!(ty, "BTreeMap<String, i32>");
+        // Sort entries by key for consistent ordering
+        entries.sort();
+        assert_eq!(
+            entries,
+            &[
+                (
+                    Value::Scalar {
+                        ty: "String".to_string(),
+                        value: "\"one\"".to_string(),
+                    },
+                    Value::Scalar {
+                        ty: "i32".to_string(),
+                        value: "1".to_string(),
+                    }
+                ),
+                (
+                    Value::Scalar {
+                        ty: "String".to_string(),
+                        value: "\"three\"".to_string(),
+                    },
+                    Value::Scalar {
+                        ty: "i32".to_string(),
+                        value: "3".to_string(),
+                    }
+                ),
+                (
+                    Value::Scalar {
+                        ty: "String".to_string(),
+                        value: "\"two\"".to_string(),
+                    },
+                    Value::Scalar {
+                        ty: "i32".to_string(),
+                        value: "2".to_string(),
+                    }
+                )
+            ]
+        );
+    } else {
+        panic!(
+            "Expected BTreeMap<String, i32> to be read as Map, got: {:?}",
             value
         );
     }
