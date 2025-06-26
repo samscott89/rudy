@@ -5,7 +5,10 @@ use std::sync::Arc;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
-use crate::dwarf::resolution::parser::{Parser, child_field_type, vec_parser};
+use crate::dwarf::resolution::parser::{
+    Parser, attr, child_field_type, field, field_offset, generic, offset, parse_children,
+    vec_parser,
+};
 use crate::file::DebugFile;
 use rust_types::*;
 
@@ -16,13 +19,13 @@ type Result<T> = std::result::Result<T, super::Error>;
 
 /// Resolve the full type for a DIE entry
 pub fn resolve_entry_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    let type_entry = entry.get_unit_ref(db, gimli::DW_AT_type)?;
+    let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
     resolve_type_offset(db, type_entry)
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
 pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-    let type_entry = entry.get_unit_ref(db, gimli::DW_AT_type)?;
+    let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
     shallow_resolve_type(db, type_entry)
 }
 
@@ -76,7 +79,7 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                     let base = entry
                         .get_member(db, "base")
                         .context("could not find base field for HashMap")?
-                        .get_unit_ref(db, gimli::DW_AT_type)
+                        .get_referenced_entry(db, gimli::DW_AT_type)
                         .context("could not get type for base field")?;
 
                     return resolve_map_type(db, base, variant);
@@ -96,7 +99,7 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 .context("table offset for HashMap")? as usize;
 
             let inner_table_type = table
-                .get_unit_ref(db, gimli::DW_AT_type)
+                .get_referenced_entry(db, gimli::DW_AT_type)
                 .context("could not get type for table field")?;
 
             // we also need to get the offsets + size of the (k, v) pairs
@@ -122,7 +125,7 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
 
             // hashbrow::raw::RawTableInner type entry
             let raw_type_inner = member
-                .get_unit_ref(db, gimli::DW_AT_type)
+                .get_referenced_entry(db, gimli::DW_AT_type)
                 .context("could not get type for member field")?;
 
             // Extract field offsets from RawTableInner
@@ -204,7 +207,7 @@ fn resolve_leaf_node_layout<'db>(
 
     // Option<NodeRef<...>
     let root_type = root_member
-        .get_unit_ref(db, gimli::DW_AT_type)
+        .get_referenced_entry(db, gimli::DW_AT_type)
         .context("could not get root field type")?;
 
     // just return the optional noderef definition directly
@@ -282,7 +285,7 @@ fn resolve_smart_ptr_type<'db>(
 
             inner_offset += data.udata_attr(db, gimli::DW_AT_data_member_location)?;
 
-            let unsafe_cell_entry = data.get_unit_ref(db, gimli::DW_AT_type)?;
+            let unsafe_cell_entry = data.get_referenced_entry(db, gimli::DW_AT_type)?;
 
             // UnsafeCell.value -> T
             inner_offset += unsafe_cell_entry
@@ -311,7 +314,7 @@ fn resolve_smart_ptr_type<'db>(
                 .udata_attr(db, gimli::DW_AT_data_member_location)
                 .context("could not find ptr offset")?;
 
-            let nonnull_entry = ptr.get_unit_ref(db, gimli::DW_AT_type)?;
+            let nonnull_entry = ptr.get_referenced_entry(db, gimli::DW_AT_type)?;
 
             // NonNull.pointer -> * ArcInner
 
@@ -321,12 +324,12 @@ fn resolve_smart_ptr_type<'db>(
                 .udata_attr(db, gimli::DW_AT_data_member_location)
                 .context("could not find pointer offset")?;
 
-            let arcinner_pointer = pointer.get_unit_ref(db, gimli::DW_AT_type)?;
+            let arcinner_pointer = pointer.get_referenced_entry(db, gimli::DW_AT_type)?;
 
             // pointer type that needs to be dereferenced to get the inner type
             // then we have _another_ offset to get the data
 
-            let arc_inner = arcinner_pointer.get_unit_ref(db, gimli::DW_AT_type)?;
+            let arc_inner = arcinner_pointer.get_referenced_entry(db, gimli::DW_AT_type)?;
 
             // within {Arc,Rc}Inner, we need to find the actual data pointer offset
             let name = match variant {
@@ -419,7 +422,7 @@ fn resolve_primitive_type<'db>(
                 .context("could not get data_ptr offset for slice")?;
 
             let data_ptr_type_entry = data_ptr
-                .get_unit_ref(db, gimli::DW_AT_type)
+                .get_referenced_entry(db, gimli::DW_AT_type)
                 .context("could not get type for data_ptr")?;
 
             // data_entry is of type `*T` for slice `&[T]`, so we'll deference once more.
@@ -605,7 +608,8 @@ fn resolve_enum_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
     // get the variant part
     let variants_entry = entry.get_member_by_tag(db, gimli::DW_TAG_variant_part)?;
 
-    let discriminant = if let Ok(discriminant) = variants_entry.get_unit_ref(db, gimli::DW_AT_discr)
+    let discriminant = if let Ok(discriminant) =
+        variants_entry.get_referenced_entry(db, gimli::DW_AT_discr)
     {
         let offset = variants_entry
             .udata_attr(db, gimli::DW_AT_data_member_location)
@@ -683,7 +687,7 @@ fn resolve_struct_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StructDe
         let field_name = child.name(db)?;
         let offset = child.udata_attr(db, gimli::DW_AT_data_member_location)?;
 
-        let type_entry = child.get_unit_ref(db, gimli::DW_AT_type)?;
+        let type_entry = child.get_referenced_entry(db, gimli::DW_AT_type)?;
         let ty = shallow_resolve_type(db, type_entry)?;
 
         fields.push(StructField {
@@ -746,14 +750,16 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
             }
         }
         gimli::DW_TAG_subroutine_type => {
-            let return_type = entry.get_unit_ref(db, gimli::DW_AT_type).map_or_else(
-                |_| {
-                    // we'll ignore errors -- subroutines with no type field
-                    // have no return type
-                    Ok(Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))))
-                },
-                |ty| resolve_entry_type(db, ty).map(Arc::new),
-            )?;
+            let return_type = entry
+                .get_referenced_entry(db, gimli::DW_AT_type)
+                .map_or_else(
+                    |_| {
+                        // we'll ignore errors -- subroutines with no type field
+                        // have no return type
+                        Ok(Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))))
+                    },
+                    |ty| resolve_entry_type(db, ty).map(Arc::new),
+                )?;
 
             let arg_types = entry
                 .children(db)?

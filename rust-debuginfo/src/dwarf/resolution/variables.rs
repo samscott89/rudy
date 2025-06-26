@@ -144,7 +144,7 @@ pub fn resolve_function_variables<'db>(
 
 fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Variable<'db>> {
     let name = entry.name(db)?;
-    let type_entry = entry.get_unit_ref(db, gimli::DW_AT_type)?;
+    let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
     let ty = resolve_type_offset(db, type_entry)?;
     let file = declaration_file(db, entry)?;
     let line = entry.udata_attr(db, gimli::DW_AT_decl_line)?;

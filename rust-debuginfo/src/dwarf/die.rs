@@ -145,7 +145,7 @@ impl<'db> Die<'db> {
         )
     }
 
-    pub fn get_unit_ref(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<Die<'db>> {
+    pub fn get_referenced_entry(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<Die<'db>> {
         self.with_entry_and_unit(db, |entry, _| {
             get_unit_ref_attr(entry, attr)
                 .map(|unit_offset| Die::new(db, self.file(db), self.cu_offset(db), unit_offset))
@@ -198,7 +198,7 @@ impl<'db> Die<'db> {
             })
             .with_context(|| format!("Failed to find generic type entry `{name}`"))
             .as_die_result(db, self)
-            .and_then(|member| member.get_unit_ref(db, gimli::DW_AT_type))
+            .and_then(|member| member.get_referenced_entry(db, gimli::DW_AT_type))
     }
 
     pub fn get_attr(

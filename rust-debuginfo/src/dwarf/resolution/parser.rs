@@ -69,6 +69,21 @@ pub trait Parser<'db, T> {
     }
 }
 
+pub fn offset() -> Offset {
+    Offset
+}
+
+pub struct Offset;
+
+impl<'db> Parser<'db, usize> for Offset {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
+        entry
+            .udata_attr(db, gimli::DW_AT_data_member_location)
+            .map_err(|e| super::Error::from(anyhow::anyhow!("Failed to get offset: {}", e)))
+            .map(|o| o as usize)
+    }
+}
+
 /// Find a child member by name and return its Die
 pub struct ChildField {
     name: String,
@@ -83,6 +98,42 @@ impl<'db> Parser<'db, Die<'db>> for ChildField {
                 e
             ))
         })
+    }
+}
+
+pub fn attr<T>(attr: gimli::DwAt) -> Attr<T> {
+    Attr::new(attr)
+}
+
+pub struct Attr<T> {
+    attr: gimli::DwAt,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> Attr<T> {
+    pub fn new(attr: gimli::DwAt) -> Self {
+        Attr {
+            attr,
+            _marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'db> Parser<'db, usize> for Attr<usize> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
+        Ok(entry.udata_attr(db, self.attr)?)
+    }
+}
+
+impl<'db> Parser<'db, String> for Attr<String> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<String> {
+        Ok(entry.string_attr(db, self.attr)?)
+    }
+}
+
+impl<'db> Parser<'db, Die<'db>> for Attr<Die<'db>> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
+        Ok(entry.get_referenced_entry(db, self.attr)?)
     }
 }
 
@@ -173,13 +224,15 @@ impl<'db> Parser<'db, Die<'db>> for ChildFieldType {
                 e
             ))
         })?;
-        field.get_unit_ref(db, gimli::DW_AT_type).map_err(|e| {
-            super::Error::from(anyhow::anyhow!(
-                "Failed to get type for field '{}': {}",
-                self.field_name,
-                e
-            ))
-        })
+        field
+            .get_referenced_entry(db, gimli::DW_AT_type)
+            .map_err(|e| {
+                super::Error::from(anyhow::anyhow!(
+                    "Failed to get type for field '{}': {}",
+                    self.field_name,
+                    e
+                ))
+            })
     }
 }
 
@@ -542,13 +595,15 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for ChildFieldPath {
                 ))
             })?;
             accumulator.add_field_offset(db, entry, field_name)?;
-            entry = entry.get_unit_ref(db, gimli::DW_AT_type).map_err(|e| {
-                super::Error::from(anyhow::anyhow!(
-                    "Failed to resolve type for field '{}': {}",
-                    field_name,
-                    e
-                ))
-            })?;
+            entry = entry
+                .get_referenced_entry(db, gimli::DW_AT_type)
+                .map_err(|e| {
+                    super::Error::from(anyhow::anyhow!(
+                        "Failed to resolve type for field '{}': {}",
+                        field_name,
+                        e
+                    ))
+                })?;
         }
 
         Ok((entry, accumulator.get_offset()))
@@ -592,11 +647,13 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
                     e
                 ))
             })?;
-        entry = entry.get_unit_ref(db, gimli::DW_AT_type).map_err(|e| {
-            super::Error::from(anyhow::anyhow!(
-                "Failed to resolve type for field '{first_field}': {e}",
-            ))
-        })?;
+        entry = entry
+            .get_referenced_entry(db, gimli::DW_AT_type)
+            .map_err(|e| {
+                super::Error::from(anyhow::anyhow!(
+                    "Failed to resolve type for field '{first_field}': {e}",
+                ))
+            })?;
         while let Some(field_name) = path_iter.next() {
             entry = entry.get_member(db, field_name).map_err(|e| {
                 super::Error::from(anyhow::anyhow!(
@@ -610,11 +667,13 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
                         "Failed to get offset for field '{field_name}': {e}",
                     ))
                 })? as usize;
-            entry = entry.get_unit_ref(db, gimli::DW_AT_type).map_err(|e| {
-                super::Error::from(anyhow::anyhow!(
-                    "Failed to resolve type for field '{field_name}': {e}",
-                ))
-            })?;
+            entry = entry
+                .get_referenced_entry(db, gimli::DW_AT_type)
+                .map_err(|e| {
+                    super::Error::from(anyhow::anyhow!(
+                        "Failed to resolve type for field '{field_name}': {e}",
+                    ))
+                })?;
         }
 
         Ok((entry, offset))
