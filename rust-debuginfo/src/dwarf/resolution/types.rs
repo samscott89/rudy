@@ -6,8 +6,7 @@ use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::dwarf::parser::{
-    Parser, entry_type, enum_parser, hashbrown_map_parser, member, parse_children,
-    resolved_generic, vec_parser,
+    Parser, entry_type, enum_def, hashbrown_map, member, parse_children, resolved_generic, vec,
 };
 use crate::file::DebugFile;
 use rust_types::*;
@@ -34,7 +33,7 @@ fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDe
     // Get the vec field type and parse it as a Vec
     Ok(member("vec")
         .then(entry_type())
-        .then(vec_parser())
+        .then(vec())
         .parse(db, entry)
         .map(StringDef)?)
 }
@@ -55,7 +54,7 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 };
 
             // Now we can parse the hashbrown hashmap layout
-            let variant = hashbrown_map_parser()
+            let variant = hashbrown_map()
                 .parse(db, hashbrown_entry)
                 .context("failed to parse hashbrown hashmap layout")?;
 
@@ -427,7 +426,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                 }
                 StdDef::Vec(_) => {
                     // For Vec, we need to resolve the actual layout from DWARF
-                    Ok(vec_parser()
+                    Ok(vec()
                         .parse(db, entry)
                         .map(|v| Some(TypeDef::Std(StdDef::Vec(v))))?)
                 }
@@ -496,7 +495,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 }
 
 fn resolve_enum_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
-    Ok(enum_parser().parse(db, entry)?)
+    Ok(enum_def().parse(db, entry)?)
 }
 
 fn resolve_struct_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StructDef> {

@@ -27,7 +27,6 @@ rdi-parser.workspace = true
 rustc-demangle = "0.1"
 salsa.workspace = true
 serde.workspace = true
-serde_json = "1.0"
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
@@ -36,6 +35,7 @@ insta.workspace = true
 pretty_assertions.workspace = true
 rstest = "0.25"
 rstest_reuse = { version = "0.7" }
+serde_json = "1.0"
 
 
 [[bin]]

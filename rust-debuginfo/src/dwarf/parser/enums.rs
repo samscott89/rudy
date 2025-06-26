@@ -15,7 +15,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 
 /// Parser for discriminant information
-pub fn discriminant_parser<'db>() -> impl Parser<'db, Discriminant> {
+pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
     struct DiscriminantParser;
 
     impl<'db> Parser<'db, Discriminant> for DiscriminantParser {
@@ -60,7 +60,7 @@ pub fn discriminant_parser<'db>() -> impl Parser<'db, Discriminant> {
 }
 
 /// Parser for enum types
-pub fn enum_parser<'db>() -> impl Parser<'db, EnumDef> {
+pub fn enum_def<'db>() -> impl Parser<'db, EnumDef> {
     struct EnumParser;
 
     impl<'db> Parser<'db, EnumDef> for EnumParser {
@@ -75,7 +75,7 @@ pub fn enum_parser<'db>() -> impl Parser<'db, EnumDef> {
             let variants_entry = member_by_tag(gimli::DW_TAG_variant_part).parse(db, entry)?;
 
             // Parse discriminant info and variants
-            let discriminant = discriminant_parser().parse(db, variants_entry)?;
+            let discriminant = enum_discriminant().parse(db, variants_entry)?;
 
             // Parse all variants
             let variant_dies =

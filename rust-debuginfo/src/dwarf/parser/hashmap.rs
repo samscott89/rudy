@@ -10,7 +10,7 @@ use rust_types::MapVariant;
 type Result<T> = anyhow::Result<T>;
 
 /// Parser for hashbrown HashMap layout
-pub fn hashbrown_map_parser<'db>() -> impl Parser<'db, MapVariant> {
+pub fn hashbrown_map<'db>() -> impl Parser<'db, MapVariant> {
     struct HashBrownMapParser;
 
     impl<'db> Parser<'db, MapVariant> for HashBrownMapParser {
