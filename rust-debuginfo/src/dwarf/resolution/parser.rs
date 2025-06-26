@@ -382,6 +382,96 @@ pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, Arc<TypeDef>> {
     generic(name).then(resolve_type()).map(Arc::new)
 }
 
+/// Parser that finds a child by tag rather than name
+pub struct ChildByTag {
+    tag: gimli::DwTag,
+}
+
+impl<'db> Parser<'db, Die<'db>> for ChildByTag {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
+        entry.get_member_by_tag(db, self.tag).map_err(|e| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to find child with tag {:?}: {}",
+                self.tag,
+                e
+            ))
+        })
+    }
+}
+
+pub fn child_by_tag(tag: gimli::DwTag) -> ChildByTag {
+    ChildByTag { tag }
+}
+
+/// Parser that iterates through children with a specific tag
+pub struct ChildrenByTag {
+    tag: gimli::DwTag,
+}
+
+impl<'db> Parser<'db, Vec<Die<'db>>> for ChildrenByTag {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<Die<'db>>> {
+        Ok(entry
+            .children(db)?
+            .into_iter()
+            .filter(|child| child.tag(db) == self.tag)
+            .collect())
+    }
+}
+
+pub fn children_by_tag(tag: gimli::DwTag) -> ChildrenByTag {
+    ChildrenByTag { tag }
+}
+
+/// Parser that gets an optional attribute
+pub struct OptionalAttr<T> {
+    attr: gimli::DwAt,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<'db> Parser<'db, Option<usize>> for OptionalAttr<usize> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<usize>> {
+        Ok(entry.udata_attr(db, self.attr).ok().map(|v| v as usize))
+    }
+}
+
+impl<'db> Parser<'db, Option<Die<'db>>> for OptionalAttr<Die<'db>> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<Die<'db>>> {
+        Ok(entry.get_referenced_entry(db, self.attr).ok())
+    }
+}
+
+pub fn optional_attr<T>(attr: gimli::DwAt) -> OptionalAttr<T> {
+    OptionalAttr {
+        attr,
+        _marker: std::marker::PhantomData,
+    }
+}
+
+/// Parser for enum variants
+pub struct VariantParser;
+
+impl<'db> Parser<'db, EnumVariant> for VariantParser {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<EnumVariant> {
+        let discriminant = attr::<usize>(gimli::DW_AT_discr_value)
+            .parse(db, entry)
+            .unwrap_or(0) as u64;
+
+        let member = child_by_tag(gimli::DW_TAG_member).parse(db, entry)?;
+        let name = attr::<String>(gimli::DW_AT_name).parse(db, member)?;
+        let layout = Arc::new(entry_type().then(resolve_type()).parse(db, member)?);
+
+        Ok(EnumVariant {
+            name,
+            discriminant,
+            layout,
+        })
+    }
+}
+
+pub fn variant_parser() -> VariantParser {
+    VariantParser
+}
+
 /// Unified parser for tuples of parsers applied to children
 pub struct ParseChildren<T> {
     parsers: T,
@@ -715,6 +805,19 @@ impl<'db> Parser<'db, TypeDef> for ResolveType {
 
 pub fn resolve_type() -> ResolveType {
     ResolveType
+}
+
+/// Combinator that resolves a Die into a type definition (shallow)
+pub struct ResolveTypeShallow;
+
+impl<'db> Parser<'db, TypeDef> for ResolveTypeShallow {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+        super::shallow_resolve_type(db, entry)
+    }
+}
+
+pub fn resolve_type_shallow() -> ResolveTypeShallow {
+    ResolveTypeShallow
 }
 
 /// Higher-level combinators for common patterns
