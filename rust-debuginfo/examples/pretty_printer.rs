@@ -52,6 +52,13 @@ fn print_value(value: &Value, indent: usize) {
             }
             println!("{indent_str}}}");
         }
+        Value::Tuple { ty, entries } => {
+            println!("{indent_str}({ty})");
+            for (i, entry) in entries.iter().enumerate() {
+                print!("{indent_str}  [{i}] = ");
+                print_value(entry, indent + 4);
+            }
+        }
         Value::Map { ty, entries } => {
             println!("{indent_str}{ty} {{");
             for (key, value) in entries {

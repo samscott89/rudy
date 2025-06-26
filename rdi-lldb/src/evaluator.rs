@@ -511,5 +511,9 @@ fn format_value(value: &Value) -> String {
                 format!("{{ {} entries }}", entries.len())
             }
         }
+        Value::Tuple { ty, entries } => {
+            let entries_str: Vec<String> = entries.iter().map(format_value).collect();
+            format!("{ty} (\n{}\n)", indent(&entries_str.join(",\n"), 1))
+        }
     }
 }

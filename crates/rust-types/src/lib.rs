@@ -83,6 +83,7 @@ impl TypeDef {
             },
             TypeDef::Struct(struct_def) => struct_def.name.clone(),
             TypeDef::Enum(enum_def) => enum_def.name.clone(),
+            TypeDef::CEnum(c_enum_def) => c_enum_def.name.clone(),
             TypeDef::Alias(type_ref) => {
                 // For now, just return a placeholder name
                 // In a real implementation, you'd resolve this using the TypeRef
@@ -98,6 +99,7 @@ impl TypeDef {
             TypeDef::Std(std_def) => std_def.size(),
             TypeDef::Struct(struct_def) => Some(struct_def.size),
             TypeDef::Enum(enum_def) => Some(enum_def.size),
+            TypeDef::CEnum(c_enum_def) => Some(c_enum_def.size),
             TypeDef::Alias(_type_ref) => {
                 // Type resolution would need to happen at a higher level
                 None
@@ -119,6 +121,8 @@ impl TypeDef {
             // TODO: Sam: handle this more robustly
             (TypeDef::Enum(e1), TypeDef::Enum(e2)) => e1.name == e2.name,
             (TypeDef::Enum(e1), TypeDef::Other { name }) => &e1.name == name,
+            (TypeDef::CEnum(e1), TypeDef::CEnum(e2)) => e1.name == e2.name,
+            (TypeDef::CEnum(e1), TypeDef::Other { name }) => &e1.name == name,
             (TypeDef::Alias(_), TypeDef::Alias(_)) => false,
             _ => false,
         }
@@ -345,6 +349,9 @@ pub enum TypeDef {
 
     /// Enums
     Enum(EnumDef),
+
+    /// C-style enumerations (simple named integer constants)
+    CEnum(CEnumDef),
 
     /// Reference to some other type
     ///
@@ -765,7 +772,7 @@ pub struct EnumVariant {
     ///
     /// If `None`, we should use the index of the variant
     /// in the `variants` vector as the discriminant value.
-    pub discriminant: Option<usize>,
+    pub discriminant: Option<i128>,
     pub layout: Arc<TypeDef>,
 }
 
@@ -785,6 +792,20 @@ pub struct ResultDef {
     pub ok_type: Arc<TypeDef>,
     pub err_type: Arc<TypeDef>,
     pub size: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub struct CEnumDef {
+    pub name: String,
+    pub discriminant_type: DiscriminantType,
+    pub variants: Vec<CEnumVariant>,
+    pub size: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub struct CEnumVariant {
+    pub name: String,
+    pub value: i128,
 }
 
 // Helper functions for common patterns

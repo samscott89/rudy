@@ -51,6 +51,41 @@ impl<'db> Parser<'db, usize> for Attr<usize> {
     }
 }
 
+impl<'db> Parser<'db, i64> for Attr<i64> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<i64> {
+        let value = entry.get_attr(db, self.attr)?;
+        if let Some(v) = value.udata_value() {
+            if v > i64::MAX as u64 {
+                return Err(anyhow::anyhow!("Value {} exceeds i64 maximum", v));
+            }
+            Ok(v as i64)
+        } else if let Some(v) = value.sdata_value() {
+            Ok(v)
+        } else {
+            Err(anyhow::anyhow!(
+                "Expected {} to be a signed or unsigned data attribute, found: {value:?}",
+                self.attr,
+            ))
+        }
+    }
+}
+
+impl<'db> Parser<'db, i128> for Attr<i128> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<i128> {
+        let value = entry.get_attr(db, self.attr)?;
+        if let Some(v) = value.udata_value() {
+            Ok(v as i128)
+        } else if let Some(v) = value.sdata_value() {
+            Ok(v as i128)
+        } else {
+            Err(anyhow::anyhow!(
+                "Expected {} to be a signed or unsigned data attribute, found: {value:?}",
+                self.attr,
+            ))
+        }
+    }
+}
+
 impl<'db> Parser<'db, String> for Attr<String> {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<String> {
         Ok(entry.string_attr(db, self.attr)?)
@@ -69,15 +104,12 @@ pub struct OptionalAttr<T> {
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db> Parser<'db, Option<usize>> for OptionalAttr<usize> {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<usize>> {
-        Ok(entry.udata_attr(db, self.attr).ok().map(|v| v as usize))
-    }
-}
-
-impl<'db> Parser<'db, Option<Die<'db>>> for OptionalAttr<Die<'db>> {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<Die<'db>>> {
-        Ok(entry.get_referenced_entry(db, self.attr).ok())
+impl<'db, T> Parser<'db, Option<T>> for OptionalAttr<T>
+where
+    Attr<T>: Parser<'db, T>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<T>> {
+        Ok(attr(self.attr).parse(db, entry).ok())
     }
 }
 

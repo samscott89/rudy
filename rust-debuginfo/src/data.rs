@@ -8,8 +8,8 @@ use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
 use rust_types::{
-    ArrayDef, EnumDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, ReferenceDef,
-    SliceDef, SmartPtrVariant, StdDef, StrSliceDef, StructDef, TypeDef, VecDef,
+    ArrayDef, CEnumDef, EnumDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
+    ReferenceDef, SliceDef, SmartPtrVariant, StdDef, StrSliceDef, StructDef, TypeDef, VecDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -278,6 +278,197 @@ pub fn read_map_entries(
     }
 }
 
+fn read_enum(
+    db: &dyn Db,
+    address: u64,
+    enum_def: &EnumDef,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<Value> {
+    tracing::trace!("read_enum {address:#x} {enum_def:#?}");
+
+    let EnumDef {
+        name,
+        variants,
+        discriminant,
+        size,
+    } = enum_def;
+
+    let disc_offset = discriminant.offset as u64;
+    let disc_address = address + disc_offset;
+
+    let explicit_disc = !matches!(discriminant.ty, rust_types::DiscriminantType::Implicit);
+
+    let disc_value = match &discriminant.ty {
+        rust_types::DiscriminantType::Int(int_def) => {
+            let memory = data_resolver.read_memory(disc_address, int_def.size)?;
+
+            match int_def.size {
+                1 => i8::from_le_bytes(memory.try_into().unwrap()) as i128,
+                2 => i16::from_le_bytes(memory.try_into().unwrap()) as i128,
+                4 => i32::from_le_bytes(memory.try_into().unwrap()) as i128,
+                8 => i64::from_le_bytes(memory.try_into().unwrap()) as i128,
+                _ => {
+                    anyhow::bail!(
+                        "read_primitive_from_memory: unsupported IntDef size {} at address {address:#x}",
+                        int_def.size
+                    )
+                }
+            }
+        }
+        rust_types::DiscriminantType::UnsignedInt(unsigned_int_def) => {
+            let memory = data_resolver.read_memory(disc_address, unsigned_int_def.size)?;
+            match unsigned_int_def.size {
+                1 => u8::from_le_bytes(memory.try_into().unwrap()) as i128,
+                2 => u16::from_le_bytes(memory.try_into().unwrap()) as i128,
+                4 => u32::from_le_bytes(memory.try_into().unwrap()) as i128,
+                8 => u64::from_le_bytes(memory.try_into().unwrap()) as i128,
+                _ => {
+                    anyhow::bail!(
+                        "read_primitive_from_memory: unsupported UnsignedIntDef size {} at address {address:#x}",
+                        unsigned_int_def.size
+                    )
+                }
+            }
+        }
+        rust_types::DiscriminantType::Implicit => {
+            // I guess we'll just read 4 bytes and see what happens?
+            let memory = data_resolver.read_memory(disc_address + disc_offset, 4)?;
+            i32::from_le_bytes(memory.try_into().unwrap()) as i128
+        }
+    };
+
+    tracing::trace!("read_enum: at {disc_address:#x}, discriminant value: {disc_value}");
+
+    let maybe_variant = variants.iter().enumerate().find(|(i, v)| {
+        if explicit_disc {
+            // explicit discriminant, check against the value
+
+            v.discriminant.map_or(false, |v| v == disc_value)
+        } else {
+            // otherwise we'll assume the discriminant is just the index
+            *i as i128 == disc_value
+        }
+    });
+
+    let matching_variant = match (maybe_variant, explicit_disc) {
+        (Some((_, v)), _) => v,
+        (None, true) => {
+            // if we have _no_ discriminant, we assume this is the
+            // fancy niche optimization that Rust does to pack in values
+            variants.iter().find(|v| v.discriminant.is_none()).with_context(|| {
+                format!(
+                    "read_enum: No matching variant found for discriminant value {disc_value} in {name} with explicit discriminant"
+                )
+            })?
+        }
+        (None, false) => {
+            anyhow::bail!(
+                "read_enum: No matching variant found for discriminant value {disc_value} in {name} with implicit discriminant"
+            )
+        }
+    };
+
+    tracing::trace!("found matching variant: {matching_variant:#?}");
+
+    // read the inner value
+    let inner = read_from_memory(db, address, &matching_variant.layout, data_resolver)?;
+
+    // re-format the value based on what we get back
+    Ok(match inner {
+        Value::Struct { fields, .. } => {
+            if fields.is_empty() {
+                // unit variant
+                Value::Scalar {
+                    ty: format!("{name}::{}", matching_variant.name),
+                    value: matching_variant.name.to_string(),
+                }
+            } else if fields.keys().all(|k| k.starts_with("__")) {
+                // anonymous struct, likely a tuple variant
+                let values: Vec<_> = fields.into_iter().map(|(_, v)| v).collect();
+                Value::Tuple {
+                    ty: format!("{name}::{}", matching_variant.name),
+                    entries: values,
+                }
+            } else {
+                // struct variant
+                Value::Struct {
+                    ty: format!("{name}::{}", matching_variant.name),
+                    fields,
+                }
+            }
+        }
+        v => {
+            // unexpected, but we can at least return it
+            tracing::error!("read_enum: Expected a struct for enum variant, got: {v:#?}");
+            v
+        }
+    })
+}
+
+fn read_c_enum(
+    address: u64,
+    c_enum_def: &CEnumDef,
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<Value> {
+    let CEnumDef {
+        name,
+        discriminant_type,
+        variants,
+        ..
+    } = c_enum_def;
+
+    let disc_value = match discriminant_type {
+        rust_types::DiscriminantType::Int(int_def) => {
+            let memory = data_resolver.read_memory(address, int_def.size)?;
+
+            match int_def.size {
+                1 => i8::from_le_bytes(memory.try_into().unwrap()) as i128,
+                2 => i16::from_le_bytes(memory.try_into().unwrap()) as i128,
+                4 => i32::from_le_bytes(memory.try_into().unwrap()) as i128,
+                8 => i64::from_le_bytes(memory.try_into().unwrap()) as i128,
+                _ => {
+                    anyhow::bail!(
+                        "read_primitive_from_memory: unsupported IntDef size {} at address {address:#x}",
+                        int_def.size
+                    )
+                }
+            }
+        }
+        rust_types::DiscriminantType::UnsignedInt(unsigned_int_def) => {
+            let memory = data_resolver.read_memory(address, unsigned_int_def.size)?;
+            match unsigned_int_def.size {
+                1 => u8::from_le_bytes(memory.try_into().unwrap()) as i128,
+                2 => u16::from_le_bytes(memory.try_into().unwrap()) as i128,
+                4 => u32::from_le_bytes(memory.try_into().unwrap()) as i128,
+                8 => u64::from_le_bytes(memory.try_into().unwrap()) as i128,
+                _ => {
+                    anyhow::bail!(
+                        "read_primitive_from_memory: unsupported UnsignedIntDef size {} at address {address:#x}",
+                        unsigned_int_def.size
+                    )
+                }
+            }
+        }
+        rust_types::DiscriminantType::Implicit => {
+            anyhow::bail!("read_c_enum: Implicit discriminant type is not supported yet")
+        }
+    };
+
+    let matching_variant = variants
+        .iter()
+        .find_map(|v| (v.value == disc_value).then(|| &v.name))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "read_c_enum: No matching variant found for discriminant value {disc_value} in {name}"
+            )
+        })?;
+
+    Ok(Value::Scalar {
+        ty: format!("{name}::{matching_variant}"),
+        value: disc_value.to_string(),
+    })
+}
+
 pub fn read_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
@@ -304,9 +495,8 @@ pub fn read_from_memory<'db>(
             })
         }
         TypeDef::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
-        TypeDef::Enum(enum_def) => {
-            todo!("read_from_memory: EnumDef not implemented yet: {enum_def:#?}")
-        }
+        TypeDef::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver),
+        TypeDef::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
         TypeDef::Alias(entry) => {
             tracing::warn!("read_from_memory: unresolved type alias {entry:?}");
             Err(anyhow::anyhow!(
@@ -551,44 +741,28 @@ fn read_option_from_memory(
     opt_def: &OptionDef,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
-    let some_variant = &opt_def.some_type;
+    let OptionDef {
+        name,
+        discriminant,
+        some_offset,
+        some_type,
+        size,
+    } = opt_def;
 
-    let inner_type = if let TypeDef::Struct(s) = some_variant.as_ref() {
-        s.fields
-            .get(0)
-            .cloned()
-            .ok_or_else(|| {
-                anyhow::anyhow!("Expected 'Some' variant to have a single field, got: {s:#?}")
-            })?
-            .ty
-    } else {
-        anyhow::bail!(
-            "Expected 'Some' variant to be a struct, got: {}",
-            some_variant.display_name()
-        );
-    };
-
-    let first_byte = data_resolver.read_memory(address + opt_def.discriminant.offset as u64, 1)?;
+    let first_byte = data_resolver.read_memory(
+        address + opt_def.discriminant.offset as u64,
+        discriminant.size(),
+    )?;
     Ok(if first_byte[0] == 0 {
         Value::Scalar {
-            ty: inner_type.display_name(),
+            ty: some_type.display_name(),
             value: "None".to_string(),
         }
     } else {
-        tracing::debug!("Found Some variant at {address:#x}: {some_variant:#?}");
+        tracing::debug!("Found Some variant at {address:#x}: {some_type:#?}");
         // we have a `Some` variant
         // we should get the address of the inner value
-        let some_result = read_from_memory(db, address, &some_variant, data_resolver)?;
-
-        if let Value::Struct { fields, .. } = some_result {
-            // We have a `Some` variant, so we need to extract the inner value.
-            let inner_value = fields.get("__0").cloned().with_context(|| {
-                format!("Expected Some variant to have a field named '__0' at address {address:#x}")
-            })?;
-            inner_value
-        } else {
-            anyhow::bail!("Expected Some variant");
-        }
+        read_from_memory(db, address + *some_offset as u64, &some_type, data_resolver)?
     }
     .wrap_type("Option"))
 }

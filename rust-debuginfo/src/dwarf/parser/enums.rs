@@ -8,13 +8,17 @@ use super::{
     },
 };
 use crate::database::Db;
+use crate::dwarf::parser::primitives::resolve_type;
 use crate::dwarf::parser::{
     children::parse_children,
     combinators::all,
     primitives::{IsMember, member, offset},
 };
 use crate::dwarf::{Die, resolution::resolve_entry_type};
-use rust_types::{Discriminant, DiscriminantType, EnumDef, EnumVariant};
+use rust_types::{
+    CEnumDef, CEnumVariant, Discriminant, DiscriminantType, EnumDef, EnumVariant, PrimitiveDef,
+    TypeDef,
+};
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -79,7 +83,7 @@ pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariant> {
     is_member_tag(gimli::DW_TAG_variant)
         .then(
             // we _may_ have a discriminant value
-            optional_attr::<usize>(gimli::DW_AT_discr_value).and(
+            optional_attr::<i128>(gimli::DW_AT_discr_value).and(
                 // and we must have a member
                 member_by_tag(gimli::DW_TAG_member).then(
                     // which has a name, offset, and type
@@ -251,18 +255,9 @@ impl_parse_enum_named_tuple_variant_for_tuples!(
     P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4, P5, T5, 5, P6, T6, 6, P7, T7, 7
 );
 
-// impl<'db, T> Parser<'db, (usize, Arc<TypeDef>)> for EnumNamedTupleVariant<T> {
-//     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(usize, Arc<TypeDef>)> {
-//         // check we're in a variant DIE
-//         is_member_tag(gimli::DW_TAG_variant)
-//             // then get the member with the specified name
-//             .then(member(&self.variant_name))
-//             .then(offset().and(entry_type().map(|_| todo!())))
-//             .parse(db, entry)
-//     }
-// }
-
 /// Parser for enum types
+///
+/// Reference: https://github.com/rust-lang/rust/blob/3b97f1308ff72016a4aaa93fbe6d09d4d6427815/compiler/rustc_codegen_llvm/src/debuginfo/metadata/enums/native.rs
 pub fn enum_def<'db>() -> impl Parser<'db, EnumDef> {
     EnumParser
 }
@@ -294,4 +289,53 @@ impl<'db> Parser<'db, EnumDef> for EnumParser {
             discriminant,
         })
     }
+}
+
+/// Parser for C-style enum variants (DW_TAG_enumerator)
+pub fn c_enum_variant<'db>() -> impl Parser<'db, CEnumVariant> {
+    all((
+        attr::<String>(gimli::DW_AT_name),
+        attr::<i128>(gimli::DW_AT_const_value),
+    ))
+    .map(|(name, value)| CEnumVariant { name, value })
+}
+
+/// Parser for C-style enumeration types (DW_TAG_enumeration_type)
+pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumDef> {
+    struct CEnumParser;
+
+    impl<'db> Parser<'db, CEnumDef> for CEnumParser {
+        fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<CEnumDef> {
+            tracing::debug!("resolving C-style enum type: {}", entry.print(db));
+
+            // Parse name, size, and underlying type
+            let (name, size, underlying_type) = all((
+                attr::<String>(gimli::DW_AT_name),
+                attr::<usize>(gimli::DW_AT_byte_size),
+                entry_type().then(resolve_type()).map_res(|ty| match ty {
+                    TypeDef::Primitive(PrimitiveDef::Int(i)) => Ok(DiscriminantType::Int(i)),
+                    TypeDef::Primitive(PrimitiveDef::UnsignedInt(u)) => {
+                        Ok(DiscriminantType::UnsignedInt(u))
+                    }
+                    _ => Err(anyhow::anyhow!(
+                        "C enum underlying type must be integer, got: {:?}",
+                        ty
+                    )),
+                }),
+            ))
+            .parse(db, entry)?;
+
+            // Parse all enumerator variants
+            let variants = for_each_child(c_enum_variant()).parse(db, entry)?;
+
+            Ok(CEnumDef {
+                name,
+                discriminant_type: underlying_type,
+                variants,
+                size,
+            })
+        }
+    }
+
+    CEnumParser
 }

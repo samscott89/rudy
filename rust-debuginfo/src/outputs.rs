@@ -69,6 +69,10 @@ pub enum Value {
         ty: String,
         fields: BTreeMap<String, Value>,
     },
+    Tuple {
+        ty: String,
+        entries: Vec<Value>,
+    },
     Map {
         ty: String,
         entries: Vec<(Value, Value)>,
@@ -88,6 +92,10 @@ impl Value {
             Value::Array { items, ty } => Value::Array {
                 ty: type_map(ty),
                 items: items.clone(),
+            },
+            Value::Tuple { entries, ty } => Value::Tuple {
+                ty: type_map(ty),
+                entries: entries.clone(),
             },
             Value::Struct { fields, ty } => Value::Struct {
                 ty: type_map(ty),

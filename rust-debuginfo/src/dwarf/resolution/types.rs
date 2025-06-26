@@ -10,7 +10,7 @@ use crate::dwarf::parser::result::result_def;
 use crate::dwarf::parser::{
     Parser,
     children::parse_children,
-    enums::enum_def,
+    enums::{c_enum_def, enum_def},
     hashmap::hashbrown_map,
     primitives::{entry_type, member, resolved_generic},
     vec::vec,
@@ -468,6 +468,10 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
             // For custom enums, we don't handle them as builtins
             Ok(None)
         }
+        TypeDef::CEnum(_) => {
+            // C enums are handled as custom enums, not builtins
+            Ok(None)
+        }
         TypeDef::Alias(_) => {
             // Aliases should be resolved through normal resolution
             Ok(None)
@@ -617,12 +621,7 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
                 arg_types,
             }))
         }
-        // gimli::DW_TAG_enumeration_type => {
-        //     todo!(
-        //         "enumeration type not yet implemented: {}",
-        //         entry.format_with_location(db, "enumeration type")
-        //     );
-        // }
+        gimli::DW_TAG_enumeration_type => TypeDef::CEnum(c_enum_def().parse(db, entry)?),
         t => {
             return Err(entry
                 .format_with_location(db, format!("unsupported type: {t}"))
@@ -852,6 +851,10 @@ pub fn fully_resolve_type<'db>(
                 variants,
                 size,
             })
+        }
+        TypeDef::CEnum(c_enum_def) => {
+            // C enums don't have nested types to resolve
+            TypeDef::CEnum(c_enum_def)
         }
         TypeDef::Alias(TypeRef {
             cu_offset,
