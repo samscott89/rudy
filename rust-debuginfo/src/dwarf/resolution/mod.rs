@@ -2,7 +2,6 @@
 
 pub mod address;
 pub mod functions;
-pub mod parser;
 pub mod types;
 pub mod variables;
 

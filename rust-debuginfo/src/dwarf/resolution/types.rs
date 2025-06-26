@@ -5,10 +5,9 @@ use std::sync::Arc;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
-use crate::dwarf::resolution::parser::{
-    Parser, attr, child_by_tag, children_by_tag, entry_type, generic, is_member, is_member_offset,
-    member, offset, optional_attr, parse_children, resolve_type_shallow, resolved_generic,
-    vec_parser,
+use crate::dwarf::parser::{
+    Parser, entry_type, enum_parser, hashbrown_map_parser, member, parse_children,
+    resolved_generic, vec_parser,
 };
 use crate::file::DebugFile;
 use rust_types::*;
@@ -38,56 +37,6 @@ fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDe
         .then(vec_parser())
         .parse(db, entry)
         .map(StringDef)
-}
-
-fn hashbrown_map_parser<'db>() -> impl Parser<'db, MapVariant> {
-    struct HashBrownMapParser;
-
-    impl<'db> Parser<'db, MapVariant> for HashBrownMapParser {
-        fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<MapVariant> {
-            // table -> RawTable
-            let (mut table_offset, inner_table_type) = member("table")
-                .then(offset().and(entry_type()))
-                .parse(db, entry)?;
-
-            let ((pair_size, (key_offset, value_offset)), (inner_table_offset, raw_table_type)) =
-                parse_children((
-                    // get the T = (K, V) type so we can find the appropriate offsets in the buckets
-                    generic("T").then(attr(gimli::DW_AT_byte_size).and(parse_children((
-                        is_member_offset("__0"),
-                        is_member_offset("__1"),
-                    )))),
-                    // we'll also get the RawTableInner type which contains the actual layout of the table
-                    is_member("table").then(offset().and(entry_type())),
-                ))
-                .parse(db, inner_table_type)?;
-
-            table_offset += inner_table_offset;
-
-            let (bucket_mask_offset, ctrl_offset, items_offset) = parse_children((
-                is_member_offset("bucket_mask"),
-                is_member_offset("ctrl"),
-                is_member_offset("items"),
-            ))
-            .parse(db, raw_table_type)?;
-
-            // Add the table offset to the bucket_mask, ctrl, and items offsets
-            let bucket_mask_offset = table_offset + bucket_mask_offset;
-            let ctrl_offset = table_offset + ctrl_offset;
-            let items_offset = table_offset + items_offset;
-
-            Ok(MapVariant::HashMap {
-                bucket_mask_offset,
-                ctrl_offset,
-                items_offset,
-                pair_size,
-                key_offset,
-                value_offset,
-            })
-        }
-    }
-
-    HashBrownMapParser
 }
 
 /// Resolve Map type layout from DWARF
@@ -544,107 +493,6 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
             })
         },
     )
-}
-
-/// Parser for discriminant information
-fn discriminant_parser<'db>() -> impl Parser<'db, Discriminant> {
-    struct DiscriminantParser;
-
-    impl<'db> Parser<'db, Discriminant> for DiscriminantParser {
-        fn parse(&self, db: &'db dyn Db, variants_entry: Die<'db>) -> Result<Discriminant> {
-            let (discr_die, offset) = optional_attr::<Die<'db>>(gimli::DW_AT_discr)
-                .and(optional_attr::<usize>(gimli::DW_AT_data_member_location))
-                .parse(db, variants_entry)?;
-
-            if let Some(discr) = discr_die {
-                // We have an explicit discriminant - resolve its type
-                let discriminant_type = resolve_entry_type(db, discr)?;
-                let ty = match discriminant_type {
-                    TypeDef::Primitive(PrimitiveDef::Int(i)) => DiscriminantType::Int(i),
-                    TypeDef::Primitive(PrimitiveDef::UnsignedInt(u)) => {
-                        DiscriminantType::UnsignedInt(u)
-                    }
-                    _ => {
-                        tracing::warn!(
-                            "discriminant type is not an integer: {discriminant_type:?} {}",
-                            discr.location(db)
-                        );
-                        DiscriminantType::Implicit
-                    }
-                };
-                Ok(Discriminant {
-                    ty,
-                    offset: offset.unwrap_or(0),
-                })
-            } else {
-                // No explicit discriminant, so we assume it's implicit
-                Ok(Discriminant {
-                    ty: DiscriminantType::Implicit,
-                    offset: 0,
-                })
-            }
-        }
-    }
-
-    DiscriminantParser
-}
-
-/// Parser for enum types
-fn enum_parser<'db>() -> impl Parser<'db, EnumDef> {
-    struct EnumParser;
-
-    impl<'db> Parser<'db, EnumDef> for EnumParser {
-        fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
-            let (name, size) = attr::<String>(gimli::DW_AT_name)
-                .and(attr::<usize>(gimli::DW_AT_byte_size))
-                .parse(db, entry)?;
-
-            tracing::debug!("resolving enum type: {name} {}", entry.print(db));
-
-            // Get the variant part
-            let variants_entry = child_by_tag(gimli::DW_TAG_variant_part).parse(db, entry)?;
-
-            // Parse discriminant info and variants
-            let discriminant = discriminant_parser().parse(db, variants_entry)?;
-
-            // Parse all variants
-            let variant_dies = children_by_tag(gimli::DW_TAG_variant).parse(db, variants_entry)?;
-            let mut variants = Vec::new();
-
-            for (i, variant_die) in variant_dies.into_iter().enumerate() {
-                tracing::debug!("variant: {}", variant_die.print(db));
-
-                // Get discriminant value or use index as fallback
-                let discriminant = optional_attr::<usize>(gimli::DW_AT_discr_value)
-                    .parse(db, variant_die)?
-                    .unwrap_or(i) as u64;
-
-                // Get the single member of the variant
-                let member = child_by_tag(gimli::DW_TAG_member)
-                    .context("variant part should have a single member")
-                    .parse(db, variant_die)?;
-
-                let (name, layout) = attr::<String>(gimli::DW_AT_name)
-                    .and(entry_type().then(resolve_type_shallow()).map(Arc::new))
-                    .parse(db, member)?;
-
-                variants.push(EnumVariant {
-                    name,
-                    discriminant,
-                    layout,
-                });
-            }
-
-            Ok(EnumDef {
-                name,
-                variants,
-                size,
-                discriminant,
-            })
-        }
-    }
-
-    EnumParser
 }
 
 fn resolve_enum_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {

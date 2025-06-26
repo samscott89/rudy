@@ -11,6 +11,7 @@ mod index;
 mod loader;
 mod names;
 mod navigation;
+mod parser;
 mod resolution;
 mod unit;
 mod utils;

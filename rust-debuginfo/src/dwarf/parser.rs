@@ -1,0 +1,79 @@
+//! Parser combinator framework for DWARF type resolution
+//!
+//! This module provides a composable way to parse DWARF debug information
+//! and extract type layout information. It aims to replace the brittle
+//! manual field traversal with a more robust and reusable approach.
+
+use crate::database::Db;
+use crate::dwarf::Die;
+
+// Module structure
+pub mod combinators;
+pub mod enums;
+pub mod hashmap;
+pub mod primitives;
+pub mod vec;
+
+// Re-exports for convenience
+pub use combinators::*;
+pub use enums::*;
+pub use hashmap::*;
+pub use primitives::*;
+pub use vec::*;
+
+/// Type alias for parser results
+pub type Result<T> = std::result::Result<T, crate::dwarf::resolution::Error>;
+
+/// Core parser trait that all combinators implement
+pub trait Parser<'db, T> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<T>;
+
+    /// Combine this parser with another, applying both and combining results
+    fn and<U, P>(self, other: P) -> And<Self, P, T, U>
+    where
+        Self: Sized,
+        P: Parser<'db, U>,
+    {
+        And {
+            first: self,
+            second: other,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    /// Transform the output of this parser
+    fn map<U, F>(self, f: F) -> Map<Self, F, T>
+    where
+        Self: Sized,
+        F: Fn(T) -> U,
+    {
+        Map {
+            parser: self,
+            f,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    /// Chain this parser with another, where the second operates on the first's result
+    fn then<U, P>(self, next: P) -> Then<Self, P>
+    where
+        Self: Sized + Parser<'db, Die<'db>>,
+        P: Parser<'db, U>,
+    {
+        Then {
+            first: self,
+            second: next,
+        }
+    }
+
+    /// Add context to errors from this parser
+    fn context<S: Into<String>>(self, ctx: S) -> Context<Self>
+    where
+        Self: Sized,
+    {
+        Context {
+            parser: self,
+            context: ctx.into(),
+        }
+    }
+}
