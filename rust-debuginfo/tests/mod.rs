@@ -263,6 +263,7 @@ fn test_btreemap_type_resolution(#[case] target: &str) {
     insta::assert_debug_snapshot!("btreemap_type", btreemap_type);
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 enum TestEnum {
     UnitVariant,
@@ -270,6 +271,7 @@ enum TestEnum {
     StructVariant { x: f64, y: f64 },
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 #[repr(C)]
 enum ReprCEnum {
@@ -278,6 +280,7 @@ enum ReprCEnum {
     StructVariant { x: f64, y: f64 },
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 #[repr(u8)]
 enum U8Enum {

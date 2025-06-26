@@ -284,6 +284,19 @@ impl<'db> Parser<'db, TypeDef> for ResolveType {
     }
 }
 
+/// Parser that does nothing, just returns the entry as is
+pub fn identity() -> Identity {
+    Identity
+}
+
+pub struct Identity;
+
+impl<'db> Parser<'db, Die<'db>> for Identity {
+    fn parse(&self, _db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
+        Ok(entry)
+    }
+}
+
 pub fn resolve_type() -> ResolveType {
     ResolveType
 }

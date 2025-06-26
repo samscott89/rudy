@@ -9,7 +9,7 @@ use crate::database::Db;
 use crate::outputs::TypedPointer;
 use rust_types::{
     ArrayDef, CEnumDef, EnumDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
-    ReferenceDef, SliceDef, SmartPtrVariant, StdDef, StrSliceDef, StructDef, TypeDef, VecDef,
+    ReferenceDef, SliceDef, SmartPtrVariant, StdDef, StrSliceDef, TypeDef, VecDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -199,64 +199,60 @@ pub fn read_map_entries(
             }
             Ok(entries)
         }
-        MapVariant::BTreeMap {
-            length_offset,
-            root_offset,
-            root_layout,
-        } => {
-            // Read the length field
-            let length_addr = address + length_offset as u64;
-            let length_bytes = data_resolver.read_memory(length_addr, 8)?;
-            let length = usize::from_le_bytes(length_bytes.try_into().unwrap());
+        MapVariant::BTreeMap { .. } => {
+            // // Read the length field
+            // let length_addr = address + length_offset as u64;
+            // let length_bytes = data_resolver.read_memory(length_addr, 8)?;
+            // let length = usize::from_le_bytes(length_bytes.try_into().unwrap());
 
-            tracing::trace!("BTreeMap at {address:#x}, length: {length}");
+            // tracing::trace!("BTreeMap at {address:#x}, length: {length}");
 
-            if length == 0 {
-                return Ok(vec![]);
-            }
+            // if length == 0 {
+            //     return Ok(vec![]);
+            // }
 
-            // Read the root field (Option<Root>)
-            let root_addr = address + root_offset as u64;
+            // // Read the root field (Option<Root>)
+            // let root_addr = address + root_offset as u64;
 
-            let some_variant = root_layout
-                .variants
-                .iter()
-                .find(|v| v.name == "Some")
-                .ok_or_else(|| anyhow::anyhow!("Option enum does not have a 'Some' variant"))?;
+            // let some_variant = root_layout
+            //     .variants
+            //     .iter()
+            //     .find(|v| v.name == "Some")
+            //     .ok_or_else(|| anyhow::anyhow!("Option enum does not have a 'Some' variant"))?;
 
-            let inner_type = if let TypeDef::Struct(s) = some_variant.layout.as_ref() {
-                s.fields.get(0).cloned().ok_or_else(|| {
-                    anyhow::anyhow!("Expected 'Some' variant to have a single field, got: {s:#?}")
-                })?
-            } else {
-                anyhow::bail!(
-                    "Expected 'Some' variant to be a struct, got: {}",
-                    some_variant.layout.display_name()
-                );
-            };
+            // let inner_type = if let TypeDef::Struct(s) = some_variant.layout.as_ref() {
+            //     s.fields.get(0).cloned().ok_or_else(|| {
+            //         anyhow::anyhow!("Expected 'Some' variant to have a single field, got: {s:#?}")
+            //     })?
+            // } else {
+            //     anyhow::bail!(
+            //         "Expected 'Some' variant to be a struct, got: {}",
+            //         some_variant.layout.display_name()
+            //     );
+            // };
 
-            let first_byte = data_resolver.read_memory(
-                address + root_layout.discriminant.offset as u64,
-                root_layout.discriminant.size(),
-            )?;
-            let root = if first_byte[0] == 0 {
-                // None case - empty map
-                tracing::trace!("BTreeMap root is None (null pointer)");
-                return Ok(vec![]);
-            } else {
-                // We have a `Some` variant
-                // we should be able to read the inner value
-                let inner_offset = inner_type.offset;
-                let inner_type = inner_type.ty;
-                read_btree_root(
-                    address + inner_offset as u64,
-                    inner_type.as_ref(),
-                    data_resolver,
-                )?
-            };
+            // let first_byte = data_resolver.read_memory(
+            //     address + root_layout.discriminant.offset as u64,
+            //     root_layout.discriminant.size(),
+            // )?;
+            // let root = if first_byte[0] == 0 {
+            //     // None case - empty map
+            //     tracing::trace!("BTreeMap root is None (null pointer)");
+            //     return Ok(vec![]);
+            // } else {
+            //     // We have a `Some` variant
+            //     // we should be able to read the inner value
+            //     let inner_offset = inner_type.offset;
+            //     let inner_type = inner_type.ty;
+            //     read_btree_root(
+            //         address + inner_offset as u64,
+            //         inner_type.as_ref(),
+            //         data_resolver,
+            //     )?
+            // };
 
-            // Some case - the root data is inline at root_addr
-            tracing::trace!("BTreeMap root is Some, reading root structure at {root_addr:#x}");
+            // // Some case - the root data is inline at root_addr
+            // tracing::trace!("BTreeMap root is Some, reading root structure at {root_addr:#x}");
 
             // Attempt to traverse the tree
 
@@ -742,11 +738,10 @@ fn read_option_from_memory(
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
     let OptionDef {
-        name,
         discriminant,
         some_offset,
         some_type,
-        size,
+        ..
     } = opt_def;
 
     let first_byte = data_resolver.read_memory(

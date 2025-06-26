@@ -9,12 +9,15 @@ use crate::{
         Die,
         parser::{
             combinators::all,
-            enums::{enum_discriminant, enum_named_tuple_variant},
-            primitives::{attr, member_by_tag, resolve_type},
+            enums::{
+                PartiallyParsedEnumVariant, enum_discriminant, enum_named_tuple_variant,
+                named_enum_variant,
+            },
+            primitives::{attr, entry_type, member_by_tag, offset, resolve_type},
         },
     },
 };
-use rust_types::OptionDef;
+use rust_types::{Discriminant, OptionDef};
 
 use anyhow::Result;
 
@@ -27,24 +30,25 @@ pub fn option_def<'db>() -> OptionDefParser {
     OptionDefParser
 }
 
+pub(super) fn parse_option_entry<'db>()
+-> impl Parser<'db, (String, usize, Discriminant, PartiallyParsedEnumVariant<'db>)> {
+    all((
+        attr::<String>(gimli::DW_AT_name),
+        attr::<usize>(gimli::DW_AT_byte_size),
+        enum_discriminant(),
+        member_by_tag(gimli::DW_TAG_variant_part).then(named_enum_variant("Some")),
+    ))
+}
+
 impl<'db> Parser<'db, OptionDef> for OptionDefParser {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDef> {
         tracing::debug!("resolving option type: {}", entry.print(db));
+        let (name, size, discriminant, some_variant) = parse_option_entry().parse(db, entry)?;
 
-        // Get the variant part
-        let (name, size, variants_entry) = all((
-            attr::<String>(gimli::DW_AT_name),
-            attr::<usize>(gimli::DW_AT_byte_size),
-            member_by_tag(gimli::DW_TAG_variant_part),
-        ))
-        .parse(db, entry)?;
-
-        // Parse discriminant info and variants
-        let discriminant = enum_discriminant().parse(db, variants_entry)?;
-
-        // Parse all variants
-        let (_discr, ((some_offset, some_type),)) =
-            enum_named_tuple_variant("Some", (resolve_type(),)).parse(db, variants_entry)?;
+        // resolve the some_type
+        let (some_offset, some_type) = offset()
+            .and(entry_type().then(resolve_type()))
+            .parse(db, some_variant.layout)?;
 
         Ok(OptionDef {
             name,

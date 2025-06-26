@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
+use crate::dwarf::parser::btreemap::btree_map;
 use crate::dwarf::parser::option::option_def;
 use crate::dwarf::parser::result::result_def;
 use crate::dwarf::parser::{
@@ -71,24 +72,9 @@ fn resolve_map_type<'db>(db: &'db dyn Db, entry: Die<'db>, variant: MapVariant) 
                 variant,
             })
         }
-        MapVariant::BTreeMap { .. } => {
-            let length_offset = entry
-                .get_udata_member_attribute(db, "length", gimli::DW_AT_data_member_location)
-                .context("could not get length offset for BTreeMap")?;
-
-            // Try to resolve LeafNode structure from DWARF to get actual offsets
-            let (root_offset, root_layout) = resolve_leaf_node_layout(db, entry)?;
-
-            Ok(MapDef {
-                key_type,
-                value_type,
-                variant: MapVariant::BTreeMap {
-                    length_offset,
-                    root_offset,
-                    root_layout,
-                },
-            })
-        }
+        MapVariant::BTreeMap { .. } => Ok(btree_map()
+            .parse(db, entry)
+            .context("failed to parse btree map layout")?),
         _ => {
             todo!(
                 "Map variant `{variant:?}` not yet implemented: {}",

@@ -1216,35 +1216,6 @@ impl<'db> DebugInfo<'db> {
     }
 }
 
-fn output_variable<'db>(
-    db: &'db dyn Db,
-    function: Die<'db>,
-    base_address: u64,
-    var: dwarf::Variable<'db>,
-    data_resolver: &dyn crate::DataResolver,
-) -> Result<crate::Variable> {
-    let die = var.origin(db);
-    let location = dwarf::resolve_data_location(db, function, base_address, die, data_resolver)?;
-
-    // before resolving the value, we'll need to full resolve the type
-    let ty = crate::dwarf::fully_resolve_type(db, die.file(db), var.ty(db))?;
-    let value = if let Some(addr) = location {
-        Some(crate::data::read_from_memory(db, addr, &ty, data_resolver)?)
-    } else {
-        None
-    };
-
-    tracing::debug!("variable: {} => {value:?}", var.name(db));
-
-    Ok(crate::Variable {
-        name: var.name(db).to_string(),
-        ty: Some(crate::Type {
-            name: ty.display_name(),
-        }),
-        value,
-    })
-}
-
 fn variable_info<'db>(
     db: &'db dyn Db,
     function: Die<'db>,

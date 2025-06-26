@@ -123,7 +123,7 @@ pub fn enum_named_tuple_variant<'db, T>(variant_name: &str, parser: T) -> EnumNa
     }
 }
 
-struct PartiallyParsedEnumVariant<'db> {
+pub(super) struct PartiallyParsedEnumVariant<'db> {
     #[allow(dead_code)]
     pub name: String,
     pub discriminant: Option<usize>,
@@ -131,7 +131,7 @@ struct PartiallyParsedEnumVariant<'db> {
     pub layout: Die<'db>,
 }
 
-fn named_enum_variant<'db>(
+pub(super) fn named_enum_variant<'db>(
     variant_name: &str,
 ) -> impl Parser<'db, PartiallyParsedEnumVariant<'db>> {
     is_member_tag(gimli::DW_TAG_variant).then(

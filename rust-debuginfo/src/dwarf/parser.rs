@@ -14,6 +14,7 @@ pub mod combinators;
 pub mod enums;
 pub mod hashmap;
 pub mod option;
+pub mod pointers;
 pub mod primitives;
 pub mod result;
 pub mod vec;
