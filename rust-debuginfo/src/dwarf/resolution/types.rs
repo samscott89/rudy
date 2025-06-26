@@ -2,11 +2,11 @@
 
 use std::sync::Arc;
 
+use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
-use crate::dwarf::resolution::parser::{Parser, field_type};
+use crate::dwarf::resolution::parser::{Parser, child_field_type, vec_parser};
 use crate::file::DebugFile;
-use crate::{database::Db, dwarf::resolution::parser::vec_parser};
 use rust_types::*;
 
 use anyhow::Context;
@@ -29,7 +29,7 @@ pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Resu
 /// Resolve String type layout from DWARF
 fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDef> {
     // Get the vec field type and parse it as a Vec
-    field_type("vec")
+    child_field_type("vec")
         .then(vec_parser())
         .parse(db, entry)
         .map(StringDef)

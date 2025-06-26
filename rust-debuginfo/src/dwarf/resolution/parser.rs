@@ -6,6 +6,8 @@
 
 use crate::database::Db;
 use crate::dwarf::Die;
+use crate::dwarf::resolution::resolve_entry_type_shallow;
+use core::fmt;
 use rust_types::*;
 use std::sync::Arc;
 
@@ -67,12 +69,12 @@ pub trait Parser<'db, T> {
     }
 }
 
-/// Parse a field by name and return its Die
-pub struct Field {
+/// Find a child member by name and return its Die
+pub struct ChildField {
     name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for Field {
+impl<'db> Parser<'db, Die<'db>> for ChildField {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
         entry.get_member(db, &self.name).map_err(|e| {
             super::Error::from(anyhow::anyhow!(
@@ -84,12 +86,34 @@ impl<'db> Parser<'db, Die<'db>> for Field {
     }
 }
 
-/// Parse field offset (data member location)
-pub struct FieldOffset {
+/// Check if current entry has expected name and return it
+pub struct Field {
+    expected_name: String,
+}
+
+impl<'db> Parser<'db, Die<'db>> for Field {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
+        let entry_name = entry
+            .name(db)
+            .map_err(|e| super::Error::from(anyhow::anyhow!("Failed to get entry name: {}", e)))?;
+        if entry_name == self.expected_name {
+            Ok(entry)
+        } else {
+            Err(super::Error::from(anyhow::anyhow!(
+                "Expected field '{}', found '{}'",
+                self.expected_name,
+                entry_name
+            )))
+        }
+    }
+}
+
+/// Find child member by name and get its offset
+pub struct ChildFieldOffset {
     field_name: String,
 }
 
-impl<'db> Parser<'db, usize> for FieldOffset {
+impl<'db> Parser<'db, usize> for ChildFieldOffset {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
         entry
             .get_udata_member_attribute(db, &self.field_name, gimli::DW_AT_data_member_location)
@@ -104,12 +128,43 @@ impl<'db> Parser<'db, usize> for FieldOffset {
     }
 }
 
-/// Follow a field reference to get its type
-pub struct FieldType {
+/// Check if current entry has expected name and get its offset
+pub struct FieldOffset {
+    expected_name: String,
+}
+
+impl<'db> Parser<'db, usize> for FieldOffset {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
+        let entry_name = entry
+            .name(db)
+            .map_err(|e| super::Error::from(anyhow::anyhow!("Failed to get entry name: {}", e)))?;
+        if entry_name == self.expected_name {
+            entry
+                .udata_attr(db, gimli::DW_AT_data_member_location)
+                .map_err(|e| {
+                    super::Error::from(anyhow::anyhow!(
+                        "Failed to get offset for field '{}': {}",
+                        entry_name,
+                        e
+                    ))
+                })
+                .map(|o| o as usize)
+        } else {
+            Err(super::Error::from(anyhow::anyhow!(
+                "Expected field '{}', found '{}'",
+                self.expected_name,
+                entry_name
+            )))
+        }
+    }
+}
+
+/// Find child field by name and get its type
+pub struct ChildFieldType {
     field_name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for FieldType {
+impl<'db> Parser<'db, Die<'db>> for ChildFieldType {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
         let field = entry.get_member(db, &self.field_name).map_err(|e| {
             super::Error::from(anyhow::anyhow!(
@@ -128,12 +183,12 @@ impl<'db> Parser<'db, Die<'db>> for FieldType {
     }
 }
 
-/// Resolve a generic type parameter
-pub struct Generic {
+/// Find generic type parameter from parent entry
+pub struct ChildGeneric {
     param_name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for Generic {
+impl<'db> Parser<'db, Die<'db>> for ChildGeneric {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
         entry
             .get_generic_type_entry(db, &self.param_name)
@@ -144,6 +199,34 @@ impl<'db> Parser<'db, Die<'db>> for Generic {
                     e
                 ))
             })
+    }
+}
+
+/// Check if current entry matches expected generic name
+pub struct Generic {
+    expected_name: String,
+}
+
+impl<'db> Parser<'db, Arc<TypeDef>> for Generic {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Arc<TypeDef>> {
+        if entry.tag(db) != gimli::DW_TAG_template_type_parameter {
+            return Err(super::Error::from(anyhow::anyhow!(
+                "Expected generic type parameter, found tag {:?}",
+                entry.tag(db)
+            )));
+        }
+        let entry_name = entry
+            .name(db)
+            .map_err(|e| super::Error::from(anyhow::anyhow!("Failed to get entry name: {}", e)))?;
+        if entry_name == self.expected_name {
+            Ok(Arc::new(resolve_entry_type_shallow(db, entry)?))
+        } else {
+            Err(super::Error::from(anyhow::anyhow!(
+                "Expected generic '{}', found '{}'",
+                self.expected_name,
+                entry_name
+            )))
+        }
     }
 }
 
@@ -203,243 +286,202 @@ where
     }
 }
 
-/// Helper functions for creating parsers
+/// Helper functions for creating child search parsers
+pub fn child_field(name: &str) -> ChildField {
+    ChildField {
+        name: name.to_string(),
+    }
+}
+
+pub fn child_field_offset(name: &str) -> ChildFieldOffset {
+    ChildFieldOffset {
+        field_name: name.to_string(),
+    }
+}
+
+pub fn child_field_type(name: &str) -> ChildFieldType {
+    ChildFieldType {
+        field_name: name.to_string(),
+    }
+}
+
+pub fn child_generic(name: &str) -> ChildGeneric {
+    ChildGeneric {
+        param_name: name.to_string(),
+    }
+}
+
+/// Helper functions for creating name-matching parsers
 pub fn field(name: &str) -> Field {
     Field {
-        name: name.to_string(),
+        expected_name: name.to_string(),
     }
 }
 
 pub fn field_offset(name: &str) -> FieldOffset {
     FieldOffset {
-        field_name: name.to_string(),
-    }
-}
-
-pub fn field_type(name: &str) -> FieldType {
-    FieldType {
-        field_name: name.to_string(),
+        expected_name: name.to_string(),
     }
 }
 
 pub fn generic(name: &str) -> Generic {
     Generic {
-        param_name: name.to_string(),
+        expected_name: name.to_string(),
     }
 }
 
-/// Collect multiple fields in a single DIE traversal
-pub struct AllFields {
-    names: Vec<String>,
+/// Unified parser for tuples of parsers applied to children
+pub struct ParseChildren<T> {
+    parsers: T,
 }
 
-impl<'db> Parser<'db, Vec<Die<'db>>> for AllFields {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<Die<'db>>> {
-        let mut results = vec![None; self.names.len()];
-        let mut found_count = 0;
+/// Implement for tuples of different sizes
+impl<'db, T1, P1> Parser<'db, (T1,)> for ParseChildren<(P1,)>
+where
+    P1: Parser<'db, T1>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(T1,)> {
+        let mut result1: Option<Result<T1>> = None;
 
-        // Single iteration through children
         for child in entry.children(db)? {
-            if let Ok(name) = child.name(db) {
-                if let Some(index) = self.names.iter().position(|n| n == &name) {
-                    results[index] = Some(child);
-                    found_count += 1;
+            if result1.is_none() {
+                match self.parsers.0.parse(db, child) {
+                    Ok(res) => result1 = Some(Ok(res)),
+                    Err(_) => {} // Try next child
+                }
+            }
 
-                    // Early exit if we found everything
-                    if found_count == self.names.len() {
-                        break;
+            // Early exit if all found
+            if result1.is_some() {
+                break;
+            }
+        }
+
+        let r1 = result1.ok_or_else(|| {
+            super::Error::from(anyhow::anyhow!("Failed to find required child"))
+        })??;
+        Ok((r1,))
+    }
+}
+
+impl<'db, T1, T2, P1, P2> Parser<'db, (T1, T2)> for ParseChildren<(P1, P2)>
+where
+    P1: Parser<'db, T1>,
+    P2: Parser<'db, T2>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(T1, T2)> {
+        let mut result1: Option<Result<T1>> = None;
+        let mut result2: Option<Result<T2>> = None;
+
+        for child in entry.children(db)? {
+            if result1.is_none() {
+                match self.parsers.0.parse(db, child) {
+                    Ok(res) => result1 = Some(Ok(res)),
+                    Err(_) => {} // Try next child
+                }
+            }
+            if result2.is_none() {
+                match self.parsers.1.parse(db, child) {
+                    Ok(res) => result2 = Some(Ok(res)),
+                    Err(_) => {} // Try next child
+                }
+            }
+
+            // Early exit if all found
+            if result1.is_some() && result2.is_some() {
+                break;
+            }
+        }
+
+        let r1 = result1.ok_or_else(|| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to find required child for first parser"
+            ))
+        })??;
+        let r2 = result2.ok_or_else(|| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to find required child for second parser"
+            ))
+        })??;
+        Ok((r1, r2))
+    }
+}
+
+impl<'db, T1, T2, T3, P1, P2, P3> Parser<'db, (T1, T2, T3)> for ParseChildren<(P1, P2, P3)>
+where
+    P1: Parser<'db, T1>,
+    P2: Parser<'db, T2>,
+    P3: Parser<'db, T3>,
+    T1: fmt::Debug,
+    T2: fmt::Debug,
+    T3: fmt::Debug,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(T1, T2, T3)> {
+        let mut result1: Option<Result<T1>> = None;
+        let mut result2: Option<Result<T2>> = None;
+        let mut result3: Option<Result<T3>> = None;
+
+        for child in entry.children(db)? {
+            tracing::debug!(
+                "Parsing child: {}",
+                child.format_with_location(db, child.print(db))
+            );
+            if result1.is_none() {
+                match self.parsers.0.parse(db, child) {
+                    Ok(res) => {
+                        tracing::debug!("Found result1: {:?}", res);
+                        result1 = Some(Ok(res))
                     }
+                    Err(_) => {} // Try next child
                 }
             }
-        }
-
-        // Convert Option<Die> to Die, erroring on missing fields
-        results
-            .into_iter()
-            .zip(&self.names)
-            .map(|(opt_die, name)| {
-                opt_die.ok_or_else(|| {
-                    super::Error::from(anyhow::anyhow!("Failed to find field '{}'", name))
-                })
-            })
-            .collect()
-    }
-}
-
-/// Collect multiple field offsets in one pass
-pub struct AllFieldOffsets {
-    names: Vec<String>,
-}
-
-impl<'db> Parser<'db, Vec<usize>> for AllFieldOffsets {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<usize>> {
-        let mut results = vec![None; self.names.len()];
-        let mut found_count = 0;
-
-        // Single iteration through children
-        for child in entry.children(db)? {
-            if let Ok(name) = child.name(db) {
-                if let Some(index) = self.names.iter().position(|n| n == &name) {
-                    let offset = child
-                        .udata_attr(db, gimli::DW_AT_data_member_location)
-                        .map_err(|e| {
-                            super::Error::from(anyhow::anyhow!(
-                                "Failed to get offset for field '{}': {}",
-                                name,
-                                e
-                            ))
-                        })?;
-                    results[index] = Some(offset as usize);
-                    found_count += 1;
-
-                    // Early exit if we found everything
-                    if found_count == self.names.len() {
-                        break;
+            if result2.is_none() {
+                match self.parsers.1.parse(db, child) {
+                    Ok(res) => {
+                        tracing::debug!("Found result2: {:?}", res);
+                        result2 = Some(Ok(res))
                     }
+                    Err(_) => {} // Try next child
                 }
+            }
+            if result3.is_none() {
+                match self.parsers.2.parse(db, child) {
+                    Ok(res) => {
+                        tracing::debug!("Found result3: {:?}", res);
+                        result3 = Some(Ok(res))
+                    }
+                    Err(_) => {} // Try next child
+                }
+            }
+
+            // Early exit if all found
+            if result1.is_some() && result2.is_some() && result3.is_some() {
+                break;
             }
         }
 
-        // Convert Option<usize> to usize, erroring on missing fields
-        results
-            .into_iter()
-            .zip(&self.names)
-            .map(|(opt_offset, name)| {
-                opt_offset.ok_or_else(|| {
-                    super::Error::from(anyhow::anyhow!(
-                        "Failed to find field offset for '{}'",
-                        name
-                    ))
-                })
-            })
-            .collect()
+        let r1 = result1.ok_or_else(|| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to find required child for first parser"
+            ))
+        })??;
+        let r2 = result2.ok_or_else(|| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to find required child for second parser"
+            ))
+        })??;
+        let r3 = result3.ok_or_else(|| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to find required child for third parser"
+            ))
+        })??;
+        Ok((r1, r2, r3))
     }
 }
 
-/// Collect multiple generics in one pass
-pub struct AllGenerics {
-    names: Vec<String>,
-}
-
-impl<'db> Parser<'db, Vec<Die<'db>>> for AllGenerics {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<Die<'db>>> {
-        self.names
-            .iter()
-            .map(|name| {
-                entry.get_generic_type_entry(db, name).map_err(|e| {
-                    super::Error::from(anyhow::anyhow!(
-                        "Failed to resolve generic parameter '{}': {}",
-                        name,
-                        e
-                    ))
-                })
-            })
-            .collect()
-    }
-}
-
-pub fn all_fields(names: &[&str]) -> AllFields {
-    AllFields {
-        names: names.iter().map(|s| s.to_string()).collect(),
-    }
-}
-
-pub fn all_field_offsets(names: &[&str]) -> AllFieldOffsets {
-    AllFieldOffsets {
-        names: names.iter().map(|s| s.to_string()).collect(),
-    }
-}
-
-pub fn all_generics(names: &[&str]) -> AllGenerics {
-    AllGenerics {
-        names: names.iter().map(|s| s.to_string()).collect(),
-    }
-}
-
-/// Advanced combinator that collects fields and their information in one pass
-pub struct FieldBundle {
-    field_names: Vec<String>,
-    offset_names: Vec<String>,
-}
-
-#[derive(Debug)]
-pub struct FieldBundleResult<'db> {
-    pub fields: Vec<Die<'db>>,
-    pub offsets: Vec<usize>,
-}
-
-impl<'db> Parser<'db, FieldBundleResult<'db>> for FieldBundle {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<FieldBundleResult<'db>> {
-        let mut fields = vec![None; self.field_names.len()];
-        let mut offsets = vec![None; self.offset_names.len()];
-        let mut found_fields = 0;
-        let mut found_offsets = 0;
-        let total_needed = self.field_names.len() + self.offset_names.len();
-
-        // Single iteration through children
-        for child in entry.children(db)? {
-            if let Ok(name) = child.name(db) {
-                // Check if it's a field we need
-                if let Some(index) = self.field_names.iter().position(|n| n == &name) {
-                    fields[index] = Some(child);
-                    found_fields += 1;
-                }
-
-                // Check if it's an offset we need
-                if let Some(index) = self.offset_names.iter().position(|n| n == &name) {
-                    let offset = child
-                        .udata_attr(db, gimli::DW_AT_data_member_location)
-                        .map_err(|e| {
-                            super::Error::from(anyhow::anyhow!(
-                                "Failed to get offset for field '{}': {}",
-                                name,
-                                e
-                            ))
-                        })?;
-                    offsets[index] = Some(offset as usize);
-                    found_offsets += 1;
-                }
-
-                // Early exit if we found everything
-                if found_fields + found_offsets == total_needed {
-                    break;
-                }
-            }
-        }
-
-        // Convert results, erroring on missing items
-        let fields = fields
-            .into_iter()
-            .zip(&self.field_names)
-            .map(|(opt_die, name)| {
-                opt_die.ok_or_else(|| {
-                    super::Error::from(anyhow::anyhow!("Failed to find field '{}'", name))
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        let offsets = offsets
-            .into_iter()
-            .zip(&self.offset_names)
-            .map(|(opt_offset, name)| {
-                opt_offset.ok_or_else(|| {
-                    super::Error::from(anyhow::anyhow!(
-                        "Failed to find field offset for '{}'",
-                        name
-                    ))
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-
-        Ok(FieldBundleResult { fields, offsets })
-    }
-}
-
-pub fn field_bundle(field_names: &[&str], offset_names: &[&str]) -> FieldBundle {
-    FieldBundle {
-        field_names: field_names.iter().map(|s| s.to_string()).collect(),
-        offset_names: offset_names.iter().map(|s| s.to_string()).collect(),
-    }
+/// Main function for creating unified children parsers
+pub fn parse_children<T>(parsers: T) -> ParseChildren<T> {
+    ParseChildren { parsers }
 }
 
 /// Utility for accumulating offsets along a field path
@@ -477,17 +519,17 @@ impl OffsetAccumulator {
 }
 
 /// A parser that follows a chain of fields, accumulating offsets
-pub struct FieldPath {
+pub struct ChildFieldPath {
     path: Vec<String>,
 }
 
-impl FieldPath {
+impl ChildFieldPath {
     pub fn new(path: Vec<String>) -> Self {
         Self { path }
     }
 }
 
-impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
+impl<'db> Parser<'db, (Die<'db>, usize)> for ChildFieldPath {
     fn parse(&self, db: &'db dyn Db, mut entry: Die<'db>) -> Result<(Die<'db>, usize)> {
         let mut accumulator = OffsetAccumulator::new();
 
@@ -510,6 +552,72 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
         }
 
         Ok((entry, accumulator.get_offset()))
+    }
+}
+
+pub struct FieldPath {
+    path: Vec<String>,
+}
+
+impl FieldPath {
+    pub fn new(path: Vec<String>) -> Self {
+        Self { path }
+    }
+}
+
+impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
+    fn parse(&self, db: &'db dyn Db, mut entry: Die<'db>) -> Result<(Die<'db>, usize)> {
+        let mut path_iter = self.path.iter();
+
+        let mut offset = 0;
+        // Start with the first field
+        let Some(first_field) = path_iter.next() else {
+            // or error?
+            return Ok((entry, 0));
+        };
+
+        if &entry.name(db)? != first_field {
+            return Err(super::Error::from(anyhow::anyhow!(
+                "Expected entry name '{}', found '{}'",
+                first_field,
+                entry.name(db)?
+            )));
+        }
+        offset += entry
+            .udata_attr(db, gimli::DW_AT_data_member_location)
+            .map_err(|e| {
+                super::Error::from(anyhow::anyhow!(
+                    "Failed to get offset for field '{}': {}",
+                    first_field,
+                    e
+                ))
+            })?;
+        entry = entry.get_unit_ref(db, gimli::DW_AT_type).map_err(|e| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to resolve type for field '{first_field}': {e}",
+            ))
+        })?;
+        while let Some(field_name) = path_iter.next() {
+            entry = entry.get_member(db, field_name).map_err(|e| {
+                super::Error::from(anyhow::anyhow!(
+                    "Failed to navigate to field '{field_name}': {e}",
+                ))
+            })?;
+            offset += entry
+                .udata_attr(db, gimli::DW_AT_data_member_location)
+                .map_err(|e| {
+                    super::Error::from(anyhow::anyhow!(
+                        "Failed to get offset for field '{field_name}': {e}",
+                    ))
+                })? as usize;
+            entry = entry.get_unit_ref(db, gimli::DW_AT_type).map_err(|e| {
+                super::Error::from(anyhow::anyhow!(
+                    "Failed to resolve type for field '{field_name}': {e}",
+                ))
+            })?;
+        }
+
+        Ok((entry, offset))
     }
 }
 
@@ -554,69 +662,26 @@ pub fn resolve_type() -> ResolveType {
 /// Higher-level combinators for common patterns
 
 /// Parse a field path and return the final offset
+pub fn child_field_path_offset<'db>(path: Vec<&str>) -> impl Parser<'db, usize> {
+    ChildFieldPath::new(path.into_iter().map(|s| s.to_string()).collect()).map(|(_, offset)| offset)
+}
+
 pub fn field_path_offset<'db>(path: Vec<&str>) -> impl Parser<'db, usize> {
     FieldPath::new(path.into_iter().map(|s| s.to_string()).collect()).map(|(_, offset)| offset)
 }
 
-/// Parse a field path and resolve the final type
-pub fn field_path_type<'db>(path: Vec<&str>) -> impl Parser<'db, TypeDef> {
-    FieldPath::new(path.into_iter().map(|s| s.to_string()).collect())
-        .map(|(die, _)| die)
-        .then(resolve_type())
-}
-
-/// Example: Vec parser using combinators
-/// This shows how the existing Vec resolver could be rewritten
 pub fn vec_parser<'db>() -> impl Parser<'db, VecDef> {
-    // Parse the data pointer offset by following: buf -> inner -> ptr
-    let data_ptr_parser = field_path_offset(vec!["buf", "inner", "ptr"])
-        .context("Failed to resolve Vec data pointer path");
-
-    // Parse the length offset directly
-    let length_parser = field_offset("len").context("Failed to resolve Vec length offset");
-
-    // Parse the inner type from generic parameter T
-    let inner_type_parser = generic("T")
-        .then(resolve_type())
-        .map(Arc::new)
-        .context("Failed to resolve Vec inner type");
-
-    // Combine all three parsers to build VecDef
-    data_ptr_parser
-        .and(length_parser, |data_ptr_offset, length_offset| {
-            Ok((data_ptr_offset, length_offset))
-        })
-        .and(inner_type_parser, |offsets, inner_type| {
-            let (data_ptr_offset, length_offset) = offsets;
-            Ok(VecDef {
-                data_ptr_offset,
-                length_offset,
-                inner_type,
-            })
-        })
-        .context("Failed to parse Vec layout")
-}
-
-/// Example: Optimized BTreeMap parser using batch combinators
-pub fn optimized_btreemap_parser<'db>() -> impl Parser<'db, (Vec<Die<'db>>, Vec<usize>)> {
-    // Collect K, V generics + length, root offsets in minimal passes
-    all_generics(&["K", "V"]).and(
-        all_field_offsets(&["length", "root"]),
-        |generics, offsets| Ok((generics, offsets)),
-    )
-}
-
-/// Example: HashMap parser that shows performance optimization
-/// Before: 6+ separate DIE traversals
-/// After: 2 batched traversals  
-pub fn optimized_hashmap_parser<'db>() -> impl Parser<'db, (Vec<Die<'db>>, FieldBundleResult<'db>)>
-{
-    // Batch 1: Get generics (K, V)
-    all_generics(&["K", "V"]).and(
-        // Batch 2: Get table field + various offsets in one pass
-        field_bundle(&["table"], &["bucket_mask", "ctrl", "items"]),
-        |generics, bundle| Ok((generics, bundle)),
-    )
+    parse_children((
+        field_path_offset(vec!["buf", "inner", "ptr"]),
+        field_offset("len"),
+        generic("T"),
+    ))
+    .map(|(data_ptr_offset, length_offset, inner_type)| VecDef {
+        data_ptr_offset,
+        length_offset,
+        inner_type,
+    })
+    .context("Failed to parse Vec layout")
 }
 
 #[cfg(test)]
@@ -629,22 +694,41 @@ mod tests {
     #[test]
     fn test_parser_api_compiles() {
         // Test basic parsers
-        let _field_parser = field("buf");
-        let _offset_parser = field_offset("len");
+        let _child_field_parser = child_field("buf");
+        let _child_offset_parser = child_field_offset("len");
         let _path_parser = path!["buf", "inner", "ptr"];
 
-        // Test batch parsers
-        let _all_fields_parser = all_fields(&["buf", "len"]);
-        let _all_offsets_parser = all_field_offsets(&["length", "root"]);
-        let _all_generics_parser = all_generics(&["K", "V"]);
-        let _bundle_parser = field_bundle(&["table"], &["offset1", "offset2"]);
-
         // Test that combinators chain properly
-        let _combined = field("buf")
+        let _combined = child_field("buf")
             .map(|_die| 42usize)
             .context("Failed to parse buf field");
 
         // Test that the Vec parser compiles
         let _vec_parser = vec_parser();
+
+        // Test parse_children API
+        let _single_child = parse_children((field("buf"),));
+        let _dual_children = parse_children((field("buf"), field_offset("len")));
+        let _triple_children = parse_children((field("buf"), field_offset("len"), generic("T")));
+    }
+
+    #[test]
+    fn test_parse_children_usage_example() {
+        // Example of how parse_children would be used in practice:
+        //
+        // Instead of this brittle approach:
+        // let buf_field = entry.get_member(db, "buf")?;
+        // let len_offset = entry.get_udata_member_attribute(db, "len", gimli::DW_AT_data_member_location)?;
+        // let inner_type = entry.get_generic_type_entry(db, "T")?;
+        //
+        // You could use this declarative approach:
+        // let (buf_field, len_offset, inner_type) = parse_children((
+        //     field("buf"),
+        //     field_offset("len"),
+        //     generic("T")
+        // )).parse(db, entry)?;
+
+        // This compiles and shows the expected API
+        let _parser = parse_children((field("buf"), field_offset("len"), generic("T")));
     }
 }
