@@ -232,7 +232,7 @@ impl<'db> Die<'db> {
 
     pub fn print(&self, db: &'db dyn Db) -> String {
         self.with_entry_and_unit(db, |entry, unit_ref| {
-            super::utils::pretty_print_die_entry(entry, unit_ref)
+            self.format_with_location(db, super::utils::pretty_print_die_entry(entry, unit_ref))
         })
         .unwrap_or_else(|e| {
             tracing::error!("Failed to print DIE entry: {e}");

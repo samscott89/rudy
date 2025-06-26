@@ -5,8 +5,15 @@ use std::sync::Arc;
 use crate::database::Db;
 use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
+use crate::dwarf::parser::option::option_def;
+use crate::dwarf::parser::result::result_def;
 use crate::dwarf::parser::{
-    Parser, entry_type, enum_def, hashbrown_map, member, parse_children, resolved_generic, vec,
+    Parser,
+    children::parse_children,
+    enums::enum_def,
+    hashmap::hashbrown_map,
+    primitives::{entry_type, member, resolved_generic},
+    vec::vec,
 };
 use crate::file::DebugFile;
 use rust_types::*;
@@ -421,7 +428,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
             match std_def {
                 StdDef::Option(_) => {
                     // Use the parsed Option type but resolve the actual layout
-                    let option_def = resolve_enum_type(db, entry)?;
+                    let option_def = resolve_option_type(db, entry)?;
                     Ok(Some(TypeDef::Std(StdDef::Option(option_def))))
                 }
                 StdDef::Vec(_) => {
@@ -441,7 +448,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                 }
                 StdDef::Result(_) => {
                     // Result types need layout resolution
-                    Ok(Some(TypeDef::Std(StdDef::Result(resolve_enum_type(
+                    Ok(Some(TypeDef::Std(StdDef::Result(resolve_result_type(
                         db, entry,
                     )?))))
                 }
@@ -496,6 +503,14 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 
 fn resolve_enum_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
     Ok(enum_def().parse(db, entry)?)
+}
+
+fn resolve_option_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDef> {
+    Ok(option_def().parse(db, entry)?)
+}
+
+fn resolve_result_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<ResultDef> {
+    Ok(result_def().parse(db, entry)?)
 }
 
 fn resolve_struct_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StructDef> {
@@ -729,67 +744,36 @@ pub fn fully_resolve_type<'db>(
                         variant,
                     })
                 }
-                Option(EnumDef {
+                Option(OptionDef {
                     name,
                     discriminant,
-                    variants,
+                    some_type,
                     size,
                 }) => {
-                    // For enums, we need to resolve each variant's type
-                    let variants = variants
-                        .into_iter()
-                        .map(
-                            |EnumVariant {
-                                 name,
-                                 discriminant,
-                                 layout,
-                             }| {
-                                let layout = fully_resolve_type(db, file, layout.as_ref())?;
-                                Ok(EnumVariant {
-                                    name,
-                                    discriminant,
-                                    layout: Arc::new(layout),
-                                })
-                            },
-                        )
-                        .collect::<anyhow::Result<_>>()?;
+                    let some_type = fully_resolve_type(db, file, some_type.as_ref())?;
 
-                    StdDef::Option(EnumDef {
+                    StdDef::Option(OptionDef {
                         name,
                         discriminant,
-                        variants,
+                        some_type: Arc::new(some_type),
                         size,
                     })
                 }
-                Result(EnumDef {
+                Result(ResultDef {
                     name,
                     discriminant,
-                    variants,
+                    ok_type,
+                    err_type,
                     size,
                 }) => {
-                    // For enums, we need to resolve each variant's type
-                    let variants = variants
-                        .into_iter()
-                        .map(
-                            |EnumVariant {
-                                 name,
-                                 discriminant,
-                                 layout,
-                             }| {
-                                let layout = fully_resolve_type(db, file, layout.as_ref())?;
-                                Ok(EnumVariant {
-                                    name,
-                                    discriminant,
-                                    layout: Arc::new(layout),
-                                })
-                            },
-                        )
-                        .collect::<anyhow::Result<_>>()?;
+                    let ok_type = fully_resolve_type(db, file, ok_type.as_ref())?;
+                    let err_type = fully_resolve_type(db, file, err_type.as_ref())?;
 
-                    StdDef::Result(EnumDef {
+                    StdDef::Result(ResultDef {
                         name,
                         discriminant,
-                        variants,
+                        ok_type: Arc::new(ok_type),
+                        err_type: Arc::new(err_type),
                         size,
                     })
                 }

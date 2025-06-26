@@ -262,3 +262,105 @@ fn test_btreemap_type_resolution(#[case] target: &str) {
         .expect("BTreeMap type should be found");
     insta::assert_debug_snapshot!("btreemap_type", btreemap_type);
 }
+
+#[derive(Debug)]
+enum TestEnum {
+    UnitVariant,
+    TupleVariant(u32, String),
+    StructVariant { x: f64, y: f64 },
+}
+
+#[derive(Debug)]
+#[repr(C)]
+enum ReprCEnum {
+    UnitVariant,
+    TupleVariant(u32, String),
+    StructVariant { x: f64, y: f64 },
+}
+
+#[derive(Debug)]
+#[repr(u8)]
+enum U8Enum {
+    First,
+    Second,
+    Third,
+    // skip fourth to see what happens
+    Fifth = 5,
+}
+
+#[test]
+fn test_enum_type_resolution() {
+    setup!();
+    // let db = DebugDb::new();
+    // let debug_info = DebugInfo::new(&db, &path).unwrap();
+
+    // let btreemap_type = debug_info
+    //     .resolve_type("BTreeMap<String, i32>")
+    //     .unwrap()
+    //     .expect("BTreeMap type should be found");
+    // insta::assert_debug_snapshot!("
+    // btreemap_type", btreemap_type);
+
+    // test enum introspection for TestEnum, ReprCEnum, and U8Enum
+    // we'll introspect the current process to find these types
+    // and filter out the ones we don't care about
+
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
+    let db = DebugDb::new();
+
+    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+
+    // Test TestEnum variants
+    let _unit_variant = TestEnum::UnitVariant;
+
+    // Find TestEnum type
+    let test_enum_typedef = debug_info
+        .resolve_type("TestEnum")
+        .expect("Failed to resolve TestEnum")
+        .expect("TestEnum type should be found");
+
+    insta::assert_debug_snapshot!(test_enum_typedef);
+
+    // Test ReprCEnum variants
+    let _repr_c_unit = ReprCEnum::UnitVariant;
+
+    let repr_c_typedef = debug_info
+        .resolve_type("ReprCEnum")
+        .expect("Failed to resolve ReprCEnum")
+        .expect("ReprCEnum type should be found");
+
+    insta::assert_debug_snapshot!(repr_c_typedef);
+
+    // Test U8Enum variants
+    let _u8_first = U8Enum::First;
+
+    let u8_enum_typedef = debug_info
+        .resolve_type("U8Enum")
+        .expect("Failed to resolve U8Enum")
+        .expect("U8Enum type should be found");
+
+    insta::assert_debug_snapshot!(u8_enum_typedef);
+
+    // we'll also test our special-cased enums Option and Result
+
+    let _option: Option<i32> = Some(42);
+    let option_typedef = debug_info
+        .resolve_type("Option<i32>")
+        .expect("Failed to resolve Option<i32>")
+        .expect("Option<i32> type should be found");
+
+    insta::assert_debug_snapshot!(option_typedef);
+
+    let _result: Result<i32, String> = Ok(42);
+    let result_typedef = debug_info
+        .resolve_type("Result<i32, String>")
+        .expect("Failed to resolve Result<i32, String>")
+        .expect("Result<i32, String> type should be found");
+
+    insta::assert_debug_snapshot!(result_typedef);
+}

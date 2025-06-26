@@ -655,26 +655,13 @@ impl Path {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Option(EnumDef {
+                            return TypeDef::Std(StdDef::Option(OptionDef {
                                 name: "Option".to_string(),
                                 discriminant: Discriminant {
                                     offset: 0,
                                     ty: DiscriminantType::Implicit,
                                 },
-                                variants: vec![
-                                    EnumVariant {
-                                        name: "Some".to_string(),
-                                        layout: inner,
-                                        discriminant: 0,
-                                    },
-                                    EnumVariant {
-                                        name: "None".to_string(),
-                                        layout: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(
-                                            UnitDef,
-                                        ))),
-                                        discriminant: 1,
-                                    },
-                                ],
+                                some_type: inner,
                                 size: 0,
                             }));
                         }
@@ -696,24 +683,14 @@ impl Path {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Result(EnumDef {
+                            return TypeDef::Std(StdDef::Result(ResultDef {
                                 name: "Result".to_string(),
                                 discriminant: Discriminant {
                                     offset: 0,
                                     ty: DiscriminantType::Implicit,
                                 },
-                                variants: vec![
-                                    EnumVariant {
-                                        name: "Ok".to_string(),
-                                        layout: ok_type,
-                                        discriminant: 0,
-                                    },
-                                    EnumVariant {
-                                        name: "Err".to_string(),
-                                        layout: err_type,
-                                        discriminant: 0,
-                                    },
-                                ],
+                                ok_type,
+                                err_type,
                                 size: 0,
                             }));
                         }
@@ -1007,24 +984,13 @@ mod test {
         );
         infer(
             "core::option::Option<i32>",
-            StdDef::Option(EnumDef {
+            StdDef::Option(OptionDef {
                 name: "Option".to_string(),
                 discriminant: Discriminant {
                     offset: 0,
                     ty: DiscriminantType::Implicit,
                 },
-                variants: vec![
-                    EnumVariant {
-                        name: "Some".to_string(),
-                        layout: Arc::new(IntDef::i32().into()),
-                        discriminant: 0,
-                    },
-                    EnumVariant {
-                        name: "None".to_string(),
-                        layout: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))),
-                        discriminant: 1,
-                    },
-                ],
+                some_type: Arc::new(IntDef::i32().into()),
                 size: 0,
             }),
         );
@@ -1074,26 +1040,16 @@ mod test {
                     ),
                 ],
                 return_type: Arc::new(
-                    StdDef::Result(EnumDef {
+                    StdDef::Result(ResultDef {
                         name: "Result".to_string(),
                         discriminant: Discriminant {
                             offset: 0,
                             ty: DiscriminantType::Implicit,
                         },
-                        variants: vec![
-                            EnumVariant {
-                                name: "Ok".to_string(),
-                                layout: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))),
-                                discriminant: 0,
-                            },
-                            EnumVariant {
-                                name: "Err".to_string(),
-                                layout: Arc::new(TypeDef::Other {
-                                    name: "Error".to_string(),
-                                }),
-                                discriminant: 1,
-                            },
-                        ],
+                        ok_type: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))),
+                        err_type: Arc::new(TypeDef::Other {
+                            name: "Error".to_string(),
+                        }),
                         size: 0,
                     })
                     .into(),

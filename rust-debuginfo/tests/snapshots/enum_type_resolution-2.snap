@@ -1,0 +1,119 @@
+---
+source: rust-debuginfo/tests/mod.rs
+expression: repr_c_typedef
+snapshot_kind: text
+---
+Enum(
+    EnumDef {
+        name: "ReprCEnum",
+        discriminant: Discriminant {
+            ty: UnsignedInt(
+                UnsignedIntDef {
+                    size: 4,
+                },
+            ),
+            offset: 0,
+        },
+        variants: [
+            EnumVariant {
+                name: "UnitVariant",
+                discriminant: Some(
+                    0,
+                ),
+                layout: Struct(
+                    StructDef {
+                        name: "UnitVariant",
+                        size: 40,
+                        alignment: 8,
+                        fields: [],
+                    },
+                ),
+            },
+            EnumVariant {
+                name: "TupleVariant",
+                discriminant: Some(
+                    1,
+                ),
+                layout: Struct(
+                    StructDef {
+                        name: "TupleVariant",
+                        size: 40,
+                        alignment: 8,
+                        fields: [
+                            StructField {
+                                name: "__0",
+                                offset: 8,
+                                ty: Primitive(
+                                    UnsignedInt(
+                                        UnsignedIntDef {
+                                            size: 4,
+                                        },
+                                    ),
+                                ),
+                            },
+                            StructField {
+                                name: "__1",
+                                offset: 16,
+                                ty: Std(
+                                    String(
+                                        StringDef(
+                                            VecDef {
+                                                length_offset: 16,
+                                                data_ptr_offset: 8,
+                                                inner_type: Primitive(
+                                                    UnsignedInt(
+                                                        UnsignedIntDef {
+                                                            size: 1,
+                                                        },
+                                                    ),
+                                                ),
+                                            },
+                                        ),
+                                    ),
+                                ),
+                            },
+                        ],
+                    },
+                ),
+            },
+            EnumVariant {
+                name: "StructVariant",
+                discriminant: Some(
+                    2,
+                ),
+                layout: Struct(
+                    StructDef {
+                        name: "StructVariant",
+                        size: 40,
+                        alignment: 8,
+                        fields: [
+                            StructField {
+                                name: "x",
+                                offset: 8,
+                                ty: Primitive(
+                                    Float(
+                                        FloatDef {
+                                            size: 8,
+                                        },
+                                    ),
+                                ),
+                            },
+                            StructField {
+                                name: "y",
+                                offset: 16,
+                                ty: Primitive(
+                                    Float(
+                                        FloatDef {
+                                            size: 8,
+                                        },
+                                    ),
+                                ),
+                            },
+                        ],
+                    },
+                ),
+            },
+        ],
+        size: 40,
+    },
+)

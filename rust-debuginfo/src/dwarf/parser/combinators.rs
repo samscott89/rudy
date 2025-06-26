@@ -43,6 +43,23 @@ where
     }
 }
 
+pub struct MapRes<P, F, T> {
+    pub(super) parser: P,
+    pub(super) f: F,
+    pub(super) _marker: std::marker::PhantomData<T>,
+}
+
+impl<'db, T, U, P, F> Parser<'db, U> for MapRes<P, F, T>
+where
+    P: Parser<'db, T>,
+    F: Fn(T) -> Result<U>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
+        let result = self.parser.parse(db, entry)?;
+        (self.f)(result)
+    }
+}
+
 /// Sequential combinator - applies parsers in sequence, each operating on the result of the previous
 pub struct Then<P1, P2> {
     pub(super) first: P1,
@@ -77,3 +94,48 @@ where
     }
 }
 
+pub fn all<T>(parsers: T) -> All<T> {
+    All { parsers }
+}
+
+pub struct All<T> {
+    pub(super) parsers: T,
+}
+
+/// Macro to dynamically generate All implementations
+macro_rules! impl_parse_all_for_tuples {
+    (
+        $($P:ident, $T:ident, $idx:tt),*
+    ) => {
+        impl<'db, $($T, $P,)*> Parser<'db, ($($T,)*)> for All<($($P,)*)>
+        where
+            $($P: Parser<'db, $T>),*
+        {
+            fn parse(&self, _db: &'db dyn Db, _entry: Die<'db>) -> anyhow::Result<($($T,)*)> {
+
+                Ok((
+                    $(
+                        self.parsers.$idx.parse(_db, _entry)?,
+                    )*
+                ))
+            }
+        }
+    };
+}
+
+// Generate implementations for different tuple sizes (0 to 8)
+impl_parse_all_for_tuples!();
+impl_parse_all_for_tuples!(P0, T0, 0);
+impl_parse_all_for_tuples!(P0, T0, 0, P1, T1, 1);
+impl_parse_all_for_tuples!(P0, T0, 0, P1, T1, 1, P2, T2, 2);
+impl_parse_all_for_tuples!(P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3);
+impl_parse_all_for_tuples!(P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4);
+impl_parse_all_for_tuples!(
+    P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4, P5, T5, 5
+);
+impl_parse_all_for_tuples!(
+    P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4, P5, T5, 5, P6, T6, 6
+);
+impl_parse_all_for_tuples!(
+    P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4, P5, T5, 5, P6, T6, 6, P7, T7, 7
+);

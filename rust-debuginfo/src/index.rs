@@ -291,9 +291,7 @@ pub fn resolve_type<'db>(
                     // Successfully resolved the type
                     tracing::info!(
                         "Resolved type '{type_name}' to {typedef:#?} in {}",
-                        entry
-                            .die(db)
-                            .format_with_location(db, entry.die(db).print(db))
+                        entry.die(db).print(db)
                     );
                     // nowe we've found a match, we can fully resolve the type
                     return Ok(Some(crate::dwarf::fully_resolve_type(

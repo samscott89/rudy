@@ -8,21 +8,17 @@ use crate::database::Db;
 use crate::dwarf::Die;
 
 // Module structure
+pub mod btreemap;
 pub mod children;
 pub mod combinators;
 pub mod enums;
 pub mod hashmap;
+pub mod option;
 pub mod primitives;
+pub mod result;
 pub mod vec;
 
-// Re-exports for convenience
-pub use children::*;
-pub use combinators::*;
-pub use enums::*;
-pub use hashmap::*;
-pub use primitives::*;
-pub use vec::*;
-
+use combinators::{And, Context, Map, MapRes, Then};
 /// Type alias for parser results
 pub type Result<T> = anyhow::Result<T>;
 
@@ -50,6 +46,19 @@ pub trait Parser<'db, T> {
         F: Fn(T) -> U,
     {
         Map {
+            parser: self,
+            f,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    /// Transform the output of this parser
+    fn map_res<U, F>(self, f: F) -> MapRes<Self, F, T>
+    where
+        Self: Sized,
+        F: Fn(T) -> Result<U>,
+    {
+        MapRes {
             parser: self,
             f,
             _marker: std::marker::PhantomData,

@@ -8,8 +8,8 @@ use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
 use rust_types::{
-    ArrayDef, EnumDef, MapDef, MapVariant, PointerDef, PrimitiveDef, ReferenceDef, SliceDef,
-    SmartPtrVariant, StdDef, StrSliceDef, StructDef, TypeDef, VecDef,
+    ArrayDef, EnumDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef, ReferenceDef,
+    SliceDef, SmartPtrVariant, StdDef, StrSliceDef, StructDef, TypeDef, VecDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -548,16 +548,12 @@ fn read_primitive_from_memory(
 fn read_option_from_memory(
     db: &dyn Db,
     address: u64,
-    enum_def: &EnumDef,
+    opt_def: &OptionDef,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
-    let some_variant = enum_def
-        .variants
-        .iter()
-        .find(|v| v.name == "Some")
-        .ok_or_else(|| anyhow::anyhow!("Option enum does not have a 'Some' variant"))?;
+    let some_variant = &opt_def.some_type;
 
-    let inner_type = if let TypeDef::Struct(s) = some_variant.layout.as_ref() {
+    let inner_type = if let TypeDef::Struct(s) = some_variant.as_ref() {
         s.fields
             .get(0)
             .cloned()
@@ -568,11 +564,11 @@ fn read_option_from_memory(
     } else {
         anyhow::bail!(
             "Expected 'Some' variant to be a struct, got: {}",
-            some_variant.layout.display_name()
+            some_variant.display_name()
         );
     };
 
-    let first_byte = data_resolver.read_memory(address + enum_def.discriminant.offset as u64, 1)?;
+    let first_byte = data_resolver.read_memory(address + opt_def.discriminant.offset as u64, 1)?;
     Ok(if first_byte[0] == 0 {
         Value::Scalar {
             ty: inner_type.display_name(),
@@ -582,7 +578,7 @@ fn read_option_from_memory(
         tracing::debug!("Found Some variant at {address:#x}: {some_variant:#?}");
         // we have a `Some` variant
         // we should get the address of the inner value
-        let some_result = read_from_memory(db, address, &some_variant.layout, data_resolver)?;
+        let some_result = read_from_memory(db, address, &some_variant, data_resolver)?;
 
         if let Value::Struct { fields, .. } = some_result {
             // We have a `Some` variant, so we need to extract the inner value.

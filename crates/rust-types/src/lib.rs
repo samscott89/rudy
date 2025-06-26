@@ -65,12 +65,12 @@ impl TypeDef {
                 }
                 StdDef::Map(map_def) => map_def.display_name(),
                 StdDef::Option(option_def) => {
-                    let inner_type = option_def.variants[0].layout.display_name();
+                    let inner_type = option_def.some_type.display_name();
                     format!("Option<{}>", inner_type)
                 }
                 StdDef::Result(result_def) => {
-                    let ok_type = result_def.variants[0].layout.display_name();
-                    let err_type = result_def.variants[1].layout.display_name();
+                    let ok_type = result_def.ok_type.display_name();
+                    let err_type = result_def.err_type.display_name();
                     format!("Result<{}, {}>", ok_type, err_type)
                 }
                 StdDef::String(_) => {
@@ -558,8 +558,8 @@ impl UnsignedIntDef {
 pub enum StdDef {
     SmartPtr(SmartPtrDef),
     Map(MapDef),
-    Option(EnumDef),
-    Result(EnumDef),
+    Option(OptionDef),
+    Result(ResultDef),
     String(StringDef),
     Vec(VecDef),
 }
@@ -582,7 +582,8 @@ impl StdDef {
                 MapVariant::BTreeMap { .. } => size_of::<std::collections::BTreeMap<(), ()>>(),
                 MapVariant::IndexMap => todo!(),
             },
-            StdDef::Result(def) | StdDef::Option(def) => def.size,
+            StdDef::Option(def) => def.size,
+            StdDef::Result(def) => def.size,
             StdDef::String(_) | StdDef::Vec(_) => size_of::<Vec<()>>(),
         };
 
@@ -600,12 +601,9 @@ impl StdDef {
                     && l.key_type.matching_type(&r.key_type)
                     && l.value_type.matching_type(&r.value_type)
             }
-            (StdDef::Option(l), StdDef::Option(r)) => {
-                l.variants[0].layout.matching_type(&r.variants[0].layout)
-            }
+            (StdDef::Option(l), StdDef::Option(r)) => l.some_type.matching_type(&r.some_type),
             (StdDef::Result(l), StdDef::Result(r)) => {
-                l.variants[0].layout.matching_type(&r.variants[0].layout)
-                    && l.variants[1].layout.matching_type(&r.variants[1].layout)
+                l.ok_type.matching_type(&r.ok_type) && l.err_type.matching_type(&r.err_type)
             }
             (StdDef::String(_), StdDef::String(_)) => true,
             (StdDef::Vec(l), StdDef::Vec(r)) => l.inner_type.matching_type(&r.inner_type),
@@ -763,8 +761,29 @@ pub struct EnumDef {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumVariant {
     pub name: String,
-    pub discriminant: u64,
+    /// The discriminant value for this variant, if known
+    ///
+    /// If `None`, we should use the index of the variant
+    /// in the `variants` vector as the discriminant value.
+    pub discriminant: Option<usize>,
     pub layout: Arc<TypeDef>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub struct OptionDef {
+    pub name: String,
+    pub discriminant: Discriminant,
+    pub some_type: Arc<TypeDef>,
+    pub size: usize,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub struct ResultDef {
+    pub name: String,
+    pub discriminant: Discriminant,
+    pub ok_type: Arc<TypeDef>,
+    pub err_type: Arc<TypeDef>,
+    pub size: usize,
 }
 
 // Helper functions for common patterns

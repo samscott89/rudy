@@ -92,6 +92,31 @@ struct TestComplexData {
     location: TestPoint,
 }
 
+#[derive(Debug)]
+enum TestEnum {
+    UnitVariant,
+    TupleVariant(u32, String),
+    StructVariant { x: f64, y: f64 },
+}
+
+#[derive(Debug)]
+#[repr(C)]
+enum ReprCEnum {
+    UnitVariant,
+    TupleVariant(u32, String),
+    StructVariant { x: f64, y: f64 },
+}
+
+#[derive(Debug)]
+#[repr(u8)]
+enum U8Enum {
+    First,
+    Second,
+    Third,
+    // skip fourth to see what happens
+    Fifth = 5,
+}
+
 #[test]
 fn test_introspect_string() -> Result<()> {
     let _ = tracing_subscriber::fmt()
@@ -702,4 +727,132 @@ fn test_introspect_basic_struct() -> Result<()> {
     // Keep data alive
     let _ = test_basic;
     Ok(())
+}
+
+#[test]
+fn test_introspect_enums() {
+    // test enum introspection for TestEnum, ReprCEnum, and U8Enum
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
+
+    let db = DebugDb::new();
+
+    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+
+    let resolver = SelfProcessResolver::new();
+
+    // Test TestEnum variants
+    let unit_variant = TestEnum::UnitVariant;
+    let tuple_variant = TestEnum::TupleVariant(42, "test".to_string());
+    let struct_variant = TestEnum::StructVariant { x: 3.14, y: 2.71 };
+
+    let unit_ptr = &unit_variant as *const TestEnum as u64;
+    let tuple_ptr = &tuple_variant as *const TestEnum as u64;
+    let struct_ptr = &struct_variant as *const TestEnum as u64;
+
+    // Find TestEnum type
+    let test_enum_typedef = debug_info
+        .resolve_type("TestEnum")
+        .expect("Failed to resolve TestEnum")
+        .expect("TestEnum type should be found");
+
+    // Test unit variant
+    let unit_value = debug_info
+        .address_to_value(unit_ptr, &test_enum_typedef, &resolver)
+        .expect("Failed to read TestEnum::UnitVariant");
+    println!("TestEnum::UnitVariant: {:?}", unit_value);
+
+    // Test tuple variant
+    let tuple_value = debug_info
+        .address_to_value(tuple_ptr, &test_enum_typedef, &resolver)
+        .expect("Failed to read TestEnum::TupleVariant");
+    println!("TestEnum::TupleVariant: {:?}", tuple_value);
+
+    // Test struct variant
+    let struct_value = debug_info
+        .address_to_value(struct_ptr, &test_enum_typedef, &resolver)
+        .expect("Failed to read TestEnum::StructVariant");
+    println!("TestEnum::StructVariant: {:?}", struct_value);
+
+    // Test ReprCEnum variants
+    let repr_c_unit = ReprCEnum::UnitVariant;
+    let repr_c_tuple = ReprCEnum::TupleVariant(99, "repr_c".to_string());
+    let repr_c_struct = ReprCEnum::StructVariant { x: 1.41, y: 4.13 };
+
+    let repr_c_unit_ptr = &repr_c_unit as *const ReprCEnum as u64;
+    let repr_c_tuple_ptr = &repr_c_tuple as *const ReprCEnum as u64;
+    let repr_c_struct_ptr = &repr_c_struct as *const ReprCEnum as u64;
+
+    let repr_c_typedef = debug_info
+        .resolve_type("ReprCEnum")
+        .expect("Failed to resolve ReprCEnum")
+        .expect("ReprCEnum type should be found");
+
+    let repr_c_unit_value = debug_info
+        .address_to_value(repr_c_unit_ptr, &repr_c_typedef, &resolver)
+        .expect("Failed to read ReprCEnum::UnitVariant");
+    println!("ReprCEnum::UnitVariant: {:?}", repr_c_unit_value);
+
+    let repr_c_tuple_value = debug_info
+        .address_to_value(repr_c_tuple_ptr, &repr_c_typedef, &resolver)
+        .expect("Failed to read ReprCEnum::TupleVariant");
+    println!("ReprCEnum::TupleVariant: {:?}", repr_c_tuple_value);
+
+    let repr_c_struct_value = debug_info
+        .address_to_value(repr_c_struct_ptr, &repr_c_typedef, &resolver)
+        .expect("Failed to read ReprCEnum::StructVariant");
+    println!("ReprCEnum::StructVariant: {:?}", repr_c_struct_value);
+
+    // Test U8Enum variants
+    let u8_first = U8Enum::First;
+    let u8_second = U8Enum::Second;
+    let u8_third = U8Enum::Third;
+    let u8_fifth = U8Enum::Fifth;
+
+    let u8_first_ptr = &u8_first as *const U8Enum as u64;
+    let u8_second_ptr = &u8_second as *const U8Enum as u64;
+    let u8_third_ptr = &u8_third as *const U8Enum as u64;
+    let u8_fifth_ptr = &u8_fifth as *const U8Enum as u64;
+
+    let u8_enum_typedef = debug_info
+        .resolve_type("U8Enum")
+        .expect("Failed to resolve U8Enum")
+        .expect("U8Enum type should be found");
+
+    let u8_first_value = debug_info
+        .address_to_value(u8_first_ptr, &u8_enum_typedef, &resolver)
+        .expect("Failed to read U8Enum::First");
+    println!("U8Enum::First: {:?}", u8_first_value);
+
+    let u8_second_value = debug_info
+        .address_to_value(u8_second_ptr, &u8_enum_typedef, &resolver)
+        .expect("Failed to read U8Enum::Second");
+    println!("U8Enum::Second: {:?}", u8_second_value);
+
+    let u8_third_value = debug_info
+        .address_to_value(u8_third_ptr, &u8_enum_typedef, &resolver)
+        .expect("Failed to read U8Enum::Third");
+    println!("U8Enum::Third: {:?}", u8_third_value);
+
+    let u8_fifth_value = debug_info
+        .address_to_value(u8_fifth_ptr, &u8_enum_typedef, &resolver)
+        .expect("Failed to read U8Enum::Fifth");
+    println!("U8Enum::Fifth: {:?}", u8_fifth_value);
+
+    // Keep all enum values alive
+    let _ = (
+        unit_variant,
+        tuple_variant,
+        struct_variant,
+        repr_c_unit,
+        repr_c_tuple,
+        repr_c_struct,
+        u8_first,
+        u8_second,
+        u8_third,
+        u8_fifth,
+    );
 }
