@@ -18,16 +18,14 @@ pub trait Parser<'db, T> {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<T>;
 
     /// Combine this parser with another, applying both and combining results
-    fn and<U, V, P, F>(self, other: P, combine: F) -> And<Self, P, F, T, U>
+    fn and<U, P>(self, other: P) -> And<Self, P, T, U>
     where
         Self: Sized,
         P: Parser<'db, U>,
-        F: Fn(T, U) -> Result<V>,
     {
         And {
             first: self,
             second: other,
-            combine,
             _marker: std::marker::PhantomData,
         }
     }
@@ -85,11 +83,11 @@ impl<'db> Parser<'db, usize> for Offset {
 }
 
 /// Find a child member by name and return its Die
-pub struct ChildField {
+pub struct MemberField {
     name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for ChildField {
+impl<'db> Parser<'db, Die<'db>> for MemberField {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
         entry.get_member(db, &self.name).map_err(|e| {
             super::Error::from(anyhow::anyhow!(
@@ -103,6 +101,10 @@ impl<'db> Parser<'db, Die<'db>> for ChildField {
 
 pub fn attr<T>(attr: gimli::DwAt) -> Attr<T> {
     Attr::new(attr)
+}
+
+pub fn entry_type<'db>() -> Attr<Die<'db>> {
+    Attr::new(gimli::DW_AT_type)
 }
 
 pub struct Attr<T> {
@@ -137,12 +139,34 @@ impl<'db> Parser<'db, Die<'db>> for Attr<Die<'db>> {
     }
 }
 
+pub fn member(name: &str) -> Member {
+    Member {
+        name: name.to_string(),
+    }
+}
+
+pub struct Member {
+    name: String,
+}
+
+impl<'db> Parser<'db, Die<'db>> for Member {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
+        entry.get_member(db, &self.name).map_err(|e| {
+            super::Error::from(anyhow::anyhow!(
+                "Failed to find member '{}': {}",
+                self.name,
+                e
+            ))
+        })
+    }
+}
+
 /// Check if current entry has expected name and return it
-pub struct Field {
+pub struct IsMember {
     expected_name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for Field {
+impl<'db> Parser<'db, Die<'db>> for IsMember {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
         let entry_name = entry
             .name(db)
@@ -159,32 +183,12 @@ impl<'db> Parser<'db, Die<'db>> for Field {
     }
 }
 
-/// Find child member by name and get its offset
-pub struct ChildFieldOffset {
-    field_name: String,
-}
-
-impl<'db> Parser<'db, usize> for ChildFieldOffset {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
-        entry
-            .get_udata_member_attribute(db, &self.field_name, gimli::DW_AT_data_member_location)
-            .map_err(|e| {
-                super::Error::from(anyhow::anyhow!(
-                    "Failed to get offset for field '{}': {}",
-                    self.field_name,
-                    e
-                ))
-            })
-            .map(|offset| offset as usize)
-    }
-}
-
 /// Check if current entry has expected name and get its offset
-pub struct FieldOffset {
+pub struct IsMemberOffset {
     expected_name: String,
 }
 
-impl<'db> Parser<'db, usize> for FieldOffset {
+impl<'db> Parser<'db, usize> for IsMemberOffset {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
         let entry_name = entry
             .name(db)
@@ -260,8 +264,8 @@ pub struct Generic {
     expected_name: String,
 }
 
-impl<'db> Parser<'db, Arc<TypeDef>> for Generic {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Arc<TypeDef>> {
+impl<'db> Parser<'db, Die<'db>> for Generic {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
         if entry.tag(db) != gimli::DW_TAG_template_type_parameter {
             return Err(super::Error::from(anyhow::anyhow!(
                 "Expected generic type parameter, found tag {:?}",
@@ -272,7 +276,7 @@ impl<'db> Parser<'db, Arc<TypeDef>> for Generic {
             .name(db)
             .map_err(|e| super::Error::from(anyhow::anyhow!("Failed to get entry name: {}", e)))?;
         if entry_name == self.expected_name {
-            Ok(Arc::new(resolve_entry_type_shallow(db, entry)?))
+            Ok(entry.get_referenced_entry(db, gimli::DW_AT_type)?)
         } else {
             Err(super::Error::from(anyhow::anyhow!(
                 "Expected generic '{}', found '{}'",
@@ -284,23 +288,21 @@ impl<'db> Parser<'db, Arc<TypeDef>> for Generic {
 }
 
 /// Combinator that applies two parsers and combines their results
-pub struct And<P1, P2, F, T, U> {
+pub struct And<P1, P2, T, U> {
     first: P1,
     second: P2,
-    combine: F,
     _marker: std::marker::PhantomData<(T, U)>,
 }
 
-impl<'db, T, U, V, P1, P2, F> Parser<'db, V> for And<P1, P2, F, T, U>
+impl<'db, T, U, P1, P2> Parser<'db, (T, U)> for And<P1, P2, T, U>
 where
     P1: Parser<'db, T>,
     P2: Parser<'db, U>,
-    F: Fn(T, U) -> Result<V>,
 {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<V> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(T, U)> {
         let first_result = self.first.parse(db, entry)?;
         let second_result = self.second.parse(db, entry)?;
-        (self.combine)(first_result, second_result)
+        Ok((first_result, second_result))
     }
 }
 
@@ -340,15 +342,9 @@ where
 }
 
 /// Helper functions for creating child search parsers
-pub fn child_field(name: &str) -> ChildField {
-    ChildField {
+pub fn child_field(name: &str) -> MemberField {
+    MemberField {
         name: name.to_string(),
-    }
-}
-
-pub fn child_field_offset(name: &str) -> ChildFieldOffset {
-    ChildFieldOffset {
-        field_name: name.to_string(),
     }
 }
 
@@ -365,14 +361,14 @@ pub fn child_generic(name: &str) -> ChildGeneric {
 }
 
 /// Helper functions for creating name-matching parsers
-pub fn field(name: &str) -> Field {
-    Field {
+pub fn is_member(name: &str) -> IsMember {
+    IsMember {
         expected_name: name.to_string(),
     }
 }
 
-pub fn field_offset(name: &str) -> FieldOffset {
-    FieldOffset {
+pub fn is_member_offset(name: &str) -> IsMemberOffset {
+    IsMemberOffset {
         expected_name: name.to_string(),
     }
 }
@@ -381,6 +377,9 @@ pub fn generic(name: &str) -> Generic {
     Generic {
         expected_name: name.to_string(),
     }
+}
+pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, Arc<TypeDef>> {
+    generic(name).then(resolve_type()).map(Arc::new)
 }
 
 /// Unified parser for tuples of parsers applied to children
@@ -732,8 +731,8 @@ pub fn field_path_offset<'db>(path: Vec<&str>) -> impl Parser<'db, usize> {
 pub fn vec_parser<'db>() -> impl Parser<'db, VecDef> {
     parse_children((
         field_path_offset(vec!["buf", "inner", "ptr"]),
-        field_offset("len"),
-        generic("T"),
+        is_member_offset("len"),
+        resolved_generic("T"),
     ))
     .map(|(data_ptr_offset, length_offset, inner_type)| VecDef {
         data_ptr_offset,
@@ -754,7 +753,6 @@ mod tests {
     fn test_parser_api_compiles() {
         // Test basic parsers
         let _child_field_parser = child_field("buf");
-        let _child_offset_parser = child_field_offset("len");
         let _path_parser = path!["buf", "inner", "ptr"];
 
         // Test that combinators chain properly
@@ -766,9 +764,13 @@ mod tests {
         let _vec_parser = vec_parser();
 
         // Test parse_children API
-        let _single_child = parse_children((field("buf"),));
-        let _dual_children = parse_children((field("buf"), field_offset("len")));
-        let _triple_children = parse_children((field("buf"), field_offset("len"), generic("T")));
+        let _single_child = parse_children((is_member("buf"),));
+        let _dual_children = parse_children((is_member("buf"), is_member_offset("len")));
+        let _triple_children = parse_children((
+            is_member("buf"),
+            is_member_offset("len"),
+            resolved_generic("T"),
+        ));
     }
 
     #[test]
@@ -788,6 +790,10 @@ mod tests {
         // )).parse(db, entry)?;
 
         // This compiles and shows the expected API
-        let _parser = parse_children((field("buf"), field_offset("len"), generic("T")));
+        let _parser = parse_children((
+            is_member("buf"),
+            is_member_offset("len"),
+            resolved_generic("T"),
+        ));
     }
 }
