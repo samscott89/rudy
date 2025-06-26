@@ -1,14 +1,13 @@
 //! HashMap parser implementation using combinators
 
 use super::Parser;
-use super::combinators::parse_children;
+use super::children::parse_children;
 use super::primitives::{attr, entry_type, generic, is_member, is_member_offset, member, offset};
 use crate::database::Db;
 use crate::dwarf::Die;
-use crate::dwarf::resolution::Error;
 use rust_types::MapVariant;
 
-type Result<T> = std::result::Result<T, Error>;
+type Result<T> = anyhow::Result<T>;
 
 /// Parser for hashbrown HashMap layout
 pub fn hashbrown_map_parser<'db>() -> impl Parser<'db, MapVariant> {

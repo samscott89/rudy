@@ -32,11 +32,11 @@ pub fn resolve_entry_type_shallow<'db>(db: &'db dyn Db, entry: Die<'db>) -> Resu
 /// Resolve String type layout from DWARF
 fn resolve_string_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StringDef> {
     // Get the vec field type and parse it as a Vec
-    member("vec")
+    Ok(member("vec")
         .then(entry_type())
         .then(vec_parser())
         .parse(db, entry)
-        .map(StringDef)
+        .map(StringDef)?)
 }
 
 /// Resolve Map type layout from DWARF
@@ -427,9 +427,9 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
                 }
                 StdDef::Vec(_) => {
                     // For Vec, we need to resolve the actual layout from DWARF
-                    vec_parser()
+                    Ok(vec_parser()
                         .parse(db, entry)
-                        .map(|v| Some(TypeDef::Std(StdDef::Vec(v))))
+                        .map(|v| Some(TypeDef::Std(StdDef::Vec(v))))?)
                 }
                 StdDef::String(_) => {
                     // String has a known layout similar to Vec
@@ -496,7 +496,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
 }
 
 fn resolve_enum_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
-    enum_parser().parse(db, entry)
+    Ok(enum_parser().parse(db, entry)?)
 }
 
 fn resolve_struct_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StructDef> {

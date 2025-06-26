@@ -1,7 +1,7 @@
 //! Vec parser implementation using combinators
 
 use super::Parser;
-use super::combinators::parse_children;
+use super::children::parse_children;
 use super::primitives::{field_path_offset, is_member_offset, resolved_generic};
 use rust_types::VecDef;
 

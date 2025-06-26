@@ -1,16 +1,18 @@
 //! Enum parser implementation using combinators
 
 use super::Parser;
-use super::primitives::{
-    attr, child_by_tag, children_by_tag, entry_type, optional_attr, resolve_type_shallow,
+use super::{
+    children::for_each_child,
+    primitives::{
+        attr, entry_type, is_member_tag, member_by_tag, optional_attr, resolve_type_shallow,
+    },
 };
 use crate::database::Db;
-use crate::dwarf::Die;
-use crate::dwarf::resolution::{Error, resolve_entry_type};
+use crate::dwarf::{Die, resolution::resolve_entry_type};
 use rust_types::{Discriminant, DiscriminantType, EnumDef, EnumVariant};
 use std::sync::Arc;
 
-type Result<T> = std::result::Result<T, Error>;
+use anyhow::{Context as _, Result};
 
 /// Parser for discriminant information
 pub fn discriminant_parser<'db>() -> impl Parser<'db, Discriminant> {
@@ -70,13 +72,14 @@ pub fn enum_parser<'db>() -> impl Parser<'db, EnumDef> {
             tracing::debug!("resolving enum type: {name} {}", entry.print(db));
 
             // Get the variant part
-            let variants_entry = child_by_tag(gimli::DW_TAG_variant_part).parse(db, entry)?;
+            let variants_entry = member_by_tag(gimli::DW_TAG_variant_part).parse(db, entry)?;
 
             // Parse discriminant info and variants
             let discriminant = discriminant_parser().parse(db, variants_entry)?;
 
             // Parse all variants
-            let variant_dies = children_by_tag(gimli::DW_TAG_variant).parse(db, variants_entry)?;
+            let variant_dies =
+                for_each_child(is_member_tag(gimli::DW_TAG_variant)).parse(db, variants_entry)?;
             let mut variants = Vec::new();
 
             for (i, variant_die) in variant_dies.into_iter().enumerate() {
@@ -88,7 +91,7 @@ pub fn enum_parser<'db>() -> impl Parser<'db, EnumDef> {
                     .unwrap_or(i) as u64;
 
                 // Get the single member of the variant
-                let member = child_by_tag(gimli::DW_TAG_member)
+                let member = member_by_tag(gimli::DW_TAG_member)
                     .context("variant part should have a single member")
                     .parse(db, variant_die)?;
 

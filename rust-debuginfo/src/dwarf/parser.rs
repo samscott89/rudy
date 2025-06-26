@@ -8,6 +8,7 @@ use crate::database::Db;
 use crate::dwarf::Die;
 
 // Module structure
+pub mod children;
 pub mod combinators;
 pub mod enums;
 pub mod hashmap;
@@ -15,6 +16,7 @@ pub mod primitives;
 pub mod vec;
 
 // Re-exports for convenience
+pub use children::*;
 pub use combinators::*;
 pub use enums::*;
 pub use hashmap::*;
@@ -22,7 +24,7 @@ pub use primitives::*;
 pub use vec::*;
 
 /// Type alias for parser results
-pub type Result<T> = std::result::Result<T, crate::dwarf::resolution::Error>;
+pub type Result<T> = anyhow::Result<T>;
 
 /// Core parser trait that all combinators implement
 pub trait Parser<'db, T> {

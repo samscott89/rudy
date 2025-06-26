@@ -1,9 +1,10 @@
 //! Generic parser combinators that work with any Parser implementations
 
+use anyhow::Context as _;
+
 use super::{Parser, Result};
 use crate::database::Db;
 use crate::dwarf::Die;
-use core::fmt;
 
 /// Combinator that applies two parsers and combines their results
 pub struct And<P1, P2, T, U> {
@@ -70,162 +71,9 @@ where
     P: Parser<'db, T>,
 {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<T> {
-        self.parser.parse(db, entry).map_err(|e| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!("{}: {}", self.context, e))
-        })
+        self.parser
+            .parse(db, entry)
+            .with_context(|| entry.format_with_location(db, &self.context))
     }
 }
 
-/// Unified parser for tuples of parsers applied to children
-pub struct ParseChildren<T> {
-    parsers: T,
-}
-
-/// Implement for tuples of different sizes
-impl<'db, T1, P1> Parser<'db, (T1,)> for ParseChildren<(P1,)>
-where
-    P1: Parser<'db, T1>,
-{
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(T1,)> {
-        let mut result1: Option<Result<T1>> = None;
-
-        for child in entry.children(db)? {
-            if result1.is_none() {
-                match self.parsers.0.parse(db, child) {
-                    Ok(res) => result1 = Some(Ok(res)),
-                    Err(_) => {} // Try next child
-                }
-            }
-
-            // Early exit if all found
-            if result1.is_some() {
-                break;
-            }
-        }
-
-        let r1 = result1.ok_or_else(|| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!("Failed to find required child"))
-        })??;
-        Ok((r1,))
-    }
-}
-
-impl<'db, T1, T2, P1, P2> Parser<'db, (T1, T2)> for ParseChildren<(P1, P2)>
-where
-    P1: Parser<'db, T1>,
-    P2: Parser<'db, T2>,
-{
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(T1, T2)> {
-        let mut result1: Option<Result<T1>> = None;
-        let mut result2: Option<Result<T2>> = None;
-
-        for child in entry.children(db)? {
-            if result1.is_none() {
-                match self.parsers.0.parse(db, child) {
-                    Ok(res) => result1 = Some(Ok(res)),
-                    Err(_) => {} // Try next child
-                }
-            }
-            if result2.is_none() {
-                match self.parsers.1.parse(db, child) {
-                    Ok(res) => result2 = Some(Ok(res)),
-                    Err(_) => {} // Try next child
-                }
-            }
-
-            // Early exit if all found
-            if result1.is_some() && result2.is_some() {
-                break;
-            }
-        }
-
-        let r1 = result1.ok_or_else(|| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to find required child for first parser"
-            ))
-        })??;
-        let r2 = result2.ok_or_else(|| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to find required child for second parser"
-            ))
-        })??;
-        Ok((r1, r2))
-    }
-}
-
-impl<'db, T1, T2, T3, P1, P2, P3> Parser<'db, (T1, T2, T3)> for ParseChildren<(P1, P2, P3)>
-where
-    P1: Parser<'db, T1>,
-    P2: Parser<'db, T2>,
-    P3: Parser<'db, T3>,
-    T1: fmt::Debug,
-    T2: fmt::Debug,
-    T3: fmt::Debug,
-{
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<(T1, T2, T3)> {
-        let mut result1: Option<Result<T1>> = None;
-        let mut result2: Option<Result<T2>> = None;
-        let mut result3: Option<Result<T3>> = None;
-
-        for child in entry.children(db)? {
-            tracing::debug!(
-                "Parsing child: {}",
-                child.format_with_location(db, child.print(db))
-            );
-            if result1.is_none() {
-                match self.parsers.0.parse(db, child) {
-                    Ok(res) => {
-                        tracing::debug!("Found result1: {:?}", res);
-                        result1 = Some(Ok(res))
-                    }
-                    Err(_) => {} // Try next child
-                }
-            }
-            if result2.is_none() {
-                match self.parsers.1.parse(db, child) {
-                    Ok(res) => {
-                        tracing::debug!("Found result2: {:?}", res);
-                        result2 = Some(Ok(res))
-                    }
-                    Err(_) => {} // Try next child
-                }
-            }
-            if result3.is_none() {
-                match self.parsers.2.parse(db, child) {
-                    Ok(res) => {
-                        tracing::debug!("Found result3: {:?}", res);
-                        result3 = Some(Ok(res))
-                    }
-                    Err(_) => {} // Try next child
-                }
-            }
-
-            // Early exit if all found
-            if result1.is_some() && result2.is_some() && result3.is_some() {
-                break;
-            }
-        }
-
-        let r1 = result1.ok_or_else(|| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to find required child for first parser"
-            ))
-        })??;
-        let r2 = result2.ok_or_else(|| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to find required child for second parser"
-            ))
-        })??;
-        let r3 = result3.ok_or_else(|| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to find required child for third parser"
-            ))
-        })??;
-        Ok((r1, r2, r3))
-    }
-}
-
-/// Main function for creating unified children parsers
-pub fn parse_children<T>(parsers: T) -> ParseChildren<T> {
-    ParseChildren { parsers }
-}

@@ -3,6 +3,7 @@
 use super::{Parser, Result};
 use crate::database::Db;
 use crate::dwarf::Die;
+use anyhow::Context as _;
 use rust_types::*;
 use std::sync::Arc;
 
@@ -15,15 +16,9 @@ pub struct Offset;
 
 impl<'db> Parser<'db, usize> for Offset {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
-        entry
+        Ok(entry
             .udata_attr(db, gimli::DW_AT_data_member_location)
-            .map_err(|e| {
-                crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                    "Failed to get offset: {}",
-                    e
-                ))
-            })
-            .map(|o| o as usize)
+            .map(|o| o as usize)?)
     }
 }
 
@@ -106,13 +101,7 @@ pub struct Member {
 
 impl<'db> Parser<'db, Die<'db>> for Member {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
-        entry.get_member(db, &self.name).map_err(|e| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to find member '{}': {}",
-                self.name,
-                e
-            ))
-        })
+        Ok(entry.get_member(db, &self.name)?)
     }
 }
 
@@ -123,20 +112,14 @@ pub struct IsMember {
 
 impl<'db> Parser<'db, Die<'db>> for IsMember {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
-        let entry_name = entry.name(db).map_err(|e| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to get entry name: {}",
-                e
-            ))
-        })?;
+        let entry_name = entry.name(db).context("Failed to get entry name")?;
         if entry_name == self.expected_name {
             Ok(entry)
         } else {
-            Err(crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Expected field '{}', found '{}'",
+            Err(anyhow::anyhow!(
+                "Expected field '{}', found '{entry_name}'",
                 self.expected_name,
-                entry_name
-            )))
+            ))
         }
     }
 }
@@ -163,20 +146,13 @@ impl<'db> Parser<'db, usize> for IsMemberOffset {
         if entry_name == self.expected_name {
             entry
                 .udata_attr(db, gimli::DW_AT_data_member_location)
-                .map_err(|e| {
-                    crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                        "Failed to get offset for field '{}': {}",
-                        entry_name,
-                        e
-                    ))
-                })
+                .with_context(|| format!("Failed to get offset for field '{}'", self.expected_name))
                 .map(|o| o as usize)
         } else {
-            Err(crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Expected field '{}', found '{}'",
+            Err(anyhow::anyhow!(
+                "Expected field '{}', found '{entry_name}'",
                 self.expected_name,
-                entry_name
-            )))
+            ))
         }
     }
 }
@@ -187,6 +163,46 @@ pub fn is_member_offset(name: &str) -> IsMemberOffset {
     }
 }
 
+/// Find a member by tag and return its Die
+pub fn member_by_tag(tag: gimli::DwTag) -> MemberByTag {
+    MemberByTag { tag }
+}
+
+pub struct MemberByTag {
+    tag: gimli::DwTag,
+}
+
+impl<'db> Parser<'db, Die<'db>> for MemberByTag {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
+        entry
+            .get_member_by_tag(db, self.tag)
+            .with_context(|| format!("Failed to find member with tag '{}'", self.tag,))
+    }
+}
+
+/// Check if current entry has expected tag and return it
+pub struct IsMemberTag {
+    expected_tag: gimli::DwTag,
+}
+
+impl<'db> Parser<'db, Die<'db>> for IsMemberTag {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
+        let entry_tag = entry.tag(db);
+        if entry_tag == self.expected_tag {
+            Ok(entry)
+        } else {
+            Err(anyhow::anyhow!(
+                "Expected entry to have tag '{}', found '{entry_tag}'",
+                self.expected_tag,
+            ))
+        }
+    }
+}
+
+pub fn is_member_tag(tag: gimli::DwTag) -> IsMemberTag {
+    IsMemberTag { expected_tag: tag }
+}
+
 /// Check if current entry matches expected generic name
 pub struct Generic {
     expected_name: String,
@@ -195,10 +211,10 @@ pub struct Generic {
 impl<'db> Parser<'db, Die<'db>> for Generic {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
         if entry.tag(db) != gimli::DW_TAG_template_type_parameter {
-            return Err(crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Expected generic type parameter, found tag {:?}",
+            return Err(anyhow::anyhow!(
+                "Expected generic type parameter, found tag {}",
                 entry.tag(db)
-            )));
+            ));
         }
         let entry_name = entry.name(db).map_err(|e| {
             crate::dwarf::resolution::Error::from(anyhow::anyhow!(
@@ -209,11 +225,10 @@ impl<'db> Parser<'db, Die<'db>> for Generic {
         if entry_name == self.expected_name {
             Ok(entry.get_referenced_entry(db, gimli::DW_AT_type)?)
         } else {
-            Err(crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Expected generic '{}', found '{}'",
+            Err(anyhow::anyhow!(
+                "Expected generic '{}', found '{entry_name}'",
                 self.expected_name,
-                entry_name
-            )))
+            ))
         }
     }
 }
@@ -228,52 +243,12 @@ pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, Arc<TypeDef>> {
     generic(name).then(resolve_type()).map(Arc::new)
 }
 
-/// Parser that finds a child by tag rather than name
-pub struct ChildByTag {
-    tag: gimli::DwTag,
-}
-
-impl<'db> Parser<'db, Die<'db>> for ChildByTag {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Die<'db>> {
-        entry.get_member_by_tag(db, self.tag).map_err(|e| {
-            crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                "Failed to find child with tag {:?}: {}",
-                self.tag,
-                e
-            ))
-        })
-    }
-}
-
-pub fn child_by_tag(tag: gimli::DwTag) -> ChildByTag {
-    ChildByTag { tag }
-}
-
-/// Parser that iterates through children with a specific tag
-pub struct ChildrenByTag {
-    tag: gimli::DwTag,
-}
-
-impl<'db> Parser<'db, Vec<Die<'db>>> for ChildrenByTag {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<Die<'db>>> {
-        Ok(entry
-            .children(db)?
-            .into_iter()
-            .filter(|child| child.tag(db) == self.tag)
-            .collect())
-    }
-}
-
-pub fn children_by_tag(tag: gimli::DwTag) -> ChildrenByTag {
-    ChildrenByTag { tag }
-}
-
 /// Combinator that resolves a Die into a type definition
 pub struct ResolveType;
 
 impl<'db> Parser<'db, TypeDef> for ResolveType {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-        crate::dwarf::resolution::shallow_resolve_type(db, entry)
+        Ok(crate::dwarf::resolution::shallow_resolve_type(db, entry)?)
     }
 }
 
@@ -286,7 +261,7 @@ pub struct ResolveTypeShallow;
 
 impl<'db> Parser<'db, TypeDef> for ResolveTypeShallow {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
-        crate::dwarf::resolution::shallow_resolve_type(db, entry)
+        Ok(crate::dwarf::resolution::shallow_resolve_type(db, entry)?)
     }
 }
 
@@ -317,48 +292,29 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
         };
 
         if &entry.name(db)? != first_field {
-            return Err(crate::dwarf::resolution::Error::from(anyhow::anyhow!(
+            return Err(anyhow::anyhow!(
                 "Expected entry name '{}', found '{}'",
                 first_field,
                 entry.name(db)?
-            )));
+            ));
         }
         offset += entry
             .udata_attr(db, gimli::DW_AT_data_member_location)
-            .map_err(|e| {
-                crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                    "Failed to get offset for field '{}': {}",
-                    first_field,
-                    e
-                ))
-            })?;
+            .with_context(|| format!("Failed to get offset for field '{first_field}'"))?;
         entry = entry
             .get_referenced_entry(db, gimli::DW_AT_type)
-            .map_err(|e| {
-                crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                    "Failed to resolve type for field '{first_field}': {e}",
-                ))
-            })?;
+            .with_context(|| format!("Failed to resolve type for field '{first_field}'"))?;
         while let Some(field_name) = path_iter.next() {
-            entry = entry.get_member(db, field_name).map_err(|e| {
-                crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                    "Failed to navigate to field '{field_name}': {e}",
-                ))
-            })?;
+            entry = entry
+                .get_member(db, field_name)
+                .with_context(|| format!("Failed to navigate to field '{field_name}'"))?;
             offset += entry
                 .udata_attr(db, gimli::DW_AT_data_member_location)
-                .map_err(|e| {
-                    crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                        "Failed to get offset for field '{field_name}': {e}",
-                    ))
-                })? as usize;
+                .with_context(|| format!("Failed to get offset for field '{field_name}'"))?
+                as usize;
             entry = entry
                 .get_referenced_entry(db, gimli::DW_AT_type)
-                .map_err(|e| {
-                    crate::dwarf::resolution::Error::from(anyhow::anyhow!(
-                        "Failed to resolve type for field '{field_name}': {e}",
-                    ))
-                })?;
+                .with_context(|| format!("Failed to resolve type for field '{field_name}'"))?;
         }
 
         Ok((entry, offset))
