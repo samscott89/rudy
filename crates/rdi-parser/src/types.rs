@@ -661,6 +661,7 @@ impl Path {
                                     offset: 0,
                                     ty: DiscriminantType::Implicit,
                                 },
+                                some_offset: 0,
                                 some_type: inner,
                                 size: 0,
                             }));
@@ -990,6 +991,7 @@ mod test {
                     offset: 0,
                     ty: DiscriminantType::Implicit,
                 },
+                some_offset: 0,
                 some_type: Arc::new(IntDef::i32().into()),
                 size: 0,
             }),

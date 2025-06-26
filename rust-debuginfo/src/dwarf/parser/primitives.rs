@@ -107,7 +107,7 @@ impl<'db> Parser<'db, Die<'db>> for Member {
 
 /// Check if current entry has expected name and return it
 pub struct IsMember {
-    expected_name: String,
+    pub(super) expected_name: String,
 }
 
 impl<'db> Parser<'db, Die<'db>> for IsMember {

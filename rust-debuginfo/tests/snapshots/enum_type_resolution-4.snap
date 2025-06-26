@@ -1,0 +1,45 @@
+---
+source: rust-debuginfo/tests/mod.rs
+expression: result_typedef
+snapshot_kind: text
+---
+Std(
+    Result(
+        ResultDef {
+            name: "Result<i32, alloc::string::String>",
+            discriminant: Discriminant {
+                ty: UnsignedInt(
+                    UnsignedIntDef {
+                        size: 8,
+                    },
+                ),
+                offset: 0,
+            },
+            ok_type: Primitive(
+                Int(
+                    IntDef {
+                        size: 4,
+                    },
+                ),
+            ),
+            err_type: Std(
+                String(
+                    StringDef(
+                        VecDef {
+                            length_offset: 16,
+                            data_ptr_offset: 8,
+                            inner_type: Primitive(
+                                UnsignedInt(
+                                    UnsignedIntDef {
+                                        size: 1,
+                                    },
+                                ),
+                            ),
+                        },
+                    ),
+                ),
+            ),
+            size: 24,
+        },
+    ),
+)

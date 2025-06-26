@@ -1,0 +1,29 @@
+---
+source: rust-debuginfo/tests/mod.rs
+expression: option_typedef
+snapshot_kind: text
+---
+Std(
+    Option(
+        OptionDef {
+            name: "Option<i32>",
+            discriminant: Discriminant {
+                ty: UnsignedInt(
+                    UnsignedIntDef {
+                        size: 4,
+                    },
+                ),
+                offset: 0,
+            },
+            some_offset: 4,
+            some_type: Primitive(
+                Int(
+                    IntDef {
+                        size: 4,
+                    },
+                ),
+            ),
+            size: 8,
+        },
+    ),
+)

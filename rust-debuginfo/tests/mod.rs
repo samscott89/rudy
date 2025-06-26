@@ -336,16 +336,6 @@ fn test_enum_type_resolution() {
 
     insta::assert_debug_snapshot!(repr_c_typedef);
 
-    // Test U8Enum variants
-    let _u8_first = U8Enum::First;
-
-    let u8_enum_typedef = debug_info
-        .resolve_type("U8Enum")
-        .expect("Failed to resolve U8Enum")
-        .expect("U8Enum type should be found");
-
-    insta::assert_debug_snapshot!(u8_enum_typedef);
-
     // we'll also test our special-cased enums Option and Result
 
     let _option: Option<i32> = Some(42);
@@ -363,4 +353,14 @@ fn test_enum_type_resolution() {
         .expect("Result<i32, String> type should be found");
 
     insta::assert_debug_snapshot!(result_typedef);
+
+    // Test U8Enum variants
+    let _u8_first = U8Enum::First;
+
+    let u8_enum_typedef = debug_info
+        .resolve_type("U8Enum")
+        .expect("Failed to resolve U8Enum")
+        .expect("U8Enum type should be found");
+
+    insta::assert_debug_snapshot!(u8_enum_typedef);
 }

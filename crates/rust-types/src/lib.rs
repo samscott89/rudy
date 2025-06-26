@@ -773,6 +773,7 @@ pub struct EnumVariant {
 pub struct OptionDef {
     pub name: String,
     pub discriminant: Discriminant,
+    pub some_offset: usize,
     pub some_type: Arc<TypeDef>,
     pub size: usize,
 }

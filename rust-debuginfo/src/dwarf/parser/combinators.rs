@@ -94,6 +94,7 @@ where
     }
 }
 
+/// Combinator that applies multiple parsers and collects their results into a tuple
 pub fn all<T>(parsers: T) -> All<T> {
     All { parsers }
 }
@@ -103,6 +104,12 @@ pub struct All<T> {
 }
 
 /// Macro to dynamically generate All implementations
+///
+/// NOTE: it would be trivial to implement this for a bare tuple, but
+/// we prefer to use an explicit struct/combinator for this, since there are
+/// other methods like `parse_children` that explicitly expect a tuple of parsers,
+/// and we want to avoid mistakes like `for_each_child((parser1, parser2))` which would
+/// apply both parsers to the same child entry, rather than applying each parser to its own child.
 macro_rules! impl_parse_all_for_tuples {
     (
         $($P:ident, $T:ident, $idx:tt),*

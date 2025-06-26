@@ -88,3 +88,12 @@ pub trait Parser<'db, T> {
         }
     }
 }
+
+impl<'db, T, P> Parser<'db, T> for &'_ P
+where
+    P: Parser<'db, T>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<T> {
+        <P as Parser<'db, T>>::parse(self, db, entry)
+    }
+}

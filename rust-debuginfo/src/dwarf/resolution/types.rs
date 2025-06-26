@@ -748,6 +748,7 @@ pub fn fully_resolve_type<'db>(
                     name,
                     discriminant,
                     some_type,
+                    some_offset,
                     size,
                 }) => {
                     let some_type = fully_resolve_type(db, file, some_type.as_ref())?;
@@ -756,6 +757,7 @@ pub fn fully_resolve_type<'db>(
                         name,
                         discriminant,
                         some_type: Arc::new(some_type),
+                        some_offset,
                         size,
                     })
                 }
@@ -858,7 +860,8 @@ pub fn fully_resolve_type<'db>(
             let die_offset = UnitOffset(die_offset);
             let cu_offset = gimli::UnitSectionOffset::from(DebugInfoOffset(cu_offset));
             let die = Die::new(db, file, cu_offset, die_offset);
-            resolve_type_offset(db, die).context("Failed to resolve alias type")?
+            resolve_type_offset(db, die)
+                .with_context(|| die.format_with_location(db, "Failed to resolve alias type"))?
         }
         TypeDef::Other { name } => {
             // Other types are not fully resolved, return as is
