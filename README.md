@@ -1,8 +1,6 @@
-<div align="center">
-  <img src=".github/assets/logo-256.png" alt="Rudy Logo" width="128">
-  
-  # Rudy
-</div>
+# <img src=".github/assets/logo-256.png" alt="Rudy Logo" width="48" align="left" style="margin-right: 10px"> Rudy
+
+<br clear="left"/>
 
 [![Crates.io](https://img.shields.io/crates/v/rudy-db.svg)](https://crates.io/crates/rudy-db)
 [![Documentation](https://docs.rs/rudy-db/badge.svg)](https://docs.rs/rudy-db)
