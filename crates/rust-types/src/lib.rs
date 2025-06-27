@@ -673,6 +673,22 @@ impl MapDef {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub struct BTreeRootLayout {
+    pub node_offset: usize,   // offset to node field within Root
+    pub height_offset: usize, // offset to height field within Root
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub struct BTreeNodeLayout {
+    pub keys_offset: usize,          // offset to keys array in LeafNode
+    pub vals_offset: usize,          // offset to vals array in LeafNode
+    pub len_offset: usize,           // offset to len field in LeafNode
+    pub edges_offset: usize,         // offset to edges array in InternalNode
+    pub leaf_type: Arc<TypeDef>,     // the LeafNode type
+    pub internal_type: Arc<TypeDef>, // the InternalNode type
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum MapVariant {
     HashMap {
         bucket_mask_offset: usize, // offset within RawTableInner
@@ -683,9 +699,10 @@ pub enum MapVariant {
         value_offset: usize,       // offset to value within a pair
     },
     BTreeMap {
-        length_offset: usize, // offset to length field
-        root_offset: usize,   // offset to root field
-        root_layout: EnumDef,
+        length_offset: usize,        // offset to length field in BTreeMap
+        root_offset: usize,          // offset to root field in BTreeMap
+        root_layout: BTreeRootLayout,  // layout of the root structure
+        node_layout: BTreeNodeLayout,  // layout of the node structures
     },
     IndexMap,
 }

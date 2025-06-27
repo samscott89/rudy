@@ -1,4 +1,30 @@
 //! BTreeMap parser implementation using combinators
+//!
+//! Inspired by the `BTreeMapProvider` in [gdb_provider.py](https://github.com/rust-lang/rust/blob/513999b936c37902120380f4171963d1f1d80347/src/etc/gdb_providers.py#L4)
+//!
+//!   Overview: BTreeMap stores key-value pairs in a B-tree structure with internal nodes and leaf nodes. The tree has a
+//! height, and we traverse from the root down to the leaves.
+//!
+//! Algorithm:
+//! 1. Start with the BTreeMap's root node and height
+//! 2. If the map is empty (length = 0), return immediately
+//! 3. Extract the root node pointer from the Option wrapper
+//! 4. Recursively traverse the tree starting from the root with the given height
+//! 5. For each node:
+//! - If it's an internal node (height > 0):
+//!     - Cast to InternalNode type to access edges
+//!   - Recursively traverse each child edge before processing keys/values
+//! - Process the node's key-value pairs:
+//!     - Read the len field to know how many pairs are in this node
+//!   - Iterate through indices 0 to len-1
+//!   - For each index, yield the key and value from the arrays
+//!
+//!
+//! Key details:
+//! - Internal nodes have edges (child pointers) in addition to keys/values
+//! - Leaf nodes only have keys/values
+//! - The tree is traversed in-order (left edge, key/value, right edge)
+//! - Zero-sized types need special handling
 
 use super::Parser;
 use super::{
@@ -172,6 +198,16 @@ impl<'db> Parser<'db, MapDef> for BTreeMapParser {
         //                           DW_AT_alignment       (4)
         //                           DW_AT_data_member_location    (0x0110)
         //                           DW_AT_accessibility   (DW_ACCESS_private)
+
+        let (parent_offset, parent_entry, parent_idx_offset, len_offset, keys_offset, vals_offset) =
+            parse_children((
+                member("parent").then(offset().and(entry_type())),
+                member("parent_idx").then(offset()),
+                member("len").then(offset()),
+                member("keys").then(offset()),
+                member("vals").then(offset()),
+            ))
+            .parse(db, node_entry)?;
 
         Ok(MapDef {
             key_type,

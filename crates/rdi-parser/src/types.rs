@@ -725,14 +725,21 @@ impl Path {
                                 "BTreeMap" => MapVariant::BTreeMap {
                                     length_offset: 0,
                                     root_offset: 0,
-                                    root_layout: EnumDef {
-                                        name: "Unknown".to_string(),
-                                        discriminant: Discriminant {
-                                            ty: DiscriminantType::Implicit,
-                                            offset: 0,
-                                        },
-                                        variants: Vec::new(),
-                                        size: 0,
+                                    root_layout: BTreeRootLayout {
+                                        node_offset: 0,
+                                        height_offset: 0,
+                                    },
+                                    node_layout: BTreeNodeLayout {
+                                        keys_offset: 0,
+                                        vals_offset: 0,
+                                        len_offset: 0,
+                                        edges_offset: 0,
+                                        leaf_type: Arc::new(TypeDef::Other {
+                                            name: "unknown".to_string(),
+                                        }),
+                                        internal_type: Arc::new(TypeDef::Other {
+                                            name: "unknown".to_string(),
+                                        }),
                                     },
                                 },
                                 _ => unreachable!(),
