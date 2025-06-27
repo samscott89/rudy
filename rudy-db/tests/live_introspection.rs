@@ -44,11 +44,7 @@ impl DataResolver for SelfProcessResolver {
                 .iter()
                 .chunks(2)
                 .into_iter()
-                .map(|chunk| {
-                    chunk
-                        .map(|byte| format!("{byte:02x}"))
-                        .collect::<String>()
-                })
+                .map(|chunk| { chunk.map(|byte| format!("{byte:02x}")).collect::<String>() })
                 .join(" ")
         );
 
@@ -381,9 +377,7 @@ fn test_introspect_hashmap() -> Result<()> {
             ]
         );
     } else {
-        panic!(
-            "Expected HashMap<String, i32> to be read as Map, got: {value:?}"
-        );
+        panic!("Expected HashMap<String, i32> to be read as Map, got: {value:?}");
     }
 
     // Keep map alive
@@ -463,9 +457,7 @@ fn test_introspect_btreemap() -> Result<()> {
             ]
         );
     } else {
-        panic!(
-            "Expected BTreeMap<String, i32> to be read as Map, got: {value:?}"
-        );
+        panic!("Expected BTreeMap<String, i32> to be read as Map, got: {value:?}");
     }
 
     // Keep map alive
