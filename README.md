@@ -1,7 +1,11 @@
-# Rudy
+<div align="center">
+  <img src=".github/assets/logo-256.png" alt="Rudy Logo" width="128">
+  
+  # Rudy
+</div>
 
-[![Crates.io](https://img.shields.io/crates/v/rust-debuginfo.svg)](https://crates.io/crates/rust-debuginfo)
-[![Documentation](https://docs.rs/rust-debuginfo/badge.svg)](https://docs.rs/rust-debuginfo)
+[![Crates.io](https://img.shields.io/crates/v/rudy-db.svg)](https://crates.io/crates/rudy-db)
+[![Documentation](https://docs.rs/rudy-db/badge.svg)](https://docs.rs/rudy-db)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A user-friendly library for interacting with debugging information of Rust compiled artifacts using DWARF.
@@ -22,7 +26,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-rust-debuginfo = "0.0.1"
+rudy-db = "0.0.1"
 ```
 
 ## Basic Usage
