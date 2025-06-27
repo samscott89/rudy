@@ -8,9 +8,9 @@ repository = "https://github.com/samscott89/rudy"
 documentation = "https://docs.rs/rudy-db"
 homepage = "https://github.com/samscott89/rudy"
 license = "MIT"
-readme = "README.md"
+readme = "../README.md"
 keywords = ["debug", "dwarf", "debuginfo", "debugging", "rust"]
-categories = ["debugging", "development-tools", "parser-implementations"]
+categories = ["development-tools"]
 
 [dependencies]
 anyhow.workspace = true
@@ -21,7 +21,7 @@ gimli = { version = "0.31.1", default-features = false, features = [
 ] }
 itertools.workspace = true
 memmap2 = "0.9.5"
-object = { git = "https://github.com/gimli-rs/object", rev = "a74579249e21ab8fcd3a86be588de336f18297cb" }
+object = "0.37.1"
 rudy-types.workspace = true
 rudy-parser.workspace = true
 rustc-demangle = "0.1"
