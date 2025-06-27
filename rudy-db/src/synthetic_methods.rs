@@ -2,6 +2,71 @@
 //!
 //! These are methods we can compute directly from debug information
 //! without needing to execute code in the target process.
+//!
+//! ## Current Implementation
+//! 
+//! We currently support synthetic methods for:
+//! - **Vec<T>**: `len()`, `capacity()`, `is_empty()`
+//! - **String**: `len()`, `is_empty()`
+//! - **Option<T>**: `is_some()`, `is_none()`
+//! - **Result<T,E>**: `is_ok()`, `is_err()` (partial - needs Result layout work)
+//! - **&[T]**: `len()`, `is_empty()`
+//! - **&str**: `len()`, `is_empty()`
+//! - **[T; N]**: `len()` (when array types are available in debug info)
+//!
+//! ## Future Methods to Implement
+//!
+//! ### Standard Collections
+//! - **HashMap<K,V>** / **BTreeMap<K,V>**: `len()`, `is_empty()`, `contains_key()`
+//! - **HashSet<T>** / **BTreeSet<T>**: `len()`, `is_empty()`, `contains()`
+//! - **VecDeque<T>**: `len()`, `capacity()`, `is_empty()`
+//! - **LinkedList<T>**: `len()`, `is_empty()`
+//!
+//! ### Smart Pointers
+//! - **Box<T>**: `is_null()` (check for null pointer)
+//! - **Rc<T>** / **Arc<T>**: `strong_count()`, `weak_count()`
+//! - **RefCell<T>**: `try_borrow()` (check if currently borrowed)
+//! - **Mutex<T>** / **RwLock<T>**: `is_poisoned()`
+//!
+//! ### Iterators
+//! - **Range<T>**: `len()`, `is_empty()`, `contains()`
+//! - **Chars**: `count()` (for string char iterators)
+//!
+//! ### Networking & I/O
+//! - **SocketAddr**: `ip()`, `port()`, `is_ipv4()`, `is_ipv6()`
+//! - **IpAddr**: `is_loopback()`, `is_multicast()`, `is_global()`
+//! - **Path** / **PathBuf**: `is_absolute()`, `is_relative()`, `exists()` (if we can stat)
+//!
+//! ### Time & Duration
+//! - **Duration**: `as_secs()`, `as_millis()`, `as_micros()`, `as_nanos()`, `is_zero()`
+//! - **Instant**: `elapsed()` (if we can get current time)
+//! - **SystemTime**: `duration_since()` (relative to UNIX_EPOCH)
+//!
+//! ### Concurrency Primitives
+//! - **AtomicBool** / **AtomicI32** etc: `load()` (read current value)
+//! - **Barrier**: `is_leader()` (for barrier synchronization)
+//!
+//! ### Custom Methods with Arguments
+//! - **Vec<T>**: `get(index)` - bounds-checked element access
+//! - **String**: `char_at(index)` - get character at byte index
+//! - **HashMap<K,V>**: `get(key)` - look up value by key
+//! - **Range<T>**: `contains(value)` - check if value is in range
+//!
+//! ### Complex Computed Properties
+//! - **String**: `char_len()` - length in Unicode characters (vs bytes)
+//! - **Vec<T>**: `remaining_capacity()` - capacity minus length
+//! - **Path**: `file_name()`, `extension()`, `parent()` (string operations on path)
+//!
+//! ## Implementation Notes
+//!
+//! Synthetic methods should only be implemented when:
+//! 1. The computation can be done entirely from memory layout and debug info
+//! 2. The result is deterministic and side-effect free
+//! 3. The performance is reasonable (no complex algorithms)
+//! 4. The method provides significant debugging value
+//!
+//! Methods requiring system calls, file I/O, network access, or complex
+//! computations should use actual method execution instead.
 
 use crate::{DataResolver, Value};
 use anyhow::{Result, anyhow};
@@ -270,23 +335,49 @@ fn evaluate_result_method(
 
     let discriminant_value = match discriminant_bytes.len() {
         1 => discriminant_bytes[0] as u64,
-        2 => u16::from_le_bytes(discriminant_bytes.try_into().unwrap()) as u64,
-        4 => u32::from_le_bytes(discriminant_bytes.try_into().unwrap()) as u64,
-        8 => u64::from_le_bytes(discriminant_bytes.try_into().unwrap()),
+        2 => u16::from_le_bytes(discriminant_bytes.clone().try_into().unwrap()) as u64,
+        4 => u32::from_le_bytes(discriminant_bytes.clone().try_into().unwrap()) as u64,
+        8 => u64::from_le_bytes(discriminant_bytes.clone().try_into().unwrap()),
         _ => return Err(anyhow!("Unexpected discriminant size")),
     };
 
-    // For Result, typically discriminant 0 = Ok, 1 = Err
-    // This is a common pattern but may vary
+    // Debug: print the discriminant value and bytes
+    tracing::debug!(
+        "Result discriminant bytes: {:?}, value: {:#x}, at offset {}",
+        discriminant_bytes,
+        discriminant_value,
+        result_layout.discriminant.offset
+    );
+
+    // Result uses a special encoding where the discriminant is part of the payload
+    // For Result<T, E>, when it's Ok, the discriminant area contains the Ok value
+    // When it's Err, it uses a special marker (often 0x8000000000000000 for 64-bit)
+    // This is an optimization to avoid wasting space
     match method {
-        "is_ok" => Ok(Value::Scalar {
-            ty: "bool".to_string(),
-            value: (discriminant_value == 0).to_string(),
-        }),
-        "is_err" => Ok(Value::Scalar {
-            ty: "bool".to_string(),
-            value: (discriminant_value != 0).to_string(),
-        }),
+        "is_ok" => {
+            // Check if the high bit is NOT set (indicating Ok variant)
+            let is_ok = match discriminant_bytes.len() {
+                8 => (discriminant_value & 0x8000000000000000) == 0,
+                4 => (discriminant_value & 0x80000000) == 0,
+                _ => discriminant_value == 0,
+            };
+            Ok(Value::Scalar {
+                ty: "bool".to_string(),
+                value: is_ok.to_string(),
+            })
+        }
+        "is_err" => {
+            // Check if the high bit IS set (indicating Err variant)
+            let is_err = match discriminant_bytes.len() {
+                8 => (discriminant_value & 0x8000000000000000) != 0,
+                4 => (discriminant_value & 0x80000000) != 0,
+                _ => discriminant_value != 0,
+            };
+            Ok(Value::Scalar {
+                ty: "bool".to_string(),
+                value: is_err.to_string(),
+            })
+        }
         _ => Err(anyhow!("Unknown synthetic method '{}' for Result", method)),
     }
 }

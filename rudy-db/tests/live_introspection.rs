@@ -850,3 +850,149 @@ fn test_introspect_enums() {
         u8_fifth,
     );
 }
+
+#[test]
+fn test_synthetic_methods() -> Result<()> {
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("debug")
+        .try_init();
+
+    let db = DebugDb::new();
+    let debug_info = DebugInfo::new(&db, std::env::current_exe()?.to_str().unwrap())?;
+    let resolver = SelfProcessResolver::new();
+
+    // Test Vec synthetic methods
+    let test_vec = vec![1, 2, 3, 4, 5];
+    let vec_ptr = &test_vec as *const Vec<i32> as u64;
+    let vec_type = debug_info
+        .resolve_type("Vec<i32>")
+        .expect("Failed to resolve Vec<i32>")
+        .expect("Vec<i32> type should be found");
+
+    // Evaluate Vec::len()
+    let len_value = rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "len", &[], &resolver)?;
+    println!("Vec::len() = {len_value:?}");
+    assert_eq!(
+        len_value,
+        Value::Scalar {
+            ty: "usize".to_string(),
+            value: "5".to_string()
+        }
+    );
+
+    // Evaluate Vec::capacity()
+    let cap_value =
+        rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "capacity", &[], &resolver)?;
+    println!("Vec::capacity() = {cap_value:?}");
+    // Capacity should be at least 5
+    if let Value::Scalar { value, .. } = &cap_value {
+        let cap: usize = value.parse().unwrap();
+        assert!(cap >= 5);
+    }
+
+    // Evaluate Vec::is_empty()
+    let is_empty_value =
+        rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "is_empty", &[], &resolver)?;
+    println!("Vec::is_empty() = {is_empty_value:?}");
+    assert_eq!(
+        is_empty_value,
+        Value::Scalar {
+            ty: "bool".to_string(),
+            value: "false".to_string()
+        }
+    );
+
+    // Test String synthetic methods
+    let test_string = String::from("Hello, Rust!");
+    let string_ptr = &test_string as *const String as u64;
+    let string_type = debug_info
+        .resolve_type("String")
+        .expect("Failed to resolve String")
+        .expect("String type should be found");
+
+    let string_len =
+        rudy_db::evaluate_synthetic_method(string_ptr, &string_type, "len", &[], &resolver)?;
+    println!("String::len() = {string_len:?}");
+    assert_eq!(
+        string_len,
+        Value::Scalar {
+            ty: "usize".to_string(),
+            value: "12".to_string() // "Hello, Rust!" is 12 bytes
+        }
+    );
+
+    // Test Option synthetic methods
+    let some_option: Option<i32> = Some(42);
+    let none_option: Option<i32> = None;
+
+    let some_ptr = &some_option as *const Option<i32> as u64;
+    let none_ptr = &none_option as *const Option<i32> as u64;
+    let option_type = debug_info
+        .resolve_type("Option<i32>")
+        .expect("Failed to resolve Option<i32>")
+        .expect("Option<i32> type should be found");
+
+    let is_some =
+        rudy_db::evaluate_synthetic_method(some_ptr, &option_type, "is_some", &[], &resolver)?;
+    println!("Some(42).is_some() = {is_some:?}");
+    assert_eq!(
+        is_some,
+        Value::Scalar {
+            ty: "bool".to_string(),
+            value: "true".to_string()
+        }
+    );
+
+    let is_none =
+        rudy_db::evaluate_synthetic_method(none_ptr, &option_type, "is_none", &[], &resolver)?;
+    println!("None.is_none() = {is_none:?}");
+    assert_eq!(
+        is_none,
+        Value::Scalar {
+            ty: "bool".to_string(),
+            value: "true".to_string()
+        }
+    );
+
+    // TODO: Test Result synthetic methods
+    // Skipping Result tests for now since Result layout reading isn't fully implemented
+    let ok_result: Result<i32, String> = Ok(42);
+    let err_result: Result<i32, String> = Err("error".to_string());
+
+    // Test slice synthetic methods
+    let slice: &[i32] = &test_vec[..];
+    let slice_ptr = &slice as *const &[i32] as u64;
+    let slice_type = debug_info
+        .resolve_type("&[i32]")
+        .expect("Failed to resolve &[i32]")
+        .expect("&[i32] type should be found");
+
+    let slice_len =
+        rudy_db::evaluate_synthetic_method(slice_ptr, &slice_type, "len", &[], &resolver)?;
+    println!("&[i32]::len() = {slice_len:?}");
+    assert_eq!(
+        slice_len,
+        Value::Scalar {
+            ty: "usize".to_string(),
+            value: "5".to_string()
+        }
+    );
+
+    // TODO: Test array synthetic methods
+    // Skipping array tests for now since array types might not be in debug info
+    let array: [i32; 3] = [10, 20, 30];
+
+    // Keep all values alive (slice borrows test_vec so we can't move it)
+    let _ = (
+        &test_vec,
+        test_string,
+        some_option,
+        none_option,
+        ok_result,
+        err_result,
+        slice,
+        array,
+    );
+
+    Ok(())
+}
