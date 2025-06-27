@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+#[allow(unused)]
 #[derive(Debug)]
 struct User {
     id: u64,
@@ -12,6 +13,7 @@ struct User {
     metadata: HashMap<String, String>,
 }
 
+#[allow(unused)]
 #[derive(Debug)]
 struct Session {
     user: User,

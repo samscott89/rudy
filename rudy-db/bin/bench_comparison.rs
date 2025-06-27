@@ -4,7 +4,6 @@
 
 use anyhow::Result;
 use rudy_db::{DebugDb, DebugInfo};
-use std::io::Write;
 use std::process::Command;
 use std::time::{Duration, Instant};
 

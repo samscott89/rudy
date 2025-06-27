@@ -74,9 +74,13 @@ enum Token {
     Dot,
     Star,
     Ampersand,
+    /// '['
     LeftBracket,
+    /// ']'
     RightBracket,
+    /// '('
     LeftParen,
+    /// ')'
     RightParen,
     Mut,
     Eof,

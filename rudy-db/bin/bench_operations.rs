@@ -3,22 +3,9 @@
 //! This benchmark measures specific operations to show our strengths
 
 use anyhow::Result;
-use rudy_db::{DataResolver, DebugDb, DebugInfo};
+use rudy_db::{DebugDb, DebugInfo};
 use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
-
-struct DummyResolver;
-impl DataResolver for DummyResolver {
-    fn base_address(&self) -> u64 {
-        0
-    }
-    fn read_memory(&self, _: u64, size: usize) -> Result<Vec<u8>> {
-        Ok(vec![0; size])
-    }
-    fn get_registers(&self) -> Result<Vec<u64>> {
-        Ok(vec![])
-    }
-}
 
 fn main() -> Result<()> {
     let _ = tracing_subscriber::fmt()
@@ -135,36 +122,6 @@ fn benchmark_function_lookup(debug_info: &DebugInfo) -> Result<()> {
     println!(
         "  Average: {:.2} ms/lookup\n",
         elapsed.as_millis() as f64 / functions.len() as f64
-    );
-
-    Ok(())
-}
-
-fn benchmark_variable_resolution(debug_info: &DebugInfo) -> Result<()> {
-    println!("📊 Variable Resolution at Address");
-    println!("--------------------------------");
-
-    let resolver = DummyResolver;
-    let test_addresses = vec![0x100001000, 0x100002000, 0x100003000];
-
-    let start = Instant::now();
-    let mut total_vars = 0;
-
-    for &addr in &test_addresses {
-        let (params, locals, globals) = debug_info.resolve_variables_at_address(addr, &resolver)?;
-        total_vars += params.len() + locals.len() + globals.len();
-    }
-    let elapsed = start.elapsed();
-
-    println!(
-        "  Resolved {} variables across {} addresses",
-        total_vars,
-        test_addresses.len()
-    );
-    println!("  Total time: {:.2} ms", elapsed.as_millis());
-    println!(
-        "  Average: {:.2} ms/address\n",
-        elapsed.as_millis() as f64 / test_addresses.len() as f64
     );
 
     Ok(())
