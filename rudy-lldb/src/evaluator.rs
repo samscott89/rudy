@@ -173,7 +173,7 @@ impl<'a> EvalContext<'a> {
                 type_name: "u64".to_string(),
             }),
             Expression::StringLiteral(value) => Ok(EvalResult {
-                value: format!("\"{}\"", value),
+                value: format!("\"{value}\""),
                 type_name: "String".to_string(),
             }),
             Expression::Parenthesized(inner) => self.evaluate(inner),
@@ -368,7 +368,7 @@ impl<'a> EvalContext<'a> {
                     Ok(num)
                 } else if let Some(hex_value) = value.strip_prefix("0x") {
                     u64::from_str_radix(hex_value, 16)
-                        .with_context(|| format!("Failed to parse hex value: {}", value))
+                        .with_context(|| format!("Failed to parse hex value: {value}"))
                 } else {
                     Err(anyhow!("Could not parse integer value: {}", value))
                 }

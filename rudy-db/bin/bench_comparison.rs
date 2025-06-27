@@ -30,7 +30,7 @@ fn main() -> Result<()> {
         .nth(1)
         .unwrap_or_else(|| "./bin/test_binaries/medium".to_string());
 
-    println!("Benchmarking with binary: {}", binary_path);
+    println!("Benchmarking with binary: {binary_path}");
     println!("================================================\n");
 
     // First, find addresses for our test functions
@@ -71,7 +71,7 @@ fn find_test_addresses(binary_path: &str) -> Result<Vec<(u64, String)>> {
                 addresses.push((func.address, func_name.to_string()));
             }
             None => {
-                println!("  Warning: {} not found", func_name);
+                println!("  Warning: {func_name} not found");
             }
         }
     }
@@ -252,7 +252,7 @@ fn benchmark_lldb_cli(
     // Create batch commands
     let mut commands = vec![format!("target create {}", binary_path)];
     for (addr, _name) in test_addresses {
-        commands.push(format!("image lookup -a {:#x}", addr));
+        commands.push(format!("image lookup -a {addr:#x}"));
     }
     commands.push("quit".to_string());
 
@@ -409,17 +409,17 @@ fn print_results(results: &[BenchmarkResult], num_test_addresses: usize) {
 
             println!("\n  vs rudy:");
             if init_speedup > 1.0 {
-                println!("    Init: {:.1}x faster ✅", init_speedup);
+                println!("    Init: {init_speedup:.1}x faster ✅");
             } else {
                 println!("    Init: {:.1}x slower ❌", 1.0 / init_speedup);
             }
             if cold_speedup > 1.0 {
-                println!("    Cold: {:.1}x faster ✅", cold_speedup);
+                println!("    Cold: {cold_speedup:.1}x faster ✅");
             } else {
                 println!("    Cold: {:.1}x slower ❌", 1.0 / cold_speedup);
             }
             if warm_speedup > 1.0 {
-                println!("    Warm: {:.1}x faster ✅", warm_speedup);
+                println!("    Warm: {warm_speedup:.1}x faster ✅");
             } else {
                 println!("    Warm: {:.1}x slower ❌", 1.0 / warm_speedup);
             }

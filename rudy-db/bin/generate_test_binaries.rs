@@ -30,8 +30,7 @@ fn generate_test_binary(
     functions_per_struct: usize,
 ) -> std::io::Result<()> {
     println!(
-        "Generating {} binary ({} structs, {} functions each)...",
-        name, num_structs, functions_per_struct
+        "Generating {name} binary ({num_structs} structs, {functions_per_struct} functions each)..."
     );
 
     let mut code = String::new();
@@ -66,7 +65,7 @@ impl TestStruct{i} {{
         for j in 0..functions_per_struct {
             code.push_str(&format!(
                 r#"
-    pub fn method_{}(&self, param: i32) -> i32 {{
+    pub fn method_{j}(&self, param: i32) -> i32 {{
         let mut result = param;
         for i in 0..10 {{
             result = result.wrapping_add(i);
@@ -76,8 +75,7 @@ impl TestStruct{i} {{
         }}
         result + self.id as i32
     }}
-"#,
-                j
+"#
             ));
         }
 
@@ -193,7 +191,7 @@ fn main() {
         .expect("Failed to execute rustc");
 
     if !_output.status.success() {
-        eprintln!("Failed to compile {} (release):", name);
+        eprintln!("Failed to compile {name} (release):");
         eprintln!("{}", String::from_utf8_lossy(&_output.stderr));
     }
 

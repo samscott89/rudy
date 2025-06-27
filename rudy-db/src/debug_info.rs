@@ -797,7 +797,7 @@ impl<'db> DebugInfo<'db> {
                 let element_address = base_address + (index * element_size);
 
                 Ok(crate::VariableInfo {
-                    name: format!("[{}]", index),
+                    name: format!("[{index}]"),
                     address: Some(element_address),
                     type_def: array_def.element_type.clone(),
                 })
@@ -825,7 +825,7 @@ impl<'db> DebugInfo<'db> {
                 let element_address = data_ptr + (index * element_size);
 
                 Ok(crate::VariableInfo {
-                    name: format!("[{}]", index),
+                    name: format!("[{index}]"),
                     address: Some(element_address),
                     type_def: slice_def.element_type.clone(),
                 })
@@ -854,7 +854,7 @@ impl<'db> DebugInfo<'db> {
                         let element_address = data_ptr + (index * element_size);
 
                         Ok(crate::VariableInfo {
-                            name: format!("[{}]", index),
+                            name: format!("[{index}]"),
                             address: Some(element_address),
                             type_def: vec_def.inner_type.clone(),
                         })
@@ -1274,7 +1274,7 @@ fn extract_numeric_value(value: &crate::Value) -> Result<u64> {
                 Ok(num)
             } else if let Some(hex_value) = value.strip_prefix("0x") {
                 u64::from_str_radix(hex_value, 16)
-                    .with_context(|| format!("Failed to parse hex value: {}", value))
+                    .with_context(|| format!("Failed to parse hex value: {value}"))
             } else {
                 Err(anyhow::anyhow!("Could not parse numeric value: {}", value))
             }
@@ -1304,7 +1304,7 @@ fn format_value_key(value: &crate::Value) -> String {
             // Strip quotes for cleaner display
             value.trim_matches('"').to_string()
         }
-        _ => format!("{:?}", value),
+        _ => format!("{value:?}"),
     }
 }
 

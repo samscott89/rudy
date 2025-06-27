@@ -49,15 +49,15 @@ fn main() {
     let session = create_session(user);
 
     // Set a breakpoint here to inspect with LLDB
-    println!("Session created: {:?}", session);
+    println!("Session created: {session:?}");
 
     // Create some more complex data
     let mut users = Vec::new();
     for i in 0..5 {
         users.push(User::new(
             i,
-            &format!("User {}", i),
-            &format!("user{}@example.com", i),
+            &format!("User {i}"),
+            &format!("user{i}@example.com"),
         ));
     }
 

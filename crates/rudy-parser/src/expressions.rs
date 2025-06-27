@@ -47,20 +47,20 @@ pub enum Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expression::Variable(name) => write!(f, "{}", name),
-            Expression::FieldAccess { base, field } => write!(f, "{}.{}", base, field),
-            Expression::Index { base, index } => write!(f, "{}[{}]", base, index),
-            Expression::Deref(expr) => write!(f, "*{}", expr),
+            Expression::Variable(name) => write!(f, "{name}"),
+            Expression::FieldAccess { base, field } => write!(f, "{base}.{field}"),
+            Expression::Index { base, index } => write!(f, "{base}[{index}]"),
+            Expression::Deref(expr) => write!(f, "*{expr}"),
             Expression::AddressOf { mutable, expr } => {
                 if *mutable {
-                    write!(f, "&mut {}", expr)
+                    write!(f, "&mut {expr}")
                 } else {
-                    write!(f, "&{}", expr)
+                    write!(f, "&{expr}")
                 }
             }
-            Expression::NumberLiteral(value) => write!(f, "{}", value),
-            Expression::StringLiteral(value) => write!(f, "\"{}\"", value),
-            Expression::Parenthesized(expr) => write!(f, "({})", expr),
+            Expression::NumberLiteral(value) => write!(f, "{value}"),
+            Expression::StringLiteral(value) => write!(f, "\"{value}\""),
+            Expression::Parenthesized(expr) => write!(f, "({expr})"),
         }
     }
 }
@@ -399,7 +399,7 @@ mod tests {
     fn parse(s: &str) -> Expression {
         match parse_expression(s) {
             Ok(expr) => expr,
-            Err(e) => panic!("Failed to parse expression '{}': {}", s, e),
+            Err(e) => panic!("Failed to parse expression '{s}': {e}"),
         }
     }
 

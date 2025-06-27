@@ -230,10 +230,10 @@ impl fmt::Display for Array {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}", self.inner())?;
         if let Some(size) = self.concrete_size() {
-            write!(f, "; {}", size)?;
+            write!(f, "; {size}")?;
         }
         if let Some(size) = self.generic_size() {
-            write!(f, "; {}", size)?;
+            write!(f, "; {size}")?;
         }
         write!(f, "]")?;
         Ok(())

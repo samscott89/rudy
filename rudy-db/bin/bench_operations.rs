@@ -161,7 +161,7 @@ fn benchmark_incremental_benefit(binary: &str) -> Result<()> {
     // Show how later sessions are faster due to caching
     if session_times.len() > 1 {
         let speedup = session_times[0].as_secs_f64() / session_times.last().unwrap().as_secs_f64();
-        println!("  Speedup from caching: {:.1}x\n", speedup);
+        println!("  Speedup from caching: {speedup:.1}x\n");
     }
 
     Ok(())

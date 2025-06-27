@@ -46,7 +46,7 @@ impl DataResolver for SelfProcessResolver {
                 .into_iter()
                 .map(|chunk| {
                     chunk
-                        .map(|byte| format!("{:02x}", byte))
+                        .map(|byte| format!("{byte:02x}"))
                         .collect::<String>()
                 })
                 .join(" ")
@@ -152,7 +152,7 @@ fn test_introspect_string() -> Result<()> {
         Value::Scalar { ty, value } if ty == "String" => {
             assert_eq!(value, "\"Hello, Debugger!\"");
         }
-        _ => panic!("Expected string value, got: {:?}", value),
+        _ => panic!("Expected string value, got: {value:?}"),
     }
     // Keep string alive
     let _ = test_string;
@@ -203,7 +203,7 @@ fn test_introspect_struct() -> Result<()> {
                 assert_eq!(value, "30");
             }
         }
-        _ => panic!("Expected struct value, got: {:?}", value),
+        _ => panic!("Expected struct value, got: {value:?}"),
     }
 
     // Keep data alive
@@ -238,7 +238,7 @@ fn test_introspect_vec() -> Result<()> {
     let value = debug_info.address_to_value(vec_ptr, &typedef, &resolver)?;
 
     // If we get here, Vec reading is working
-    println!("Vec value: {:?}", value);
+    println!("Vec value: {value:?}");
 
     // Keep vec alive
     let _ = test_vec;
@@ -281,11 +281,10 @@ fn test_introspect_option() -> Result<()> {
         Value::Scalar { ty, value } => {
             assert_eq!(ty, "Option<u32>");
             assert_eq!(value, "42");
-            println!("✓ Option::Some correctly read as: {} = {}", ty, value);
+            println!("✓ Option::Some correctly read as: {ty} = {value}");
         }
         _ => panic!(
-            "Expected Some(42) to be read as Scalar {{ ty: Option<u32>, value: 42 }}, got: {:?}",
-            some_value
+            "Expected Some(42) to be read as Scalar {{ ty: Option<u32>, value: 42 }}, got: {some_value:?}"
         ),
     }
 
@@ -298,11 +297,10 @@ fn test_introspect_option() -> Result<()> {
         Value::Scalar { ty, value } => {
             assert_eq!(ty, "Option<u32>");
             assert_eq!(value, "None");
-            println!("✓ Option::None correctly read as: {} = {}", ty, value);
+            println!("✓ Option::None correctly read as: {ty} = {value}");
         }
         _ => panic!(
-            "Expected None to be read as Scalar {{ ty: Option<i32>, value: None }}, got: {:?}",
-            none_value
+            "Expected None to be read as Scalar {{ ty: Option<i32>, value: None }}, got: {none_value:?}"
         ),
     }
 
@@ -384,8 +382,7 @@ fn test_introspect_hashmap() -> Result<()> {
         );
     } else {
         panic!(
-            "Expected HashMap<String, i32> to be read as Map, got: {:?}",
-            value
+            "Expected HashMap<String, i32> to be read as Map, got: {value:?}"
         );
     }
 
@@ -467,8 +464,7 @@ fn test_introspect_btreemap() -> Result<()> {
         );
     } else {
         panic!(
-            "Expected BTreeMap<String, i32> to be read as Map, got: {:?}",
-            value
+            "Expected BTreeMap<String, i32> to be read as Map, got: {value:?}"
         );
     }
 
@@ -520,7 +516,7 @@ fn test_introspect_complex_nested_types() {
         .expect("Failed to read TestComplexData from memory");
 
     // If we get here, complex struct reading is working
-    println!("TestComplexData value: {:?}", value);
+    println!("TestComplexData value: {value:?}");
 
     // let methods = debug_info
     //     .discover_methods_for_type(&typedef)
@@ -680,7 +676,7 @@ fn test_introspect_basic_struct() -> Result<()> {
     let value = debug_info.address_to_value(basic_ptr, &typedef, &resolver)?;
 
     // If we get here, basic struct reading is working
-    println!("TestBasicStruct value: {:?}", value);
+    println!("TestBasicStruct value: {value:?}");
 
     assert_eq!(
         value,
@@ -769,19 +765,19 @@ fn test_introspect_enums() {
     let unit_value = debug_info
         .address_to_value(unit_ptr, &test_enum_typedef, &resolver)
         .expect("Failed to read TestEnum::Unit");
-    println!("TestEnum::Unit: {:?}", unit_value);
+    println!("TestEnum::Unit: {unit_value:?}");
 
     // Test tuple variant
     let tuple_value = debug_info
         .address_to_value(tuple_ptr, &test_enum_typedef, &resolver)
         .expect("Failed to read TestEnum::Tuple");
-    println!("TestEnum::Tuple: {:?}", tuple_value);
+    println!("TestEnum::Tuple: {tuple_value:?}");
 
     // Test struct variant
     let struct_value = debug_info
         .address_to_value(struct_ptr, &test_enum_typedef, &resolver)
         .expect("Failed to read TestEnum::Struct");
-    println!("TestEnum::Struct: {:?}", struct_value);
+    println!("TestEnum::Struct: {struct_value:?}");
 
     // Test ReprCEnum variants
     let repr_c_unit = ReprCEnum::Unit;
@@ -800,17 +796,17 @@ fn test_introspect_enums() {
     let repr_c_unit_value = debug_info
         .address_to_value(repr_c_unit_ptr, &repr_c_typedef, &resolver)
         .expect("Failed to read ReprCEnum::Unit");
-    println!("ReprCEnum::Unit: {:?}", repr_c_unit_value);
+    println!("ReprCEnum::Unit: {repr_c_unit_value:?}");
 
     let repr_c_tuple_value = debug_info
         .address_to_value(repr_c_tuple_ptr, &repr_c_typedef, &resolver)
         .expect("Failed to read ReprCEnum::Tuple");
-    println!("ReprCEnum::Tuple: {:?}", repr_c_tuple_value);
+    println!("ReprCEnum::Tuple: {repr_c_tuple_value:?}");
 
     let repr_c_struct_value = debug_info
         .address_to_value(repr_c_struct_ptr, &repr_c_typedef, &resolver)
         .expect("Failed to read ReprCEnum::Struct");
-    println!("ReprCEnum::Struct: {:?}", repr_c_struct_value);
+    println!("ReprCEnum::Struct: {repr_c_struct_value:?}");
 
     // Test U8Enum variants
     let u8_first = U8Enum::First;
@@ -831,22 +827,22 @@ fn test_introspect_enums() {
     let u8_first_value = debug_info
         .address_to_value(u8_first_ptr, &u8_enum_typedef, &resolver)
         .expect("Failed to read U8Enum::First");
-    println!("U8Enum::First: {:?}", u8_first_value);
+    println!("U8Enum::First: {u8_first_value:?}");
 
     let u8_second_value = debug_info
         .address_to_value(u8_second_ptr, &u8_enum_typedef, &resolver)
         .expect("Failed to read U8Enum::Second");
-    println!("U8Enum::Second: {:?}", u8_second_value);
+    println!("U8Enum::Second: {u8_second_value:?}");
 
     let u8_third_value = debug_info
         .address_to_value(u8_third_ptr, &u8_enum_typedef, &resolver)
         .expect("Failed to read U8Enum::Third");
-    println!("U8Enum::Third: {:?}", u8_third_value);
+    println!("U8Enum::Third: {u8_third_value:?}");
 
     let u8_fifth_value = debug_info
         .address_to_value(u8_fifth_ptr, &u8_enum_typedef, &resolver)
         .expect("Failed to read U8Enum::Fifth");
-    println!("U8Enum::Fifth: {:?}", u8_fifth_value);
+    println!("U8Enum::Fifth: {u8_fifth_value:?}");
 
     // Keep all enum values alive
     let _ = (

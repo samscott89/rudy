@@ -48,7 +48,7 @@ impl TypeLayout {
                         .iter()
                         .map(|(_, element)| element.display_name())
                         .join(", ");
-                    format!("({})", elements)
+                    format!("({elements})")
                 }
                 PrimitiveLayout::Unit(_) => "()".to_string(),
                 PrimitiveLayout::UnsignedInt(unsigned_int_def) => unsigned_int_def.display_name(),
@@ -57,24 +57,24 @@ impl TypeLayout {
                 StdLayout::SmartPtr(smart_ptr_def) => {
                     let inner = smart_ptr_def.inner_type.display_name();
                     match smart_ptr_def.variant {
-                        SmartPtrVariant::Box => format!("Box<{}>", inner),
+                        SmartPtrVariant::Box => format!("Box<{inner}>"),
                         _ => format!("{:?}<{}>", smart_ptr_def.variant, inner),
                     }
                 }
                 StdLayout::Map(map_def) => map_def.display_name(),
                 StdLayout::Option(option_def) => {
                     let inner_type = option_def.some_type.display_name();
-                    format!("Option<{}>", inner_type)
+                    format!("Option<{inner_type}>")
                 }
                 StdLayout::Result(result_def) => {
                     let ok_type = result_def.ok_type.display_name();
                     let err_type = result_def.err_type.display_name();
-                    format!("Result<{}, {}>", ok_type, err_type)
+                    format!("Result<{ok_type}, {err_type}>")
                 }
                 StdLayout::String(_) => "String".to_string(),
                 StdLayout::Vec(vec_def) => {
                     let inner_type = vec_def.inner_type.display_name();
-                    format!("Vec<{}>", inner_type)
+                    format!("Vec<{inner_type}>")
                 }
             },
             TypeLayout::Struct(struct_def) => struct_def.name.clone(),

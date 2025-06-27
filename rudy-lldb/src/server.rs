@@ -17,7 +17,7 @@ use crate::{
 
 /// Run the `rudy-lldb` server
 pub fn run_server(host: &str, port: u16) -> Result<()> {
-    let addr = format!("{}:{}", host, port);
+    let addr = format!("{host}:{port}");
     let listener = TcpListener::bind(&addr)?;
     debug!("Listening on {addr}");
 
@@ -77,7 +77,7 @@ impl ClientConnection {
 
         // Parse the client message
         let msg: ClientMessage = serde_json::from_str(line)
-            .with_context(|| format!("Failed to parse message: {}", line))?;
+            .with_context(|| format!("Failed to parse message: {line}"))?;
         trace!("Received: {msg:#?}");
         Ok(Some(msg))
     }
@@ -292,7 +292,7 @@ impl ClientConnection {
                     methods: vec![MethodInfo {
                         name: "error".to_string(),
                         signature: "discovery failed".to_string(),
-                        description: Some(format!("Method discovery failed: {}", e)),
+                        description: Some(format!("Method discovery failed: {e}")),
                         callable: false,
                     }],
                 }

@@ -296,8 +296,7 @@ mod test {
         // We expect it to be under 100ms for most binaries
         assert!(
             symbol_index_time.as_millis() < 5000,
-            "Symbol index should be fast, took {:?}",
-            symbol_index_time
+            "Symbol index should be fast, took {symbol_index_time:?}"
         );
 
         Ok(())
