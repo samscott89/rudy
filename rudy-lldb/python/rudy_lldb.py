@@ -126,6 +126,8 @@ class RudyConnection:
                 return self._handle_get_base_address(target)
             elif event == "EvaluateLLDBExpression":
                 return self._handle_evaluate_expression(event_msg, target)
+            elif event == "ExecuteMethod":
+                return self._handle_execute_method(event_msg, target)
             else:
                 return {
                     "type": "EventResponse",
@@ -398,6 +400,102 @@ class RudyConnection:
                 "type": "EventResponse",
                 "event": "Error",
                 "message": f"Expression evaluation error: {e}",
+            }
+
+    def _handle_execute_method(self, event_msg: dict, target) -> dict:
+        """Handle ExecuteMethod event"""
+        method_address = event_msg.get("method_address", 0)
+        base_address = event_msg.get("base_address", 0)
+        args = event_msg.get("args", [])
+        return_type = event_msg.get("return_type", "usize")
+
+        try:
+            # Build the function call expression
+            # For now, we'll handle the common case of methods that take &self and return simple types
+
+            # Build function signature based on arguments
+            if not args:
+                # No args method like len() - just takes &self
+                func_signature = f"((unsigned long (*)(void*)){method_address:#x})"
+                call_expr = f"{func_signature}((void*){base_address:#x})"
+            else:
+                # Methods with arguments - build signature based on argument types
+                arg_types = []
+                arg_values = []
+
+                # Always include the base address as first argument (&self)
+                arg_types.append("void*")
+                arg_values.append(f"(void*){base_address:#x}")
+
+                # Add other arguments
+                for arg in args:
+                    arg_type = arg.get("arg_type", "Integer")
+                    arg_value = arg.get("value", "0")
+
+                    if arg_type == "Pointer":
+                        arg_types.append("void*")
+                        arg_values.append(f"(void*){arg_value}")
+                    elif arg_type == "Integer":
+                        arg_types.append("unsigned long")
+                        arg_values.append(arg_value)
+                    elif arg_type == "Bool":
+                        arg_types.append("int")
+                        arg_values.append(
+                            "1" if arg_value.lower() in ("true", "1") else "0"
+                        )
+                    elif arg_type == "Float":
+                        arg_types.append("double")
+                        arg_values.append(arg_value)
+                    else:
+                        # Default to integer
+                        arg_types.append("unsigned long")
+                        arg_values.append(arg_value)
+
+                # Determine return type
+                if return_type in ("usize", "u64", "i64"):
+                    ret_type = "unsigned long"
+                elif return_type == "bool":
+                    ret_type = "int"
+                else:
+                    ret_type = "unsigned long"  # default
+
+                # Build the function signature
+                arg_types_str = ", ".join(arg_types)
+                func_signature = (
+                    f"(({ret_type} (*)({arg_types_str})){method_address:#x})"
+                )
+                args_str = ", ".join(arg_values)
+                call_expr = f"{func_signature}({args_str})"
+
+            debug_print(f"Executing method call: {call_expr}")
+            debug_print(f"Method address: {method_address:#x}")
+            debug_print(f"Base address: {base_address:#x}")
+            debug_print(f"Arguments: {args}")
+
+            # Execute the method call using LLDB's expression evaluator
+            result = target.EvaluateExpression(call_expr)
+
+            if result.IsValid() and not result.GetError().Fail():
+                value_str = str(result.GetValue() or result.GetSummary() or "")
+                return {
+                    "type": "EventResponse",
+                    "event": "MethodResult",
+                    "value": value_str,
+                    "return_type": return_type,
+                }
+            else:
+                error = result.GetError()
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": f"Method execution failed: {error.GetCString() if error else 'Unknown error'}",
+                }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Method execution error: {e}",
             }
 
     def __del__(self):

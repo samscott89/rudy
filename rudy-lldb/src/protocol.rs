@@ -4,6 +4,28 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+/// Argument for method execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MethodArgument {
+    /// The argument value (serialized as hex string for addresses, or as string for primitives)
+    pub value: String,
+    /// The type of the argument for proper casting
+    pub arg_type: ArgumentType,
+}
+
+/// Supported argument types for method execution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ArgumentType {
+    /// Pointer/reference argument (e.g., &self, &mut self, *const T)
+    Pointer,
+    /// Integer argument (i32, u64, usize, etc.)
+    Integer,
+    /// Boolean argument
+    Bool,
+    /// Floating point argument
+    Float,
+}
+
 /// Messages sent from client (LLDB) to server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -64,6 +86,13 @@ pub enum EventRequest {
     GetBaseAddress,
     /// Evaluate an LLDB expression
     EvaluateLLDBExpression { expr: String },
+    /// Execute a method by calling it directly
+    ExecuteMethod {
+        method_address: u64,
+        base_address: u64,
+        args: Vec<MethodArgument>,
+        return_type: String,
+    },
 }
 
 impl fmt::Debug for EventRequest {
@@ -87,6 +116,18 @@ impl fmt::Debug for EventRequest {
             Self::EvaluateLLDBExpression { expr } => f
                 .debug_struct("EvaluateLLDBExpression")
                 .field("expr", expr)
+                .finish(),
+            Self::ExecuteMethod {
+                method_address,
+                base_address,
+                args,
+                return_type,
+            } => f
+                .debug_struct("ExecuteMethod")
+                .field("method_address", &format!("{method_address:#x}"))
+                .field("base_address", &format!("{base_address:#x}"))
+                .field("args", args)
+                .field("return_type", return_type)
                 .finish(),
         }
     }
@@ -112,6 +153,8 @@ pub enum EventResponseData {
     BaseAddress { address: u64 },
     /// LLDB expression result
     ExpressionResult { value: String },
+    /// Method execution result
+    MethodResult { value: String, return_type: String },
     /// Generic error response
     Error { message: String },
 }
@@ -142,6 +185,11 @@ impl fmt::Debug for EventResponseData {
             Self::ExpressionResult { value } => f
                 .debug_struct("ExpressionResult")
                 .field("value", value)
+                .finish(),
+            Self::MethodResult { value, return_type } => f
+                .debug_struct("MethodResult")
+                .field("value", value)
+                .field("return_type", return_type)
                 .finish(),
             Self::Error { message } => f.debug_struct("Error").field("message", message).finish(),
         }

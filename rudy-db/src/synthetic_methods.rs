@@ -4,7 +4,7 @@
 //! without needing to execute code in the target process.
 //!
 //! ## Current Implementation
-//! 
+//!
 //! We currently support synthetic methods for:
 //! - **Vec<T>**: `len()`, `capacity()`, `is_empty()`
 //! - **String**: `len()`, `is_empty()`

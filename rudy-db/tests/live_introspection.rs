@@ -852,6 +852,53 @@ fn test_introspect_enums() {
 }
 
 #[test]
+fn test_real_method_execution() -> Result<()> {
+    // No debug logging to avoid spam
+    let db = DebugDb::new();
+    let debug_info = DebugInfo::new(&db, std::env::current_exe()?.to_str().unwrap())?;
+
+    // Test Vec::len() method execution - this should be simple and safe
+    let test_vec = vec![1, 2, 3, 4, 5];
+    let vec_type = debug_info
+        .resolve_type("Vec<i32>")?
+        .expect("Vec<i32> type should be found");
+
+    // Get discovered methods for Vec<i32>
+    let methods = debug_info.discover_methods_for_type(&vec_type)?;
+    println!("Methods found for Vec<i32> ({} total):", methods.len());
+
+    // Show only the first 10 methods to avoid spam
+    for (i, method) in methods.iter().take(10).enumerate() {
+        println!(
+            "  {}: {} - address: {:#x}, callable: {}, signature: {}",
+            i + 1,
+            method.name,
+            method.address,
+            method.callable,
+            method.signature
+        );
+    }
+
+    if methods.len() > 10 {
+        println!("  ... and {} more methods", methods.len() - 10);
+    }
+
+    // Look for specific methods we know should exist
+    let len_methods: Vec<_> = methods.iter().filter(|m| m.name.contains("len")).collect();
+    println!("\nMethods containing 'len':");
+    for method in &len_methods {
+        println!(
+            "  {} - address: {:#x}, signature: {}",
+            method.name, method.address, method.signature
+        );
+    }
+
+    // Keep test data alive
+    let _ = test_vec;
+    Ok(())
+}
+
+#[test]
 fn test_synthetic_methods() -> Result<()> {
     let _ = tracing_subscriber::fmt()
         .with_env_filter("debug")
