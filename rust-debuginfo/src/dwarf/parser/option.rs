@@ -11,7 +11,7 @@ use crate::{
             children::child,
             combinators::all,
             enums::{PartiallyParsedEnumVariant, enum_discriminant, enum_named_tuple_variant},
-            primitives::{attr, entry_type, identity, member_by_tag, offset, resolve_type},
+            primitives::{attr, identity, member_by_tag, resolve_type},
         },
     },
 };

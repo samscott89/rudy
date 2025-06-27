@@ -11,7 +11,7 @@ use crate::{
             children::parse_children,
             combinators::all,
             enums::{enum_discriminant, enum_named_tuple_variant},
-            primitives::{attr, entry_type, member_by_tag, offset, resolve_type},
+            primitives::{attr, member_by_tag, resolve_type},
         },
     },
 };
@@ -63,7 +63,9 @@ impl<'db> Parser<'db, ResultLayout> for ResultDefParser {
         //     enum_named_tuple_variant("Err", (resolve_type(),)).parse(db, variants_entry)?;
 
         let (_, (ok_offset, ok_layout)) = ok;
+        debug_assert_eq!(ok_offset, 0, "Expected Ok variant to be at offset 0");
         let (_, (err_offset, err_layout)) = err;
+        debug_assert_eq!(err_offset, 0, "Expected Err variant to be at offset 0");
 
         Ok(ResultLayout {
             name,

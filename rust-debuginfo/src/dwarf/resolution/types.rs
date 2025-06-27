@@ -88,52 +88,6 @@ fn resolve_map_type<'db>(
     }
 }
 
-/// Resolve LeafNode layout from DWARF debug information
-fn resolve_leaf_node_layout<'db>(
-    db: &'db dyn Db,
-    btree_entry: Die<'db>,
-) -> Result<(usize, EnumLayout)> {
-    // From the BTreeMap entry, find the LeafNode type through the Root field
-    // BTreeMap -> root: Option<Root<K, V>> -> Root<K, V> -> node: NodeRef<...> -> LeafNode<K, V>
-
-    // Get the root field type
-    let root_member = btree_entry
-        .get_member(db, "root")
-        .context("could not find root member in BTreeMap")?;
-
-    let root_offset = root_member
-        .udata_attr(db, gimli::DW_AT_data_member_location)
-        .context("could not get root field offset")? as usize;
-
-    // Option<NodeRef<...>
-    let root_type = root_member
-        .get_referenced_entry(db, gimli::DW_AT_type)
-        .context("could not get root field type")?;
-
-    // just return the optional noderef definition directly
-    Ok((
-        root_offset,
-        resolve_enum_type(db, root_type).context("could not resolve type for root field")?,
-    ))
-}
-
-/// Extract array capacity from a DWARF array type
-fn extract_array_capacity<'db>(db: &'db dyn Db, array_die: Die<'db>) -> Result<usize> {
-    // Look for subrange_type child that contains the array bounds
-    let subrange = array_die
-        .get_member_by_tag(db, gimli::DW_TAG_subrange_type)
-        .context("could not find subrange_type for array")?;
-
-    // Try to get DW_AT_count or DW_AT_upper_bound
-    if let Ok(count) = subrange.udata_attr(db, gimli::DW_AT_count) {
-        Ok(count)
-    } else if let Ok(upper_bound) = subrange.udata_attr(db, gimli::DW_AT_upper_bound) {
-        Ok(upper_bound + 1) // upper_bound is inclusive, so add 1
-    } else {
-        Err(anyhow::anyhow!("Could not determine array capacity").into())
-    }
-}
-
 /// Resolve smart pointer type layout from DWARF
 fn resolve_smart_ptr_type<'db>(
     db: &'db dyn Db,
