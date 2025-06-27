@@ -42,6 +42,19 @@ pub enum Expression {
 
     /// Parenthesized expression (e.g., `(foo)`)
     Parenthesized(Box<Expression>),
+
+    /// Method call (e.g., `foo.bar()`, `vec.len()`)
+    MethodCall {
+        base: Box<Expression>,
+        method: String,
+        args: Vec<Expression>,
+    },
+
+    /// Function call (e.g., `foo()`, `bar(1, 2)`)
+    FunctionCall {
+        function: String,
+        args: Vec<Expression>,
+    },
 }
 
 impl fmt::Display for Expression {
@@ -61,6 +74,26 @@ impl fmt::Display for Expression {
             Expression::NumberLiteral(value) => write!(f, "{value}"),
             Expression::StringLiteral(value) => write!(f, "\"{value}\""),
             Expression::Parenthesized(expr) => write!(f, "({expr})"),
+            Expression::MethodCall { base, method, args } => {
+                write!(f, "{base}.{method}(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{arg}")?;
+                }
+                write!(f, ")")
+            }
+            Expression::FunctionCall { function, args } => {
+                write!(f, "{function}(")?;
+                for (i, arg) in args.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{arg}")?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -82,6 +115,8 @@ enum Token {
     LeftParen,
     /// ')'
     RightParen,
+    /// ','
+    Comma,
     Mut,
     Eof,
 }
@@ -219,6 +254,10 @@ impl<'a> Tokenizer<'a> {
                 self.advance();
                 Ok(Token::RightParen)
             }
+            Some(',') => {
+                self.advance();
+                Ok(Token::Comma)
+            }
             Some(ch) if ch.is_ascii_alphabetic() || ch == '_' => {
                 let ident = self.read_identifier();
                 if ident == "mut" {
@@ -330,10 +369,23 @@ impl Parser {
                     if let Token::Identifier(field) = self.current_token() {
                         let field = field.clone();
                         self.advance();
-                        expr = Expression::FieldAccess {
-                            base: Box::new(expr),
-                            field,
-                        };
+                        
+                        // Check if this is a method call
+                        if matches!(self.current_token(), Token::LeftParen) {
+                            self.advance(); // consume '('
+                            let args = self.parse_arguments()?;
+                            self.expect(Token::RightParen)?;
+                            expr = Expression::MethodCall {
+                                base: Box::new(expr),
+                                method: field,
+                                args,
+                            };
+                        } else {
+                            expr = Expression::FieldAccess {
+                                base: Box::new(expr),
+                                field,
+                            };
+                        }
                     } else {
                         return Err(anyhow!("Expected field name after '.'"));
                     }
@@ -359,7 +411,19 @@ impl Parser {
             Token::Identifier(name) => {
                 let name = name.clone();
                 self.advance();
-                Ok(Expression::Variable(name))
+                
+                // Check if this is a function call
+                if matches!(self.current_token(), Token::LeftParen) {
+                    self.advance(); // consume '('
+                    let args = self.parse_arguments()?;
+                    self.expect(Token::RightParen)?;
+                    Ok(Expression::FunctionCall {
+                        function: name,
+                        args,
+                    })
+                } else {
+                    Ok(Expression::Variable(name))
+                }
             }
             Token::Number(value) => {
                 let value = *value;
@@ -382,6 +446,26 @@ impl Parser {
                 self.current_token()
             )),
         }
+    }
+    
+    fn parse_arguments(&mut self) -> Result<Vec<Expression>> {
+        let mut args = Vec::new();
+        
+        // Handle empty argument list
+        if matches!(self.current_token(), Token::RightParen) {
+            return Ok(args);
+        }
+        
+        // Parse first argument
+        args.push(self.parse_expression()?);
+        
+        // Parse remaining arguments
+        while matches!(self.current_token(), Token::Comma) {
+            self.advance(); // consume ','
+            args.push(self.parse_expression()?);
+        }
+        
+        Ok(args)
     }
 }
 
@@ -553,5 +637,91 @@ mod tests {
         assert_eq!(parse("&var").to_string(), "&var");
         assert_eq!(parse("&mut var").to_string(), "&mut var");
         assert_eq!(parse("(foo)").to_string(), "(foo)");
+    }
+
+    #[test]
+    fn test_method_call() {
+        // No arguments
+        let expr = parse("vec.len()");
+        assert_eq!(
+            expr,
+            Expression::MethodCall {
+                base: Box::new(Expression::Variable("vec".to_string())),
+                method: "len".to_string(),
+                args: vec![],
+            }
+        );
+
+        // With arguments
+        let expr = parse("vec.push(42)");
+        assert_eq!(
+            expr,
+            Expression::MethodCall {
+                base: Box::new(Expression::Variable("vec".to_string())),
+                method: "push".to_string(),
+                args: vec![Expression::NumberLiteral(42)],
+            }
+        );
+
+        // Multiple arguments
+        let expr = parse(r#"map.insert("key", 42)"#);
+        assert_eq!(
+            expr,
+            Expression::MethodCall {
+                base: Box::new(Expression::Variable("map".to_string())),
+                method: "insert".to_string(),
+                args: vec![
+                    Expression::StringLiteral("key".to_string()),
+                    Expression::NumberLiteral(42)
+                ],
+            }
+        );
+
+        // Chained method calls
+        let expr = parse("vec.iter().count()");
+        assert_eq!(
+            expr,
+            Expression::MethodCall {
+                base: Box::new(Expression::MethodCall {
+                    base: Box::new(Expression::Variable("vec".to_string())),
+                    method: "iter".to_string(),
+                    args: vec![],
+                }),
+                method: "count".to_string(),
+                args: vec![],
+            }
+        );
+    }
+
+    #[test]
+    fn test_function_call() {
+        // No arguments
+        let expr = parse("foo()");
+        assert_eq!(
+            expr,
+            Expression::FunctionCall {
+                function: "foo".to_string(),
+                args: vec![],
+            }
+        );
+
+        // With arguments
+        let expr = parse("bar(1, 2)");
+        assert_eq!(
+            expr,
+            Expression::FunctionCall {
+                function: "bar".to_string(),
+                args: vec![Expression::NumberLiteral(1), Expression::NumberLiteral(2)],
+            }
+        );
+    }
+
+    #[test]
+    fn test_method_call_display() {
+        assert_eq!(parse("vec.len()").to_string(), "vec.len()");
+        assert_eq!(parse("vec.push(42)").to_string(), "vec.push(42)");
+        assert_eq!(parse(r#"map.insert("key", 42)"#).to_string(), r#"map.insert("key", 42)"#);
+        assert_eq!(parse("foo()").to_string(), "foo()");
+        assert_eq!(parse("bar(1, 2)").to_string(), "bar(1, 2)");
     }
 }
