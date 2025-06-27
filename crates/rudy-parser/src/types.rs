@@ -3,7 +3,7 @@
 use itertools::Itertools;
 use std::{fmt, sync::Arc};
 
-use ::rust_types::*;
+use rudy_types::*;
 use unsynn::*;
 
 // Define some types
@@ -796,7 +796,7 @@ mod test {
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
 
-    use ::rust_types::*;
+    use rudy_types::*;
 
     use super::*;
 
