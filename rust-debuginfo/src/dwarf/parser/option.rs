@@ -8,12 +8,10 @@ use crate::{
     dwarf::{
         Die,
         parser::{
+            children::{child, parse_children},
             combinators::all,
-            enums::{
-                PartiallyParsedEnumVariant, enum_discriminant, enum_named_tuple_variant,
-                named_enum_variant,
-            },
-            primitives::{attr, entry_type, member_by_tag, offset, resolve_type},
+            enums::{PartiallyParsedEnumVariant, enum_discriminant, enum_named_tuple_variant},
+            primitives::{attr, entry_type, identity, member_by_tag, offset, resolve_type},
         },
     },
 };
@@ -35,9 +33,24 @@ pub(super) fn parse_option_entry<'db>()
     all((
         attr::<String>(gimli::DW_AT_name),
         attr::<usize>(gimli::DW_AT_byte_size),
-        enum_discriminant(),
-        member_by_tag(gimli::DW_TAG_variant_part).then(named_enum_variant("Some")),
+        member_by_tag(gimli::DW_TAG_variant_part).then(
+            enum_discriminant().and(
+                // gets the Some variant and eagerly pulls out the layout and offset
+                // of the inner "__0" member
+                child(enum_named_tuple_variant("Some", (identity(),)).map(
+                    |(discriminant, ((some_offset, some_type_entry),))| {
+                        PartiallyParsedEnumVariant {
+                            discriminant,
+                            layout: some_type_entry,
+                            offset: some_offset,
+                        }
+                    },
+                ))
+                .context("expected Some variant in Option type"),
+            ),
+        ),
     ))
+    .map(|(name, size, (discriminant, some_variant))| (name, size, discriminant, some_variant))
 }
 
 impl<'db> Parser<'db, OptionDef> for OptionDefParser {
@@ -46,14 +59,12 @@ impl<'db> Parser<'db, OptionDef> for OptionDefParser {
         let (name, size, discriminant, some_variant) = parse_option_entry().parse(db, entry)?;
 
         // resolve the some_type
-        let (some_offset, some_type) = offset()
-            .and(entry_type().then(resolve_type()))
-            .parse(db, some_variant.layout)?;
+        let some_type = resolve_type().parse(db, some_variant.layout)?;
 
         Ok(OptionDef {
             name,
             some_type: Arc::new(some_type),
-            some_offset,
+            some_offset: some_variant.offset,
             size,
             discriminant,
         })

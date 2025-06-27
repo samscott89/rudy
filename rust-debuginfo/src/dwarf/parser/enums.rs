@@ -2,7 +2,7 @@
 
 use super::Parser;
 use super::{
-    children::for_each_child,
+    children::{child, for_each_child},
     primitives::{
         attr, entry_type, is_member_tag, member_by_tag, optional_attr, resolve_type_shallow,
     },
@@ -24,6 +24,8 @@ use std::sync::Arc;
 use anyhow::Result;
 
 /// Parser for discriminant information
+///
+/// Should be called on a `DW_TAG_variant_part` DIE to extract the discriminant type and offset.
 pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
     struct DiscriminantParser;
 
@@ -112,8 +114,10 @@ pub struct EnumNamedTupleVariant<T> {
     parser: T,
 }
 
-/// Specialized enum variant parser for finding a named variant with a single tuple field
-/// Returns (variant_offset, (tuple of fields)) for the single field in the variant
+/// Specialized version of `named_enum_variant` that parses a named enum variant
+/// and then proceeds to parse it as a tuple variant, applying a parser to each field
+///
+/// Should be used with `parse_children` on a `DW_TAG_variant_part` DIE.
 pub fn enum_named_tuple_variant<'db, T>(variant_name: &str, parser: T) -> EnumNamedTupleVariant<T> {
     let variant_name = variant_name.to_string();
 
@@ -124,26 +128,39 @@ pub fn enum_named_tuple_variant<'db, T>(variant_name: &str, parser: T) -> EnumNa
 }
 
 pub(super) struct PartiallyParsedEnumVariant<'db> {
-    #[allow(dead_code)]
-    pub name: String,
     pub discriminant: Option<usize>,
     pub offset: usize,
     pub layout: Die<'db>,
 }
 
+/// Parses an enum variant by a specific name.
+/// Should be used with `parse_children` on a `DW_TAG_variant_part` DIE.
+///
+///   DW_TAG_variant_part
+///     DW_AT_discr       (0x00002440)
+///     DW_TAG_member
+///       DW_AT_type      (0x00004f86 "u32")
+///       DW_AT_data_member_location      (0x00)
+/// --> DW_TAG_variant
+///       DW_AT_discr_value       (0x00)
+///       DW_TAG_member
+///         DW_AT_name    ("None")
+///         DW_AT_type    (0x00002464 "core::option::Option<i32>::None<i32>")
+///         DW_AT_data_member_location    (0x00)
+/// --> DW_TAG_variant
+///       DW_AT_discr_value       (0x01)
+///       DW_TAG_member
+///         DW_AT_name    ("Some")
+///         DW_AT_type    (0x00002476 "core::option::Option<i32>::Some<i32>")
+///         DW_AT_data_member_location    (0x00)
 pub(super) fn named_enum_variant<'db>(
     variant_name: &str,
 ) -> impl Parser<'db, PartiallyParsedEnumVariant<'db>> {
     is_member_tag(gimli::DW_TAG_variant).then(
         optional_attr::<usize>(gimli::DW_AT_discr)
-            .and(member(variant_name).then(all((
-                attr::<String>(gimli::DW_AT_name),
-                offset(),
-                entry_type(),
-            ))))
+            .and(member(variant_name).then(all((offset(), entry_type()))))
             .map(
-                |(discriminant, (name, offset, layout))| PartiallyParsedEnumVariant {
-                    name,
+                |(discriminant, (offset, layout))| PartiallyParsedEnumVariant {
                     discriminant,
                     offset,
                     layout,
@@ -161,29 +178,12 @@ macro_rules! impl_parse_enum_named_tuple_variant_for_tuples {
             $($P: Parser<'db, $T>),*
         {
             fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> anyhow::Result<(Option<usize>, ($((usize, $T),)*))> {
-                // We start with a structure like
-                // 0x0000243b:         DW_TAG_variant_part
-                //                       DW_AT_discr       (0x00002440)
-
-                // 0x00002440:           DW_TAG_member
-                //                         DW_AT_type      (0x00004f86 "u32")
-                //                         DW_AT_data_member_location      (0x00)
-
-                // 0x00002447:           DW_TAG_variant
-                //                         DW_AT_discr_value       (0x00)
-
-                // 0x00002449:             DW_TAG_member
-                //                           DW_AT_name    ("None")
-                //                           DW_AT_type    (0x00002464 "core::option::Option<i32>::None<i32>")
-                //                           DW_AT_data_member_location    (0x00)
-
-                // 0x00002455:           DW_TAG_variant
-                //                         DW_AT_discr_value       (0x01)
-
-                // 0x00002457:             DW_TAG_member
-                //                           DW_AT_name    ("Some")
-                //                           DW_AT_type    (0x00002476 "core::option::Option<i32>::Some<i32>")
-                //                           DW_AT_data_member_location    (0x00)
+                // --> DW_TAG_variant
+                //       DW_AT_discr_value       (0x00)
+                //       DW_TAG_member
+                //         DW_AT_name    ("None")
+                //         DW_AT_type    (0x00002464 "core::option::Option<i32>::None<i32>")
+                //         DW_AT_data_member_location    (0x00)
 
 
                 // we first need to resolve to the DW_TAG_variant -> DW_TAG_member with a matching name
@@ -191,10 +191,7 @@ macro_rules! impl_parse_enum_named_tuple_variant_for_tuples {
 
                 // e.g. in the case of "Some", we should get back
                 // PartiallyParsedEnumVariant { name: "Some", discriminant: Some(1), offset: 0, layout: 0x00002476 }
-                let (variant, ) = parse_children((
-                    named_enum_variant(&self.variant_name),
-                ))
-                    .parse(db, entry)?;
+                let variant = named_enum_variant(&self.variant_name).parse(db, entry)?;
 
                 debug_assert_eq!(variant.offset, 0, "enum variants should not have offsets");
 

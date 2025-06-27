@@ -35,12 +35,15 @@ use super::{
 };
 use crate::database::Db;
 use crate::dwarf::parser::children::parse_children;
-use crate::dwarf::parser::enums::PartiallyParsedEnumVariant;
+use crate::dwarf::parser::combinators::all;
 use crate::dwarf::parser::option::parse_option_entry;
-use crate::dwarf::parser::primitives::{member, resolved_generic};
-use crate::dwarf::parser::{combinators::all, primitives::offset};
-use crate::dwarf::{Die, resolution::resolve_entry_type};
-use rust_types::{Discriminant, DiscriminantType, EnumDef, EnumVariant, MapDef, MapVariant};
+use crate::dwarf::parser::pointers::nonnull;
+use crate::dwarf::parser::primitives::{is_member, member, offset, resolved_generic};
+use crate::dwarf::{
+    Die,
+    resolution::{resolve_entry_type, shallow_resolve_type},
+};
+use rust_types::{BTreeNodeLayout, BTreeRootLayout, MapDef, MapVariant};
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -50,179 +53,90 @@ pub fn btree_map<'db>() -> BTreeMapParser {
     BTreeMapParser
 }
 
-struct BTreeMapParser;
+pub struct BTreeMapParser;
 
 impl<'db> Parser<'db, MapDef> for BTreeMapParser {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef> {
         tracing::debug!("resolving btree map type: {}", entry.print(db));
 
-        // 0x00000ffc:           DW_TAG_structure_type
-        //                         DW_AT_name      ("BTreeMap<alloc::string::String, i32, alloc::alloc::Global>")
-
-        // 0x00001004:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x0000241b "alloc::string::String")
-        //                           DW_AT_name    ("K")
-
-        // 0x0000100d:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x000025cf "i32")
-        //                           DW_AT_name    ("V")
-
-        // 0x00001016:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x000024d5 "alloc::alloc::Global")
-        //                           DW_AT_name    ("A")
-
-        // 0x0000101f:             DW_TAG_member
-        //                           DW_AT_name    ("root")
-        //                           DW_AT_type    (0x000005e4 "core::option::Option<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Owned, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>>")
-        //                           DW_AT_data_member_location    (0x00)
-
-        // 0x0000102b:             DW_TAG_member
-        //                           DW_AT_name    ("length")
-        //                           DW_AT_type    (0x000025c8 "usize")
-        //                           DW_AT_data_member_location    (0x10)
-        let (key_type, value_type, (root_offset, root_node_entry), length_offset) =
-            all((
+        // Parse key type, value type, root field, and length field from BTreeMap
+        let (key_type, value_type, (root_offset, root_option_type), length_offset) =
+            parse_children((
                 resolved_generic("K"),
                 resolved_generic("V"),
-                member("root").then(offset().and(
-                    entry_type().then(
-                        is_member_tag(gimli::DW_TAG_structure_type).then(parse_option_entry()),
-                    ),
-                )),
-                member("length").then(offset()),
+                is_member("root").then(offset().and(entry_type())),
+                is_member("length").then(offset()),
             ))
             .parse(db, entry)?;
 
-        let (name, _size, _discriminant, some_variant) = root_node_entry;
-        debug_assert!(
-            name.starts_with("core::option::Option<alloc::collections::btree::node::NodeRef<"),
-            "expected noderef, got: {name}"
-        );
+        tracing::debug!("resolving root field: {}", root_option_type.print(db));
 
+        // Parse the Option<NodeRef> to get the Some variant which contains the NodeRef
+        let (_, _, _, some_variant) = parse_option_entry().parse(db, root_option_type)?;
         let node_ref_type = some_variant.layout;
 
-        // next, we have the NodeRef struct to parse
+        tracing::debug!("resolving node ref field: {}", node_ref_type.print(db));
 
-        // 0x000020ee:           DW_TAG_structure_type
-        //                         DW_AT_name      ("NodeRef<alloc::collections::btree::node::marker::Owned, alloc::string::String, i32,
-        //  alloc::collections::btree::node::marker::LeafOrInternal>")
-        //                         DW_AT_byte_size (0x10)
-        //                         DW_AT_accessibility     (DW_ACCESS_protected)
-        //                         DW_AT_alignment (8)
-
-        // 0x000020f6:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x00002144 "alloc::collections::btree::node::marker::Owned")
-        //                           DW_AT_name    ("BorrowType")
-
-        // 0x000020ff:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x00001fb9 "alloc::string::String")
-        //                           DW_AT_name    ("K")
-
-        // 0x00002108:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x00005102 "i32")
-        //                           DW_AT_name    ("V")
-
-        // 0x00002111:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x0000214e "alloc::collections::btree::node::marker::LeafOrInternal")
-        //                           DW_AT_name    ("Type")
-
-        // 0x0000211a:             DW_TAG_member
-        //                           DW_AT_name    ("height")
-        //                           DW_AT_type    (0x0000009f "usize")
-        //                           DW_AT_alignment       (8)
-        //                           DW_AT_data_member_location    (0x08)
-        //                           DW_AT_accessibility   (DW_ACCESS_private)
-
-        // 0x00002126:             DW_TAG_member
-        //                           DW_AT_name    ("node")
-        //                           DW_AT_type    (0x00002361 "core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<a
-        // lloc::string::String, i32>>")
-        //                           DW_AT_alignment       (8)
-        //                           DW_AT_data_member_location    (0x00)
-        //                           DW_AT_accessibility   (DW_ACCESS_private)
-
-        let (height_offset, (node_offset, node_entry)) = parse_children((
-            member("height").then(offset()),
-            member("node").then(offset().and(entry_type())),
+        // Parse the NodeRef struct to get height and node pointer offsets
+        let (height_offset, (node_offset, node_ptr_type)) = parse_children((
+            is_member("height").then(offset()),
+            is_member("node").then(offset().and(entry_type())),
         ))
         .parse(db, node_ref_type)?;
 
-        // now we need to get the node entry layout
+        // Create the root layout
+        let root_layout = BTreeRootLayout {
+            node_offset,
+            height_offset,
+        };
 
-        // 0x00002159:           DW_TAG_structure_type
-        //                         DW_AT_name      ("LeafNode<alloc::string::String, i32>")
-        //                         DW_AT_byte_size (0x0140)
-        //                         DW_AT_accessibility     (DW_ACCESS_private)
-        //                         DW_AT_alignment (8)
+        // The node pointer is a NonNull<LeafNode<K, V>>, resolve it to get the leaf node type
+        let leaf_node_type = nonnull().parse(db, node_ptr_type)?;
 
-        // 0x00002162:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x00001fb9 "alloc::string::String")
-        //                           DW_AT_name    ("K")
+        // Parse the LeafNode structure to get offsets
+        let (len_offset, keys_offset, vals_offset) = parse_children((
+            member("len").then(offset()),
+            member("keys").then(offset()),
+            member("vals").then(offset()),
+        ))
+        .parse(db, leaf_node_type)?;
 
-        // 0x0000216b:             DW_TAG_template_type_parameter
-        //                           DW_AT_type    (0x00005102 "i32")
-        //                           DW_AT_name    ("V")
+        // To get the InternalNode type, we need to find the parent field which contains
+        // Option<NonNull<InternalNode<K, V>>>. We'll extract this type.
+        let parent_option_type = member("parent")
+            .then(entry_type())
+            .parse(db, leaf_node_type)?;
 
-        // 0x00002174:             DW_TAG_member
-        //                           DW_AT_name    ("parent")
-        //                           DW_AT_type    (0x00003adc "core::option::Option<core::ptr::non_null::NonNull<alloc::collections::bt
-        // ree::node::InternalNode<alloc::string::String, i32>>>")
-        //                           DW_AT_alignment       (8)
-        //                           DW_AT_data_member_location    (0x00)
-        //                           DW_AT_accessibility   (DW_ACCESS_private)
+        // Parse the Option to get the Some variant
+        let (_, _, _, parent_some_variant) = parse_option_entry().parse(db, parent_option_type)?;
 
-        // 0x00002180:             DW_TAG_member
-        //                           DW_AT_name    ("parent_idx")
-        //                           DW_AT_type    (0x0000424f "core::mem::maybe_uninit::MaybeUninit<u16>")
-        //                           DW_AT_alignment       (2)
-        //                           DW_AT_data_member_location    (0x013c)
-        //                           DW_AT_accessibility   (DW_ACCESS_private)
+        // The Some variant contains NonNull<InternalNode<K, V>>, resolve it
+        let internal_node_type = nonnull().parse(db, parent_some_variant.layout)?;
 
-        // 0x0000218d:             DW_TAG_member
-        //                           DW_AT_name    ("len")
-        //                           DW_AT_type    (0x0000581a "u16")
-        //                           DW_AT_alignment       (2)
-        //                           DW_AT_data_member_location    (0x013e)
-        //                           DW_AT_accessibility   (DW_ACCESS_private)
+        // For InternalNode, we need the edges offset. The edges field is specific to InternalNode.
+        let edges_offset = member("edges")
+            .then(offset())
+            .parse(db, internal_node_type)?;
 
-        // 0x0000219a:             DW_TAG_member
-        //                           DW_AT_name    ("keys")
-        //                           DW_AT_type    (0x00005821 "core::mem::maybe_uninit::MaybeUninit<alloc::string::String>[11]")
-        //                           DW_AT_alignment       (8)
-        //                           DW_AT_data_member_location    (0x08)
-        //                           DW_AT_accessibility   (DW_ACCESS_private)
-
-        // 0x000021a6:             DW_TAG_member
-        //                           DW_AT_name    ("vals")
-        //                           DW_AT_type    (0x0000582e "core::mem::maybe_uninit::MaybeUninit<i32>[11]")
-        //                           DW_AT_alignment       (4)
-        //                           DW_AT_data_member_location    (0x0110)
-        //                           DW_AT_accessibility   (DW_ACCESS_private)
-
-        let (parent_offset, parent_entry, parent_idx_offset, len_offset, keys_offset, vals_offset) =
-            parse_children((
-                member("parent").then(offset().and(entry_type())),
-                member("parent_idx").then(offset()),
-                member("len").then(offset()),
-                member("keys").then(offset()),
-                member("vals").then(offset()),
-            ))
-            .parse(db, node_entry)?;
+        // Create the node layout
+        let node_layout = BTreeNodeLayout {
+            keys_offset,
+            vals_offset,
+            len_offset,
+            edges_offset,
+            leaf_type: Arc::new(shallow_resolve_type(db, leaf_node_type)?),
+            internal_type: Arc::new(shallow_resolve_type(db, internal_node_type)?),
+        };
 
         Ok(MapDef {
             key_type,
             value_type,
             variant: MapVariant::BTreeMap {
-                length_offset: 0, // Placeholder for length offset
+                length_offset,
                 root_offset,
-                height_offset,
-                node_offset,
-                node_entry: todo!(),
+                root_layout,
+                node_layout,
             },
         })
     }
-}
-
-pub fn root_node_type<'db>() -> impl Parser<'db, Arc<PartiallyParsedEnumVariant<'db>>> {
-    is_member_tag(gimli::DW_TAG_structure_type).then(parse_option_entry())
 }

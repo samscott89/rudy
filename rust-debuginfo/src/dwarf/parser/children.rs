@@ -3,6 +3,7 @@
 use super::{Parser, Result};
 use crate::database::Db;
 use crate::dwarf::Die;
+use crate::dwarf::parser::combinators::Map;
 
 /// Unified parser for tuples of parsers applied to children
 pub struct ParseChildren<T> {
@@ -12,6 +13,22 @@ pub struct ParseChildren<T> {
 /// Main function for creating unified children parsers
 pub fn parse_children<T>(parsers: T) -> ParseChildren<T> {
     ParseChildren { parsers }
+}
+
+fn extract_tuple<T>(tuple: (T,)) -> T {
+    tuple.0
+}
+
+/// Finds the first child that matches the given parser
+pub fn child<'db, P, T>(parser: P) -> Map<ParseChildren<(P,)>, fn((T,)) -> T, (T,)>
+where
+    P: Parser<'db, T>,
+{
+    Map {
+        parser: parse_children((parser,)),
+        f: extract_tuple,
+        _marker: std::marker::PhantomData,
+    }
 }
 
 /// Parser that applies a single parser to each child and collects results
@@ -59,7 +76,7 @@ macro_rules! impl_parse_children_for_tuples {
                 )*);
 
                 for child in entry.children(db)? {
-                    tracing::debug!(
+                    tracing::trace!(
                         "Parsing child: {}",
                         child.format_with_location(db, child.print(db))
                     );
