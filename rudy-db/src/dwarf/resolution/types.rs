@@ -17,7 +17,7 @@ use crate::dwarf::parser::{
     vec::vec,
 };
 use crate::file::DebugFile;
-use rust_types::*;
+use rudy_types::*;
 
 use anyhow::Context;
 use gimli::{DebugInfoOffset, UnitOffset};

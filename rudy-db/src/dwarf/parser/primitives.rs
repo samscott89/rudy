@@ -4,7 +4,7 @@ use super::{Parser, Result};
 use crate::database::Db;
 use crate::dwarf::Die;
 use anyhow::Context as _;
-use rust_types::*;
+use rudy_types::*;
 use std::sync::Arc;
 
 /// Parser for getting offset values

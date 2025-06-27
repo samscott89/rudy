@@ -15,7 +15,7 @@ use crate::dwarf::parser::{
     primitives::{IsMember, member, offset},
 };
 use crate::dwarf::{Die, resolution::resolve_entry_type};
-use rust_types::{
+use rudy_types::{
     CEnumLayout, CEnumVariant, Discriminant, DiscriminantType, EnumLayout, EnumVariantLayout,
     PrimitiveLayout, TypeLayout,
 };
@@ -39,11 +39,11 @@ pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
                 // We have an explicit discriminant - resolve its type
                 let discriminant_type = resolve_entry_type(db, discr)?;
                 let ty = match discriminant_type {
-                    rust_types::TypeLayout::Primitive(rust_types::PrimitiveLayout::Int(i)) => {
+                    rudy_types::TypeLayout::Primitive(rudy_types::PrimitiveLayout::Int(i)) => {
                         DiscriminantType::Int(i)
                     }
-                    rust_types::TypeLayout::Primitive(
-                        rust_types::PrimitiveLayout::UnsignedInt(u),
+                    rudy_types::TypeLayout::Primitive(
+                        rudy_types::PrimitiveLayout::UnsignedInt(u),
                     ) => DiscriminantType::UnsignedInt(u),
                     _ => {
                         tracing::warn!(

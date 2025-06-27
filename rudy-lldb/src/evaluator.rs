@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result, anyhow};
 use rudy_db::{DataResolver, DebugInfo, Value};
-use rust_types::{StdLayout, TypeLayout};
+use rudy_types::{StdLayout, TypeLayout};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -187,7 +187,7 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Get the type of an expression without evaluating its value
-    pub fn get_expression_type(&mut self, expr: &Expression) -> Result<rust_types::TypeLayout> {
+    pub fn get_expression_type(&mut self, expr: &Expression) -> Result<rudy_types::TypeLayout> {
         let value_ref = self.evaluate_to_ref(expr)?;
         Ok((*value_ref.type_def).clone())
     }

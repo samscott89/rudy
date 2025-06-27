@@ -3,7 +3,7 @@
 use super::Parser;
 use super::children::parse_children;
 use super::primitives::{field_path_offset, is_member_offset, resolved_generic};
-use rust_types::VecLayout;
+use rudy_types::VecLayout;
 
 /// Parser for Vec<T> type layout
 pub fn vec<'db>() -> impl Parser<'db, VecLayout> {

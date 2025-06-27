@@ -271,7 +271,7 @@ impl ClientConnection {
     /// Discover methods available for a given type using DWARF debug information
     fn discover_methods_for_type(
         &self,
-        type_def: &rust_types::TypeLayout,
+        type_def: &rudy_types::TypeLayout,
         debug_info: &DebugInfo,
     ) -> MethodDiscoveryResult {
         // Use the real DWARF-based method discovery

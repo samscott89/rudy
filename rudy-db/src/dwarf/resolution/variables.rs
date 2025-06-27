@@ -5,7 +5,7 @@ use crate::dwarf::die::declaration_file;
 use crate::dwarf::visitor::{self, DieVisitor};
 use crate::dwarf::{Die, resolution::types::resolve_type_offset};
 use crate::file::SourceFile;
-use rust_types::{TypeLayout, UnitLayout};
+use rudy_types::{TypeLayout, UnitLayout};
 
 type Result<T> = std::result::Result<T, super::Error>;
 
@@ -99,7 +99,7 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
             walker.visitor.params.push(Variable::new(
                 db,
                 format!("__{}", walker.visitor.params.len()),
-                TypeLayout::Primitive(rust_types::PrimitiveLayout::Unit(UnitLayout)),
+                TypeLayout::Primitive(rudy_types::PrimitiveLayout::Unit(UnitLayout)),
                 file,
                 0,
                 entry,

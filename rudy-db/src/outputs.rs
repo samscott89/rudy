@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
-use rust_types::TypeLayout;
+use rudy_types::TypeLayout;
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]

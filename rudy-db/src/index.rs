@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Context;
 use itertools::Itertools;
-use rust_types::TypeLayout;
+use rudy_types::TypeLayout;
 
 use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;

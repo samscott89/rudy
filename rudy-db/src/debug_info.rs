@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rust_types::{PrimitiveLayout, ReferenceLayout, TypeLayout, UnitLayout};
+use rudy_types::{PrimitiveLayout, ReferenceLayout, TypeLayout, UnitLayout};
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use crate::{
@@ -697,7 +697,7 @@ impl<'db> DebugInfo<'db> {
         base_type: &TypeLayout,
         field_name: &str,
     ) -> Result<crate::VariableInfo> {
-        use rust_types::TypeLayout;
+        use rudy_types::TypeLayout;
 
         match base_type {
             TypeLayout::Struct(struct_def) => {
@@ -775,7 +775,7 @@ impl<'db> DebugInfo<'db> {
         index: u64,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
-        use rust_types::{PrimitiveLayout, TypeLayout};
+        use rudy_types::{PrimitiveLayout, TypeLayout};
 
         match base_type {
             TypeLayout::Primitive(PrimitiveLayout::Array(array_def)) => {
@@ -831,7 +831,7 @@ impl<'db> DebugInfo<'db> {
                 })
             }
             TypeLayout::Std(std_def) => {
-                use rust_types::StdLayout;
+                use rudy_types::StdLayout;
                 match std_def {
                     StdLayout::Vec(vec_def) => {
                         let (data_ptr, vec_len) =
@@ -911,7 +911,7 @@ impl<'db> DebugInfo<'db> {
         key: &crate::Value,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
-        use rust_types::{StdLayout, TypeLayout};
+        use rudy_types::{StdLayout, TypeLayout};
 
         match base_type {
             TypeLayout::Std(StdLayout::Map(map_def)) => {

@@ -34,7 +34,7 @@ use crate::dwarf::parser::children::parse_children;
 use crate::dwarf::parser::option::parse_option_entry;
 use crate::dwarf::parser::pointers::nonnull;
 use crate::dwarf::parser::primitives::{is_member, member, offset, resolved_generic};
-use rust_types::{BTreeNodeLayout, BTreeRootLayout, MapLayout, MapVariant};
+use rudy_types::{BTreeNodeLayout, BTreeRootLayout, MapLayout, MapVariant};
 
 use anyhow::Result;
 

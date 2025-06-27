@@ -5,7 +5,7 @@ use std::fmt;
 use anyhow::Context;
 
 use rudy_parser as parser;
-use rust_types::TypeLayout;
+use rudy_types::TypeLayout;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleName {

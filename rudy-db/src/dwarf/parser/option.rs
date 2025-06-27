@@ -15,7 +15,7 @@ use crate::{
         },
     },
 };
-use rust_types::{Discriminant, OptionLayout};
+use rudy_types::{Discriminant, OptionLayout};
 
 use anyhow::Result;
 

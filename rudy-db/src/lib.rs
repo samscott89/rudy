@@ -44,4 +44,4 @@ pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::{DebugInfo, DiscoveredMethod, SelfType};
 pub use index::symbols::Symbol;
 pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable, VariableInfo};
-pub use rust_types::TypeLayout;
+pub use rudy_types::TypeLayout;

@@ -15,7 +15,7 @@ use crate::{
         },
     },
 };
-use rust_types::ResultLayout;
+use rudy_types::ResultLayout;
 
 use anyhow::Result;
 

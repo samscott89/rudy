@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
-use rust_types::{
+use rudy_types::{
     ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
     PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
     StrSliceLayout, TypeLayout, VecLayout,
@@ -277,10 +277,10 @@ fn read_enum(
     let disc_offset = discriminant.offset as u64;
     let disc_address = address + disc_offset;
 
-    let explicit_disc = !matches!(discriminant.ty, rust_types::DiscriminantType::Implicit);
+    let explicit_disc = !matches!(discriminant.ty, rudy_types::DiscriminantType::Implicit);
 
     let disc_value = match &discriminant.ty {
-        rust_types::DiscriminantType::Int(int_def) => {
+        rudy_types::DiscriminantType::Int(int_def) => {
             let memory = data_resolver.read_memory(disc_address, int_def.size)?;
 
             match int_def.size {
@@ -296,7 +296,7 @@ fn read_enum(
                 }
             }
         }
-        rust_types::DiscriminantType::UnsignedInt(unsigned_int_def) => {
+        rudy_types::DiscriminantType::UnsignedInt(unsigned_int_def) => {
             let memory = data_resolver.read_memory(disc_address, unsigned_int_def.size)?;
             match unsigned_int_def.size {
                 1 => u8::from_le_bytes(memory.try_into().unwrap()) as i128,
@@ -311,7 +311,7 @@ fn read_enum(
                 }
             }
         }
-        rust_types::DiscriminantType::Implicit => {
+        rudy_types::DiscriminantType::Implicit => {
             // I guess we'll just read 4 bytes and see what happens?
             let memory = data_resolver.read_memory(disc_address + disc_offset, 4)?;
             i32::from_le_bytes(memory.try_into().unwrap()) as i128
@@ -399,7 +399,7 @@ fn read_c_enum(
     } = c_enum_def;
 
     let disc_value = match discriminant_type {
-        rust_types::DiscriminantType::Int(int_def) => {
+        rudy_types::DiscriminantType::Int(int_def) => {
             let memory = data_resolver.read_memory(address, int_def.size)?;
 
             match int_def.size {
@@ -415,7 +415,7 @@ fn read_c_enum(
                 }
             }
         }
-        rust_types::DiscriminantType::UnsignedInt(unsigned_int_def) => {
+        rudy_types::DiscriminantType::UnsignedInt(unsigned_int_def) => {
             let memory = data_resolver.read_memory(address, unsigned_int_def.size)?;
             match unsigned_int_def.size {
                 1 => u8::from_le_bytes(memory.try_into().unwrap()) as i128,
@@ -430,7 +430,7 @@ fn read_c_enum(
                 }
             }
         }
-        rust_types::DiscriminantType::Implicit => {
+        rudy_types::DiscriminantType::Implicit => {
             anyhow::bail!("read_c_enum: Implicit discriminant type is not supported yet")
         }
     };

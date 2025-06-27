@@ -5,7 +5,7 @@ use super::children::parse_children;
 use super::primitives::{attr, entry_type, generic, is_member, is_member_offset, member, offset};
 use crate::database::Db;
 use crate::dwarf::Die;
-use rust_types::MapVariant;
+use rudy_types::MapVariant;
 
 type Result<T> = anyhow::Result<T>;
 
