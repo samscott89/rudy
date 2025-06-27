@@ -90,7 +90,7 @@ The infrastructure is working:
 ## Architecture
 
 ```
-LLDB → Python Extension → TCP Socket → Rudy Server → rust-debuginfo
+LLDB → Python Extension → TCP Socket → Rudy Server → rudy-lldb
   ↑                                           ↓
   ←─── Events (memory reads, etc.) ←─────────────
 ```

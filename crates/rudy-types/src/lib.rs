@@ -807,7 +807,9 @@ pub struct ResultLayout {
     pub name: String,
     pub discriminant: Discriminant,
     pub ok_type: Arc<TypeLayout>,
+    pub ok_offset: usize,
     pub err_type: Arc<TypeLayout>,
+    pub err_offset: usize,
     pub size: usize,
 }
 

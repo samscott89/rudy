@@ -711,7 +711,9 @@ pub fn fully_resolve_type<'db>(
                     name,
                     discriminant,
                     ok_type,
+                    ok_offset,
                     err_type,
+                    err_offset,
                     size,
                 }) => {
                     let ok_type = fully_resolve_type(db, file, ok_type.as_ref())?;
@@ -721,7 +723,9 @@ pub fn fully_resolve_type<'db>(
                         name,
                         discriminant,
                         ok_type: Arc::new(ok_type),
+                        ok_offset,
                         err_type: Arc::new(err_type),
+                        err_offset,
                         size,
                     })
                 }

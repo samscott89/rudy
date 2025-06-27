@@ -1,13 +1,13 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: u8_enum_typedef
 snapshot_kind: text
 ---
 CEnum(
-    CEnumDef {
+    CEnumLayout {
         name: "U8Enum",
         discriminant_type: UnsignedInt(
-            UnsignedIntDef {
+            UnsignedIntLayout {
                 size: 1,
             },
         ),

@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::protocol::{EventRequest, EventResponseData};
 use crate::server::ClientConnection;
-use rudy_parserr::Expression;
+use rudy_parser::Expression;
 
 /// Remote client access for synchronous data fetching
 pub struct RemoteDataAccess<'conn> {

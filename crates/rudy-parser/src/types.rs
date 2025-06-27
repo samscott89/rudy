@@ -693,7 +693,9 @@ impl Path {
                                     ty: DiscriminantType::Implicit,
                                 },
                                 ok_type,
+                                ok_offset: 0,
                                 err_type,
+                                err_offset: 0,
                                 size: 0,
                             }));
                         }
@@ -1061,9 +1063,11 @@ mod test {
                             ty: DiscriminantType::Implicit,
                         },
                         ok_type: Arc::new(TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))),
+                        ok_offset: 0,
                         err_type: Arc::new(TypeLayout::Other {
                             name: "Error".to_string(),
                         }),
+                        err_offset: 0,
                         size: 0,
                     })
                     .into(),

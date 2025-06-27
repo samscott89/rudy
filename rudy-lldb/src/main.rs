@@ -1,6 +1,6 @@
 //! rudy-lldb Server
 //!
-//! Event-driven RPC server for LLDB integration with rust-debuginfo
+//! Event-driven RPC server for LLDB integration with rudy-db
 
 mod evaluator;
 mod protocol;
