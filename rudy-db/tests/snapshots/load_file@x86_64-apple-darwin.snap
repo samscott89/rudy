@@ -1,7 +1,6 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: parsed
-snapshot_kind: text
 ---
 DebugInfo {
     debug_files: [

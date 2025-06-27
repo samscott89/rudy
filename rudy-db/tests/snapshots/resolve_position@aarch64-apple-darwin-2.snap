@@ -1,7 +1,6 @@
 ---
-source: tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: addrs
-snapshot_kind: text
 ---
 ResolvedAddress {
     address: "0x100000b38",

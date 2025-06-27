@@ -1,27 +1,26 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: test_enum_typedef
-snapshot_kind: text
 ---
 Enum(
-    EnumDef {
+    EnumLayout {
         name: "TestEnum",
         discriminant: Discriminant {
             ty: UnsignedInt(
-                UnsignedIntDef {
+                UnsignedIntLayout {
                     size: 8,
                 },
             ),
             offset: 0,
         },
         variants: [
-            EnumVariant {
+            EnumVariantLayout {
                 name: "UnitVariant",
                 discriminant: Some(
                     9223372036854775808,
                 ),
                 layout: Struct(
-                    StructDef {
+                    StructLayout {
                         name: "UnitVariant",
                         size: 32,
                         alignment: 8,
@@ -29,11 +28,11 @@ Enum(
                     },
                 ),
             },
-            EnumVariant {
+            EnumVariantLayout {
                 name: "TupleVariant",
                 discriminant: None,
                 layout: Struct(
-                    StructDef {
+                    StructLayout {
                         name: "TupleVariant",
                         size: 32,
                         alignment: 8,
@@ -43,7 +42,7 @@ Enum(
                                 offset: 24,
                                 ty: Primitive(
                                     UnsignedInt(
-                                        UnsignedIntDef {
+                                        UnsignedIntLayout {
                                             size: 4,
                                         },
                                     ),
@@ -54,13 +53,13 @@ Enum(
                                 offset: 0,
                                 ty: Std(
                                     String(
-                                        StringDef(
-                                            VecDef {
+                                        StringLayout(
+                                            VecLayout {
                                                 length_offset: 16,
                                                 data_ptr_offset: 8,
                                                 inner_type: Primitive(
                                                     UnsignedInt(
-                                                        UnsignedIntDef {
+                                                        UnsignedIntLayout {
                                                             size: 1,
                                                         },
                                                     ),
@@ -74,13 +73,13 @@ Enum(
                     },
                 ),
             },
-            EnumVariant {
+            EnumVariantLayout {
                 name: "StructVariant",
                 discriminant: Some(
                     9223372036854775810,
                 ),
                 layout: Struct(
-                    StructDef {
+                    StructLayout {
                         name: "StructVariant",
                         size: 32,
                         alignment: 8,
@@ -90,7 +89,7 @@ Enum(
                                 offset: 8,
                                 ty: Primitive(
                                     Float(
-                                        FloatDef {
+                                        FloatLayout {
                                             size: 8,
                                         },
                                     ),
@@ -101,7 +100,7 @@ Enum(
                                 offset: 16,
                                 ty: Primitive(
                                     Float(
-                                        FloatDef {
+                                        FloatLayout {
                                             size: 8,
                                         },
                                     ),

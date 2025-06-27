@@ -1,15 +1,14 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: option_typedef
-snapshot_kind: text
 ---
 Std(
     Option(
-        OptionDef {
+        OptionLayout {
             name: "Option<i32>",
             discriminant: Discriminant {
                 ty: UnsignedInt(
-                    UnsignedIntDef {
+                    UnsignedIntLayout {
                         size: 4,
                     },
                 ),
@@ -18,7 +17,7 @@ Std(
             some_offset: 4,
             some_type: Primitive(
                 Int(
-                    IntDef {
+                    IntLayout {
                         size: 4,
                     },
                 ),

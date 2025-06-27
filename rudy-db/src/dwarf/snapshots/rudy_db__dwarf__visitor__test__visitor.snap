@@ -1,7 +1,6 @@
 ---
-source: rust-debuginfo/src/dwarf/visitor.rs
+source: rudy-db/src/dwarf/visitor.rs
 expression: "visitor.visited.join(\"\\n\")"
-snapshot_kind: text
 ---
 0x0000000b: DW_TAG_compile_unit
 0x0000002a:   DW_TAG_variable

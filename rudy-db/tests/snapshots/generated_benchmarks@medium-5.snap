@@ -1,10 +1,9 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: location
-snapshot_kind: text
 ---
 ResolvedLocation {
     function: "medium::TestStruct0::method_0",
-    file: "/Users/sam/work/rust_debuginfo/rust-debuginfo/bin/test_binaries/medium.rs",
+    file: "/Users/sam/work/rudy/rudy-db/bin/test_binaries/medium.rs",
     line: 20,
 }

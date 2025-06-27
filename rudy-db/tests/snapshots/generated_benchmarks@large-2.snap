@@ -1,7 +1,6 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: "debug_info.resolve_function(\"main\").unwrap().unwrap()"
-snapshot_kind: text
 ---
 ResolvedFunction {
     name: "large::main",

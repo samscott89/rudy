@@ -6,7 +6,7 @@ use std::fs;
 use std::io::Write;
 use std::process::Command;
 
-static BIN_PATH: &str = "rudy/bin/test_binaries";
+static BIN_PATH: &str = "rudy-db/bin/test_binaries";
 
 fn main() -> std::io::Result<()> {
     println!("🔨 Generating test binaries...\n");

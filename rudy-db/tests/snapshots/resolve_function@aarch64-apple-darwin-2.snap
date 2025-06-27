@@ -1,7 +1,6 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: "resolver.resolve_function(\"function_call\").unwrap()"
-snapshot_kind: text
 ---
 Some(
     ResolvedFunction {

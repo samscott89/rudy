@@ -1,7 +1,6 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: "debug_info.resolve_function(\"TestStruct1::method_1\").unwrap().unwrap()"
-snapshot_kind: text
 ---
 ResolvedFunction {
     name: "medium::TestStruct1::method_1",

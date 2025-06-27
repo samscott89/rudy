@@ -1,7 +1,6 @@
 ---
-source: rust-debuginfo/src/dwarf/visitor.rs
+source: rudy-db/src/dwarf/visitor.rs
 expression: "visitor.functions.join(\"\\n\")"
-snapshot_kind: text
 ---
 OUTLINED_FUNCTION_0
 OUTLINED_FUNCTION_0

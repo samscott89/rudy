@@ -1,20 +1,19 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: btreemap_type
-snapshot_kind: text
 ---
 Std(
     Map(
-        MapDef {
+        MapLayout {
             key_type: Std(
                 String(
-                    StringDef(
-                        VecDef {
+                    StringLayout(
+                        VecLayout {
                             length_offset: 16,
                             data_ptr_offset: 8,
                             inner_type: Primitive(
                                 UnsignedInt(
-                                    UnsignedIntDef {
+                                    UnsignedIntLayout {
                                         size: 1,
                                     },
                                 ),
@@ -25,7 +24,7 @@ Std(
             ),
             value_type: Primitive(
                 Int(
-                    IntDef {
+                    IntLayout {
                         size: 4,
                     },
                 ),

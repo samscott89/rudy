@@ -1,17 +1,16 @@
 ---
-source: rust-debuginfo/src/dwarf/resolution/types.rs
+source: rudy-db/src/dwarf/resolution/types.rs
 expression: ty
-snapshot_kind: text
 ---
 Std(
     String(
-        StringDef(
-            VecDef {
+        StringLayout(
+            VecLayout {
                 length_offset: 16,
                 data_ptr_offset: 8,
                 inner_type: Primitive(
                     UnsignedInt(
-                        UnsignedIntDef {
+                        UnsignedIntLayout {
                             size: 1,
                         },
                     ),
