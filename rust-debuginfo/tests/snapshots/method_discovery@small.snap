@@ -70,7 +70,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next",
             full_name: "<alloc::collections::btree::dedup_sorted_iter::DedupSortedIter<K,V,I> as core::iter::traits::iterator::Iterator>::next",
-            signature: "fn(self: &mut DedupSortedIter<alloc::string::String, i32, alloc::vec::into_iter::IntoIter<(alloc::string::String, i32), alloc::alloc::Global>>) -> Option<<alias@0:1228>>",
+            signature: "fn(self: &mut DedupSortedIter<alloc::string::String, i32, alloc::vec::into_iter::IntoIter<(alloc::string::String, i32), alloc::alloc::Global>>) -> Option<(String, i32)>",
             address: 4295009904,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -101,7 +101,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "alloc_impl",
             full_name: "alloc::alloc::Global::alloc_impl",
-            signature: "fn(self: &Global, layout: Layout, zeroed: bool) -> Result<<alias@0:3c8c>, <alias@0:3cb3>>",
+            signature: "fn(self: &Global, layout: Layout, zeroed: bool) -> Result<<alias@0:7a9>, <alias@0:4798>>",
             address: 4295018672,
             self_type: Borrowed,
             parameter_count: 3,
@@ -188,7 +188,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "deallocating_next",
             full_name: "alloc::collections::btree::navigate::<impl alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying,K,V,alloc::collections::btree::node::marker::Leaf>,alloc::collections::btree::node::marker::Edge>>::deallocating_next",
-            signature: "fn(self: Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::Edge>, alloc: Global) -> Option<<alias@0:d25>>",
+            signature: "fn(self: Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::Edge>, alloc: Global) -> Option<(Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::Edge>, Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>, alloc::collections::btree::node::marker::KV>)>",
             address: 4294990788,
             self_type: Owned,
             parameter_count: 2,
@@ -288,7 +288,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "insert",
             full_name: "hashbrown::map::HashMap<K,V,S,A>::insert",
-            signature: "fn(self: &mut HashMap<String, i32>, k: String, v: i32) -> Option<<alias@0:2c1a>>",
+            signature: "fn(self: &mut HashMap<String, i32>, k: String, v: i32) -> Option<i32>",
             address: 4294998856,
             self_type: BorrowedMut,
             parameter_count: 3,
@@ -337,7 +337,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next",
             full_name: "<core::ops::index_range::IndexRange as core::iter::traits::iterator::Iterator>::next",
-            signature: "fn(self: &mut IndexRange) -> Option<<alias@0:115f>>",
+            signature: "fn(self: &mut IndexRange) -> Option<u64>",
             address: 4295021124,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -384,7 +384,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next",
             full_name: "<alloc::vec::into_iter::IntoIter<T,A> as core::iter::traits::iterator::Iterator>::next",
-            signature: "fn(self: &mut IntoIter<(alloc::string::String, i32), alloc::alloc::Global>) -> Option<<alias@0:4536>>",
+            signature: "fn(self: &mut IntoIter<(alloc::string::String, i32), alloc::alloc::Global>) -> Option<(String, i32)>",
             address: 4295022144,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -402,7 +402,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "size_hint",
             full_name: "<alloc::vec::into_iter::IntoIter<T,A> as core::iter::traits::iterator::Iterator>::size_hint",
-            signature: "fn(self: &IntoIter<(alloc::string::String, i32), alloc::alloc::Global>) -> (u64, Option<<alias@0:441a>>)",
+            signature: "fn(self: &IntoIter<(alloc::string::String, i32), alloc::alloc::Global>) -> (u64, Option<u64>)",
             address: 4295022352,
             self_type: Borrowed,
             parameter_count: 1,
@@ -422,7 +422,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "dying_next",
             full_name: "alloc::collections::btree::map::IntoIter<K,V,A>::dying_next",
-            signature: "fn(self: &mut IntoIter<alloc::string::String, i32, alloc::alloc::Global>) -> Option<<alias@0:47a1>>",
+            signature: "fn(self: &mut IntoIter<alloc::string::String, i32, alloc::alloc::Global>) -> Option<<alias@0:7931>>",
             address: 4295034940,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -451,7 +451,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "init_front",
             full_name: "alloc::collections::btree::navigate::LazyLeafRange<BorrowType,K,V>::init_front",
-            signature: "fn(self: &mut LazyLeafRange<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32>) -> Option<<alias@0:4887>>",
+            signature: "fn(self: &mut LazyLeafRange<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32>) -> Option<&mut Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::Edge>>",
             address: 4295035560,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -460,7 +460,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "take_front",
             full_name: "alloc::collections::btree::navigate::LazyLeafRange<alloc::collections::btree::node::marker::Dying,K,V>::take_front",
-            signature: "fn(self: &mut LazyLeafRange<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32>) -> Option<<alias@0:49be>>",
+            signature: "fn(self: &mut LazyLeafRange<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32>) -> Option<<alias@0:7770>>",
             address: 4295036008,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -471,7 +471,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "try_with",
             full_name: "std::thread::local::LocalKey<T>::try_with",
-            signature: "fn(self: &LocalKey<core::cell::Cell<(u64, u64)>>, f: {closure_env#0}) -> Result<<alias@0:3af8>, <alias@0:3b1f>>",
+            signature: "fn(self: &LocalKey<core::cell::Cell<(u64, u64)>>, f: {closure_env#0}) -> Result<<alias@0:72cd>, <alias@0:781e>>",
             address: 4295011180,
             self_type: Borrowed,
             parameter_count: 2,
@@ -531,7 +531,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "ascend",
             full_name: "alloc::collections::btree::node::NodeRef<BorrowType,K,V,Type>::ascend",
-            signature: "fn(self: NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>) -> Result<<alias@0:238f>, <alias@0:23b6>>",
+            signature: "fn(self: NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>) -> Result<<alias@0:3caa>, <alias@0:3e46>>",
             address: 4294987640,
             self_type: Owned,
             parameter_count: 1,
@@ -540,7 +540,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "deallocate_and_ascend",
             full_name: "alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Dying,K,V,alloc::collections::btree::node::marker::LeafOrInternal>::deallocate_and_ascend",
-            signature: "fn(self: NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>, alloc: Global) -> Option<<alias@0:a0a>>",
+            signature: "fn(self: NodeRef<alloc::collections::btree::node::marker::Dying, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>, alloc: Global) -> Option<<alias@0:3caa>>",
             address: 4294982108,
             self_type: Owned,
             parameter_count: 2,
@@ -591,7 +591,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "ascend",
             full_name: "alloc::collections::btree::node::NodeRef<BorrowType,K,V,Type>::ascend",
-            signature: "fn(self: NodeRef<alloc::collections::btree::node::marker::Mut, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>) -> Result<<alias@0:2436>, <alias@0:245d>>",
+            signature: "fn(self: NodeRef<alloc::collections::btree::node::marker::Mut, alloc::string::String, i32, alloc::collections::btree::node::marker::LeafOrInternal>) -> Result<<alias@0:3ac3>, <alias@0:2bac>>",
             address: 4294987280,
             self_type: Owned,
             parameter_count: 1,
@@ -638,11 +638,11 @@ snapshot_kind: text
             callable: true,
         },
     ],
-    "Option<None>": [
+    "Option<Option<(String, i32)>>": [
         DiscoveredMethod {
             name: "get_or_insert_with",
             full_name: "core::option::Option<T>::get_or_insert_with",
-            signature: "fn(self: &mut Option<<alias@0:4482>>, f: {closure_env#0}<alloc::vec::into_iter::IntoIter<(alloc::string::String, i32), alloc::alloc::Global>>) -> &mut Option<<alias@0:4536>>",
+            signature: "fn(self: &mut Option<Option<(String, i32)>>, f: {closure_env#0}<alloc::vec::into_iter::IntoIter<(alloc::string::String, i32), alloc::alloc::Global>>) -> &mut Option<(String, i32)>",
             address: 4295033712,
             self_type: BorrowedMut,
             parameter_count: 2,
@@ -693,7 +693,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next",
             full_name: "core::iter::range::<impl core::iter::traits::iterator::Iterator for core::ops::range::Range<A>>::next",
-            signature: "fn(self: &mut Range<i32>) -> Option<<alias@0:16b9>>",
+            signature: "fn(self: &mut Range<i32>) -> Option<i32>",
             address: 4295013668,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -702,7 +702,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "spec_next",
             full_name: "<core::ops::range::Range<T> as core::iter::range::RangeIteratorImpl>::spec_next",
-            signature: "fn(self: &mut Range<i32>) -> Option<<alias@0:16b9>>",
+            signature: "fn(self: &mut Range<i32>) -> Option<i32>",
             address: 4295020612,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -722,7 +722,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next",
             full_name: "core::iter::range::<impl core::iter::traits::iterator::Iterator for core::ops::range::Range<A>>::next",
-            signature: "fn(self: &mut Range<usize>) -> Option<<alias@0:115f>>",
+            signature: "fn(self: &mut Range<usize>) -> Option<u64>",
             address: 4295013704,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -731,7 +731,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "spec_next",
             full_name: "<core::ops::range::Range<T> as core::iter::range::RangeIteratorImpl>::spec_next",
-            signature: "fn(self: &mut Range<usize>) -> Option<<alias@0:115f>>",
+            signature: "fn(self: &mut Range<usize>) -> Option<u64>",
             address: 4295020756,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -753,7 +753,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next",
             full_name: "core::iter::range::<impl core::iter::traits::iterator::Iterator for core::ops::range::RangeInclusive<A>>::next",
-            signature: "fn(self: &mut RangeInclusive<usize>) -> Option<<alias@0:115f>>",
+            signature: "fn(self: &mut RangeInclusive<usize>) -> Option<u64>",
             address: 4295013740,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -762,7 +762,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "spec_next",
             full_name: "<core::ops::range::RangeInclusive<T> as core::iter::range::RangeInclusiveIteratorImpl>::spec_next",
-            signature: "fn(self: &mut RangeInclusive<usize>) -> Option<<alias@0:115f>>",
+            signature: "fn(self: &mut RangeInclusive<usize>) -> Option<u64>",
             address: 4295008808,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -773,7 +773,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next_impl",
             full_name: "hashbrown::raw::RawIterRange<T>::next_impl",
-            signature: "fn(self: &mut RawIterRange<(alloc::string::String, i32)>) -> Option<<alias@0:3a4a>>",
+            signature: "fn(self: &mut RawIterRange<(alloc::string::String, i32)>) -> Option<<alias@0:c3f>>",
             address: 4294977420,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -784,7 +784,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "next_impl",
             full_name: "hashbrown::raw::RawIterRange<T>::next_impl",
-            signature: "fn(self: &mut RawIterRange<(alloc::string::String, small::TestStruct0)>) -> Option<<alias@0:3b6d>>",
+            signature: "fn(self: &mut RawIterRange<(alloc::string::String, small::TestStruct0)>) -> Option<<alias@0:e44>>",
             address: 4294977900,
             self_type: BorrowedMut,
             parameter_count: 1,
@@ -804,7 +804,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "find_or_find_insert_slot",
             full_name: "hashbrown::raw::RawTable<T,A>::find_or_find_insert_slot",
-            signature: "fn(self: &mut RawTable<(alloc::string::String, i32), alloc::alloc::Global>, hash: u64, eq: {closure_env#0}<alloc::string::String, alloc::string::String, i32>, hasher: {closure_env#0}<alloc::string::String, i32, std::hash::random::RandomState>) -> Result<<alias@0:4cb6>, <alias@0:4cdd>>",
+            signature: "fn(self: &mut RawTable<(alloc::string::String, i32), alloc::alloc::Global>, hash: u64, eq: {closure_env#0}<alloc::string::String, alloc::string::String, i32>, hasher: {closure_env#0}<alloc::string::String, i32, std::hash::random::RandomState>) -> Result<<alias@0:c3f>, <alias@0:14c8>>",
             address: 4294978932,
             self_type: BorrowedMut,
             parameter_count: 4,
@@ -831,10 +831,10 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "reserve_rehash",
             full_name: "hashbrown::raw::RawTable<T,A>::reserve_rehash",
-            signature: "fn(self: &mut RawTable<(alloc::string::String, i32), alloc::alloc::Global>, additional: u64, hasher: {closure_env#0}<alloc::string::String, i32, std::hash::random::RandomState>) -> Result<<alias@0:4b67>, <alias@0:4b8e>>",
+            signature: "fn(self: &mut RawTable<(alloc::string::String, i32), alloc::alloc::Global>, additional: u64, hasher: {closure_env#0}<alloc::string::String, i32, std::hash::random::RandomState>, fallibility: Fallibility) -> Result<(), <alias@0:1e5a>>",
             address: 4295260412,
             self_type: BorrowedMut,
-            parameter_count: 3,
+            parameter_count: 4,
             callable: true,
         },
     ],
@@ -898,7 +898,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "find_insert_slot_in_group",
             full_name: "hashbrown::raw::RawTableInner::find_insert_slot_in_group",
-            signature: "fn(self: &RawTableInner, group: &Group, probe_seq: &ProbeSeq) -> Option<<alias@0:36d3>>",
+            signature: "fn(self: &RawTableInner, group: &Group, probe_seq: &ProbeSeq) -> Option<u64>",
             address: 4294975584,
             self_type: Borrowed,
             parameter_count: 3,
@@ -907,7 +907,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "find_or_find_insert_slot_inner",
             full_name: "hashbrown::raw::RawTableInner::find_or_find_insert_slot_inner",
-            signature: "fn(self: &RawTableInner, hash: u64) -> Result<<alias@0:4ae1>, <alias@0:4b08>>",
+            signature: "fn(self: &RawTableInner, hash: u64) -> Result<u64, <alias@0:14c8>>",
             address: 4294975932,
             self_type: Borrowed,
             parameter_count: 2,
@@ -943,7 +943,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "rehash_in_place",
             full_name: "hashbrown::raw::RawTableInner::rehash_in_place",
-            signature: "fn(self: &mut RawTableInner, size_of: u64, drop: Option<<alias@0:3c90>>)",
+            signature: "fn(self: &mut RawTableInner, size_of: u64, drop: Option<fn() -> fn(*u8)>)",
             address: 4294971352,
             self_type: BorrowedMut,
             parameter_count: 3,
@@ -998,7 +998,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "get_or_init",
             full_name: "std::sys::thread_local::native::lazy::Storage<T,D>::get_or_init",
-            signature: "fn(self: &Storage<core::cell::Cell<(u64, u64)>, !>, i: Option<<alias@0:1452>>) -> *Cell<(u64, u64)>",
+            signature: "fn(self: &Storage<core::cell::Cell<(u64, u64)>, !>, i: Option<&mut Option<Cell<(u64, u64)>>>) -> *Cell<(u64, u64)>",
             address: 4295010868,
             self_type: Borrowed,
             parameter_count: 2,
@@ -1007,7 +1007,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "initialize",
             full_name: "std::sys::thread_local::native::lazy::Storage<T,D>::initialize",
-            signature: "fn(self: &Storage<core::cell::Cell<(u64, u64)>, !>, i: Option<<alias@0:1452>>) -> *Cell<(u64, u64)>",
+            signature: "fn(self: &Storage<core::cell::Cell<(u64, u64)>, !>, i: Option<&mut Option<Cell<(u64, u64)>>>) -> *Cell<(u64, u64)>",
             address: 4295262520,
             self_type: Borrowed,
             parameter_count: 2,
@@ -1027,7 +1027,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "cmp",
             full_name: "<alloc::string::String as core::cmp::Ord>::cmp",
-            signature: "fn(self: &String, other: &String)",
+            signature: "fn(self: &String, other: &String) -> Ordering",
             address: 4295034368,
             self_type: Borrowed,
             parameter_count: 2,
@@ -1083,7 +1083,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "calculate_layout_for",
             full_name: "hashbrown::raw::TableLayout::calculate_layout_for",
-            signature: "fn(self: TableLayout, buckets: u64) -> Option<<alias@0:39e9>>",
+            signature: "fn(self: TableLayout, buckets: u64) -> Option<(Layout, u64)>",
             address: 4294969600,
             self_type: Owned,
             parameter_count: 2,
@@ -1260,7 +1260,7 @@ snapshot_kind: text
         DiscoveredMethod {
             name: "cmp",
             full_name: "<alloc::vec::Vec<T,A> as core::cmp::Ord>::cmp",
-            signature: "fn(self: &Vec<u8>, other: &Vec<u8>)",
+            signature: "fn(self: &Vec<u8>, other: &Vec<u8>) -> Ordering",
             address: 4295020000,
             self_type: Borrowed,
             parameter_count: 2,

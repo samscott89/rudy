@@ -2,7 +2,7 @@
 
 use super::Parser;
 use super::{
-    children::{child, for_each_child},
+    children::for_each_child,
     primitives::{
         attr, entry_type, is_member_tag, member_by_tag, optional_attr, resolve_type_shallow,
     },

@@ -33,6 +33,16 @@ Std(
             variant: BTreeMap {
                 length_offset: 16,
                 root_offset: 0,
+                root_layout: BTreeRootLayout {
+                    node_offset: 0,
+                    height_offset: 8,
+                },
+                node_layout: BTreeNodeLayout {
+                    keys_offset: 8,
+                    vals_offset: 272,
+                    len_offset: 318,
+                    edges_offset: 320,
+                },
             },
         },
     ),

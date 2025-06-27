@@ -8,8 +8,8 @@ use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
 use rust_types::{
-    ArrayDef, CEnumDef, EnumDef, MapDef, MapVariant, OptionDef, PointerDef, PrimitiveDef,
-    ReferenceDef, SliceDef, SmartPtrVariant, StdDef, StrSliceDef, TypeDef, VecDef,
+    ArrayDef, BTreeNodeLayout, CEnumDef, EnumDef, MapDef, MapVariant, OptionDef, PointerDef,
+    PrimitiveDef, ReferenceDef, SliceDef, SmartPtrVariant, StdDef, StrSliceDef, TypeDef, VecDef,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -199,74 +199,58 @@ pub fn read_map_entries(
             }
             Ok(entries)
         }
-        MapVariant::BTreeMap { .. } => {
-            // // Read the length field
-            // let length_addr = address + length_offset as u64;
-            // let length_bytes = data_resolver.read_memory(length_addr, 8)?;
-            // let length = usize::from_le_bytes(length_bytes.try_into().unwrap());
+        MapVariant::BTreeMap {
+            length_offset,
+            root_offset,
+            root_layout,
+            node_layout,
+        } => {
+            // Read the length field
+            let length_addr = address + length_offset as u64;
+            let length_bytes = data_resolver.read_memory(length_addr, 8)?;
+            let length = usize::from_le_bytes(length_bytes.try_into().unwrap());
 
-            // tracing::trace!("BTreeMap at {address:#x}, length: {length}");
+            tracing::trace!("BTreeMap at {address:#x}, length: {length}");
 
-            // if length == 0 {
-            //     return Ok(vec![]);
-            // }
+            if length == 0 {
+                return Ok(vec![]);
+            }
 
-            // // Read the root field (Option<Root>)
-            // let root_addr = address + root_offset as u64;
+            // Read the root field (Option<Root>)
+            let root_addr = address + root_offset as u64;
 
-            // let some_variant = root_layout
-            //     .variants
-            //     .iter()
-            //     .find(|v| v.name == "Some")
-            //     .ok_or_else(|| anyhow::anyhow!("Option enum does not have a 'Some' variant"))?;
+            // Check if the Option is Some (non-zero discriminant)
+            let discriminant_bytes = data_resolver.read_memory(root_addr, 8)?;
+            let discriminant = u64::from_le_bytes(discriminant_bytes.try_into().unwrap());
 
-            // let inner_type = if let TypeDef::Struct(s) = some_variant.layout.as_ref() {
-            //     s.fields.get(0).cloned().ok_or_else(|| {
-            //         anyhow::anyhow!("Expected 'Some' variant to have a single field, got: {s:#?}")
-            //     })?
-            // } else {
-            //     anyhow::bail!(
-            //         "Expected 'Some' variant to be a struct, got: {}",
-            //         some_variant.layout.display_name()
-            //     );
-            // };
+            if discriminant == 0 {
+                // None variant - empty map
+                return Ok(vec![]);
+            }
 
-            // let first_byte = data_resolver.read_memory(
-            //     address + root_layout.discriminant.offset as u64,
-            //     root_layout.discriminant.size(),
-            // )?;
-            // let root = if first_byte[0] == 0 {
-            //     // None case - empty map
-            //     tracing::trace!("BTreeMap root is None (null pointer)");
-            //     return Ok(vec![]);
-            // } else {
-            //     // We have a `Some` variant
-            //     // we should be able to read the inner value
-            //     let inner_offset = inner_type.offset;
-            //     let inner_type = inner_type.ty;
-            //     read_btree_root(
-            //         address + inner_offset as u64,
-            //         inner_type.as_ref(),
-            //         data_resolver,
-            //     )?
-            // };
+            // Read the root node pointer and height
+            let node_ptr_addr = root_addr + root_layout.node_offset as u64;
+            let height_addr = root_addr + root_layout.height_offset as u64;
 
-            // // Some case - the root data is inline at root_addr
-            // tracing::trace!("BTreeMap root is Some, reading root structure at {root_addr:#x}");
+            let node_ptr = data_resolver.read_address(node_ptr_addr)?;
+            let height_bytes = data_resolver.read_memory(height_addr, 8)?;
+            let height = usize::from_le_bytes(height_bytes.try_into().unwrap());
 
-            // Attempt to traverse the tree
+            tracing::trace!("BTreeMap root node: {node_ptr:#x}, height: {height}");
 
-            // Step 2: Start traversal from the root node
-            todo!("complete")
-            // collect_all_entries(
-            //     root.node_ptr,
-            //     root.height,
-            //     def,
-            //     data_resolver,
-            //     keys_array_offset,
-            //     vals_array_offset,
-            //     leaf_capacity,
-            // )
+            // Traverse the tree starting from the root
+            let mut entries = Vec::new();
+            read_btree_node_entries(
+                node_ptr,
+                height,
+                &def.key_type,
+                &def.value_type,
+                &node_layout,
+                data_resolver,
+                &mut entries,
+            )?;
+
+            Ok(entries)
         }
         MapVariant::IndexMap => {
             todo!("read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}")
@@ -1062,4 +1046,93 @@ fn read_internal_node_entries(
 
     tracing::warn!("Internal node reading not yet implemented");
     Ok(vec![])
+}
+
+/// Recursively read entries from a BTree node following the algorithm from the Python code
+fn read_btree_node_entries(
+    node_ptr: u64,
+    height: usize,
+    key_type: &std::sync::Arc<TypeDef>,
+    value_type: &std::sync::Arc<TypeDef>,
+    node_layout: &BTreeNodeLayout,
+    data_resolver: &dyn crate::DataResolver,
+    entries: &mut Vec<(TypedPointer, TypedPointer)>,
+) -> Result<()> {
+    tracing::trace!("read_btree_node_entries at {node_ptr:#x}, height: {height}");
+
+    // Read the node length (number of key-value pairs in this node)
+    let len_addr = node_ptr + node_layout.len_offset as u64;
+    let len_bytes = data_resolver.read_memory(len_addr, 2)?; // len is u16
+    let len = u16::from_le_bytes(len_bytes.try_into().unwrap()) as usize;
+
+    tracing::trace!("Node at {node_ptr:#x} has {len} entries");
+
+    // Calculate sizes for key and value types
+    let key_size = key_type
+        .size()
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine key size for BTreeMap"))?;
+    let value_size = value_type
+        .size()
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine value size for BTreeMap"))?;
+
+    // Get the base addresses for keys and values arrays
+    let keys_addr = node_ptr + node_layout.keys_offset as u64;
+    let vals_addr = node_ptr + node_layout.vals_offset as u64;
+
+    // If this is an internal node (height > 0), we need to traverse edges
+    let edges_addr = if height > 0 {
+        Some(node_ptr + node_layout.edges_offset as u64)
+    } else {
+        None
+    };
+
+    // For each index from 0 to len (inclusive for edges)
+    for i in 0..=len {
+        // If this is an internal node, traverse the edge before processing the key/value
+        if let Some(edges_base) = edges_addr {
+            if i <= len {
+                // Read the edge pointer (edges[i])
+                // Edges are MaybeUninit<NodePtr>, so we need to handle the pointer size
+                let edge_addr = edges_base + (i * 8) as u64; // Assume 8-byte pointers
+                let edge_ptr = data_resolver.read_address(edge_addr)?;
+
+                if edge_ptr != 0 {
+                    // Recursively process the child node
+                    read_btree_node_entries(
+                        edge_ptr,
+                        height - 1,
+                        key_type,
+                        value_type,
+                        node_layout,
+                        data_resolver,
+                        entries,
+                    )?;
+                }
+            }
+        }
+
+        // Process the key-value pair (only if i < len)
+        if i < len {
+            // Read key and value from the MaybeUninit arrays
+            // Skip zero-sized types as per the Python code
+            if key_size > 0 && value_size > 0 {
+                let key_addr = keys_addr + (i * key_size) as u64;
+                let value_addr = vals_addr + (i * value_size) as u64;
+
+                let key_ptr = TypedPointer {
+                    address: key_addr,
+                    type_def: key_type.clone(),
+                };
+
+                let value_ptr = TypedPointer {
+                    address: value_addr,
+                    type_def: value_type.clone(),
+                };
+
+                entries.push((key_ptr, value_ptr));
+            }
+        }
+    }
+
+    Ok(())
 }

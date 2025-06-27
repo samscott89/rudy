@@ -734,12 +734,6 @@ impl Path {
                                         vals_offset: 0,
                                         len_offset: 0,
                                         edges_offset: 0,
-                                        leaf_type: Arc::new(TypeDef::Other {
-                                            name: "unknown".to_string(),
-                                        }),
-                                        internal_type: Arc::new(TypeDef::Other {
-                                            name: "unknown".to_string(),
-                                        }),
                                     },
                                 },
                                 _ => unreachable!(),

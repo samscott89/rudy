@@ -27,24 +27,14 @@
 //! - Zero-sized types need special handling
 
 use super::Parser;
-use super::{
-    children::for_each_child,
-    primitives::{
-        attr, entry_type, is_member_tag, member_by_tag, optional_attr, resolve_type_shallow,
-    },
-};
+use super::primitives::entry_type;
 use crate::database::Db;
+use crate::dwarf::Die;
 use crate::dwarf::parser::children::parse_children;
-use crate::dwarf::parser::combinators::all;
 use crate::dwarf::parser::option::parse_option_entry;
 use crate::dwarf::parser::pointers::nonnull;
 use crate::dwarf::parser::primitives::{is_member, member, offset, resolved_generic};
-use crate::dwarf::{
-    Die,
-    resolution::{resolve_entry_type, shallow_resolve_type},
-};
 use rust_types::{BTreeNodeLayout, BTreeRootLayout, MapDef, MapVariant};
-use std::sync::Arc;
 
 use anyhow::Result;
 
@@ -93,11 +83,13 @@ impl<'db> Parser<'db, MapDef> for BTreeMapParser {
         // The node pointer is a NonNull<LeafNode<K, V>>, resolve it to get the leaf node type
         let leaf_node_type = nonnull().parse(db, node_ptr_type)?;
 
+        tracing::debug!("resolving leaf node type: {}", leaf_node_type.print(db));
+
         // Parse the LeafNode structure to get offsets
         let (len_offset, keys_offset, vals_offset) = parse_children((
-            member("len").then(offset()),
-            member("keys").then(offset()),
-            member("vals").then(offset()),
+            is_member("len").then(offset()),
+            is_member("keys").then(offset()),
+            is_member("vals").then(offset()),
         ))
         .parse(db, leaf_node_type)?;
 
@@ -124,8 +116,6 @@ impl<'db> Parser<'db, MapDef> for BTreeMapParser {
             vals_offset,
             len_offset,
             edges_offset,
-            leaf_type: Arc::new(shallow_resolve_type(db, leaf_node_type)?),
-            internal_type: Arc::new(shallow_resolve_type(db, internal_node_type)?),
         };
 
         Ok(MapDef {
