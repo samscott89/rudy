@@ -4,7 +4,7 @@
 //! and reading memory through event callbacks.
 
 use anyhow::{Context, Result, anyhow};
-use rudy_db::{DataResolver, DebugInfo, Value};
+use rudy_db::{DataResolver, DebugInfo, Value, evaluate_synthetic_method, get_synthetic_methods};
 use rudy_types::{StdLayout, TypeLayout};
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -183,6 +183,12 @@ impl<'a> EvalContext<'a> {
             Expression::AddressOf { .. } => Err(anyhow!(
                 "Address-of operator not supported in debugging context"
             )),
+            Expression::MethodCall { base, method, args } => {
+                self.evaluate_method_call(base, method, args)
+            }
+            Expression::FunctionCall { .. } => Err(anyhow!(
+                "Function calls not yet supported - use method calls instead"
+            )),
         }
     }
 
@@ -200,6 +206,13 @@ impl<'a> EvalContext<'a> {
                 self.evaluate_field_access_to_ref(base, field)
             }
             Expression::Index { base, index } => self.evaluate_index_to_ref(base, index),
+            // Method calls and function calls need special handling
+            Expression::MethodCall { .. } => Err(anyhow!(
+                "Method calls cannot be evaluated to a memory reference - they return computed values"
+            )),
+            Expression::FunctionCall { .. } => Err(anyhow!(
+                "Function calls cannot be evaluated to a memory reference"
+            )),
             // Literals, deref, and address-of don't have memory locations
             _ => Err(anyhow!(
                 "Expression {:?} cannot be evaluated to a memory reference",
@@ -449,6 +462,65 @@ impl<'a> EvalContext<'a> {
                 type_def: element_info.type_def,
             };
             self.value_ref_to_result(&element_ref)
+        }
+    }
+
+    /// Evaluate a method call expression
+    fn evaluate_method_call(
+        &mut self,
+        base: &Expression,
+        method: &str,
+        args: &[Expression],
+    ) -> Result<EvalResult> {
+        // First, get the base object's type and address
+        let base_ref = self.evaluate_to_ref(base)?;
+        let base_type = &base_ref.type_def;
+
+        // Check if this is a synthetic method we can evaluate
+        let synthetic_methods = get_synthetic_methods(base_type);
+        let is_synthetic = synthetic_methods.iter().any(|m| m.name == method);
+
+        if is_synthetic {
+            // Validate argument count for synthetic methods
+            let method_info = synthetic_methods.iter().find(|m| m.name == method).unwrap();
+            if method_info.takes_args && args.is_empty() {
+                return Err(anyhow!("Method {}() expects arguments", method));
+            } else if !method_info.takes_args && !args.is_empty() {
+                return Err(anyhow!("Method {}() takes no arguments", method));
+            }
+
+            // Convert arguments to Values (currently we don't support args for synthetic methods)
+            let arg_values = Vec::new();
+
+            // Evaluate the synthetic method
+            let result_value = evaluate_synthetic_method(
+                base_ref.address,
+                base_type,
+                method,
+                &arg_values,
+                &self.conn,
+            )?;
+
+            // Convert Value to EvalResult
+            Ok(EvalResult {
+                value: format_value(&result_value),
+                type_name: match &result_value {
+                    Value::Scalar { ty, .. } => ty.clone(),
+                    _ => "unknown".to_string(),
+                },
+            })
+        } else {
+            // For non-synthetic methods, we need actual execution support
+            Err(anyhow!(
+                "Method {}::{}() requires actual execution which is not yet supported. Available synthetic methods: {}",
+                base_type.display_name(),
+                method,
+                synthetic_methods
+                    .iter()
+                    .map(|m| m.name)
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ))
         }
     }
 }

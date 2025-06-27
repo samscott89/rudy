@@ -369,7 +369,7 @@ impl Parser {
                     if let Token::Identifier(field) = self.current_token() {
                         let field = field.clone();
                         self.advance();
-                        
+
                         // Check if this is a method call
                         if matches!(self.current_token(), Token::LeftParen) {
                             self.advance(); // consume '('
@@ -411,7 +411,7 @@ impl Parser {
             Token::Identifier(name) => {
                 let name = name.clone();
                 self.advance();
-                
+
                 // Check if this is a function call
                 if matches!(self.current_token(), Token::LeftParen) {
                     self.advance(); // consume '('
@@ -447,24 +447,24 @@ impl Parser {
             )),
         }
     }
-    
+
     fn parse_arguments(&mut self) -> Result<Vec<Expression>> {
         let mut args = Vec::new();
-        
+
         // Handle empty argument list
         if matches!(self.current_token(), Token::RightParen) {
             return Ok(args);
         }
-        
+
         // Parse first argument
         args.push(self.parse_expression()?);
-        
+
         // Parse remaining arguments
         while matches!(self.current_token(), Token::Comma) {
             self.advance(); // consume ','
             args.push(self.parse_expression()?);
         }
-        
+
         Ok(args)
     }
 }
@@ -720,7 +720,10 @@ mod tests {
     fn test_method_call_display() {
         assert_eq!(parse("vec.len()").to_string(), "vec.len()");
         assert_eq!(parse("vec.push(42)").to_string(), "vec.push(42)");
-        assert_eq!(parse(r#"map.insert("key", 42)"#).to_string(), r#"map.insert("key", 42)"#);
+        assert_eq!(
+            parse(r#"map.insert("key", 42)"#).to_string(),
+            r#"map.insert("key", 42)"#
+        );
         assert_eq!(parse("foo()").to_string(), "foo()");
         assert_eq!(parse("bar(1, 2)").to_string(), "bar(1, 2)");
     }

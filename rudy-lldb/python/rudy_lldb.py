@@ -528,8 +528,19 @@ def rudy_command(debugger, command, result, internal_dict):
         print("  status             - Show Rudy server status")
         return
 
+    shortcodes = {
+        "e": "eval",
+        "m": "methods",
+        "p": "print",
+        "s": "status",
+    }
+
     subcommand = args[0]
     cmd_args = args[1:]
+
+    # Map shortcodes to full commands
+    if subcommand in shortcodes:
+        subcommand = shortcodes[subcommand]
 
     if subcommand == "status":
         if _ensure_server_running():

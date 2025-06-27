@@ -1016,6 +1016,20 @@ impl<'db> DebugInfo<'db> {
             }
         }
 
+        // Add synthetic methods that can be evaluated without execution
+        let synthetic_methods = crate::synthetic_methods::get_synthetic_methods(target_type);
+        for synthetic in synthetic_methods {
+            discovered_methods.push(DiscoveredMethod {
+                name: synthetic.name.to_string(),
+                full_name: format!("{}::{}", target_type.display_name(), synthetic.name),
+                signature: synthetic.signature.to_string(),
+                address: 0,                    // Synthetic methods don't have addresses
+                self_type: SelfType::Borrowed, // Most synthetic methods take &self
+                parameter_count: if synthetic.takes_args { 1 } else { 0 }, // Simplified for now
+                callable: false,               // Synthetic methods aren't callable via execution
+            });
+        }
+
         Ok(discovered_methods)
     }
 

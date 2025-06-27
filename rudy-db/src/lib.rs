@@ -36,6 +36,7 @@ mod file;
 mod index;
 mod outputs;
 mod query;
+mod synthetic_methods;
 mod types;
 
 // re-exports
@@ -45,3 +46,4 @@ pub use debug_info::{DebugInfo, DiscoveredMethod, SelfType};
 pub use index::symbols::Symbol;
 pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable, VariableInfo};
 pub use rudy_types::TypeLayout;
+pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};
