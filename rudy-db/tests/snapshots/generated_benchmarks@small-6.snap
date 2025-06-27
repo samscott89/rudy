@@ -1,7 +1,8 @@
 ---
 source: rudy-db/tests/mod.rs
 expression: addrs
+snapshot_kind: text
 ---
 ResolvedAddress {
-    address: "0x100007d20",
+    address: "0x10000858c",
 }

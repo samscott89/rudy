@@ -1,5 +1,5 @@
 ---
-source: rust-debuginfo/tests/mod.rs
+source: rudy-db/tests/mod.rs
 expression: methods
 snapshot_kind: text
 ---
@@ -8,7 +8,7 @@ snapshot_kind: text
         name: "method_0",
         full_name: "small::TestStruct0::method_0",
         signature: "fn(self: &TestStruct0, param: i32) -> i32",
-        address: 4294999328,
+        address: 4295001484,
         self_type: Borrowed,
         parameter_count: 2,
         callable: true,

@@ -31,5 +31,5 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Run tests
         run: |
-          cargo test --all-targets --features
-          cargo test --doc --features
+          cargo test --all-targets
+          cargo test --doc

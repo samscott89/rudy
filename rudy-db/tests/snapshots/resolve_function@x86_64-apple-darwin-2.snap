@@ -1,11 +1,12 @@
 ---
 source: rudy-db/tests/mod.rs
 expression: "resolver.resolve_function(\"function_call\").unwrap()"
+snapshot_kind: text
 ---
 Some(
     ResolvedFunction {
         name: "simple_test::function_call",
-        address: "0x1000009d0",
+        address: "0x100000950",
         params: [
             Variable {
                 name: "x",

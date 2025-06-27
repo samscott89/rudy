@@ -1,10 +1,11 @@
 ---
 source: rudy-db/tests/mod.rs
 expression: "debug_info.resolve_function(\"TestStruct1::method_1\").unwrap().unwrap()"
+snapshot_kind: text
 ---
 ResolvedFunction {
     name: "small::TestStruct1::method_1",
-    address: "0x100007e3c",
+    address: "0x1000086a8",
     params: [
         Variable {
             name: "self",

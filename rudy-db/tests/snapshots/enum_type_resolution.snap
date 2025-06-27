@@ -1,6 +1,7 @@
 ---
 source: rudy-db/tests/mod.rs
 expression: test_enum_typedef
+snapshot_kind: text
 ---
 Enum(
     EnumLayout {
@@ -15,13 +16,13 @@ Enum(
         },
         variants: [
             EnumVariantLayout {
-                name: "UnitVariant",
+                name: "Unit",
                 discriminant: Some(
                     9223372036854775808,
                 ),
                 layout: Struct(
                     StructLayout {
-                        name: "UnitVariant",
+                        name: "Unit",
                         size: 32,
                         alignment: 8,
                         fields: [],
@@ -29,11 +30,11 @@ Enum(
                 ),
             },
             EnumVariantLayout {
-                name: "TupleVariant",
+                name: "Tuple",
                 discriminant: None,
                 layout: Struct(
                     StructLayout {
-                        name: "TupleVariant",
+                        name: "Tuple",
                         size: 32,
                         alignment: 8,
                         fields: [
@@ -74,13 +75,13 @@ Enum(
                 ),
             },
             EnumVariantLayout {
-                name: "StructVariant",
+                name: "Struct",
                 discriminant: Some(
                     9223372036854775810,
                 ),
                 layout: Struct(
                     StructLayout {
-                        name: "StructVariant",
+                        name: "Struct",
                         size: 32,
                         alignment: 8,
                         fields: [
