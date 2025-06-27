@@ -29,12 +29,12 @@ pub enum OwnedOrBorrowed {
 }
 
 // And `OwnedOrBorrowed` can deref to a slice of the `mmap`ed region of memory.
-impl<'a> Deref for OwnedOrBorrowed {
+impl Deref for OwnedOrBorrowed {
     type Target = [u8];
     fn deref(&self) -> &[u8] {
         match self {
             OwnedOrBorrowed::Borrowed(slice) => slice,
-            OwnedOrBorrowed::Owned(arc) => &**arc,
+            OwnedOrBorrowed::Owned(arc) => arc,
         }
     }
 }

@@ -30,7 +30,7 @@ macro_rules! setup {
         settings.set_prepend_module_to_snapshot(false);
 
         let _guard = settings.bind_to_scope();
-        let test_name = crate::function_name!();
+        let test_name = $crate::function_name!();
         let test_name = test_name
             .strip_prefix("rudy_db::")
             .unwrap_or(test_name);
@@ -266,18 +266,18 @@ fn test_btreemap_type_resolution(#[case] target: &str) {
 #[allow(unused)]
 #[derive(Debug)]
 enum TestEnum {
-    UnitVariant,
-    TupleVariant(u32, String),
-    StructVariant { x: f64, y: f64 },
+    Unit,
+    Tuple(u32, String),
+    Struct { x: f64, y: f64 },
 }
 
 #[allow(unused)]
 #[derive(Debug)]
 #[repr(C)]
 enum ReprCEnum {
-    UnitVariant,
-    TupleVariant(u32, String),
-    StructVariant { x: f64, y: f64 },
+    Unit,
+    Tuple(u32, String),
+    Struct { x: f64, y: f64 },
 }
 
 #[allow(unused)]
@@ -319,7 +319,7 @@ fn test_enum_type_resolution() {
         DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
     // Test TestEnum variants
-    let _unit_variant = TestEnum::UnitVariant;
+    let _unit = TestEnum::Unit;
 
     // Find TestEnum type
     let test_enum_typedef = debug_info
@@ -330,7 +330,7 @@ fn test_enum_type_resolution() {
     insta::assert_debug_snapshot!(test_enum_typedef);
 
     // Test ReprCEnum variants
-    let _repr_c_unit = ReprCEnum::UnitVariant;
+    let _repr_c_unit = ReprCEnum::Unit;
 
     let repr_c_typedef = debug_info
         .resolve_type("ReprCEnum")

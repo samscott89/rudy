@@ -122,7 +122,7 @@ pub fn get_declaration_type<'db>(
         return FunctionDeclarationType::InlinedFunctionImplementation(offset);
     }
 
-    if let Ok(Some(name)) = get_string_attr(die, gimli::DW_AT_name, &unit_ref) {
+    if let Ok(Some(name)) = get_string_attr(die, gimli::DW_AT_name, unit_ref) {
         if name.starts_with("{closure#") {
             return FunctionDeclarationType::Closure;
         }

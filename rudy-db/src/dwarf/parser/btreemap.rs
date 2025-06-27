@@ -39,7 +39,7 @@ use rudy_types::{BTreeNodeLayout, BTreeRootLayout, MapLayout, MapVariant};
 use anyhow::Result;
 
 /// Parser for btree BTreeMap layout
-pub fn btree_map<'db>() -> BTreeMapParser {
+pub fn btree_map() -> BTreeMapParser {
     BTreeMapParser
 }
 

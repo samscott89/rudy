@@ -485,15 +485,15 @@ fn resolve_struct_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<StructLa
 
         fields.push(StructField {
             name: field_name,
-            offset: offset as usize,
+            offset,
             ty: Arc::new(ty),
         });
     }
     Ok(StructLayout {
         name,
         fields,
-        size: size as usize,
-        alignment: alignment as usize,
+        size,
+        alignment,
     })
 }
 
@@ -524,7 +524,7 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
             let count = subrange.udata_attr(db, gimli::DW_AT_count)?;
             TypeLayout::Primitive(PrimitiveLayout::Array(ArrayLayout {
                 element_type: Arc::new(array_type),
-                length: count as usize,
+                length: count,
             }))
         }
         gimli::DW_TAG_structure_type => {
@@ -580,8 +580,8 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
 /// Ensure that a type is fully resolved, including resolving any aliases
 /// or references to other types. This is useful for ensuring that the type
 /// is ready for use in contexts where a complete type definition is required.
-pub fn fully_resolve_type<'db>(
-    db: &'db dyn Db,
+pub fn fully_resolve_type(
+    db: &dyn Db,
     file: DebugFile,
     typedef: &TypeLayout,
 ) -> Result<TypeLayout> {
@@ -919,7 +919,7 @@ mod test {
         let binary_path = temp_dir.join("test_binary");
 
         let output = Command::new("rustc")
-            .args(&[
+            .args([
                 "-g", // Include debug info
                 "-C",
                 "split-debuginfo=unpacked", // Use unpacked split debuginfo

@@ -31,7 +31,7 @@ impl Hash for DwarfUnit {
     }
 }
 
-unsafe impl<'db> salsa::Update for DwarfUnit {
+unsafe impl salsa::Update for DwarfUnit {
     unsafe fn maybe_update(_: *mut Self, _: Self) -> bool {
         // DwarfUnits should _never_ change
         false

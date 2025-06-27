@@ -24,7 +24,7 @@ pub struct ResultDefParser;
 /// Parser for result types
 ///
 /// We'll parse it as a generic enum, and extract out the expect "Ok" and "Err" variants
-pub fn result_def<'db>() -> ResultDefParser {
+pub fn result_def() -> ResultDefParser {
     ResultDefParser
 }
 

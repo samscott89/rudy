@@ -17,8 +17,7 @@ pub struct Offset;
 impl<'db> Parser<'db, usize> for Offset {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
         Ok(entry
-            .udata_attr(db, gimli::DW_AT_data_member_location)
-            .map(|o| o as usize)?)
+            .udata_attr(db, gimli::DW_AT_data_member_location)?)
     }
 }
 
@@ -47,7 +46,7 @@ impl<T> Attr<T> {
 
 impl<'db> Parser<'db, usize> for Attr<usize> {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
-        Ok(entry.udata_attr(db, self.attr)? as usize)
+        Ok(entry.udata_attr(db, self.attr)?)
     }
 }
 
@@ -179,7 +178,6 @@ impl<'db> Parser<'db, usize> for IsMemberOffset {
             entry
                 .udata_attr(db, gimli::DW_AT_data_member_location)
                 .with_context(|| format!("Failed to get offset for field '{}'", self.expected_name))
-                .map(|o| o as usize)
         } else {
             Err(anyhow::anyhow!(
                 "Expected field '{}', found '{entry_name}'",
@@ -349,14 +347,13 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
         entry = entry
             .get_referenced_entry(db, gimli::DW_AT_type)
             .with_context(|| format!("Failed to resolve type for field '{first_field}'"))?;
-        while let Some(field_name) = path_iter.next() {
+        for field_name in path_iter {
             entry = entry
                 .get_member(db, field_name)
                 .with_context(|| format!("Failed to navigate to field '{field_name}'"))?;
             offset += entry
                 .udata_attr(db, gimli::DW_AT_data_member_location)
-                .with_context(|| format!("Failed to get offset for field '{field_name}'"))?
-                as usize;
+                .with_context(|| format!("Failed to get offset for field '{field_name}'"))?;
             entry = entry
                 .get_referenced_entry(db, gimli::DW_AT_type)
                 .with_context(|| format!("Failed to resolve type for field '{field_name}'"))?;

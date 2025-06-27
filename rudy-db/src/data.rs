@@ -324,7 +324,7 @@ fn read_enum(
         if explicit_disc {
             // explicit discriminant, check against the value
 
-            v.discriminant.map_or(false, |v| v == disc_value)
+            v.discriminant == Some(disc_value)
         } else {
             // otherwise we'll assume the discriminant is just the index
             *i as i128 == disc_value
@@ -365,7 +365,7 @@ fn read_enum(
                 }
             } else if fields.keys().all(|k| k.starts_with("__")) {
                 // anonymous struct, likely a tuple variant
-                let values: Vec<_> = fields.into_iter().map(|(_, v)| v).collect();
+                let values: Vec<_> = fields.into_values().collect();
                 Value::Tuple {
                     ty: format!("{name}::{}", matching_variant.name),
                     entries: values,
@@ -437,7 +437,7 @@ fn read_c_enum(
 
     let matching_variant = variants
         .iter()
-        .find_map(|v| (v.value == disc_value).then(|| &v.name))
+        .find_map(|v| (v.value == disc_value).then_some(&v.name))
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "read_c_enum: No matching variant found for discriminant value {disc_value} in {name}"
@@ -450,8 +450,8 @@ fn read_c_enum(
     })
 }
 
-pub fn read_from_memory<'db>(
-    db: &'db dyn Db,
+pub fn read_from_memory(
+    db: &dyn Db,
     address: u64,
     ty: &TypeLayout,
     data_resolver: &dyn crate::DataResolver,
@@ -459,7 +459,7 @@ pub fn read_from_memory<'db>(
     tracing::trace!("read_from_memory {address:#x} {}", ty.display_name());
     match &ty {
         TypeLayout::Primitive(primitive_def) => {
-            read_primitive_from_memory(db, address, &primitive_def, data_resolver)
+            read_primitive_from_memory(db, address, primitive_def, data_resolver)
         }
         TypeLayout::Struct(struct_def) => {
             let mut fields = BTreeMap::new();
@@ -475,7 +475,7 @@ pub fn read_from_memory<'db>(
                 fields,
             })
         }
-        TypeLayout::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
+        TypeLayout::Std(std_def) => read_std_from_memory(db, address, std_def, data_resolver),
         TypeLayout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver),
         TypeLayout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
         TypeLayout::Alias(entry) => {
@@ -742,7 +742,7 @@ fn read_option_from_memory(
         tracing::debug!("Found Some variant at {address:#x}: {some_type:#?}");
         // we have a `Some` variant
         // we should get the address of the inner value
-        read_from_memory(db, address + *some_offset as u64, &some_type, data_resolver)?
+        read_from_memory(db, address + *some_offset as u64, some_type, data_resolver)?
     }
     .wrap_type("Option"))
 }

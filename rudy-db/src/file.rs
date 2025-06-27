@@ -89,7 +89,7 @@ impl fmt::Debug for LoadedFile {
 pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
     let path = file.path(db);
     let member = file.member_file(db);
-    let file_handle = std::fs::File::open(&path)?;
+    let file_handle = std::fs::File::open(path)?;
     let mmap = unsafe { memmap2::Mmap::map(&file_handle) }?;
     let mmap_static_ref = unsafe {
         // SAFETY: we hold onto the Mmap until the end of the program
@@ -146,7 +146,7 @@ pub struct SourceFile<'db> {
 pub enum Error {
     Gimli(gimli::Error),
     Io(Arc<std::io::Error>),
-    ObjectParseError(object::read::Error),
+    ObjectParseFailure(object::read::Error),
     MemberFileNotFound(String),
 }
 
@@ -156,7 +156,7 @@ impl fmt::Display for Error {
             Error::Gimli(error) => write!(f, "Gimli error: {error}"),
             Error::Io(error) => write!(f, "IO Error: {error}",),
             Error::MemberFileNotFound(e) => write!(f, "Member file not found: {e}"),
-            Error::ObjectParseError(error) => write!(f, "Object parse error: {error}"),
+            Error::ObjectParseFailure(error) => write!(f, "Object parse error: {error}"),
         }
     }
 }
@@ -174,7 +174,7 @@ impl std::error::Error for Error {
         match self {
             Error::Gimli(error) => Some(error),
             Error::Io(error) => Some(error.as_ref()),
-            Error::ObjectParseError(error) => Some(error),
+            Error::ObjectParseFailure(error) => Some(error),
             Error::MemberFileNotFound(_) => None,
         }
     }
@@ -188,7 +188,7 @@ impl From<std::io::Error> for Error {
 
 impl From<object::read::Error> for Error {
     fn from(err: object::read::Error) -> Self {
-        Error::ObjectParseError(err)
+        Error::ObjectParseFailure(err)
     }
 }
 

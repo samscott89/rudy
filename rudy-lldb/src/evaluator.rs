@@ -366,8 +366,8 @@ impl<'a> EvalContext<'a> {
                 // Try to parse as different number formats
                 if let Ok(num) = value.parse::<u64>() {
                     Ok(num)
-                } else if value.starts_with("0x") {
-                    u64::from_str_radix(&value[2..], 16)
+                } else if let Some(hex_value) = value.strip_prefix("0x") {
+                    u64::from_str_radix(hex_value, 16)
                         .with_context(|| format!("Failed to parse hex value: {}", value))
                 } else {
                     Err(anyhow!("Could not parse integer value: {}", value))

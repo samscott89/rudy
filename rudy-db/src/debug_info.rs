@@ -265,7 +265,7 @@ impl<'db> DebugInfo<'db> {
                     "found file `{file}` in debug index as `{}`",
                     source_file.path(self.db)
                 );
-                source_file.clone()
+                *source_file
             } else {
                 tracing::warn!("file `{file}` not found in debug index");
                 return Ok(None);
@@ -980,9 +980,7 @@ impl<'db> DebugInfo<'db> {
             if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
                 let return_type =
                     crate::dwarf::resolve_entry_type(self.db, function_entry.declaration_die)
-                        .unwrap_or_else(|_| {
-                            TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))
-                        });
+                        .unwrap_or(TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout)));
 
                 // Get the function's DIE (prefer specification over declaration for variable resolution)
                 let function_die = function_entry
@@ -995,7 +993,7 @@ impl<'db> DebugInfo<'db> {
                 // we'll check error cases and log them here
                 let diagnostics: Vec<&Diagnostic> =
                     crate::dwarf::resolve_function_variables::accumulated(self.db, function_die);
-                let _ = handle_diagnostics(&diagnostics)?;
+                handle_diagnostics(&diagnostics)?;
                 let parameters = variables.params(self.db);
 
                 // Check if this is a method for our target type
@@ -1039,9 +1037,7 @@ impl<'db> DebugInfo<'db> {
             if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
                 let return_type =
                     crate::dwarf::resolve_entry_type(self.db, function_entry.declaration_die)
-                        .unwrap_or_else(|_| {
-                            TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))
-                        });
+                        .unwrap_or(TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout)));
 
                 // Get the function's DIE (prefer specification over declaration for parameter resolution)
                 let function_die = function_entry
@@ -1111,7 +1107,7 @@ impl<'db> DebugInfo<'db> {
             crate::dwarf::fully_resolve_type(self.db, debug_file, param_type)?;
 
         // Check if the parameter type matches our target type
-        if !target_type.matching_type(&resolved_param_type.dereferenced()) {
+        if !target_type.matching_type(resolved_param_type.dereferenced()) {
             return Ok(None);
         }
 
@@ -1164,7 +1160,7 @@ impl<'db> DebugInfo<'db> {
         let method_name = self.extract_method_name(function_name);
 
         // Build method signature
-        let signature = self.build_method_signature(function_name, &parameters, &return_type)?;
+        let signature = self.build_method_signature(function_name, &parameters, return_type)?;
 
         let method = DiscoveredMethod {
             name: method_name,
@@ -1276,8 +1272,8 @@ fn extract_numeric_value(value: &crate::Value) -> Result<u64> {
             // Try to parse as different number formats
             if let Ok(num) = value.parse::<u64>() {
                 Ok(num)
-            } else if value.starts_with("0x") {
-                u64::from_str_radix(&value[2..], 16)
+            } else if let Some(hex_value) = value.strip_prefix("0x") {
+                u64::from_str_radix(hex_value, 16)
                     .with_context(|| format!("Failed to parse hex value: {}", value))
             } else {
                 Err(anyhow::anyhow!("Could not parse numeric value: {}", value))

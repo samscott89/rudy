@@ -118,7 +118,7 @@ pub struct EnumNamedTupleVariant<T> {
 /// and then proceeds to parse it as a tuple variant, applying a parser to each field
 ///
 /// Should be used with `parse_children` on a `DW_TAG_variant_part` DIE.
-pub fn enum_named_tuple_variant<'db, T>(variant_name: &str, parser: T) -> EnumNamedTupleVariant<T> {
+pub fn enum_named_tuple_variant<T>(variant_name: &str, parser: T) -> EnumNamedTupleVariant<T> {
     let variant_name = variant_name.to_string();
 
     EnumNamedTupleVariant {

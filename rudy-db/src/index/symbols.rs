@@ -23,8 +23,8 @@ pub type DebugFiles = BTreeMap<(String, Option<String>), DebugFile>;
 /// and potentially external symbols. Turns it into
 /// a map of symbol names, as well as finds all
 /// external debug files.
-pub fn index_symbol_map<'db>(
-    db: &'db dyn Db,
+pub fn index_symbol_map(
+    db: &dyn Db,
     binary: Binary,
 ) -> anyhow::Result<(DebugFiles, SymbolIndex)> {
     let mut debug_files = DebugFiles::new();
@@ -37,7 +37,7 @@ pub fn index_symbol_map<'db>(
             return Err(e.clone()).with_context(|| {
                 format!(
                     "Failed to load binary file: {}",
-                    binary_file.path(db).to_string()
+                    binary_file.path(db)
                 )
             });
         }
@@ -45,7 +45,7 @@ pub fn index_symbol_map<'db>(
 
     // create debug file for teh binary
     let debug_file = DebugFile::new(db, binary_file, false);
-    debug_files.insert((binary_file.path(db).to_string(), None), debug_file.clone());
+    debug_files.insert((binary_file.path(db).to_string(), None), debug_file);
 
     // index the symbols in the binary (if it has debug info)
     let mut symbol_index = SymbolIndex::default();
@@ -86,7 +86,7 @@ pub fn index_symbol_map<'db>(
         };
         // Create a debug file for this object
         let debug_file = DebugFile::new(db, file, true);
-        debug_files.insert((object_path, member), debug_file.clone());
+        debug_files.insert((object_path, member), debug_file);
         indexed_object_files.push(debug_file);
     }
 
@@ -97,7 +97,7 @@ pub fn index_symbol_map<'db>(
         .into_group_map_by(|s| s.object_index());
 
     for (object_index, symbols) in grouped_symbols {
-        let debug_file = indexed_object_files[object_index as usize].clone();
+        let debug_file = indexed_object_files[object_index];
         symbol_index.index_mapped_file(symbols.into_iter(), debug_file)?;
     }
 
@@ -137,9 +137,7 @@ impl SymbolIndex {
     pub fn function_at_address(&self, address: u64) -> Option<(u64, &Vec<Symbol>)> {
         // Find the first function(s) with an address less than or equal to the given address
         self.functions_by_address
-            .range(..=address)
-            .rev()
-            .next()
+            .range(..=address).next_back()
             .map(|(base_addr, v)| (*base_addr, v))
     }
 

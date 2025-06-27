@@ -42,7 +42,7 @@ impl TypeLayout {
                 }
                 PrimitiveLayout::Str(_) => "str".to_string(),
                 PrimitiveLayout::StrSlice(_) => {
-                    format!("&str",)
+                    "&str".to_string()
                 }
                 PrimitiveLayout::Tuple(tuple_def) => {
                     let elements = tuple_def
@@ -74,7 +74,7 @@ impl TypeLayout {
                     format!("Result<{}, {}>", ok_type, err_type)
                 }
                 StdLayout::String(_) => {
-                    format!("String")
+                    "String".to_string()
                 }
                 StdLayout::Vec(vec_def) => {
                     let inner_type = vec_def.inner_type.display_name();

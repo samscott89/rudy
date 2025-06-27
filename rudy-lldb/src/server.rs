@@ -100,11 +100,9 @@ impl ClientConnection {
         };
 
         match message {
-            ClientMessage::Init { binary_path } => DebugInfo::new(&db, &binary_path)
+            ClientMessage::Init { binary_path } => DebugInfo::new(db, &binary_path)
                 .with_context(|| format!("Failed to load binary: {binary_path}")),
-            _ => {
-                return Err(anyhow!("Invalid message, expected init: {message:?}"));
-            }
+            _ => Err(anyhow!("Invalid message, expected init: {message:?}")),
         }
     }
 
@@ -207,9 +205,7 @@ impl ClientConnection {
                     Ok(value) => Ok(ServerMessage::Complete {
                         result: serde_json::to_value(&value)?,
                     }),
-                    Err(e) => {
-                        return Ok(e.into());
-                    }
+                    Err(e) => Ok(e.into()),
                 }
             }
 
@@ -228,9 +224,7 @@ impl ClientConnection {
                     Ok(methods) => Ok(ServerMessage::Complete {
                         result: serde_json::to_value(&methods)?,
                     }),
-                    Err(e) => {
-                        return Ok(e.into());
-                    }
+                    Err(e) => Ok(e.into()),
                 }
             }
 
@@ -248,10 +242,8 @@ impl ClientConnection {
         debug_info: &DebugInfo,
     ) -> Result<MethodDiscoveryResult> {
         // First, try to parse as a type name directly (e.g., "Vec<String>", "HashMap<String, u32>")
-        if let Ok(type_def) = debug_info.resolve_type(input) {
-            if let Some(type_def) = type_def {
-                return Ok(self.discover_methods_for_type(&type_def, debug_info));
-            }
+        if let Ok(Some(type_def)) = debug_info.resolve_type(input) {
+            return Ok(self.discover_methods_for_type(&type_def, debug_info));
         }
 
         // If not a type name, try to parse as an expression and get its type

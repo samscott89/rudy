@@ -215,7 +215,7 @@ fn demangle_symbol(symbol: RawSymbol) -> anyhow::Result<SymbolName> {
     } else {
         name_str
     };
-    let demangled = rustc_demangle::try_demangle(name_str.as_ref())
+    let demangled = rustc_demangle::try_demangle(name_str)
         .map_err(|_| anyhow::anyhow!("could not demangle symbol as Rust symbol"))?;
     SymbolName::parse(&demangled.to_string()).context("Failed to parse demangled symbol")
 }

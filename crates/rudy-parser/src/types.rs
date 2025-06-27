@@ -99,17 +99,21 @@ unsynn! {
         inner: BracketGroupContaining<ArrayInner>,
     }
 
+    type TypeWithTrailingComma =Cons<Box<Type>, PunctAny<','>>;
+    type ManyTypes = AtLeast<1, TypeWithTrailingComma>;
+    type TypeWithOptionalTrailingComma = Cons<Box<Type>, Optional<PunctAny<','>>>;
+
     #[derive(Clone)]
     pub enum Tuple {
         Arity0(ParenthesisGroupContaining<Nothing>),
         // NOTE: the `,` here should not actually be optional, but it
         // seems like rustc outputs these incorrectly
-        Arity1(ParenthesisGroupContaining<Cons<Box<Type>, Optional<PunctAny<','>>>>),
+        Arity1(ParenthesisGroupContaining<TypeWithOptionalTrailingComma>),
         ArityN(
             ParenthesisGroupContaining<
                 Cons<
-                    AtLeast<1, Cons<Box<Type>, PunctAny<','>>>,
-                    Cons<Box<Type>, Optional<PunctAny<','>>>
+                    ManyTypes,
+                    TypeWithOptionalTrailingComma
                 >
             >,
         )
@@ -253,7 +257,7 @@ impl PtrType {
 }
 impl RefType {
     pub fn is_mutable(&self) -> bool {
-        self.mutability.0.len() > 0
+        !self.mutability.0.is_empty()
     }
 }
 
@@ -393,10 +397,8 @@ pub fn parse_symbol(s: &str) -> anyhow::Result<ParsedSymbol> {
             '\n' | '\r' | '\t' | ' ' => {
                 // Ignore consecutive whitespace characters
                 // and replace with a single space character
-                if !current_segment.is_empty() {
-                    if !current_segment.ends_with(' ') {
-                        current_segment.push(' ');
-                    }
+                if !current_segment.is_empty() && !current_segment.ends_with(' ') {
+                    current_segment.push(' ');
                 }
             }
             _ => {
@@ -608,17 +610,18 @@ impl Path {
                 if let PathSegment::Segment(segment) = &path_segment.value {
                     let type_name = segment.ident.to_string();
 
-                    let get_generics = || {
-                        segment.generics.0.first().map_or_else(
-                            || vec![],
-                            |generic_args| match &generic_args.value {
-                                GenericArgs::Parsed { inner, .. } => {
-                                    inner.0.iter().map(|d| d.value.clone()).collect()
-                                }
-                                GenericArgs::Unparsed(_) => vec![],
-                            },
-                        )
-                    };
+                    let get_generics =
+                        || {
+                            segment.generics.0.first().map_or_else(
+                                std::vec::Vec::new,
+                                |generic_args| match &generic_args.value {
+                                    GenericArgs::Parsed { inner, .. } => {
+                                        inner.0.iter().map(|d| d.value.clone()).collect()
+                                    }
+                                    GenericArgs::Unparsed(_) => vec![],
+                                },
+                            )
+                        };
 
                     tracing::trace!("Checking std type: '{}' against known types", type_name);
 

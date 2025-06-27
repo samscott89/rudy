@@ -155,7 +155,7 @@ fn main() {
 
     // Compile with debug info
     let output = Command::new("rustc")
-        .args(&[
+        .args([
             &src_path,
             "-g", // Generate debug info
             "-C",
@@ -177,7 +177,7 @@ fn main() {
 
     // Also create a release version with debug info for comparison
     let _output = Command::new("rustc")
-        .args(&[
+        .args([
             &src_path,
             "-g", // Generate debug info
             "-C",

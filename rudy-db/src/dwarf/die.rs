@@ -35,12 +35,12 @@ pub struct DieAccessError {
 
 trait ResExt {
     type V;
-    fn as_die_result(self, db: &dyn Db, die: &Die) -> Result<Self::V>;
+    fn into_die_result(self, db: &dyn Db, die: &Die) -> Result<Self::V>;
 }
 
 impl<V> ResExt for anyhow::Result<V> {
     type V = V;
-    fn as_die_result(self, db: &dyn Db, die: &Die) -> Result<V> {
+    fn into_die_result(self, db: &dyn Db, die: &Die) -> Result<V> {
         self.map_err(|e| die.make_error(db, e))
     }
 }
@@ -92,27 +92,22 @@ impl<'db> Die<'db> {
         let mut tree = unit_ref
             .entries_tree(Some(self.die_offset(db)))
             .context("Failed to get children nodes")
-            .as_die_result(db, self)?;
+            .into_die_result(db, self)?;
         let tree_root = tree
             .root()
             .context("Failed to get children nodes")
-            .as_die_result(db, self)?;
+            .into_die_result(db, self)?;
 
         let mut child_nodes = tree_root.children();
 
-        loop {
-            match child_nodes
-                .next()
-                .context("Failed to parse child nodes")
-                .as_die_result(db, self)?
-            {
-                Some(child) => {
-                    let child_offset = child.entry().offset();
-                    let child_die = Die::new(db, self.file(db), self.cu_offset(db), child_offset);
-                    children.push(child_die);
-                }
-                None => break,
-            }
+        while let Some(child) = child_nodes
+            .next()
+            .context("Failed to parse child nodes")
+            .into_die_result(db, self)?
+        {
+            let child_offset = child.entry().offset();
+            let child_die = Die::new(db, self.file(db), self.cu_offset(db), child_offset);
+            children.push(child_die);
         }
 
         Ok(children)
@@ -149,7 +144,7 @@ impl<'db> Die<'db> {
         self.with_entry_and_unit(db, |entry, _| {
             get_unit_ref_attr(entry, attr)
                 .map(|unit_offset| Die::new(db, self.file(db), self.cu_offset(db), unit_offset))
-                .as_die_result(db, self)
+                .into_die_result(db, self)
         })?
     }
 
@@ -167,9 +162,9 @@ impl<'db> Die<'db> {
     pub fn get_member(&self, db: &'db dyn Db, name: &str) -> Result<Die<'db>> {
         self.children(db)?
             .into_iter()
-            .find(|child| child.name(db).map_or(false, |n| n == name))
+            .find(|child| child.name(db).is_ok_and(|n| n == name))
             .with_context(|| format!("Failed to find member `{name}`"))
-            .as_die_result(db, self)
+            .into_die_result(db, self)
     }
 
     pub fn get_member_by_tag(&self, db: &'db dyn Db, tag: gimli::DwTag) -> Result<Die<'db>> {
@@ -177,7 +172,7 @@ impl<'db> Die<'db> {
             .into_iter()
             .find(|child| child.tag(db) == tag)
             .with_context(|| format!("Failed to find member with tag `{tag:?}`"))
-            .as_die_result(db, self)
+            .into_die_result(db, self)
     }
 
     pub fn get_udata_member_attribute(
@@ -194,10 +189,10 @@ impl<'db> Die<'db> {
             .into_iter()
             .find(|child| {
                 child.tag(db) == gimli::DW_TAG_template_type_parameter
-                    && child.name(db).map_or(false, |n| n == name)
+                    && child.name(db).is_ok_and(|n| n == name)
             })
             .with_context(|| format!("Failed to find generic type entry `{name}`"))
-            .as_die_result(db, self)
+            .into_die_result(db, self)
             .and_then(|member| member.get_referenced_entry(db, gimli::DW_AT_type))
     }
 
@@ -209,15 +204,15 @@ impl<'db> Die<'db> {
         Ok(self
             .with_entry(db, |entry| entry.attr(attr))?
             .with_context(|| format!("error fetching attribute {attr}"))
-            .as_die_result(db, self)?
+            .into_die_result(db, self)?
             .with_context(|| format!("attribute {attr} not found"))
-            .as_die_result(db, self)?
+            .into_die_result(db, self)?
             .value())
     }
 
     pub fn string_attr(&self, db: &'db dyn Db, attr: gimli::DwAt) -> Result<String> {
         self.with_entry_and_unit(db, |entry, unit_ref| {
-            parse_die_string_attribute(entry, attr, unit_ref).as_die_result(db, self)
+            parse_die_string_attribute(entry, attr, unit_ref).into_die_result(db, self)
         })?
     }
 
@@ -227,7 +222,7 @@ impl<'db> Die<'db> {
         v.udata_value()
             .with_context(|| format!("attr {attr} is not a udata value, got: {v:?}"))
             .map(|v| v as usize)
-            .as_die_result(db, self)
+            .into_die_result(db, self)
     }
 
     pub fn print(&self, db: &'db dyn Db) -> String {
@@ -256,7 +251,7 @@ impl<'db> Die<'db> {
         self.cu(db)
             .unit_ref(db)
             .context("Failed to get unit reference")
-            .as_die_result(db, self)
+            .into_die_result(db, self)
     }
 
     fn with_entry<F: FnOnce(&RawDie<'_>) -> T, T>(&self, db: &'db dyn Db, f: F) -> Result<T> {
@@ -269,7 +264,7 @@ impl<'db> Die<'db> {
         unit_ref
             .entry(self.die_offset(db))
             .context("Failed to get DIE entry")
-            .as_die_result(db, self)
+            .into_die_result(db, self)
     }
 }
 

@@ -11,7 +11,7 @@ use super::{
     unit::UnitRef,
 };
 
-pub fn get_dwarf<'db>(db: &'db dyn crate::database::Db, file: File) -> Option<&'db super::Dwarf> {
+pub fn get_dwarf(db: &dyn crate::database::Db, file: File) -> Option<&super::Dwarf> {
     let loaded = crate::file::load(db, file).as_ref().ok()?;
     Some(&loaded.dwarf)
 }

@@ -24,7 +24,7 @@ pub struct OptionDefParser;
 /// Parser for option types
 ///
 /// We'll parse it as a generic enum, and extract out the expect "Some" variant
-pub fn option_def<'db>() -> OptionDefParser {
+pub fn option_def() -> OptionDefParser {
     OptionDefParser
 }
 

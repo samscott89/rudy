@@ -19,8 +19,10 @@ fn extract_tuple<T>(tuple: (T,)) -> T {
     tuple.0
 }
 
+type ExtractTuple<T> = fn((T,)) -> T;
+
 /// Finds the first child that matches the given parser
-pub fn child<'db, P, T>(parser: P) -> Map<ParseChildren<(P,)>, fn((T,)) -> T, (T,)>
+pub fn child<'db, P, T>(parser: P) -> Map<ParseChildren<(P,)>, ExtractTuple<T>, (T,)>
 where
     P: Parser<'db, T>,
 {

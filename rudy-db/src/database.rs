@@ -23,9 +23,11 @@
 //!     - Symbol -> compilation unit + offset
 //!     - Source file -> compilation unit
 //!     - Address -> relevant compilation units/sections
-//!    This indexing happens on startup/initial loading of the files and
-//!    only changes if the binary is recompiled (although we should be able
-//!    to memoize anything looked up from the individual files).
+//!
+//! This indexing happens on startup/initial loading of the files and
+//! only changes if the binary is recompiled (although we should be able
+//! to memoize anything looked up from the individual files).
+//!
 //! 2. Lazily parse specific sections and memoize the results. This is only
 //!    called whenever we need the information (e.g. when breaking on a line inside a function).
 //!    But the results should be able to be memoized and ~never recomputed, even when stepping
@@ -154,6 +156,12 @@ pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
 //     // Generate the index on startup to save time
 //     let _ = index::build_index(db);
 // }
+
+impl Default for DebugDatabaseImpl {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl DebugDatabaseImpl {
     /// Creates a new debug database instance.

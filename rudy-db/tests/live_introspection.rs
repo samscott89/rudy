@@ -94,17 +94,17 @@ struct TestComplexData {
 
 #[derive(Debug)]
 enum TestEnum {
-    UnitVariant,
-    TupleVariant(u32, String),
-    StructVariant { x: f64, y: f64 },
+    Unit,
+    Tuple(u32, String),
+    Struct { x: f64, y: f64 },
 }
 
 #[derive(Debug)]
 #[repr(C)]
 enum ReprCEnum {
-    UnitVariant,
-    TupleVariant(u32, String),
-    StructVariant { x: f64, y: f64 },
+    Unit,
+    Tuple(u32, String),
+    Struct { x: f64, y: f64 },
 }
 
 #[derive(Debug)]
@@ -498,7 +498,10 @@ fn test_introspect_complex_nested_types() {
         id: 12345,
         values: vec![100, 200, 300],
         metadata,
-        location: TestPoint { x: 3.14, y: 2.71 },
+        location: TestPoint {
+            x: 3.14001,
+            y: 2.71,
+        },
     };
 
     let data_ptr = &test_data as *const TestComplexData as u64;
@@ -745,9 +748,12 @@ fn test_introspect_enums() {
     let resolver = SelfProcessResolver::new();
 
     // Test TestEnum variants
-    let unit_variant = TestEnum::UnitVariant;
-    let tuple_variant = TestEnum::TupleVariant(42, "test".to_string());
-    let struct_variant = TestEnum::StructVariant { x: 3.14, y: 2.71 };
+    let unit_variant = TestEnum::Unit;
+    let tuple_variant = TestEnum::Tuple(42, "test".to_string());
+    let struct_variant = TestEnum::Struct {
+        x: 3.14002,
+        y: 2.71,
+    };
 
     let unit_ptr = &unit_variant as *const TestEnum as u64;
     let tuple_ptr = &tuple_variant as *const TestEnum as u64;
@@ -762,25 +768,25 @@ fn test_introspect_enums() {
     // Test unit variant
     let unit_value = debug_info
         .address_to_value(unit_ptr, &test_enum_typedef, &resolver)
-        .expect("Failed to read TestEnum::UnitVariant");
-    println!("TestEnum::UnitVariant: {:?}", unit_value);
+        .expect("Failed to read TestEnum::Unit");
+    println!("TestEnum::Unit: {:?}", unit_value);
 
     // Test tuple variant
     let tuple_value = debug_info
         .address_to_value(tuple_ptr, &test_enum_typedef, &resolver)
-        .expect("Failed to read TestEnum::TupleVariant");
-    println!("TestEnum::TupleVariant: {:?}", tuple_value);
+        .expect("Failed to read TestEnum::Tuple");
+    println!("TestEnum::Tuple: {:?}", tuple_value);
 
     // Test struct variant
     let struct_value = debug_info
         .address_to_value(struct_ptr, &test_enum_typedef, &resolver)
-        .expect("Failed to read TestEnum::StructVariant");
-    println!("TestEnum::StructVariant: {:?}", struct_value);
+        .expect("Failed to read TestEnum::Struct");
+    println!("TestEnum::Struct: {:?}", struct_value);
 
     // Test ReprCEnum variants
-    let repr_c_unit = ReprCEnum::UnitVariant;
-    let repr_c_tuple = ReprCEnum::TupleVariant(99, "repr_c".to_string());
-    let repr_c_struct = ReprCEnum::StructVariant { x: 1.41, y: 4.13 };
+    let repr_c_unit = ReprCEnum::Unit;
+    let repr_c_tuple = ReprCEnum::Tuple(99, "repr_c".to_string());
+    let repr_c_struct = ReprCEnum::Struct { x: 1.41, y: 4.13 };
 
     let repr_c_unit_ptr = &repr_c_unit as *const ReprCEnum as u64;
     let repr_c_tuple_ptr = &repr_c_tuple as *const ReprCEnum as u64;
@@ -793,18 +799,18 @@ fn test_introspect_enums() {
 
     let repr_c_unit_value = debug_info
         .address_to_value(repr_c_unit_ptr, &repr_c_typedef, &resolver)
-        .expect("Failed to read ReprCEnum::UnitVariant");
-    println!("ReprCEnum::UnitVariant: {:?}", repr_c_unit_value);
+        .expect("Failed to read ReprCEnum::Unit");
+    println!("ReprCEnum::Unit: {:?}", repr_c_unit_value);
 
     let repr_c_tuple_value = debug_info
         .address_to_value(repr_c_tuple_ptr, &repr_c_typedef, &resolver)
-        .expect("Failed to read ReprCEnum::TupleVariant");
-    println!("ReprCEnum::TupleVariant: {:?}", repr_c_tuple_value);
+        .expect("Failed to read ReprCEnum::Tuple");
+    println!("ReprCEnum::Tuple: {:?}", repr_c_tuple_value);
 
     let repr_c_struct_value = debug_info
         .address_to_value(repr_c_struct_ptr, &repr_c_typedef, &resolver)
-        .expect("Failed to read ReprCEnum::StructVariant");
-    println!("ReprCEnum::StructVariant: {:?}", repr_c_struct_value);
+        .expect("Failed to read ReprCEnum::Struct");
+    println!("ReprCEnum::Struct: {:?}", repr_c_struct_value);
 
     // Test U8Enum variants
     let u8_first = U8Enum::First;

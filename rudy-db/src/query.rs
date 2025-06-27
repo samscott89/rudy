@@ -25,7 +25,7 @@ pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db
         //     continue;
         // };
         // tracing::debug!("looking for matches in {cu:?}");
-        if let Some((addr, distance)) = dwarf::location_to_address(db, *debug_file, query.clone()) {
+        if let Some((addr, distance)) = dwarf::location_to_address(db, *debug_file, query) {
             tracing::debug!("found match  {addr:#x} at distance {distance}");
             if distance < closest_line {
                 // if we found a closer match, find the absolute address

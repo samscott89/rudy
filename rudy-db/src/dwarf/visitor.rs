@@ -82,7 +82,7 @@ pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
             tracing::error!("No entries found in DIE: {}", die.print(db));
             return Ok(());
         };
-        V::visit_die(&mut walker, die, unit_ref.clone());
+        V::visit_die(&mut walker, die, *unit_ref);
         Ok(())
     })?
 }
@@ -203,7 +203,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
             return;
         }
 
-        let unit_ref = self.unit_ref.clone();
+        let unit_ref = *self.unit_ref;
         tracing::trace!("Visiting CU: {:#x}", root.offset().0);
         V::visit_cu(self, root, unit_ref);
     }
@@ -224,7 +224,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         // walk the siblings at this depth
         while let Some(next) = self.next_sibling() {
             // continue walking siblings
-            V::visit_die(self, next, self.unit_ref.clone());
+            V::visit_die(self, next, *self.unit_ref);
         }
         tracing::trace!("Finished walking children of entry: {current_offset:#x}");
         self.current_depth -= 1;
@@ -402,8 +402,7 @@ mod test {
             unit_ref: crate::dwarf::unit::UnitRef<'a>,
         ) {
             let offset = die.offset().0;
-            let padding = std::iter::repeat(" ")
-                .take(2 * walker.current_depth as usize)
+            let padding = std::iter::repeat_n(" ", 2 * walker.current_depth as usize)
                 .join("");
 
             let tag = die.tag();

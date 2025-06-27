@@ -183,7 +183,6 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         match function_declaration_type {
             FunctionDeclarationType::Closure => {
                 // skip for now
-                return;
             }
             FunctionDeclarationType::ClassMethodDeclaration
             | FunctionDeclarationType::Function { .. } => {
@@ -321,7 +320,7 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                     offset.0
                 );
             }
-        };
+        }
     }
 
     fn visit_base_type<'a>(
@@ -427,7 +426,7 @@ pub fn index_debug_file_sources<'db>(
                         .file_names()
                         .iter()
                         .flat_map(|f| {
-                            file_entry_to_path(f, &unit_ref).map(|path| SourceFile::new(db, path))
+                            file_entry_to_path(f, unit_ref).map(|path| SourceFile::new(db, path))
                         })
                         .collect::<BTreeSet<_>>()
                 })
@@ -475,7 +474,7 @@ pub fn index_debug_file_full<'db>(db: &'db dyn Db, debug_file: DebugFile) -> Fil
 }
 
 fn is_rust_cu(db: &dyn Db, root: &RawDie<'_>, unit_ref: &UnitRef<'_>) -> bool {
-    match get_lang_attr(root, &unit_ref) {
+    match get_lang_attr(root, unit_ref) {
         Ok(Some(lang)) if lang == gimli::DW_LANG_Rust => {
             // this is a Rust file, we can index it
             true
@@ -484,14 +483,14 @@ fn is_rust_cu(db: &dyn Db, root: &RawDie<'_>, unit_ref: &UnitRef<'_>) -> bool {
             // not a rust file / language not found
             tracing::debug!(
                 "skipping non-Rust compilation unit: {}",
-                pretty_print_die_entry(root, &unit_ref)
+                pretty_print_die_entry(root, unit_ref)
             );
             false
         }
         Err(e) => {
             db.report_error(format!(
                 "could not get language of compilation unit: {e}: \n{}",
-                pretty_print_die_entry(root, &unit_ref)
+                pretty_print_die_entry(root, unit_ref)
             ));
             false
         }

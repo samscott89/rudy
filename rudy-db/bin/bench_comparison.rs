@@ -147,9 +147,9 @@ import time
 import psutil
 import os
 
-binary_path = "{}"
-addresses = {}
-names = {}
+binary_path = "{binary_path}"
+addresses = {addrs:?}
+names = {:?}
 
 # Init only - just create target
 init_start = time.time()
@@ -189,12 +189,7 @@ print(f"MEMORY_MB:{{memory_mb}}")
 
 lldb.SBDebugger.Destroy(debugger)
 "#,
-        binary_path,
-        format!("{:?}", addrs),
-        format!(
-            "{:?}",
-            test_addresses.iter().map(|(_, n)| n).collect::<Vec<_>>()
-        )
+        test_addresses.iter().map(|(_, n)| n).collect::<Vec<_>>()
     );
 
     // get lldb path

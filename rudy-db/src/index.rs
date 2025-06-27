@@ -175,11 +175,11 @@ pub fn find_closest_function<'db>(
 }
 
 /// Finds all functions
-pub fn find_all_by_address<'db>(
-    db: &'db dyn Db,
+pub fn find_all_by_address(
+    db: &dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<(u64, &'db FunctionAddressInfo)> {
+) -> Vec<(u64, &FunctionAddressInfo)> {
     // first, find the closest function by address
     let index = debug_index(db, binary).symbol_index(db);
     let Some((_, function_symbols)) = index.function_at_address(address) else {
@@ -238,8 +238,8 @@ pub fn find_all_by_address<'db>(
 }
 
 /// Resolve a type by name in the debug information
-pub fn resolve_type<'db>(
-    db: &'db dyn Db,
+pub fn resolve_type(
+    db: &dyn Db,
     binary: Binary,
     type_name: &str,
 ) -> anyhow::Result<Option<TypeLayout>> {

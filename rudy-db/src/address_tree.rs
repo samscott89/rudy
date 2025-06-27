@@ -130,7 +130,7 @@ impl AddressTree {
     }
 
     fn query_address_recursive<'a>(
-        node: &'a Box<Node>,
+        node: &'a Node,
         address: u64,
         result: &mut Vec<&'a FunctionAddressInfo>,
     ) {
@@ -207,7 +207,7 @@ impl AddressTree {
     }
 
     fn query_interval_recursive<'a>(
-        node: &'a Box<Node>,
+        node: &'a Node,
         query_start: u64,
         query_end: u64,
         result: &mut Vec<&'a FunctionAddressInfo>,

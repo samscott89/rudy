@@ -21,9 +21,7 @@ pub fn address_to_location<'db>(
 ) -> Option<ResolvedLocation<'db>> {
     let unit_ref = cu.unit_ref(db)?;
 
-    let Some(line_program) = unit_ref.line_program.clone() else {
-        return None;
-    };
+    let line_program = unit_ref.line_program.clone()?;
 
     let header = line_program.header();
 
@@ -64,8 +62,8 @@ pub fn address_to_location<'db>(
 }
 
 /// Convert a source location to an address within a compilation unit
-pub fn location_to_address<'db>(
-    db: &'db dyn Db,
+pub fn location_to_address(
+    db: &dyn Db,
     debug_file: DebugFile,
     query: crate::types::Position,
 ) -> Option<(u64, u64)> {
@@ -85,9 +83,7 @@ pub fn location_to_address<'db>(
     );
 
     for (section_offset, unit_ref) in get_roots(db, debug_file) {
-        let Some(line_program) = unit_ref.line_program.clone() else {
-            return None;
-        };
+        let line_program = unit_ref.line_program.clone()?;
 
         let header = line_program.header();
 
