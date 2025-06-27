@@ -41,9 +41,7 @@ impl TypeLayout {
                     format!("&[{}]", slice_def.element_type.display_name())
                 }
                 PrimitiveLayout::Str(_) => "str".to_string(),
-                PrimitiveLayout::StrSlice(_) => {
-                    "&str".to_string()
-                }
+                PrimitiveLayout::StrSlice(_) => "&str".to_string(),
                 PrimitiveLayout::Tuple(tuple_def) => {
                     let elements = tuple_def
                         .elements
@@ -73,9 +71,7 @@ impl TypeLayout {
                     let err_type = result_def.err_type.display_name();
                     format!("Result<{}, {}>", ok_type, err_type)
                 }
-                StdLayout::String(_) => {
-                    "String".to_string()
-                }
+                StdLayout::String(_) => "String".to_string(),
                 StdLayout::Vec(vec_def) => {
                     let inner_type = vec_def.inner_type.display_name();
                     format!("Vec<{}>", inner_type)

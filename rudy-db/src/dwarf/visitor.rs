@@ -402,8 +402,7 @@ mod test {
             unit_ref: crate::dwarf::unit::UnitRef<'a>,
         ) {
             let offset = die.offset().0;
-            let padding = std::iter::repeat_n(" ", 2 * walker.current_depth as usize)
-                .join("");
+            let padding = std::iter::repeat_n(" ", 2 * walker.current_depth as usize).join("");
 
             let tag = die.tag();
             walker

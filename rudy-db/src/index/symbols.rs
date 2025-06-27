@@ -23,10 +23,7 @@ pub type DebugFiles = BTreeMap<(String, Option<String>), DebugFile>;
 /// and potentially external symbols. Turns it into
 /// a map of symbol names, as well as finds all
 /// external debug files.
-pub fn index_symbol_map(
-    db: &dyn Db,
-    binary: Binary,
-) -> anyhow::Result<(DebugFiles, SymbolIndex)> {
+pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFiles, SymbolIndex)> {
     let mut debug_files = DebugFiles::new();
 
     // load the binary file
@@ -34,12 +31,8 @@ pub fn index_symbol_map(
     let loaded_file = match load(db, binary_file) {
         Ok(file) => file,
         Err(e) => {
-            return Err(e.clone()).with_context(|| {
-                format!(
-                    "Failed to load binary file: {}",
-                    binary_file.path(db)
-                )
-            });
+            return Err(e.clone())
+                .with_context(|| format!("Failed to load binary file: {}", binary_file.path(db)));
         }
     };
 
@@ -137,7 +130,8 @@ impl SymbolIndex {
     pub fn function_at_address(&self, address: u64) -> Option<(u64, &Vec<Symbol>)> {
         // Find the first function(s) with an address less than or equal to the given address
         self.functions_by_address
-            .range(..=address).next_back()
+            .range(..=address)
+            .next_back()
             .map(|(base_addr, v)| (*base_addr, v))
     }
 

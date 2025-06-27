@@ -16,8 +16,7 @@ pub struct Offset;
 
 impl<'db> Parser<'db, usize> for Offset {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<usize> {
-        Ok(entry
-            .udata_attr(db, gimli::DW_AT_data_member_location)?)
+        Ok(entry.udata_attr(db, gimli::DW_AT_data_member_location)?)
     }
 }
 
