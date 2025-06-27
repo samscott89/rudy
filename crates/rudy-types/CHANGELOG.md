@@ -9,10 +9,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.0](https://github.com/samscott89/rudy/releases/tag/rudy-types-v0.1.0) - 2025-06-27
 
-### Other
-
-- Clippy 1.88 fixes!
-- Formatting
-- Clippy
-- Fix a few tests
-- Rename to Rudy. Clean up some old examples.
+Initial release!
