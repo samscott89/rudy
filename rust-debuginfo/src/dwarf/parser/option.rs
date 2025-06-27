@@ -15,7 +15,7 @@ use crate::{
         },
     },
 };
-use rust_types::{Discriminant, OptionDef};
+use rust_types::{Discriminant, OptionLayout};
 
 use anyhow::Result;
 
@@ -53,15 +53,15 @@ pub(super) fn parse_option_entry<'db>()
     .map(|(name, size, (discriminant, some_variant))| (name, size, discriminant, some_variant))
 }
 
-impl<'db> Parser<'db, OptionDef> for OptionDefParser {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<OptionDef> {
+impl<'db> Parser<'db, OptionLayout> for OptionDefParser {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<OptionLayout> {
         tracing::debug!("resolving option type: {}", entry.print(db));
         let (name, size, discriminant, some_variant) = parse_option_entry().parse(db, entry)?;
 
         // resolve the some_type
         let some_type = resolve_type().parse(db, some_variant.layout)?;
 
-        Ok(OptionDef {
+        Ok(OptionLayout {
             name,
             some_type: Arc::new(some_type),
             some_offset: some_variant.offset,

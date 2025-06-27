@@ -442,7 +442,7 @@ pub fn parse_type(s: &str) -> unsynn::Result<Type> {
 }
 
 impl Type {
-    pub fn as_typedef(&self) -> TypeDef {
+    pub fn as_typedef(&self) -> TypeLayout {
         match self {
             Type::Path(path) => {
                 // Convert path to typedef
@@ -450,7 +450,7 @@ impl Type {
             }
             Type::Slice(slice) => {
                 let inner = slice.inner.content.clone().as_typedef();
-                TypeDef::Primitive(PrimitiveDef::Slice(SliceDef {
+                TypeLayout::Primitive(PrimitiveLayout::Slice(SliceLayout {
                     element_type: Arc::new(inner),
                     data_ptr_offset: 0,
                     length_offset: 0,
@@ -458,21 +458,21 @@ impl Type {
             }
             Type::StrSlice(_) => {
                 // For str slices, we can just return a Str type
-                TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
+                TypeLayout::Primitive(PrimitiveLayout::StrSlice(StrSliceLayout {
                     data_ptr_offset: 0,
                     length_offset: 0,
                 }))
             }
             Type::Ref(ref_type) => {
                 let inner = ref_type.inner.as_typedef();
-                TypeDef::Primitive(PrimitiveDef::Reference(ReferenceDef {
+                TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
                     mutable: ref_type.is_mutable(),
                     pointed_type: Arc::new(inner),
                 }))
             }
             Type::Ptr(ptr_type) => {
                 let inner = ptr_type.inner.as_typedef();
-                TypeDef::Primitive(PrimitiveDef::Pointer(PointerDef {
+                TypeLayout::Primitive(PrimitiveLayout::Pointer(PointerLayout {
                     mutable: ptr_type.is_mutable(),
                     pointed_type: Arc::new(inner),
                 }))
@@ -487,7 +487,7 @@ impl Type {
                     0 // Unknown size
                 };
 
-                TypeDef::Primitive(PrimitiveDef::Array(ArrayDef {
+                TypeLayout::Primitive(PrimitiveLayout::Array(ArrayLayout {
                     element_type: Arc::new(inner),
                     length,
                 }))
@@ -501,9 +501,9 @@ impl Type {
 
                 // 0-arity tuple is a unit
                 if elements.is_empty() {
-                    TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))
+                    TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))
                 } else {
-                    TypeDef::Primitive(PrimitiveDef::Tuple(TupleDef {
+                    TypeLayout::Primitive(PrimitiveLayout::Tuple(TupleLayout {
                         elements,
                         size: 0, // Would need to calculate from DWARF
                     }))
@@ -511,36 +511,38 @@ impl Type {
             }
             Type::DynTrait(_dyn_trait) => {
                 // For trait objects, we'll use Other for now
-                TypeDef::Other {
+                TypeLayout::Other {
                     name: self.to_string(),
                 }
             }
-            Type::Function(fn_type) => TypeDef::Primitive(PrimitiveDef::Function(FunctionDef {
-                return_type: Arc::new(
-                    fn_type
-                        .ret()
-                        .map_or(PrimitiveDef::Unit(UnitDef).into(), |r| r.as_typedef()),
-                ),
-                arg_types: fn_type
-                    .args()
-                    .iter()
-                    .map(|a| Arc::new(a.as_typedef()))
-                    .collect(),
-            })),
+            Type::Function(fn_type) => {
+                TypeLayout::Primitive(PrimitiveLayout::Function(FunctionLayout {
+                    return_type: Arc::new(
+                        fn_type
+                            .ret()
+                            .map_or(PrimitiveLayout::Unit(UnitLayout).into(), |r| r.as_typedef()),
+                    ),
+                    arg_types: fn_type
+                        .args()
+                        .iter()
+                        .map(|a| Arc::new(a.as_typedef()))
+                        .collect(),
+                }))
+            }
             Type::Never(_) => {
                 // For the never type, we can just return a unit type
-                TypeDef::Primitive(PrimitiveDef::Never(()))
+                TypeLayout::Primitive(PrimitiveLayout::Never(()))
             }
         }
     }
 }
 
 impl Path {
-    fn as_typedef(&self) -> TypeDef {
+    fn as_typedef(&self) -> TypeLayout {
         // First, let's extract the segments
         let segments = self.segments();
         if segments.is_empty() {
-            return TypeDef::Other {
+            return TypeLayout::Other {
                 name: String::new(),
             };
         }
@@ -552,43 +554,43 @@ impl Path {
         if segments.len() == 1 {
             match last_segment.as_str() {
                 "u8" => {
-                    return UnsignedIntDef { size: 1 }.into();
+                    return UnsignedIntLayout { size: 1 }.into();
                 }
                 "u16" => {
-                    return UnsignedIntDef { size: 2 }.into();
+                    return UnsignedIntLayout { size: 2 }.into();
                 }
                 "u32" => {
-                    return UnsignedIntDef { size: 4 }.into();
+                    return UnsignedIntLayout { size: 4 }.into();
                 }
                 "u64" => {
-                    return UnsignedIntDef { size: 8 }.into();
+                    return UnsignedIntLayout { size: 8 }.into();
                 }
                 "u128" => {
-                    return UnsignedIntDef { size: 16 }.into();
+                    return UnsignedIntLayout { size: 16 }.into();
                 }
                 "usize" => {
-                    return UnsignedIntDef {
+                    return UnsignedIntLayout {
                         size: std::mem::size_of::<usize>(),
                     }
                     .into();
                 }
-                "i8" => return IntDef { size: 1 }.into(),
-                "i16" => return IntDef { size: 2 }.into(),
-                "i32" => return IntDef { size: 4 }.into(),
-                "i64" => return IntDef { size: 8 }.into(),
-                "i128" => return IntDef { size: 16 }.into(),
+                "i8" => return IntLayout { size: 1 }.into(),
+                "i16" => return IntLayout { size: 2 }.into(),
+                "i32" => return IntLayout { size: 4 }.into(),
+                "i64" => return IntLayout { size: 8 }.into(),
+                "i128" => return IntLayout { size: 16 }.into(),
                 "isize" => {
-                    return IntDef {
+                    return IntLayout {
                         size: std::mem::size_of::<isize>(),
                     }
                     .into();
                 }
-                "f32" => return FloatDef { size: 4 }.into(),
-                "f64" => return FloatDef { size: 8 }.into(),
-                "bool" => return TypeDef::Primitive(PrimitiveDef::Bool(())),
-                "char" => return TypeDef::Primitive(PrimitiveDef::Char(())),
-                "str" => return TypeDef::Primitive(PrimitiveDef::Str(())),
-                "()" => return TypeDef::Primitive(PrimitiveDef::Unit(UnitDef)),
+                "f32" => return FloatLayout { size: 4 }.into(),
+                "f64" => return FloatLayout { size: 8 }.into(),
+                "bool" => return TypeLayout::Primitive(PrimitiveLayout::Bool(())),
+                "char" => return TypeLayout::Primitive(PrimitiveLayout::Char(())),
+                "str" => return TypeLayout::Primitive(PrimitiveLayout::Str(())),
+                "()" => return TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout)),
                 _ => {}
             }
         }
@@ -623,11 +625,11 @@ impl Path {
                     match type_name.as_str() {
                         "String" => {
                             tracing::trace!("Matched String type!");
-                            return TypeDef::Std(StdDef::String(StringDef(VecDef {
+                            return TypeLayout::Std(StdLayout::String(StringLayout(VecLayout {
                                 length_offset: 0,
                                 data_ptr_offset: 0,
-                                inner_type: Arc::new(TypeDef::Primitive(
-                                    PrimitiveDef::UnsignedInt(UnsignedIntDef { size: 1 }),
+                                inner_type: Arc::new(TypeLayout::Primitive(
+                                    PrimitiveLayout::UnsignedInt(UnsignedIntLayout { size: 1 }),
                                 )),
                             })));
                         }
@@ -636,11 +638,11 @@ impl Path {
                                 .first()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef::Other {
+                                    Arc::new(TypeLayout::Other {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Vec(VecDef {
+                            return TypeLayout::Std(StdLayout::Vec(VecLayout {
                                 inner_type: inner,
                                 length_offset: 0,
                                 data_ptr_offset: 0,
@@ -651,11 +653,11 @@ impl Path {
                                 .first()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef::Other {
+                                    Arc::new(TypeLayout::Other {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Option(OptionDef {
+                            return TypeLayout::Std(StdLayout::Option(OptionLayout {
                                 name: "Option".to_string(),
                                 discriminant: Discriminant {
                                     offset: 0,
@@ -672,7 +674,7 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef::Other {
+                                    Arc::new(TypeLayout::Other {
                                         name: "Unknown".to_string(),
                                     })
                                 });
@@ -680,11 +682,11 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef::Other {
+                                    Arc::new(TypeLayout::Other {
                                         name: "Unknown".to_string(),
                                     })
                                 });
-                            return TypeDef::Std(StdDef::Result(ResultDef {
+                            return TypeLayout::Std(StdLayout::Result(ResultLayout {
                                 name: "Result".to_string(),
                                 discriminant: Discriminant {
                                     offset: 0,
@@ -701,7 +703,7 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef::Other {
+                                    Arc::new(TypeLayout::Other {
                                         name: "Unknown".to_string(),
                                     })
                                 });
@@ -709,7 +711,7 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef::Other {
+                                    Arc::new(TypeLayout::Other {
                                         name: "Unknown".to_string(),
                                     })
                                 });
@@ -739,7 +741,7 @@ impl Path {
                                 _ => unreachable!(),
                             };
                             tracing::trace!("Matched Map type: '{type_name}'");
-                            return TypeDef::Std(StdDef::Map(MapDef {
+                            return TypeLayout::Std(StdLayout::Map(MapLayout {
                                 key_type,
                                 value_type,
                                 variant,
@@ -752,7 +754,7 @@ impl Path {
                                 .next()
                                 .map(|t| Arc::new(t.as_typedef()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeDef::Other {
+                                    Arc::new(TypeLayout::Other {
                                         name: "Unknown".to_string(),
                                     })
                                 });
@@ -767,7 +769,7 @@ impl Path {
                                 "RwLock" => SmartPtrVariant::RwLock,
                                 _ => unreachable!(),
                             };
-                            return TypeDef::Std(StdDef::SmartPtr(SmartPtrDef {
+                            return TypeLayout::Std(StdLayout::SmartPtr(SmartPtrLayout {
                                 inner_type: inner,
                                 inner_ptr_offset: 0,
                                 data_ptr_offset: 0,
@@ -781,7 +783,7 @@ impl Path {
         }
 
         // Default case: treat as a custom type (struct/enum) or alias
-        TypeDef::Other {
+        TypeLayout::Other {
             name: last_segment.clone(),
         }
     }
@@ -926,17 +928,17 @@ mod test {
     }
 
     #[track_caller]
-    fn infer<T: Into<TypeDef> + fmt::Debug>(s: &str, expected: T) {
+    fn infer<T: Into<TypeLayout> + fmt::Debug>(s: &str, expected: T) {
         let ty = parse_type(s).as_typedef();
         assert_eq!(ty, expected.into(), "Failed to parse type `{s}`");
     }
 
-    fn string_def() -> TypeDef {
-        TypeDef::Std(StdDef::String(StringDef(VecDef {
+    fn string_def() -> TypeLayout {
+        TypeLayout::Std(StdLayout::String(StringLayout(VecLayout {
             length_offset: 0,
             data_ptr_offset: 0,
-            inner_type: Arc::new(TypeDef::Primitive(PrimitiveDef::UnsignedInt(
-                UnsignedIntDef { size: 1 },
+            inner_type: Arc::new(TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(
+                UnsignedIntLayout { size: 1 },
             ))),
         })))
     }
@@ -947,60 +949,69 @@ mod test {
             .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
             .try_init();
 
-        infer("u8", UnsignedIntDef::u8());
-        infer("u32", UnsignedIntDef::u32());
-        infer("()", PrimitiveDef::from(UnitDef));
+        infer("u8", UnsignedIntLayout::u8());
+        infer("u32", UnsignedIntLayout::u32());
+        infer("()", PrimitiveLayout::from(UnitLayout));
         infer(
             "(u8,)",
-            PrimitiveDef::Tuple(TupleDef {
-                elements: vec![(0, Arc::new(UnsignedIntDef::u8().into()))],
+            PrimitiveLayout::Tuple(TupleLayout {
+                elements: vec![(0, Arc::new(UnsignedIntLayout::u8().into()))],
                 size: 0, // Would need to calculate from DWARF
             }),
         );
         infer(
             "(u8,u64)",
-            PrimitiveDef::Tuple(TupleDef {
+            PrimitiveLayout::Tuple(TupleLayout {
                 elements: vec![
-                    (0, Arc::new(UnsignedIntDef::u8().into())),
-                    (0, Arc::new(UnsignedIntDef::u64().into())),
+                    (0, Arc::new(UnsignedIntLayout::u8().into())),
+                    (0, Arc::new(UnsignedIntLayout::u64().into())),
                 ],
                 size: 0, // Would need to calculate from DWARF
             }),
         );
-        infer("&u8", ReferenceDef::new_immutable(UnsignedIntDef::u8()));
-        infer("&mut u8", ReferenceDef::new_mutable(UnsignedIntDef::u8()));
+        infer(
+            "&u8",
+            ReferenceLayout::new_immutable(UnsignedIntLayout::u8()),
+        );
+        infer(
+            "&mut u8",
+            ReferenceLayout::new_mutable(UnsignedIntLayout::u8()),
+        );
         infer(
             "dyn core::fmt::Debug",
-            TypeDef::Other {
+            TypeLayout::Other {
                 name: "dyn core::fmt::Debug".to_string(),
             },
         );
-        infer("alloc::vec::Vec<u8>", VecDef::new(UnsignedIntDef::u8()));
+        infer(
+            "alloc::vec::Vec<u8>",
+            VecLayout::new(UnsignedIntLayout::u8()),
+        );
         infer(
             "alloc::vec::Vec<alloc::vec::Vec<u8>>",
-            VecDef::new(VecDef::new(UnsignedIntDef::u8())),
+            VecLayout::new(VecLayout::new(UnsignedIntLayout::u8())),
         );
         infer(
             "alloc::vec::Vec<u8, alloc::alloc::Global>",
-            VecDef::new(UnsignedIntDef::u8()),
+            VecLayout::new(UnsignedIntLayout::u8()),
         );
         infer(
             "core::option::Option<i32>",
-            StdDef::Option(OptionDef {
+            StdLayout::Option(OptionLayout {
                 name: "Option".to_string(),
                 discriminant: Discriminant {
                     offset: 0,
                     ty: DiscriminantType::Implicit,
                 },
                 some_offset: 0,
-                some_type: Arc::new(IntDef::i32().into()),
+                some_type: Arc::new(IntLayout::i32().into()),
                 size: 0,
             }),
         );
         infer(
             "alloc::boxed::Box<i32>",
-            SmartPtrDef {
-                inner_type: Arc::new(IntDef::i32().into()),
+            SmartPtrLayout {
+                inner_type: Arc::new(IntLayout::i32().into()),
                 variant: SmartPtrVariant::Box,
                 inner_ptr_offset: 0,
                 data_ptr_offset: 0,
@@ -1009,7 +1020,7 @@ mod test {
         infer("alloc::String::String", string_def());
         infer(
             "std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>",
-            MapDef {
+            MapLayout {
                 key_type: Arc::new(string_def()),
                 value_type: Arc::new(string_def()),
                 variant: MapVariant::HashMap {
@@ -1025,32 +1036,32 @@ mod test {
 
         infer(
             "core::num::nonzero::NonZero<u8>",
-            TypeDef::Other {
+            TypeLayout::Other {
                 name: "NonZero<u8>".to_string(),
             },
         );
 
         infer(
             "fn(&u64, &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error>",
-            TypeDef::Primitive(PrimitiveDef::Function(FunctionDef {
+            TypeLayout::Primitive(PrimitiveLayout::Function(FunctionLayout {
                 arg_types: vec![
-                    Arc::new(ReferenceDef::new_immutable(UnsignedIntDef::u64()).into()),
+                    Arc::new(ReferenceLayout::new_immutable(UnsignedIntLayout::u64()).into()),
                     Arc::new(
-                        ReferenceDef::new_mutable(TypeDef::Other {
+                        ReferenceLayout::new_mutable(TypeLayout::Other {
                             name: "Formatter".to_string(),
                         })
                         .into(),
                     ),
                 ],
                 return_type: Arc::new(
-                    StdDef::Result(ResultDef {
+                    StdLayout::Result(ResultLayout {
                         name: "Result".to_string(),
                         discriminant: Discriminant {
                             offset: 0,
                             ty: DiscriminantType::Implicit,
                         },
-                        ok_type: Arc::new(TypeDef::Primitive(PrimitiveDef::Unit(UnitDef))),
-                        err_type: Arc::new(TypeDef::Other {
+                        ok_type: Arc::new(TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))),
+                        err_type: Arc::new(TypeLayout::Other {
                             name: "Error".to_string(),
                         }),
                         size: 0,
@@ -1061,15 +1072,15 @@ mod test {
         );
         infer(
             "&[u8]",
-            TypeDef::Primitive(PrimitiveDef::Slice(SliceDef {
-                element_type: Arc::new(UnsignedIntDef::u8().into()),
+            TypeLayout::Primitive(PrimitiveLayout::Slice(SliceLayout {
+                element_type: Arc::new(UnsignedIntLayout::u8().into()),
                 data_ptr_offset: 0,
                 length_offset: 0,
             })),
         );
         infer(
             "&str",
-            TypeDef::Primitive(PrimitiveDef::StrSlice(StrSliceDef {
+            TypeLayout::Primitive(PrimitiveLayout::StrSlice(StrSliceLayout {
                 data_ptr_offset: 0,
                 length_offset: 0,
             })),

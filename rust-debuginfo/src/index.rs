@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Context;
 use itertools::Itertools;
-use rust_types::TypeDef;
+use rust_types::TypeLayout;
 
 use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;
@@ -242,7 +242,7 @@ pub fn resolve_type<'db>(
     db: &'db dyn Db,
     binary: Binary,
     type_name: &str,
-) -> anyhow::Result<Option<TypeDef>> {
+) -> anyhow::Result<Option<TypeLayout>> {
     let parsed = TypeName::parse(&[], type_name)?;
     tracing::info!("Finding type '{parsed}'");
     let index = debug_index(db, binary);

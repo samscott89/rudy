@@ -5,7 +5,7 @@ use std::fmt;
 use anyhow::Context;
 
 use rdi_parser as parser;
-use rust_types::TypeDef;
+use rust_types::TypeLayout;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleName {
@@ -22,7 +22,7 @@ pub struct TypeName {
     /// The full name of the type, including module path
     /// e.g. `alloc::string::String`
     pub full_name: String,
-    pub typedef: TypeDef,
+    pub typedef: TypeLayout,
 }
 
 impl fmt::Debug for TypeName {

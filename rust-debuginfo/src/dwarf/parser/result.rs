@@ -15,7 +15,7 @@ use crate::{
         },
     },
 };
-use rust_types::ResultDef;
+use rust_types::ResultLayout;
 
 use anyhow::Result;
 
@@ -28,8 +28,8 @@ pub fn result_def<'db>() -> ResultDefParser {
     ResultDefParser
 }
 
-impl<'db> Parser<'db, ResultDef> for ResultDefParser {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<ResultDef> {
+impl<'db> Parser<'db, ResultLayout> for ResultDefParser {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<ResultLayout> {
         tracing::debug!("resolving result type: {}", entry.print(db));
 
         // Get the variant part
@@ -65,7 +65,7 @@ impl<'db> Parser<'db, ResultDef> for ResultDefParser {
         let (_, (ok_offset, ok_layout)) = ok;
         let (_, (err_offset, err_layout)) = err;
 
-        Ok(ResultDef {
+        Ok(ResultLayout {
             name,
             ok_type: Arc::new(ok_layout),
             err_type: Arc::new(err_layout),

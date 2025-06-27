@@ -34,7 +34,7 @@ use crate::dwarf::parser::children::parse_children;
 use crate::dwarf::parser::option::parse_option_entry;
 use crate::dwarf::parser::pointers::nonnull;
 use crate::dwarf::parser::primitives::{is_member, member, offset, resolved_generic};
-use rust_types::{BTreeNodeLayout, BTreeRootLayout, MapDef, MapVariant};
+use rust_types::{BTreeNodeLayout, BTreeRootLayout, MapLayout, MapVariant};
 
 use anyhow::Result;
 
@@ -45,8 +45,8 @@ pub fn btree_map<'db>() -> BTreeMapParser {
 
 pub struct BTreeMapParser;
 
-impl<'db> Parser<'db, MapDef> for BTreeMapParser {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<MapDef> {
+impl<'db> Parser<'db, MapLayout> for BTreeMapParser {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<MapLayout> {
         tracing::debug!("resolving btree map type: {}", entry.print(db));
 
         // Parse key type, value type, root field, and length field from BTreeMap
@@ -118,7 +118,7 @@ impl<'db> Parser<'db, MapDef> for BTreeMapParser {
             edges_offset,
         };
 
-        Ok(MapDef {
+        Ok(MapLayout {
             key_type,
             value_type,
             variant: MapVariant::BTreeMap {

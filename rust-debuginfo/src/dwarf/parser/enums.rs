@@ -16,8 +16,8 @@ use crate::dwarf::parser::{
 };
 use crate::dwarf::{Die, resolution::resolve_entry_type};
 use rust_types::{
-    CEnumDef, CEnumVariant, Discriminant, DiscriminantType, EnumDef, EnumVariant, PrimitiveDef,
-    TypeDef,
+    CEnumLayout, CEnumVariant, Discriminant, DiscriminantType, EnumLayout, EnumVariantLayout,
+    PrimitiveLayout, TypeLayout,
 };
 use std::sync::Arc;
 
@@ -39,12 +39,12 @@ pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
                 // We have an explicit discriminant - resolve its type
                 let discriminant_type = resolve_entry_type(db, discr)?;
                 let ty = match discriminant_type {
-                    rust_types::TypeDef::Primitive(rust_types::PrimitiveDef::Int(i)) => {
+                    rust_types::TypeLayout::Primitive(rust_types::PrimitiveLayout::Int(i)) => {
                         DiscriminantType::Int(i)
                     }
-                    rust_types::TypeDef::Primitive(rust_types::PrimitiveDef::UnsignedInt(u)) => {
-                        DiscriminantType::UnsignedInt(u)
-                    }
+                    rust_types::TypeLayout::Primitive(
+                        rust_types::PrimitiveLayout::UnsignedInt(u),
+                    ) => DiscriminantType::UnsignedInt(u),
                     _ => {
                         tracing::warn!(
                             "discriminant type is not an integer: {discriminant_type:?} {}",
@@ -71,7 +71,7 @@ pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
 }
 
 /// Parser for enum variants
-pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariant> {
+pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariantLayout> {
     // 0x000002f5:           DW_TAG_variant
     //                         DW_AT_discr_value       (0x00)
 
@@ -101,7 +101,7 @@ pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariant> {
             // Generally it seems like the variants should have offset 0, and we get the
             // "real" offsets from variant layouts themselves. But we need to verify this
             debug_assert_eq!(offset, 0, "enum variants should not have offsets");
-            EnumVariant {
+            EnumVariantLayout {
                 name,
                 discriminant,
                 layout,
@@ -255,14 +255,14 @@ impl_parse_enum_named_tuple_variant_for_tuples!(
 /// Parser for enum types
 ///
 /// Reference: https://github.com/rust-lang/rust/blob/3b97f1308ff72016a4aaa93fbe6d09d4d6427815/compiler/rustc_codegen_llvm/src/debuginfo/metadata/enums/native.rs
-pub fn enum_def<'db>() -> impl Parser<'db, EnumDef> {
+pub fn enum_def<'db>() -> impl Parser<'db, EnumLayout> {
     EnumParser
 }
 
 pub struct EnumParser;
 
-impl<'db> Parser<'db, EnumDef> for EnumParser {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<EnumDef> {
+impl<'db> Parser<'db, EnumLayout> for EnumParser {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<EnumLayout> {
         tracing::debug!("resolving enum type: {}", entry.print(db));
 
         // Get the variant part
@@ -279,7 +279,7 @@ impl<'db> Parser<'db, EnumDef> for EnumParser {
         // Parse all variants
         let variants = for_each_child(enum_variant()).parse(db, variants_entry)?;
 
-        Ok(EnumDef {
+        Ok(EnumLayout {
             name,
             variants,
             size,
@@ -298,11 +298,11 @@ pub fn c_enum_variant<'db>() -> impl Parser<'db, CEnumVariant> {
 }
 
 /// Parser for C-style enumeration types (DW_TAG_enumeration_type)
-pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumDef> {
+pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumLayout> {
     struct CEnumParser;
 
-    impl<'db> Parser<'db, CEnumDef> for CEnumParser {
-        fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<CEnumDef> {
+    impl<'db> Parser<'db, CEnumLayout> for CEnumParser {
+        fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<CEnumLayout> {
             tracing::debug!("resolving C-style enum type: {}", entry.print(db));
 
             // Parse name, size, and underlying type
@@ -310,8 +310,8 @@ pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumDef> {
                 attr::<String>(gimli::DW_AT_name),
                 attr::<usize>(gimli::DW_AT_byte_size),
                 entry_type().then(resolve_type()).map_res(|ty| match ty {
-                    TypeDef::Primitive(PrimitiveDef::Int(i)) => Ok(DiscriminantType::Int(i)),
-                    TypeDef::Primitive(PrimitiveDef::UnsignedInt(u)) => {
+                    TypeLayout::Primitive(PrimitiveLayout::Int(i)) => Ok(DiscriminantType::Int(i)),
+                    TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(u)) => {
                         Ok(DiscriminantType::UnsignedInt(u))
                     }
                     _ => Err(anyhow::anyhow!(
@@ -325,7 +325,7 @@ pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumDef> {
             // Parse all enumerator variants
             let variants = for_each_child(c_enum_variant()).parse(db, entry)?;
 
-            Ok(CEnumDef {
+            Ok(CEnumLayout {
                 name,
                 discriminant_type: underlying_type,
                 variants,

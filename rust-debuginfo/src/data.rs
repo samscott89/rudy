@@ -8,8 +8,9 @@ use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
 use rust_types::{
-    ArrayDef, BTreeNodeLayout, CEnumDef, EnumDef, MapDef, MapVariant, OptionDef, PointerDef,
-    PrimitiveDef, ReferenceDef, SliceDef, SmartPtrVariant, StdDef, StrSliceDef, TypeDef, VecDef,
+    ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
+    PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
+    StrSliceLayout, TypeLayout, VecLayout,
 };
 
 /// Trait for resolving data from memory during debugging.
@@ -126,7 +127,7 @@ pub trait DataResolver {
 /// Returns a list of map entries from a memory address.
 pub fn read_map_entries(
     address: u64,
-    def: &MapDef,
+    def: &MapLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Vec<(TypedPointer, TypedPointer)>> {
     tracing::trace!("read_map_entries {address:#x} {}", def.display_name());
@@ -261,12 +262,12 @@ pub fn read_map_entries(
 fn read_enum(
     db: &dyn Db,
     address: u64,
-    enum_def: &EnumDef,
+    enum_def: &EnumLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
     tracing::trace!("read_enum {address:#x} {enum_def:#?}");
 
-    let EnumDef {
+    let EnumLayout {
         name,
         variants,
         discriminant,
@@ -387,10 +388,10 @@ fn read_enum(
 
 fn read_c_enum(
     address: u64,
-    c_enum_def: &CEnumDef,
+    c_enum_def: &CEnumLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
-    let CEnumDef {
+    let CEnumLayout {
         name,
         discriminant_type,
         variants,
@@ -452,15 +453,15 @@ fn read_c_enum(
 pub fn read_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
-    ty: &TypeDef,
+    ty: &TypeLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
     tracing::trace!("read_from_memory {address:#x} {}", ty.display_name());
     match &ty {
-        TypeDef::Primitive(primitive_def) => {
+        TypeLayout::Primitive(primitive_def) => {
             read_primitive_from_memory(db, address, &primitive_def, data_resolver)
         }
-        TypeDef::Struct(struct_def) => {
+        TypeLayout::Struct(struct_def) => {
             let mut fields = BTreeMap::new();
             for field in &struct_def.fields {
                 let field_name = &field.name;
@@ -474,17 +475,17 @@ pub fn read_from_memory<'db>(
                 fields,
             })
         }
-        TypeDef::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
-        TypeDef::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver),
-        TypeDef::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
-        TypeDef::Alias(entry) => {
+        TypeLayout::Std(std_def) => read_std_from_memory(db, address, &std_def, data_resolver),
+        TypeLayout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver),
+        TypeLayout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
+        TypeLayout::Alias(entry) => {
             tracing::warn!("read_from_memory: unresolved type alias {entry:?}");
             Err(anyhow::anyhow!(
                 "read_from_memory: unresolved type alias {:?}",
                 entry
             ))
         }
-        TypeDef::Other { name } => {
+        TypeLayout::Other { name } => {
             tracing::warn!("read_from_memory: unsupported type {name}");
             Err(anyhow::anyhow!("Unsupported type: {name}"))
         }
@@ -494,10 +495,10 @@ pub fn read_from_memory<'db>(
 /// Extract pointer, length, and capacity from a Vec Value
 pub fn extract_vec_info(
     base_address: u64,
-    def: &VecDef,
+    def: &VecLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<(u64, usize)> {
-    let VecDef {
+    let VecLayout {
         length_offset,
         data_ptr_offset,
         ..
@@ -524,11 +525,11 @@ pub fn extract_vec_info(
 fn read_primitive_from_memory(
     db: &dyn Db,
     address: u64,
-    def: &PrimitiveDef,
+    def: &PrimitiveLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
     let value = match def {
-        PrimitiveDef::Bool(_) => {
+        PrimitiveLayout::Bool(_) => {
             let memory = data_resolver.read_memory(address, 1)?;
             let bool_value = memory[0] != 0;
             Value::Scalar {
@@ -536,7 +537,7 @@ fn read_primitive_from_memory(
                 value: bool_value.to_string(),
             }
         }
-        PrimitiveDef::Char(()) => {
+        PrimitiveLayout::Char(()) => {
             let memory = data_resolver.read_memory(address, 4)?;
             let char_value = char::from_u32(u32::from_le_bytes(memory.try_into().unwrap()))
                 .ok_or_else(|| anyhow::anyhow!("Invalid char value at address {address:#x}"))?;
@@ -545,11 +546,11 @@ fn read_primitive_from_memory(
                 value: format!("'{char_value}'"),
             }
         }
-        PrimitiveDef::Function(function_def) => Value::Scalar {
+        PrimitiveLayout::Function(function_def) => Value::Scalar {
             ty: function_def.display_name(),
             value: format!("fn at {address:#x}"),
         },
-        PrimitiveDef::Array(ArrayDef {
+        PrimitiveLayout::Array(ArrayLayout {
             element_type,
             length,
         }) => {
@@ -572,15 +573,15 @@ fn read_primitive_from_memory(
                 items: values,
             }
         }
-        PrimitiveDef::Pointer(PointerDef { pointed_type, .. }) => {
+        PrimitiveLayout::Pointer(PointerLayout { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
             read_from_memory(db, address, pointed_type, data_resolver)?.prefix_type("*")
         }
-        PrimitiveDef::Reference(ReferenceDef { pointed_type, .. }) => {
+        PrimitiveLayout::Reference(ReferenceLayout { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
             read_from_memory(db, address, pointed_type, data_resolver)?.prefix_type("&")
         }
-        PrimitiveDef::Slice(SliceDef {
+        PrimitiveLayout::Slice(SliceLayout {
             element_type,
             data_ptr_offset,
             length_offset,
@@ -608,7 +609,7 @@ fn read_primitive_from_memory(
                 items: values,
             }
         }
-        PrimitiveDef::StrSlice(StrSliceDef {
+        PrimitiveLayout::StrSlice(StrSliceLayout {
             data_ptr_offset,
             length_offset,
         }) => {
@@ -627,7 +628,7 @@ fn read_primitive_from_memory(
                 value: format!("\"{string_value}\""),
             }
         }
-        PrimitiveDef::UnsignedInt(unsigned_int_def) => {
+        PrimitiveLayout::UnsignedInt(unsigned_int_def) => {
             let memory = data_resolver.read_memory(address, unsigned_int_def.size)?;
 
             let num_string = match unsigned_int_def.size {
@@ -648,7 +649,7 @@ fn read_primitive_from_memory(
                 value: num_string,
             }
         }
-        PrimitiveDef::Float(float_def) => {
+        PrimitiveLayout::Float(float_def) => {
             let memory = data_resolver.read_memory(address, float_def.size)?;
 
             let num_string = match float_def.size {
@@ -669,7 +670,7 @@ fn read_primitive_from_memory(
                 value: num_string,
             }
         }
-        PrimitiveDef::Int(int_def) => {
+        PrimitiveLayout::Int(int_def) => {
             let memory = data_resolver.read_memory(address, int_def.size)?;
 
             let num_string = match int_def.size {
@@ -690,20 +691,20 @@ fn read_primitive_from_memory(
                 value: num_string,
             }
         }
-        PrimitiveDef::Never(_) => {
+        PrimitiveLayout::Never(_) => {
             // The Never type is a zero-sized type, so we return a placeholder value.
             Value::Scalar {
                 ty: "Never".to_string(),
                 value: "unreachable".to_string(),
             }
         }
-        PrimitiveDef::Str(()) => {
+        PrimitiveLayout::Str(()) => {
             todo!("read_primitive_from_memory: bare `str` is not supported yet");
         }
-        PrimitiveDef::Tuple(tuple_def) => {
+        PrimitiveLayout::Tuple(tuple_def) => {
             todo!("read_primitive_from_memory: TupleDef not implemented yet: {tuple_def:#?}");
         }
-        PrimitiveDef::Unit(_) => {
+        PrimitiveLayout::Unit(_) => {
             // The Unit type is a zero-sized type, so we return a placeholder value.
             Value::Scalar {
                 ty: "()".to_string(),
@@ -718,10 +719,10 @@ fn read_primitive_from_memory(
 fn read_option_from_memory(
     db: &dyn Db,
     address: u64,
-    opt_def: &OptionDef,
+    opt_def: &OptionLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
-    let OptionDef {
+    let OptionLayout {
         discriminant,
         some_offset,
         some_type,
@@ -749,16 +750,16 @@ fn read_option_from_memory(
 fn read_std_from_memory(
     db: &dyn Db,
     address: u64,
-    def: &StdDef,
+    def: &StdLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value> {
     let value = match def {
-        StdDef::Option(enum_def) => {
+        StdLayout::Option(enum_def) => {
             tracing::trace!("reading Option at {address:#x}");
             read_option_from_memory(db, address, enum_def, data_resolver)?
         }
-        StdDef::Vec(
-            v @ VecDef {
+        StdLayout::Vec(
+            v @ VecLayout {
                 length_offset,
                 data_ptr_offset,
                 inner_type,
@@ -788,7 +789,7 @@ fn read_std_from_memory(
                 items: values,
             }
         }
-        StdDef::String(s) => {
+        StdLayout::String(s) => {
             let v = &s.0;
             tracing::trace!(
                 "reading String length at {:#x}",
@@ -815,7 +816,7 @@ fn read_std_from_memory(
                 value: format!("\"{value}\""),
             }
         }
-        StdDef::Map(def) => {
+        StdLayout::Map(def) => {
             let entries = read_map_entries(address, def, data_resolver)?
                 .into_iter()
                 .map(|(key, value)| {
@@ -830,7 +831,7 @@ fn read_std_from_memory(
                 entries,
             }
         }
-        StdDef::SmartPtr(s) => match s.variant {
+        StdLayout::SmartPtr(s) => match s.variant {
             SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {
                 let inner_type = s.inner_type.clone();
                 let address = address + s.inner_ptr_offset as u64;
@@ -855,7 +856,7 @@ fn read_std_from_memory(
                 todo!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
             }
         },
-        StdDef::Result(result_def) => {
+        StdLayout::Result(result_def) => {
             todo!("read_std_from_memory: ResultDef not implemented yet: {result_def:#?}")
         }
     };
@@ -873,10 +874,10 @@ struct BTreeRoot {
 /// Read the Root structure from memory
 fn read_btree_root(
     root_addr: u64,
-    root_type: &TypeDef,
+    root_type: &TypeLayout,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<BTreeRoot> {
-    let TypeDef::Struct(s) = root_type else {
+    let TypeLayout::Struct(s) = root_type else {
         anyhow::bail!(
             "Expected BTreeMap root type to be a struct, got: {}",
             root_type.display_name()
@@ -914,7 +915,7 @@ fn read_btree_root(
 fn collect_all_entries(
     node_ptr: u64,
     height: usize,
-    def: &MapDef,
+    def: &MapLayout,
     data_resolver: &dyn crate::DataResolver,
     keys_array_offset: usize,
     vals_array_offset: usize,
@@ -949,7 +950,7 @@ fn collect_all_entries(
 /// Read entries from a leaf node
 fn read_leaf_node_entries(
     node_ptr: u64,
-    def: &MapDef,
+    def: &MapLayout,
     data_resolver: &dyn crate::DataResolver,
     keys_array_offset: usize,
     vals_array_offset: usize,
@@ -1029,7 +1030,7 @@ fn read_leaf_node_entries(
 fn read_internal_node_entries(
     node_ptr: u64,
     height: usize,
-    def: &MapDef,
+    def: &MapLayout,
     data_resolver: &dyn crate::DataResolver,
     _keys_array_offset: usize,
     _vals_array_offset: usize,
@@ -1052,8 +1053,8 @@ fn read_internal_node_entries(
 fn read_btree_node_entries(
     node_ptr: u64,
     height: usize,
-    key_type: &std::sync::Arc<TypeDef>,
-    value_type: &std::sync::Arc<TypeDef>,
+    key_type: &std::sync::Arc<TypeLayout>,
+    value_type: &std::sync::Arc<TypeLayout>,
     node_layout: &BTreeNodeLayout,
     data_resolver: &dyn crate::DataResolver,
     entries: &mut Vec<(TypedPointer, TypedPointer)>,

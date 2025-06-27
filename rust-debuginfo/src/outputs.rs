@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
-use rust_types::TypeDef;
+use rust_types::TypeLayout;
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -42,7 +42,7 @@ pub struct VariableInfo {
     /// Memory address where variable is stored (if available)
     pub address: Option<u64>,
     /// Full type definition for the variable
-    pub type_def: Arc<TypeDef>,
+    pub type_def: Arc<TypeLayout>,
 }
 
 /// A pointer to an entry in memory, with its type definition
@@ -51,7 +51,7 @@ pub struct TypedPointer {
     /// Memory address where variable is stored (if available)
     pub address: u64,
     /// Full type definition for the variable
-    pub type_def: Arc<TypeDef>,
+    pub type_def: Arc<TypeLayout>,
 }
 
 /// A value read from memory, supporting scalars, arrays, and structs.

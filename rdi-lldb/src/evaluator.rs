@@ -5,7 +5,7 @@
 
 use anyhow::{Context, Result, anyhow};
 use rust_debuginfo::{DataResolver, DebugInfo, Value};
-use rust_types::{StdDef, TypeDef};
+use rust_types::{StdLayout, TypeLayout};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -187,7 +187,7 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Get the type of an expression without evaluating its value
-    pub fn get_expression_type(&mut self, expr: &Expression) -> Result<rust_types::TypeDef> {
+    pub fn get_expression_type(&mut self, expr: &Expression) -> Result<rust_types::TypeLayout> {
         let value_ref = self.evaluate_to_ref(expr)?;
         Ok((*value_ref.type_def).clone())
     }
@@ -348,10 +348,10 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Check if a type supports string-based indexing (HashMap, etc.)
-    fn supports_string_indexing(&self, type_def: &TypeDef) -> bool {
+    fn supports_string_indexing(&self, type_def: &TypeLayout) -> bool {
         match type_def {
-            TypeDef::Std(std_def) => {
-                matches!(std_def, StdDef::Map(_))
+            TypeLayout::Std(std_def) => {
+                matches!(std_def, StdLayout::Map(_))
             }
             _ => false,
         }
@@ -460,7 +460,7 @@ struct ValueRef {
     /// Memory address where the value is stored
     address: u64,
     /// Full type definition for the value
-    type_def: Arc<TypeDef>,
+    type_def: Arc<TypeLayout>,
 }
 
 /// Final result of evaluating an expression (for display/serialization)

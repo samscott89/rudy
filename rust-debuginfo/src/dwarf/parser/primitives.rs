@@ -271,15 +271,15 @@ pub fn generic(name: &str) -> Generic {
     }
 }
 
-pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, Arc<TypeDef>> {
+pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, Arc<TypeLayout>> {
     generic(name).then(resolve_type()).map(Arc::new)
 }
 
 /// Combinator that resolves a Die into a type definition
 pub struct ResolveType;
 
-impl<'db> Parser<'db, TypeDef> for ResolveType {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+impl<'db> Parser<'db, TypeLayout> for ResolveType {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeLayout> {
         Ok(crate::dwarf::resolution::shallow_resolve_type(db, entry)?)
     }
 }
@@ -304,8 +304,8 @@ pub fn resolve_type() -> ResolveType {
 /// Combinator that resolves a Die into a type definition (shallow)
 pub struct ResolveTypeShallow;
 
-impl<'db> Parser<'db, TypeDef> for ResolveTypeShallow {
-    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeDef> {
+impl<'db> Parser<'db, TypeLayout> for ResolveTypeShallow {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeLayout> {
         Ok(crate::dwarf::resolution::shallow_resolve_type(db, entry)?)
     }
 }

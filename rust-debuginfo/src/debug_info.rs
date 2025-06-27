@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rust_types::{PrimitiveDef, ReferenceDef, TypeDef, UnitDef};
+use rust_types::{PrimitiveLayout, ReferenceLayout, TypeLayout, UnitLayout};
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use crate::{
@@ -625,7 +625,7 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
-    pub fn resolve_type(&self, type_name: &str) -> Result<Option<TypeDef>> {
+    pub fn resolve_type(&self, type_name: &str) -> Result<Option<TypeLayout>> {
         crate::index::resolve_type(self.db, self.binary, type_name)
     }
 
@@ -662,7 +662,7 @@ impl<'db> DebugInfo<'db> {
     pub fn address_to_value(
         &self,
         address: u64,
-        typedef: &TypeDef,
+        typedef: &TypeLayout,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::Value> {
         crate::data::read_from_memory(self.db, address, typedef, data_resolver)
@@ -694,13 +694,13 @@ impl<'db> DebugInfo<'db> {
     pub fn get_field(
         &self,
         base_address: u64,
-        base_type: &TypeDef,
+        base_type: &TypeLayout,
         field_name: &str,
     ) -> Result<crate::VariableInfo> {
-        use rust_types::TypeDef;
+        use rust_types::TypeLayout;
 
         match base_type {
-            TypeDef::Struct(struct_def) => {
+            TypeLayout::Struct(struct_def) => {
                 let field = struct_def
                     .fields
                     .iter()
@@ -721,7 +721,7 @@ impl<'db> DebugInfo<'db> {
                     type_def: field.ty.clone(),
                 })
             }
-            TypeDef::Enum(enum_def) => {
+            TypeLayout::Enum(enum_def) => {
                 // For enums, field access might be variant data access
                 // This is complex - for now return an error
                 Err(anyhow::anyhow!(
@@ -771,14 +771,14 @@ impl<'db> DebugInfo<'db> {
     pub fn get_index_by_int(
         &self,
         base_address: u64,
-        base_type: &TypeDef,
+        base_type: &TypeLayout,
         index: u64,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
-        use rust_types::{PrimitiveDef, TypeDef};
+        use rust_types::{PrimitiveLayout, TypeLayout};
 
         match base_type {
-            TypeDef::Primitive(PrimitiveDef::Array(array_def)) => {
+            TypeLayout::Primitive(PrimitiveLayout::Array(array_def)) => {
                 // Fixed-size array [T; N]
                 if index >= array_def.length as u64 {
                     return Err(anyhow::anyhow!(
@@ -802,7 +802,7 @@ impl<'db> DebugInfo<'db> {
                     type_def: array_def.element_type.clone(),
                 })
             }
-            TypeDef::Primitive(PrimitiveDef::Slice(slice_def)) => {
+            TypeLayout::Primitive(PrimitiveLayout::Slice(slice_def)) => {
                 // Slice [T] - need to read the fat pointer to get actual data pointer and length
                 let slice_value =
                     crate::data::read_from_memory(self.db, base_address, base_type, data_resolver)?;
@@ -830,10 +830,10 @@ impl<'db> DebugInfo<'db> {
                     type_def: slice_def.element_type.clone(),
                 })
             }
-            TypeDef::Std(std_def) => {
-                use rust_types::StdDef;
+            TypeLayout::Std(std_def) => {
+                use rust_types::StdLayout;
                 match std_def {
-                    StdDef::Vec(vec_def) => {
+                    StdLayout::Vec(vec_def) => {
                         let (data_ptr, vec_len) =
                             crate::data::extract_vec_info(base_address, vec_def, data_resolver)?;
 
@@ -907,14 +907,14 @@ impl<'db> DebugInfo<'db> {
     pub fn get_index_by_value(
         &self,
         base_address: u64,
-        base_type: &TypeDef,
+        base_type: &TypeLayout,
         key: &crate::Value,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::VariableInfo> {
-        use rust_types::{StdDef, TypeDef};
+        use rust_types::{StdLayout, TypeLayout};
 
         match base_type {
-            TypeDef::Std(StdDef::Map(map_def)) => {
+            TypeLayout::Std(StdLayout::Map(map_def)) => {
                 // For maps, we'll iterate through all key-value pairs
                 // and return the variable info for the value that matches the key.
 
@@ -968,7 +968,7 @@ impl<'db> DebugInfo<'db> {
     /// A list of discovered methods with their signatures
     pub fn discover_methods_for_type(
         &self,
-        target_type: &TypeDef,
+        target_type: &TypeLayout,
     ) -> Result<Vec<DiscoveredMethod>> {
         let index = crate::index::debug_index(self.db, self.binary);
         let symbol_index = index.symbol_index(self.db);
@@ -980,7 +980,9 @@ impl<'db> DebugInfo<'db> {
             if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
                 let return_type =
                     crate::dwarf::resolve_entry_type(self.db, function_entry.declaration_die)
-                        .unwrap_or_else(|_| TypeDef::Primitive(PrimitiveDef::Unit(UnitDef)));
+                        .unwrap_or_else(|_| {
+                            TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))
+                        });
 
                 // Get the function's DIE (prefer specification over declaration for variable resolution)
                 let function_die = function_entry
@@ -1037,7 +1039,9 @@ impl<'db> DebugInfo<'db> {
             if let Some((debug_file, function_entry)) = index.get_function(self.db, &symbol.name) {
                 let return_type =
                     crate::dwarf::resolve_entry_type(self.db, function_entry.declaration_die)
-                        .unwrap_or_else(|_| TypeDef::Primitive(PrimitiveDef::Unit(UnitDef)));
+                        .unwrap_or_else(|_| {
+                            TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))
+                        });
 
                 // Get the function's DIE (prefer specification over declaration for parameter resolution)
                 let function_die = function_entry
@@ -1080,10 +1084,10 @@ impl<'db> DebugInfo<'db> {
     /// Analyze a function to see if it's a method for the target type
     fn analyze_function_as_method(
         &self,
-        target_type: &TypeDef,
+        target_type: &TypeLayout,
         function_name: &str,
         parameters: Vec<crate::dwarf::Variable>,
-        return_type: &TypeDef,
+        return_type: &TypeLayout,
         symbol: &crate::index::symbols::Symbol,
         debug_file: crate::file::DebugFile,
     ) -> Result<Option<DiscoveredMethod>> {
@@ -1133,10 +1137,10 @@ impl<'db> DebugInfo<'db> {
         &self,
         function_name: &str,
         parameters: Vec<crate::dwarf::Variable>,
-        return_type: &TypeDef,
+        return_type: &TypeLayout,
         symbol: &crate::index::symbols::Symbol,
         debug_file: crate::file::DebugFile,
-    ) -> Result<Option<(TypeDef, DiscoveredMethod)>> {
+    ) -> Result<Option<(TypeLayout, DiscoveredMethod)>> {
         // Must have at least one parameter to be a method
         if parameters.is_empty() {
             return Ok(None);
@@ -1190,7 +1194,7 @@ impl<'db> DebugInfo<'db> {
         &self,
         _function_name: &str,
         parameters: &[crate::dwarf::Variable],
-        return_type: &TypeDef,
+        return_type: &TypeLayout,
     ) -> Result<String> {
         let mut signature = String::from("fn(");
 
@@ -1207,7 +1211,7 @@ impl<'db> DebugInfo<'db> {
 
         signature.push(')');
 
-        if !matches!(return_type, TypeDef::Primitive(PrimitiveDef::Unit(_))) {
+        if !matches!(return_type, TypeLayout::Primitive(PrimitiveLayout::Unit(_))) {
             signature.push_str(" -> ");
             signature.push_str(&return_type.display_name());
         }
@@ -1364,13 +1368,15 @@ pub enum SelfType {
 }
 
 impl SelfType {
-    pub fn from_param_type(param_type: &TypeDef) -> Self {
+    pub fn from_param_type(param_type: &TypeLayout) -> Self {
         match param_type {
-            TypeDef::Primitive(PrimitiveDef::Reference(ReferenceDef { mutable: true, .. })) => {
-                Self::BorrowedMut
-            }
-            TypeDef::Primitive(PrimitiveDef::Reference(ReferenceDef {
-                mutable: false, ..
+            TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
+                mutable: true,
+                ..
+            })) => Self::BorrowedMut,
+            TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
+                mutable: false,
+                ..
             })) => Self::Borrowed,
             _ => Self::Owned,
         }
