@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/samscott89/rudy/compare/rudy-parser-v0.1.0...rudy-parser-v0.1.1) - 2025-06-27
+
+### Other
+
+- Change for publishing to crates.io
+- Simplify all changelogs
+- release
+- Clippy 1.88 fixes!
+- Clippy
+- Misc
+- Fix a few tests
+- Fix path
+- Rename to Rudy. Clean up some old examples.
+
 ## [0.1.0](https://github.com/samscott89/rudy/releases/tag/rudy-parser-v0.1.0) - 2025-06-27
 
 Initial release!
