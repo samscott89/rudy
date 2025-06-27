@@ -1,4 +1,4 @@
 target/
 Cargo.lock
 notes/
-rust-debuginfo/bin/test_binaries/
+rudy-db/bin/test_binaries/

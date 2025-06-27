@@ -1,0 +1,21 @@
+[package]
+name = "rudy-lldb"
+version = "0.1.0"
+edition = "2024"
+default-run = "rudy-lldb-server"
+
+[dependencies]
+rudy-db = { workspace = true }
+rudy-types = { workspace = true }
+rudy-parser = { workspace = true }
+anyhow = "1.0"
+clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[[bin]]
+name = "rudy-lldb-server"
+path = "src/main.rs"

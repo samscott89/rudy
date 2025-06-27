@@ -1,0 +1,54 @@
+[package]
+name = "rudy-db"
+version = "0.0.1"
+edition = "2024"
+authors = ["Sam Scott"]
+description = "A user-friendly library for interacting with debugging information of Rust compiled artifacts using DWARF"
+repository = "https://github.com/samscott89/rudy"
+documentation = "https://docs.rs/rudy-db"
+homepage = "https://github.com/samscott89/rudy"
+license = "MIT"
+readme = "README.md"
+keywords = ["debug", "dwarf", "debuginfo", "debugging", "rust"]
+categories = ["debugging", "development-tools", "parser-implementations"]
+
+[dependencies]
+anyhow.workspace = true
+gimli = { version = "0.31.1", default-features = false, features = [
+    "std",
+    "read",
+    "endian-reader",
+] }
+itertools.workspace = true
+memmap2 = "0.9.5"
+object = { git = "https://github.com/gimli-rs/object", rev = "a74579249e21ab8fcd3a86be588de336f18297cb" }
+rudy-types.workspace = true
+rudy-parser.workspace = true
+rustc-demangle = "0.1"
+salsa.workspace = true
+serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+pretty_assertions.workspace = true
+rstest = "0.25"
+rstest_reuse = { version = "0.7" }
+serde_json = "1.0"
+
+
+[[bin]]
+name = "bench_comparison"
+path = "bin/bench_comparison.rs"
+test = false
+
+[[bin]]
+name = "bench_operations"
+path = "bin/bench_operations.rs"
+test = false
+
+[[bin]]
+name = "generate_test_binaries"
+path = "bin/generate_test_binaries.rs"
+test = false

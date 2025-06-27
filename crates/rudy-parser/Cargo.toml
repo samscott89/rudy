@@ -1,0 +1,16 @@
+[package]
+name = "rudy-parser"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+itertools.workspace = true
+rudy-types.workspace = true
+tracing.workspace = true
+unsynn = { version = "0.1.1" }
+
+[dev-dependencies]
+insta.workspace = true
+pretty_assertions.workspace = true
+tracing-subscriber.workspace = true
