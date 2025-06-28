@@ -67,14 +67,15 @@ pub trait Parser<'db, T> {
     }
 
     /// Chain this parser with another, where the second operates on the first's result
-    fn then<U, P>(self, next: P) -> Then<Self, P>
+    fn then<U, P, V>(self, next: P) -> Then<Self, P, V>
     where
-        Self: Sized + Parser<'db, Die<'db>>,
+        Self: Sized + Parser<'db, V>,
         P: Parser<'db, U>,
     {
         Then {
             first: self,
             second: next,
+            _marker: std::marker::PhantomData,
         }
     }
 

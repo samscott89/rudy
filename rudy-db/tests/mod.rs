@@ -221,12 +221,19 @@ fn test_method_discovery(#[case] target: &str) {
     let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, &path).unwrap();
 
-    // Test 1: Discover all methods in the binary
+    // Test 1: Discover all methods in the binary (original test)
     let methods_by_type = debug_info
         .discover_all_methods()
         .expect("Method discovery should succeed");
 
     insta::assert_debug_snapshot!(methods_by_type);
+
+    // Test 1b: Debug version - capture all symbol analysis results
+    let symbol_analysis_results = debug_info
+        .discover_all_methods_debug()
+        .expect("Symbol analysis should succeed");
+
+    insta::assert_debug_snapshot!(symbol_analysis_results);
 
     // Test 2: Test specific type resolution and method discovery
     let test_struct0_type = debug_info

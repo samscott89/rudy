@@ -61,12 +61,13 @@ where
 }
 
 /// Sequential combinator - applies parsers in sequence, each operating on the result of the previous
-pub struct Then<P1, P2> {
+pub struct Then<P1, P2, T> {
     pub(super) first: P1,
     pub(super) second: P2,
+    pub(super) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2>
+impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2, Die<'db>>
 where
     P1: Parser<'db, Die<'db>>,
     P2: Parser<'db, U>,
@@ -74,6 +75,31 @@ where
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
         let intermediate = self.first.parse(db, entry)?;
         self.second.parse(db, intermediate)
+    }
+}
+
+impl<'db, U, P1, P2> Parser<'db, Option<U>> for Then<P1, P2, Option<Die<'db>>>
+where
+    P1: Parser<'db, Option<Die<'db>>>,
+    P2: Parser<'db, U>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<U>> {
+        self.first
+            .parse(db, entry)?
+            .map(|intermediate| self.second.parse(db, intermediate))
+            .transpose()
+    }
+}
+
+impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2, Result<Die<'db>>>
+where
+    P1: Parser<'db, Result<Die<'db>>>,
+    P2: Parser<'db, U>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
+        self.first
+            .parse(db, entry)?
+            .and_then(|intermediate| self.second.parse(db, intermediate))
     }
 }
 

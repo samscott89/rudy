@@ -7,6 +7,7 @@ use crate::dwarf::Die;
 use crate::dwarf::index::get_die_typename;
 use crate::dwarf::parser::btreemap::btree_map;
 use crate::dwarf::parser::option::option_def;
+use crate::dwarf::parser::primitives::optional_attr;
 use crate::dwarf::parser::result::result_def;
 use crate::dwarf::parser::{
     Parser,
@@ -28,6 +29,16 @@ type Result<T> = std::result::Result<T, super::Error>;
 pub fn resolve_entry_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeLayout> {
     let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
     resolve_type_offset(db, type_entry)
+}
+
+/// Resolves the type of an entry if it is present.
+pub fn resolve_entry_type_optional<'db>(
+    db: &'db dyn Db,
+    entry: Die<'db>,
+) -> Result<Option<TypeLayout>> {
+    Ok(optional_attr::<Die<'_>>(gimli::DW_AT_type)
+        .then(crate::dwarf::parser::primitives::resolve_type())
+        .parse(db, entry)?)
 }
 
 /// Resolve the type for a DIE entry with shallow resolution

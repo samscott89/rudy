@@ -33,6 +33,7 @@ pub use resolution::{
     fully_resolve_type,
     location_to_address,
     resolve_entry_type,
+    resolve_entry_type_optional,
     resolve_function_variables,
     resolve_type_offset,
 };
