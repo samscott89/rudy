@@ -502,7 +502,7 @@ impl<'db> DebugInfo<'db> {
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::Value> {
         if let Some(address) = var_info.address {
-            crate::data::read_from_memory(self.db, address, &var_info.type_def, data_resolver)
+            crate::data::read_from_memory(self.db, address, &var_info.type_def, data_resolver, &var_info.debug_file)
         } else {
             // Variable doesn't have a memory location (e.g., optimized out)
             Err(anyhow::anyhow!(
@@ -676,7 +676,67 @@ impl<'db> DebugInfo<'db> {
         typedef: &TypeLayout,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::Value> {
-        crate::data::read_from_memory(self.db, address, typedef, data_resolver)
+        // TODO: We should determine which debug file contains this type
+        // For now, use the first debug file
+        let debug_file = self.debug_files.first()
+            .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
+        crate::data::read_from_memory(self.db, address, typedef, data_resolver, debug_file)
+    }
+
+    /// Expand a Value::Pointer to read the actual data
+    ///
+    /// This method resolves any type aliases and reads the data from memory,
+    /// returning a one-layer expansion of the value (i.e., nested values will
+    /// still be Value::Pointer).
+    ///
+    /// # Arguments
+    ///
+    /// * `pointer_value` - A Value::Pointer to expand
+    /// * `data_resolver` - Data resolver for reading memory
+    ///
+    /// # Returns
+    ///
+    /// The expanded value with one layer of data read from memory
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rudy_db::DebugInfo;
+    /// # let debug_info: DebugInfo = unimplemented!();
+    /// # let pointer_value: rudy_db::Value = unimplemented!();
+    /// # let resolver = unimplemented!();
+    /// let expanded = debug_info.expand_pointer(&pointer_value, &resolver).unwrap();
+    /// println!("Expanded value: {:?}", expanded);
+    /// ```
+    pub fn expand_pointer(
+        &self,
+        pointer_value: &crate::Value,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<crate::Value> {
+        match pointer_value {
+            crate::Value::Pointer(typed_pointer) => {
+                // First, resolve any type aliases
+                let resolved_type = if matches!(*typed_pointer.type_def, TypeLayout::Alias(_)) {
+                    Arc::new(crate::dwarf::fully_resolve_type(
+                        self.db,
+                        typed_pointer.debug_file,
+                        &typed_pointer.type_def,
+                    )?)
+                } else {
+                    typed_pointer.type_def.clone()
+                };
+
+                // Now read the data with the resolved type
+                crate::data::read_from_memory(
+                    self.db,
+                    typed_pointer.address,
+                    &resolved_type,
+                    data_resolver,
+                    &typed_pointer.debug_file,
+                )
+            }
+            _ => Err(anyhow::anyhow!("Value is not a pointer")),
+        }
     }
 
     /// Access a field of a struct/union/enum value
@@ -726,10 +786,15 @@ impl<'db> DebugInfo<'db> {
 
                 let field_address = base_address + field.offset as u64;
 
+                // TODO: We should determine which debug file contains this type
+                // For now, use the first debug file
+                let debug_file = self.debug_files.first()
+                    .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
                 Ok(crate::VariableInfo {
                     name: field_name.to_string(),
                     address: Some(field_address),
                     type_def: field.ty.clone(),
+                    debug_file: debug_file.clone(),
                 })
             }
             TypeLayout::Enum(enum_def) => {
@@ -807,16 +872,25 @@ impl<'db> DebugInfo<'db> {
                 })? as u64;
                 let element_address = base_address + (index * element_size);
 
+                // TODO: We should determine which debug file contains this type
+                // For now, use the first debug file
+                let debug_file = self.debug_files.first()
+                    .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
                 Ok(crate::VariableInfo {
                     name: format!("[{index}]"),
                     address: Some(element_address),
                     type_def: array_def.element_type.clone(),
+                    debug_file: debug_file.clone(),
                 })
             }
             TypeLayout::Primitive(PrimitiveLayout::Slice(slice_def)) => {
                 // Slice [T] - need to read the fat pointer to get actual data pointer and length
+                // TODO: We should determine which debug file contains this type
+                // For now, use the first debug file
+                let debug_file = self.debug_files.first()
+                    .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
                 let slice_value =
-                    crate::data::read_from_memory(self.db, base_address, base_type, data_resolver)?;
+                    crate::data::read_from_memory(self.db, base_address, base_type, data_resolver, debug_file)?;
                 let (data_ptr, slice_len) = extract_slice_info(&slice_value)?;
 
                 if index >= slice_len {
@@ -839,6 +913,7 @@ impl<'db> DebugInfo<'db> {
                     name: format!("[{index}]"),
                     address: Some(element_address),
                     type_def: slice_def.element_type.clone(),
+                    debug_file: debug_file.clone(),
                 })
             }
             TypeLayout::Std(std_def) => {
@@ -864,10 +939,15 @@ impl<'db> DebugInfo<'db> {
                         })? as u64;
                         let element_address = data_ptr + (index * element_size);
 
+                        // TODO: We should determine which debug file contains this type
+                        // For now, use the first debug file
+                        let debug_file = self.debug_files.first()
+                            .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
                         Ok(crate::VariableInfo {
                             name: format!("[{index}]"),
                             address: Some(element_address),
                             type_def: vec_def.inner_type.clone(),
+                            debug_file: debug_file.clone(),
                         })
                     }
                     _ => Err(anyhow::anyhow!(
@@ -929,15 +1009,20 @@ impl<'db> DebugInfo<'db> {
                 // For maps, we'll iterate through all key-value pairs
                 // and return the variable info for the value that matches the key.
 
+                // TODO: We should determine which debug file contains this type
+                // For now, use the first debug file
+                let debug_file = self.debug_files.first()
+                    .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
                 let map_entries =
-                    crate::data::read_map_entries(base_address, map_def, data_resolver)?;
+                    crate::data::read_map_entries(base_address, map_def, data_resolver, debug_file)?;
 
                 for (k, v) in map_entries {
                     let map_key = crate::data::read_from_memory(
                         self.db,
                         k.address,
-                        &map_def.key_type,
+                        &k.type_def,
                         data_resolver,
+                        &k.debug_file,
                     )?;
 
                     if values_equal(key, &map_key) {
@@ -949,6 +1034,7 @@ impl<'db> DebugInfo<'db> {
                             name: format!("[{}]", format_value_key(key)),
                             address: Some(v.address), // No direct memory address for HashMap values
                             type_def: v.type_def.clone(),
+                            debug_file: v.debug_file.clone(),
                         });
                     }
                 }
@@ -1003,6 +1089,7 @@ fn variable_info<'db>(
             .map_or_else(|| "_".to_string(), |s| s.to_string()),
         address: location,
         type_def: Arc::new(ty),
+        debug_file: die.file(db),
     })
 }
 
