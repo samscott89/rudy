@@ -66,7 +66,7 @@ fn test_value_pointer_creation() -> Result<()> {
             let typed_pointer = TypedPointer {
                 address: 0x1000,
                 type_def: Arc::new(u32_type),
-                debug_file: debug_file,
+                debug_file,
             };
 
             // Create a Value::Pointer
@@ -128,13 +128,13 @@ fn test_value_ordering() -> Result<()> {
             let ptr1 = Value::Pointer(TypedPointer {
                 address: 0x1000,
                 type_def: Arc::new(u32_type.clone()),
-                debug_file: debug_file,
+                debug_file,
             });
 
             let ptr2 = Value::Pointer(TypedPointer {
                 address: 0x2000,
                 type_def: Arc::new(u32_type),
-                debug_file: debug_file,
+                debug_file,
             });
 
             // Test ordering
@@ -168,7 +168,7 @@ fn test_alias_in_pointer() -> Result<()> {
         let ptr_with_alias = Value::Pointer(TypedPointer {
             address: 0x1000,
             type_def: Arc::new(alias_type),
-            debug_file: debug_file,
+            debug_file,
         });
 
         // Verify the pointer contains an alias

@@ -932,6 +932,7 @@ fn read_std_from_memory(
 }
 
 /// Recursively read entries from a BTree node following the algorithm from the Python code
+#[allow(clippy::too_many_arguments)]
 fn read_btree_node_entries(
     node_ptr: u64,
     height: usize,
