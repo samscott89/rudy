@@ -18,24 +18,7 @@ mod common;
 macro_rules! resolve_variable {
     ($debug_info:ident, $var:ident) => {{
         let resolver = SelfProcessResolver::new();
-        let address = $debug_info
-            .resolve_position(file!(), line!() as u64, None)
-            .expect("Failed to resolve current position")
-            .expect("to resolve current position")
-            .address;
-        tracing::debug!("Current address: {address:#x}");
-
-        let mut var_info = $debug_info
-            // we'll pass in a fake program counter (PC) since we're don't actually have it
-            .get_variable_at_pc(address, stringify!($var), &resolver)
-            .expect("Failed to get variable at address")
-            .expect("test_string variable should be found");
-
-        var_info.address = Some(&$var as *const _ as u64);
-
-        let var_info_pointer = var_info
-            .as_pointer()
-            .expect("test_string variable should have a memory address");
+        let var_info_pointer = variable_pointer!($debug_info, $var);
 
         let value = $debug_info
             .read_pointer(&var_info_pointer, &resolver)

@@ -76,10 +76,10 @@ impl fmt::Display for Expression {
             Expression::StringLiteral(value) => write!(f, "\"{value}\""),
             Expression::Parenthesized(expr) => write!(f, "({expr})"),
             Expression::MethodCall { base, method, args } => {
-                write!(f, "{base}.{method}({})", args.iter().join(","))
+                write!(f, "{base}.{method}({})", args.iter().join(", "))
             }
             Expression::FunctionCall { function, args } => {
-                write!(f, "{function}({})", args.iter().join(","))
+                write!(f, "{function}({})", args.iter().join(", "))
             }
         }
     }
