@@ -316,6 +316,7 @@ impl<'db> Parser<'db, Die<'db>> for Identity {
     }
 }
 
+#[allow(dead_code)]
 pub fn resolve_type() -> ResolveType {
     ResolveType
 }
