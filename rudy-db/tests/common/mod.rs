@@ -15,7 +15,11 @@ macro_rules! function_name {
 #[macro_export]
 macro_rules! setup {
     ($($target:ident)?) => {
-        let _ = tracing_subscriber::fmt::try_init();
+        let _ = tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::from_default_env()
+        )
+        .try_init();
         let mut settings = insta::Settings::clone_current();
 
         // get current OS as a prefix

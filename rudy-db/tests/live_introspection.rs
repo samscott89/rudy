@@ -48,6 +48,29 @@ macro_rules! resolve_variable {
     }};
 }
 
+macro_rules! variable_pointer {
+    ($debug_info:ident, $var:ident) => {{
+        let resolver = SelfProcessResolver::new();
+        let address = $debug_info
+            .resolve_position(file!(), line!() as u64, None)
+            .expect("Failed to resolve current position")
+            .expect("to resolve current position")
+            .address;
+        tracing::debug!("Current address: {address:#x}");
+
+        let mut var_info = $debug_info
+            .get_variable_at_pc(address, stringify!($var), &resolver)
+            .expect("Failed to get variable at address")
+            .expect("test_string variable should be found");
+
+        var_info.address = Some(&$var as *const _ as u64);
+
+        var_info
+            .as_pointer()
+            .expect("Variable should have a pointer")
+    }};
+}
+
 fn read_value_recursively(
     debug_info: &DebugInfo,
     value: Value,
@@ -96,26 +119,6 @@ fn read_value_recursively(
     }
 }
 
-macro_rules! variable_pointer {
-    ($debug_info:ident, $var:ident) => {{
-        let resolver = SelfProcessResolver::new();
-        let address = $debug_info
-            .resolve_position(file!(), line!() as u64, None)
-            .expect("Failed to resolve current position")
-            .expect("to resolve current position")
-            .address;
-        tracing::debug!("Current address: {address:#x}");
-
-        let var_info = $debug_info
-            .get_variable_at_pc(address, stringify!($var), &resolver)
-            .expect("Failed to get variable at address")
-            .expect("test_string variable should be found");
-
-        var_info
-            .as_pointer()
-            .expect("Variable should have a pointer")
-    }};
-}
 /// A DataResolver that reads from the current process memory
 struct SelfProcessResolver;
 
@@ -533,12 +536,7 @@ fn test_real_method_execution() -> Result<()> {
 
 #[test]
 fn test_synthetic_methods() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter("debug")
-        .try_init();
-
-    let db = DebugDb::new();
-    let debug_info = DebugInfo::new(&db, std::env::current_exe()?.to_str().unwrap())?;
+    let debug_info = setup_db!();
     let resolver = SelfProcessResolver::new();
 
     // Test Vec synthetic methods
