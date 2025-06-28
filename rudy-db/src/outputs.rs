@@ -115,7 +115,7 @@ impl Value {
             Value::Pointer(ptr) => Value::Pointer(TypedPointer {
                 address: ptr.address,
                 type_def: ptr.type_def.clone(),
-                debug_file: ptr.debug_file.clone(),
+                debug_file: ptr.debug_file,
             }),
         }
     }
@@ -142,24 +142,57 @@ impl Ord for Value {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
         match (self, other) {
-            (Value::Scalar { ty: ty1, value: val1 }, Value::Scalar { ty: ty2, value: val2 }) => {
-                ty1.cmp(ty2).then_with(|| val1.cmp(val2))
-            }
-            (Value::Array { ty: ty1, items: items1 }, Value::Array { ty: ty2, items: items2 }) => {
-                ty1.cmp(ty2).then_with(|| items1.cmp(items2))
-            }
-            (Value::Struct { ty: ty1, fields: fields1 }, Value::Struct { ty: ty2, fields: fields2 }) => {
-                ty1.cmp(ty2).then_with(|| fields1.cmp(fields2))
-            }
-            (Value::Tuple { ty: ty1, entries: entries1 }, Value::Tuple { ty: ty2, entries: entries2 }) => {
-                ty1.cmp(ty2).then_with(|| entries1.cmp(entries2))
-            }
-            (Value::Map { ty: ty1, entries: entries1 }, Value::Map { ty: ty2, entries: entries2 }) => {
-                ty1.cmp(ty2).then_with(|| entries1.cmp(entries2))
-            }
-            (Value::Pointer(ptr1), Value::Pointer(ptr2)) => {
-                ptr1.address.cmp(&ptr2.address)
-            }
+            (
+                Value::Scalar {
+                    ty: ty1,
+                    value: val1,
+                },
+                Value::Scalar {
+                    ty: ty2,
+                    value: val2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| val1.cmp(val2)),
+            (
+                Value::Array {
+                    ty: ty1,
+                    items: items1,
+                },
+                Value::Array {
+                    ty: ty2,
+                    items: items2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| items1.cmp(items2)),
+            (
+                Value::Struct {
+                    ty: ty1,
+                    fields: fields1,
+                },
+                Value::Struct {
+                    ty: ty2,
+                    fields: fields2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| fields1.cmp(fields2)),
+            (
+                Value::Tuple {
+                    ty: ty1,
+                    entries: entries1,
+                },
+                Value::Tuple {
+                    ty: ty2,
+                    entries: entries2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| entries1.cmp(entries2)),
+            (
+                Value::Map {
+                    ty: ty1,
+                    entries: entries1,
+                },
+                Value::Map {
+                    ty: ty2,
+                    entries: entries2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| entries1.cmp(entries2)),
+            (Value::Pointer(ptr1), Value::Pointer(ptr2)) => ptr1.address.cmp(&ptr2.address),
             // Define ordering between different variants
             (Value::Scalar { .. }, _) => Ordering::Less,
             (Value::Array { .. }, Value::Scalar { .. }) => Ordering::Greater,

@@ -386,6 +386,26 @@ impl<'a> EvalContext<'a> {
                     Err(anyhow!("Could not parse integer value: {}", value))
                 }
             }
+            Value::Pointer(_) => {
+                // Expand the pointer and try to parse the result
+                let expanded = self.debug_info.expand_pointer(&value, &self.conn)?;
+                match expanded {
+                    Value::Scalar { value, .. } => {
+                        if let Ok(num) = value.parse::<u64>() {
+                            Ok(num)
+                        } else if let Some(hex_value) = value.strip_prefix("0x") {
+                            u64::from_str_radix(hex_value, 16)
+                                .with_context(|| format!("Failed to parse hex value: {value}"))
+                        } else {
+                            Err(anyhow!("Could not parse integer value: {}", value))
+                        }
+                    }
+                    _ => Err(anyhow!(
+                        "Expanded pointer did not yield a scalar integer, got: {:?}",
+                        expanded
+                    )),
+                }
+            }
             _ => Err(anyhow!("Expected scalar integer value, got: {:?}", value)),
         }
     }
@@ -401,6 +421,20 @@ impl<'a> EvalContext<'a> {
                 // We might need to strip quotes depending on formatting
                 let trimmed = value.trim_matches('"');
                 Ok(trimmed.to_string())
+            }
+            Value::Pointer(_) => {
+                // Expand the pointer and try to get the string
+                let expanded = self.debug_info.expand_pointer(&value, &self.conn)?;
+                match expanded {
+                    Value::Scalar { value, .. } => {
+                        let trimmed = value.trim_matches('"');
+                        Ok(trimmed.to_string())
+                    }
+                    _ => Err(anyhow!(
+                        "Expanded pointer did not yield a scalar string, got: {:?}",
+                        expanded
+                    )),
+                }
             }
             _ => Err(anyhow!("Expected scalar string value, got: {:?}", value)),
         }
@@ -506,6 +540,7 @@ impl<'a> EvalContext<'a> {
                 value: format_value(&result_value),
                 type_name: match &result_value {
                     Value::Scalar { ty, .. } => ty.clone(),
+                    Value::Pointer(ptr) => ptr.type_def.display_name(),
                     _ => "unknown".to_string(),
                 },
             })
@@ -691,6 +726,9 @@ fn format_value(value: &Value) -> String {
         Value::Tuple { ty, entries } => {
             let entries_str: Vec<String> = entries.iter().map(format_value).collect();
             format!("{ty} (\n{}\n)", indent(&entries_str.join(",\n"), 1))
+        }
+        Value::Pointer(ptr) => {
+            format!("<{} @ {:#x}>", ptr.type_def.display_name(), ptr.address)
         }
     }
 }

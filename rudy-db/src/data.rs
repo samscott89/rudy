@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 
 use std::collections::BTreeMap;
 
+use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
-use crate::Value;
 use rudy_types::{
     ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
     PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
@@ -183,12 +183,12 @@ pub fn read_map_entries(
                     let key = TypedPointer {
                         address: slot_addr + key_offset as u64,
                         type_def: def.key_type.clone(),
-                        debug_file: debug_file.clone(),
+                        debug_file: *debug_file,
                     };
                     let value = TypedPointer {
                         address: slot_addr + value_offset as u64,
                         type_def: def.value_type.clone(),
-                        debug_file: debug_file.clone(),
+                        debug_file: *debug_file,
                     };
 
                     entries.push((key, value));
@@ -357,7 +357,13 @@ fn read_enum(
     tracing::trace!("found matching variant: {matching_variant:#?}");
 
     // read the inner value
-    let inner = read_from_memory(db, address, &matching_variant.layout, data_resolver, debug_file)?;
+    let inner = read_from_memory(
+        db,
+        address,
+        &matching_variant.layout,
+        data_resolver,
+        debug_file,
+    )?;
 
     // re-format the value based on what we get back
     Ok(match inner {
@@ -477,7 +483,7 @@ pub fn read_from_memory(
                 let field_value = Value::Pointer(TypedPointer {
                     address: field_address,
                     type_def: field_ty.clone(),
-                    debug_file: debug_file.clone(),
+                    debug_file: *debug_file,
                 });
                 fields.insert(field_name.to_string(), field_value);
             }
@@ -486,7 +492,9 @@ pub fn read_from_memory(
                 fields,
             })
         }
-        TypeLayout::Std(std_def) => read_std_from_memory(db, address, std_def, data_resolver, debug_file),
+        TypeLayout::Std(std_def) => {
+            read_std_from_memory(db, address, std_def, data_resolver, debug_file)
+        }
         TypeLayout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver, debug_file),
         TypeLayout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
         TypeLayout::Alias(_entry) => {
@@ -494,7 +502,7 @@ pub fn read_from_memory(
             Ok(Value::Pointer(TypedPointer {
                 address,
                 type_def: ty.clone().into(),
-                debug_file: debug_file.clone(),
+                debug_file: *debug_file,
             }))
         }
         TypeLayout::Other { name } => {
@@ -581,7 +589,7 @@ fn read_primitive_from_memory(
                 let value = Value::Pointer(TypedPointer {
                     address,
                     type_def: element_type.clone(),
-                    debug_file: debug_file.clone(),
+                    debug_file: *debug_file,
                 });
                 values.push(value);
                 address += element_size;
@@ -636,7 +644,7 @@ fn read_primitive_from_memory(
                 let value = Value::Pointer(TypedPointer {
                     address: current_addr,
                     type_def: element_type.clone(),
-                    debug_file: debug_file.clone(),
+                    debug_file: *debug_file,
                 });
                 values.push(value);
                 current_addr += element_size;
@@ -780,7 +788,13 @@ fn read_option_from_memory(
         tracing::debug!("Found Some variant at {address:#x}: {some_type:#?}");
         // we have a `Some` variant
         // we should get the address of the inner value
-        read_from_memory(db, address + *some_offset as u64, some_type, data_resolver, debug_file)?
+        read_from_memory(
+            db,
+            address + *some_offset as u64,
+            some_type,
+            data_resolver,
+            debug_file,
+        )?
     }
     .wrap_type("Option"))
 }
@@ -823,7 +837,7 @@ fn read_std_from_memory(
                 let value = Value::Pointer(TypedPointer {
                     address,
                     type_def: element_type.clone(),
-                    debug_file: debug_file.clone(),
+                    debug_file: *debug_file,
                 });
                 values.push(value);
                 address += element_size;
@@ -863,12 +877,7 @@ fn read_std_from_memory(
         StdLayout::Map(def) => {
             let entries = read_map_entries(address, def, data_resolver, debug_file)?
                 .into_iter()
-                .map(|(key, value)| {
-                    Ok((
-                        Value::Pointer(key),
-                        Value::Pointer(value),
-                    ))
-                })
+                .map(|(key, value)| Ok((Value::Pointer(key), Value::Pointer(value))))
                 .collect::<Result<Vec<_>>>()?;
             Value::Map {
                 ty: def.display_name(),
@@ -882,7 +891,7 @@ fn read_std_from_memory(
                     TypedPointer {
                         address: inner_address,
                         type_def: s.inner_type.clone(),
-                        debug_file: debug_file.clone(),
+                        debug_file: *debug_file,
                     }
                 }
                 SmartPtrVariant::Box => {
@@ -890,7 +899,7 @@ fn read_std_from_memory(
                     TypedPointer {
                         address: inner_address,
                         type_def: s.inner_type.clone(),
-                        debug_file: debug_file.clone(),
+                        debug_file: *debug_file,
                     }
                 }
                 SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
@@ -900,7 +909,7 @@ fn read_std_from_memory(
                     TypedPointer {
                         address: data_address,
                         type_def: s.inner_type.clone(),
-                        debug_file: debug_file.clone(),
+                        debug_file: *debug_file,
                     }
                 }
                 _ => {
@@ -998,13 +1007,13 @@ fn read_btree_node_entries(
                 let key_ptr = TypedPointer {
                     address: key_addr,
                     type_def: key_type.clone(),
-                    debug_file: debug_file.clone(),
+                    debug_file: *debug_file,
                 };
 
                 let value_ptr = TypedPointer {
                     address: value_addr,
                     type_def: value_type.clone(),
-                    debug_file: debug_file.clone(),
+                    debug_file: *debug_file,
                 };
 
                 entries.push((key_ptr, value_ptr));

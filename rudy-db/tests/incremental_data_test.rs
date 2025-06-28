@@ -1,7 +1,7 @@
 //! Tests for incremental data reading with Value::Pointer
 
 use anyhow::Result;
-use rudy_db::{DebugDb, DebugInfo, Value, TypedPointer};
+use rudy_db::{DebugDb, DebugInfo, TypedPointer, Value};
 use rudy_types::TypeLayout;
 use std::sync::Arc;
 
@@ -55,8 +55,8 @@ fn test_value_pointer_creation() -> Result<()> {
 
     let db = DebugDb::new();
     let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info = DebugInfo::new(&db, exe_path.to_str().unwrap())
-        .expect("Failed to load debug info");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
     // Try to get a simple type
     if let Ok(Some(u32_type)) = debug_info.resolve_type("u32") {
@@ -66,7 +66,7 @@ fn test_value_pointer_creation() -> Result<()> {
             let typed_pointer = TypedPointer {
                 address: 0x1000,
                 type_def: Arc::new(u32_type),
-                debug_file: debug_file.clone(),
+                debug_file: debug_file,
             };
 
             // Create a Value::Pointer
@@ -96,14 +96,14 @@ fn test_struct_field_lazy_loading() -> Result<()> {
 
     let db = DebugDb::new();
     let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info = DebugInfo::new(&db, exe_path.to_str().unwrap())
-        .expect("Failed to load debug info");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
     let mut resolver = MockDataResolver::new();
-    
+
     // Set up some mock memory data
     resolver.write_memory(0x1000, vec![42, 0, 0, 0]); // u32 value = 42
-    resolver.write_memory(0x1004, vec![1, 2, 3, 4]);  // Additional data
+    resolver.write_memory(0x1004, vec![1, 2, 3, 4]); // Additional data
 
     // Try to find a struct type to test with
     // This is a basic test since we need actual debug info from a real binary
@@ -120,21 +120,21 @@ fn test_value_ordering() -> Result<()> {
     // Test that Value::Pointer can be ordered (required for BTreeMap usage)
     let db = DebugDb::new();
     let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info = DebugInfo::new(&db, exe_path.to_str().unwrap())
-        .expect("Failed to load debug info");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
     if let Ok(Some(u32_type)) = debug_info.resolve_type("u32") {
         if let Some(debug_file) = debug_info.first_debug_file() {
             let ptr1 = Value::Pointer(TypedPointer {
                 address: 0x1000,
                 type_def: Arc::new(u32_type.clone()),
-                debug_file: debug_file.clone(),
+                debug_file: debug_file,
             });
 
             let ptr2 = Value::Pointer(TypedPointer {
                 address: 0x2000,
                 type_def: Arc::new(u32_type),
-                debug_file: debug_file.clone(),
+                debug_file: debug_file,
             });
 
             // Test ordering
@@ -154,8 +154,8 @@ fn test_alias_in_pointer() -> Result<()> {
     // Test that aliases in TypedPointer are handled correctly
     let db = DebugDb::new();
     let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info = DebugInfo::new(&db, exe_path.to_str().unwrap())
-        .expect("Failed to load debug info");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
     if let Some(debug_file) = debug_info.first_debug_file() {
         // Create a mock alias type
@@ -168,20 +168,18 @@ fn test_alias_in_pointer() -> Result<()> {
         let ptr_with_alias = Value::Pointer(TypedPointer {
             address: 0x1000,
             type_def: Arc::new(alias_type),
-            debug_file: debug_file.clone(),
+            debug_file: debug_file,
         });
 
         // Verify the pointer contains an alias
         match ptr_with_alias {
-            Value::Pointer(ref ptr) => {
-                match &*ptr.type_def {
-                    TypeLayout::Alias(alias) => {
-                        assert_eq!(alias.name, "MyAlias");
-                        println!("Successfully created pointer with alias type");
-                    }
-                    _ => panic!("Expected alias type"),
+            Value::Pointer(ref ptr) => match &*ptr.type_def {
+                TypeLayout::Alias(alias) => {
+                    assert_eq!(alias.name, "MyAlias");
+                    println!("Successfully created pointer with alias type");
                 }
-            }
+                _ => panic!("Expected alias type"),
+            },
             _ => panic!("Expected Value::Pointer"),
         }
     }
