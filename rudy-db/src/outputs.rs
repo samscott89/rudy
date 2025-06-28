@@ -4,6 +4,8 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use rudy_types::TypeLayout;
 
+use crate::SelfType;
+
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedAddress {
@@ -144,38 +146,9 @@ impl fmt::Debug for ResolvedFunction {
     }
 }
 
-/// Type of self parameter for methods
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-pub enum SelfType {
-    /// Takes ownership: `self`
-    Owned,
-    /// Immutable reference: `&self`
-    Borrowed,
-    /// Mutable reference: `&mut self`
-    BorrowedMut,
-}
-
-impl SelfType {
-    /// Create SelfType from a resolved parameter type
-    pub fn from_param_type(param_type: &TypeLayout) -> Self {
-        use rudy_types::{PrimitiveLayout, ReferenceLayout};
-        
-        match param_type {
-            TypeLayout::Primitive(PrimitiveLayout::Reference(ref_layout)) => {
-                if ref_layout.mutable {
-                    SelfType::BorrowedMut
-                } else {
-                    SelfType::Borrowed
-                }
-            },
-            _ => SelfType::Owned,
-        }
-    }
-}
-
 /// A discovered method with its metadata
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct DiscoveredMethod {
+pub struct DiscoveredFunction {
     /// The method name (e.g., "len", "push")
     pub name: String,
     /// The full method name including type path
@@ -186,8 +159,6 @@ pub struct DiscoveredMethod {
     pub address: u64,
     /// Type of self parameter
     pub self_type: SelfType,
-    /// Number of parameters including self
-    pub parameter_count: usize,
     /// Whether this method can be called (has an address)
     pub callable: bool,
 }

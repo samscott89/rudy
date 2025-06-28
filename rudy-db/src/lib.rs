@@ -44,8 +44,10 @@ mod types;
 pub use data::DataResolver;
 pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
-pub use function_discovery::{DiscoveredFunction, SelfType};
 pub use index::symbols::Symbol;
-pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable, VariableInfo};
+pub use outputs::{
+    DiscoveredFunction, ResolvedAddress, ResolvedLocation, Type, Value, Variable, VariableInfo,
+};
 pub use rudy_types::TypeLayout;
 pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};
+pub use types::SelfType;

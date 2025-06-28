@@ -6,6 +6,7 @@
 
 use crate::database::Db;
 use crate::dwarf::Die;
+use crate::dwarf::parser::combinators::{Filter, MapWithDbAndEntry};
 
 // Module structure
 pub mod btreemap;
@@ -40,13 +41,39 @@ pub trait Parser<'db, T> {
         }
     }
 
+    /// Turns the input into an optional output
+    /// if the provided parser succeeds
+    fn filter(self) -> Filter<Self>
+    where
+        Self: Sized,
+    {
+        Filter { parser: self }
+    }
+
     /// Transform the output of this parser
+    ///
+    /// Supports both simple transformations.
+    ///
+    /// For more complex transformations that require access to the database or entry,
+    /// use `map_with_db` or `map_with_db_and_entry`.
     fn map<U, F>(self, f: F) -> Map<Self, F, T>
     where
         Self: Sized,
         F: Fn(T) -> U,
     {
         Map {
+            parser: self,
+            f,
+            _marker: std::marker::PhantomData,
+        }
+    }
+
+    fn map_with_db_and_entry<U, F>(self, f: F) -> MapWithDbAndEntry<Self, F, T>
+    where
+        Self: Sized,
+        F: Fn(&'db dyn Db, Die<'db>, T) -> U,
+    {
+        MapWithDbAndEntry {
             parser: self,
             f,
             _marker: std::marker::PhantomData,
@@ -97,5 +124,25 @@ where
 {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<T> {
         <P as Parser<'db, T>>::parse(self, db, entry)
+    }
+}
+
+pub struct FromFn<F> {
+    f: F,
+}
+
+pub fn from_fn<F>(f: F) -> FromFn<F> {
+    FromFn { f }
+}
+
+// Functions matching the `Parser::parse` signature
+// are automatically parsers
+impl<'db, T, F, E> Parser<'db, T> for FromFn<F>
+where
+    F: Fn(&'db dyn Db, Die<'db>) -> std::result::Result<T, E>,
+    E: Into<anyhow::Error>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<T> {
+        (self.f)(db, entry).map_err(Into::into)
     }
 }

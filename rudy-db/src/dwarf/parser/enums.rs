@@ -1,18 +1,14 @@
 //! Enum parser implementation using combinators
 
-use super::Parser;
-use super::{
-    children::for_each_child,
-    primitives::{
-        attr, entry_type, is_member_tag, member_by_tag, optional_attr, resolve_type_shallow,
-    },
-};
 use crate::database::Db;
-use crate::dwarf::parser::primitives::resolve_type;
 use crate::dwarf::parser::{
-    children::parse_children,
+    Parser,
+    children::{for_each_child, parse_children},
     combinators::all,
-    primitives::{IsMember, member, offset},
+    primitives::{
+        IsMember, attr, entry_type, is_member_tag, member, member_by_tag, offset, optional_attr,
+        resolve_type_shallow,
+    },
 };
 use crate::dwarf::{Die, resolution::resolve_entry_type};
 use rudy_types::{
@@ -309,16 +305,20 @@ pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumLayout> {
             let (name, size, underlying_type) = all((
                 attr::<String>(gimli::DW_AT_name),
                 attr::<usize>(gimli::DW_AT_byte_size),
-                entry_type().then(resolve_type()).map_res(|ty| match ty {
-                    TypeLayout::Primitive(PrimitiveLayout::Int(i)) => Ok(DiscriminantType::Int(i)),
-                    TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(u)) => {
-                        Ok(DiscriminantType::UnsignedInt(u))
-                    }
-                    _ => Err(anyhow::anyhow!(
-                        "C enum underlying type must be integer, got: {:?}",
-                        ty
-                    )),
-                }),
+                entry_type()
+                    .then(resolve_type_shallow())
+                    .map_res(|ty| match ty {
+                        TypeLayout::Primitive(PrimitiveLayout::Int(i)) => {
+                            Ok(DiscriminantType::Int(i))
+                        }
+                        TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(u)) => {
+                            Ok(DiscriminantType::UnsignedInt(u))
+                        }
+                        _ => Err(anyhow::anyhow!(
+                            "C enum underlying type must be integer, got: {:?}",
+                            ty
+                        )),
+                    }),
             ))
             .parse(db, entry)?;
 

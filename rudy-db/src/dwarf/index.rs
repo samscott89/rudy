@@ -46,8 +46,15 @@ pub struct ModuleIndexEntry<'db> {
     pub die: Die<'db>,
 }
 
-#[derive(Clone, Hash, PartialEq, Debug)]
+#[salsa::tracked(debug)]
+// #[derive(Clone, Hash, PartialEq, Debug)]
 pub struct FunctionIndexEntry<'db> {
+    #[returns(ref)]
+    pub data: FunctionData<'db>,
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq, salsa::Update)]
+pub struct FunctionData<'db> {
     /// Die entry for the function
     pub declaration_die: Die<'db>,
     /// Address range of the function relative to the base address of the compilation unit
@@ -83,6 +90,9 @@ unsafe impl salsa::Update for FileIndexData<'_> {
 struct FileIndexBuilder<'db> {
     current_path: Vec<String>,
     function_addresses: Vec<(u64, u64, SymbolName)>,
+    /// We'll accumulate mutable data here while building up the index
+    /// And then finalize it into the FileIndexData
+    function_data: BTreeMap<SymbolName, FunctionData<'db>>,
     data: FileIndexData<'db>,
 }
 
@@ -237,9 +247,9 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                     };
 
                     let die = walker.get_die(entry.clone());
-                    match walker.visitor.data.functions.entry(name.clone()) {
+                    match walker.visitor.function_data.entry(name.clone()) {
                         Entry::Vacant(vacant_entry) => {
-                            vacant_entry.insert(FunctionIndexEntry {
+                            vacant_entry.insert(FunctionData {
                                 declaration_die: die,
                                 relative_address_range,
                                 name: function_name,
@@ -267,7 +277,7 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
                     .cloned();
                 if let Some(name) = name {
                     let spec_die = walker.get_die(entry.clone());
-                    if let Some(declaration) = walker.visitor.data.functions.get_mut(&name) {
+                    if let Some(declaration) = walker.visitor.function_data.get_mut(&name) {
                         // this is an implementation of a class method
                         // we can update the existing entry with the implementation DIE
                         declaration.specification_die = Some(spec_die);
@@ -449,6 +459,7 @@ pub fn index_debug_file_full<'db>(db: &'db dyn Db, debug_file: DebugFile) -> Fil
 
     let FileIndexBuilder {
         function_addresses,
+        function_data,
         mut data,
         ..
     } = builder;
@@ -464,6 +475,13 @@ pub fn index_debug_file_full<'db>(db: &'db dyn Db, debug_file: DebugFile) -> Fil
         })
         .collect();
     data.function_addresses = AddressTree::new(function_addresses);
+    data.functions = function_data
+        .into_iter()
+        .map(|(name, data)| {
+            let entry = FunctionIndexEntry::new(db, data);
+            (name, entry)
+        })
+        .collect();
 
     tracing::trace!(
         "Indexed file data: {data:#?} for file: {}",

@@ -1,9 +1,26 @@
 //! Function resolution and metadata extraction
 
-use crate::database::Db;
-use crate::dwarf::loader::{Offset, RawDie};
-use crate::dwarf::unit::UnitRef;
-use crate::dwarf::utils::{get_string_attr, pretty_print_die_entry};
+use anyhow::Context as _;
+use rudy_types::{TypeLayout, UnitLayout};
+
+use crate::{
+    database::Db,
+    dwarf::{
+        Die, FunctionIndexEntry, Variable,
+        index::FunctionData,
+        loader::{Offset, RawDie},
+        parser::{
+            Parser,
+            children::{for_each_child, try_for_each_child},
+            combinators::all,
+            primitives::{attr, is_member_tag, optional_attr, resolve_type_shallow},
+        },
+        resolution::variable,
+        unit::UnitRef,
+        utils::{get_string_attr, pretty_print_die_entry},
+    },
+    types::SelfType,
+};
 /// Function address information
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct FunctionAddressInfo {
@@ -14,6 +31,8 @@ pub struct FunctionAddressInfo {
     /// end of the function
     pub end: u64,
 }
+
+type Result<T> = std::result::Result<T, super::Error>;
 
 pub enum FunctionDeclarationType {
     Closure,
@@ -143,4 +162,118 @@ pub fn get_declaration_type<'db>(
     );
 
     FunctionDeclarationType::Function { inlined }
+}
+
+#[salsa::tracked(debug)]
+pub struct FunctionSignature<'db> {
+    /// Short name of the function, e.g. "len" for "std::vec::Vec<T>::len"
+    name: String,
+
+    /// Params for the function, e.g. "self: &mut Self, index: usize"
+    params: Vec<Variable<'db>>,
+
+    /// Return type of the function, e.g. "usize" for "std::vec::Vec<T>::len"
+    return_type: TypeLayout,
+
+    /// Somewhat duplicative with the `params` field, this
+    /// determines (a) if we have a self parameter, and (b) what kind of self parameter it is.
+    self_type: Option<SelfType>,
+    /// `callable` indicates that we expect this function to be callable.
+    /// This is true if the function has a symbol in the binary.
+    /// If false, it means this is a synthetic method or a function that cannot be called
+    /// (e.g., a trait method without an implementation).
+    callable: bool,
+    /// e.g. /path/to/debug_info.rgcu.o 0x12345
+    ///
+    /// Mostly useful for debugging
+    debug_location: String,
+}
+
+/// Parser to extract function parameters
+fn function_parameter<'db>() -> impl Parser<'db, Variable<'db>> {
+    is_member_tag(gimli::DW_TAG_formal_parameter).then(variable())
+}
+
+/// Parser to return function declaration information
+fn function_declaration<'db>() -> impl Parser<'db, (String, Option<TypeLayout>, Vec<Variable<'db>>)>
+{
+    all((
+        attr::<String>(gimli::DW_AT_name),
+        optional_attr::<Die<'db>>(gimli::DW_AT_type).then(resolve_type_shallow()),
+        // If the child is a formal parameter, then attempt to parse it as a variable
+        try_for_each_child(
+            is_member_tag(gimli::DW_TAG_formal_parameter)
+                .filter()
+                .then(function_parameter()),
+        ),
+    ))
+}
+
+/// Parser to extract function specification information
+fn function_specification<'db>() -> impl Parser<'db, Vec<Variable<'db>>> {
+    for_each_child(function_parameter())
+}
+
+/// Analyze a function to see if it's a method for the target type
+#[salsa::tracked]
+pub fn resolve_function_signature<'db>(
+    db: &'db dyn Db,
+    function_index_entry: FunctionIndexEntry<'db>,
+) -> Result<FunctionSignature<'db>> {
+    let FunctionData {
+        declaration_die,
+        specification_die,
+        alternate_locations,
+        ..
+    } = function_index_entry.data(db);
+
+    let (name, return_type, parameters) = function_declaration()
+        .parse(db, *declaration_die)
+        .context("parsing function declaration")?;
+
+    let return_type = return_type.unwrap_or(TypeLayout::Primitive(
+        rudy_types::PrimitiveLayout::Unit(UnitLayout),
+    ));
+
+    let parameters = if let Some(specification_die) = specification_die {
+        // If no parameters in declaration, try to get them from specification
+        function_specification()
+            .parse(db, *specification_die)
+            .context("parsing function specification")?
+    } else {
+        parameters
+    };
+
+    let self_type = if let Some(first_param) = parameters.first() {
+        // If the first parameter is self-like, determine its type
+        let first_param_name = first_param.name(db);
+        if matches!(
+            first_param_name.as_deref(),
+            Some("self" | "&self" | "&mut self")
+        ) {
+            Some(SelfType::from_param_type(first_param.ty(db)))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    let mut debug_location = format!("Declaration: {}", declaration_die.location(db));
+    if let Some(spec) = specification_die {
+        debug_location.push_str(&format!("\nSpecification: {}", spec.location(db)));
+    }
+    for location in alternate_locations.iter() {
+        debug_location.push_str(&format!("\nAlternate: {}", location.location(db)));
+    }
+
+    Ok(FunctionSignature::new(
+        db,
+        name,
+        parameters,
+        return_type,
+        self_type,
+        true, // callable by default
+        debug_location,
+    ))
 }

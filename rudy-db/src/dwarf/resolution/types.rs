@@ -2,22 +2,25 @@
 
 use std::sync::Arc;
 
-use crate::database::Db;
-use crate::dwarf::Die;
-use crate::dwarf::index::get_die_typename;
-use crate::dwarf::parser::btreemap::btree_map;
-use crate::dwarf::parser::option::option_def;
-use crate::dwarf::parser::primitives::optional_attr;
-use crate::dwarf::parser::result::result_def;
-use crate::dwarf::parser::{
-    Parser,
-    children::parse_children,
-    enums::{c_enum_def, enum_def},
-    hashmap::hashbrown_map,
-    primitives::{entry_type, member, resolved_generic},
-    vec::vec,
+use crate::{
+    database::Db,
+    dwarf::{
+        Die,
+        index::get_die_typename,
+        parser::{
+            Parser,
+            btreemap::btree_map,
+            children::parse_children,
+            enums::{c_enum_def, enum_def},
+            hashmap::hashbrown_map,
+            option::option_def,
+            primitives::{entry_type, member, resolved_generic},
+            result::result_def,
+            vec::vec,
+        },
+    },
+    file::DebugFile,
 };
-use crate::file::DebugFile;
 use rudy_types::*;
 
 use anyhow::Context;
@@ -29,16 +32,6 @@ type Result<T> = std::result::Result<T, super::Error>;
 pub fn resolve_entry_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeLayout> {
     let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
     resolve_type_offset(db, type_entry)
-}
-
-/// Resolves the type of an entry if it is present.
-pub fn resolve_entry_type_optional<'db>(
-    db: &'db dyn Db,
-    entry: Die<'db>,
-) -> Result<Option<TypeLayout>> {
-    Ok(optional_attr::<Die<'_>>(gimli::DW_AT_type)
-        .then(crate::dwarf::parser::primitives::resolve_type())
-        .parse(db, entry)?)
 }
 
 /// Resolve the type for a DIE entry with shallow resolution
@@ -451,6 +444,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
             builtin_ty
         } else {
             TypeLayout::Alias(UnresolvedType {
+                name: entry.name(db).unwrap_or_else(|_| "unknown".to_string()),
                 cu_offset: entry
                     .cu_offset(db)
                     .as_debug_info_offset()
@@ -819,14 +813,16 @@ pub fn fully_resolve_type(
             TypeLayout::CEnum(c_enum_def)
         }
         TypeLayout::Alias(UnresolvedType {
+            name,
             cu_offset,
             die_offset,
         }) => {
             let die_offset = UnitOffset(die_offset);
             let cu_offset = gimli::UnitSectionOffset::from(DebugInfoOffset(cu_offset));
             let die = Die::new(db, file, cu_offset, die_offset);
-            resolve_type_offset(db, die)
-                .with_context(|| die.format_with_location(db, "Failed to resolve alias type"))?
+            resolve_type_offset(db, die).with_context(|| {
+                die.format_with_location(db, format!("Failed to resolve alias type: {name}"))
+            })?
         }
         TypeLayout::Other { name } => {
             // Other types are not fully resolved, return as is
@@ -872,9 +868,8 @@ mod test {
             .get_function(&db, &f)
             .expect("Failed to find function in debug index");
 
-        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
-        let params = resolve_function_variables(&db, function_die)
-            .expect("Failed to resolve function variables");
+        let params =
+            resolve_function_variables(&db, fie).expect("Failed to resolve function variables");
         assert_eq!(
             params.params(&db).len(),
             3,

@@ -9,6 +9,7 @@ use salsa::Update;
 /// Reference to a type in DWARF debug information
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnresolvedType {
+    pub name: String,
     pub cu_offset: usize,
     pub die_offset: usize,
 }
@@ -83,7 +84,10 @@ impl TypeLayout {
             TypeLayout::Alias(type_ref) => {
                 // For now, just return a placeholder name
                 // In a real implementation, you'd resolve this using the TypeRef
-                format!("<alias@{:x}:{:x}>", type_ref.cu_offset, type_ref.die_offset)
+                format!(
+                    "{} <alias@{:x}:{:x}>",
+                    type_ref.name, type_ref.cu_offset, type_ref.die_offset
+                )
             }
             TypeLayout::Other { name } => name.to_string(),
         }

@@ -38,7 +38,6 @@ pub struct ForEachChild<P> {
     parser: P,
 }
 
-/// Main function for creating for-each-child parser
 pub fn for_each_child<P>(parser: P) -> ForEachChild<P> {
     ForEachChild { parser }
 }
@@ -51,7 +50,46 @@ where
         let mut results = Vec::new();
 
         for child in entry.children(db)? {
-            if let Ok(result) = self.parser.parse(db, child) {
+            match self.parser.parse(db, child) {
+                Ok(result) => {
+                    results.push(result);
+                }
+                Err(e) => {
+                    tracing::trace!(
+                        "Failed to parse child: {}: {}",
+                        child.format_with_location(db, child.print(db)),
+                        e
+                    );
+                    // Optionally, you could collect errors if needed
+                    // results.push(Err(e));
+                    // Or just log them and continue
+                    // tracing::error!("Error parsing child: {}", e);
+                    continue;
+                }
+            }
+            // Note: We ignore parse failures and just collect successes
+        }
+
+        Ok(results)
+    }
+}
+pub struct TryForEachChild<P> {
+    parser: P,
+}
+
+pub fn try_for_each_child<P>(parser: P) -> TryForEachChild<P> {
+    TryForEachChild { parser }
+}
+
+impl<'db, T, P> Parser<'db, Vec<T>> for TryForEachChild<P>
+where
+    P: Parser<'db, Option<T>>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Vec<T>> {
+        let mut results = Vec::new();
+
+        for child in entry.children(db)? {
+            if let Some(result) = self.parser.parse(db, child)? {
                 results.push(result);
             }
             // Note: We ignore parse failures and just collect successes

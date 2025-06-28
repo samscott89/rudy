@@ -11,7 +11,7 @@ use crate::{
             children::child,
             combinators::all,
             enums::{PartiallyParsedEnumVariant, enum_discriminant, enum_named_tuple_variant},
-            primitives::{attr, identity, member_by_tag, resolve_type},
+            primitives::{attr, identity, member_by_tag, resolve_type_shallow},
         },
     },
 };
@@ -59,7 +59,7 @@ impl<'db> Parser<'db, OptionLayout> for OptionDefParser {
         let (name, size, discriminant, some_variant) = parse_option_entry().parse(db, entry)?;
 
         // resolve the some_type
-        let some_type = resolve_type().parse(db, some_variant.layout)?;
+        let some_type = resolve_type_shallow().parse(db, some_variant.layout)?;
 
         Ok(OptionLayout {
             name,

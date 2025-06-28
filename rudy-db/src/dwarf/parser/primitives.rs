@@ -49,6 +49,28 @@ impl<'db> Parser<'db, usize> for Attr<usize> {
     }
 }
 
+impl<'db> Parser<'db, u64> for Attr<u64> {
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<u64> {
+        let value = entry.get_attr(db, self.attr)?;
+        if let Some(v) = value.udata_value() {
+            Ok(v)
+        } else if let Some(v) = value.sdata_value() {
+            if v < 0 {
+                return Err(anyhow::anyhow!(
+                    "Value {} is negative, cannot fit in u64",
+                    v
+                ));
+            }
+            Ok(v as u64)
+        } else {
+            Err(anyhow::anyhow!(
+                "Expected {} to be a signed or unsigned data attribute, found: {value:?}",
+                self.attr,
+            ))
+        }
+    }
+}
+
 impl<'db> Parser<'db, i64> for Attr<i64> {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<i64> {
         let value = entry.get_attr(db, self.attr)?;
@@ -269,7 +291,7 @@ pub fn generic(name: &str) -> Generic {
 }
 
 pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, Arc<TypeLayout>> {
-    generic(name).then(resolve_type()).map(Arc::new)
+    generic(name).then(resolve_type_shallow()).map(Arc::new)
 }
 
 /// Combinator that resolves a Die into a type definition
@@ -277,7 +299,7 @@ pub struct ResolveType;
 
 impl<'db> Parser<'db, TypeLayout> for ResolveType {
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<TypeLayout> {
-        Ok(crate::dwarf::resolution::shallow_resolve_type(db, entry)?)
+        Ok(crate::dwarf::resolution::resolve_type_offset(db, entry)?)
     }
 }
 

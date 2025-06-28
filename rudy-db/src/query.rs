@@ -86,7 +86,7 @@ pub fn lookup_address<'db>(
                 .data(db)
                 .functions
                 .get(&fai.name)?;
-            let cu = indexed_function.declaration_die.cu(db);
+            let cu = indexed_function.data(db).declaration_die.cu(db);
             dwarf::address_to_location(db, cu, relative_addr).map(|loc| (fai.name.clone(), loc))
         })
         .next()
