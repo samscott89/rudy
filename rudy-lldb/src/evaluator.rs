@@ -4,12 +4,12 @@
 //! and reading memory through event callbacks.
 
 use anyhow::{Context, Result, anyhow};
-use rudy_db::{DataResolver, DebugInfo, Value};
+use rudy_db::{DataResolver, DebugInfo, Value, evaluate_synthetic_method, get_synthetic_methods};
 use rudy_types::{StdLayout, TypeLayout};
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use crate::protocol::{EventRequest, EventResponseData};
+use crate::protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument};
 use crate::server::ClientConnection;
 use rudy_parser::Expression;
 
@@ -183,6 +183,12 @@ impl<'a> EvalContext<'a> {
             Expression::AddressOf { .. } => Err(anyhow!(
                 "Address-of operator not supported in debugging context"
             )),
+            Expression::MethodCall { base, method, args } => {
+                self.evaluate_method_call(base, method, args)
+            }
+            Expression::FunctionCall { .. } => Err(anyhow!(
+                "Function calls not yet supported - use method calls instead"
+            )),
         }
     }
 
@@ -200,6 +206,13 @@ impl<'a> EvalContext<'a> {
                 self.evaluate_field_access_to_ref(base, field)
             }
             Expression::Index { base, index } => self.evaluate_index_to_ref(base, index),
+            // Method calls and function calls need special handling
+            Expression::MethodCall { .. } => Err(anyhow!(
+                "Method calls cannot be evaluated to a memory reference - they return computed values"
+            )),
+            Expression::FunctionCall { .. } => Err(anyhow!(
+                "Function calls cannot be evaluated to a memory reference"
+            )),
             // Literals, deref, and address-of don't have memory locations
             _ => Err(anyhow!(
                 "Expression {:?} cannot be evaluated to a memory reference",
@@ -449,6 +462,171 @@ impl<'a> EvalContext<'a> {
                 type_def: element_info.type_def,
             };
             self.value_ref_to_result(&element_ref)
+        }
+    }
+
+    /// Evaluate a method call expression
+    fn evaluate_method_call(
+        &mut self,
+        base: &Expression,
+        method: &str,
+        args: &[Expression],
+    ) -> Result<EvalResult> {
+        // First, get the base object's type and address
+        let base_ref = self.evaluate_to_ref(base)?;
+        let base_type = &base_ref.type_def;
+
+        // Check if this is a synthetic method we can evaluate
+        let synthetic_methods = get_synthetic_methods(base_type);
+        let is_synthetic = synthetic_methods.iter().any(|m| m.name == method);
+
+        if is_synthetic {
+            // Validate argument count for synthetic methods
+            let method_info = synthetic_methods.iter().find(|m| m.name == method).unwrap();
+            if method_info.takes_args && args.is_empty() {
+                return Err(anyhow!("Method {}() expects arguments", method));
+            } else if !method_info.takes_args && !args.is_empty() {
+                return Err(anyhow!("Method {}() takes no arguments", method));
+            }
+
+            // Convert arguments to Values (currently we don't support args for synthetic methods)
+            let arg_values = Vec::new();
+
+            // Evaluate the synthetic method
+            let result_value = evaluate_synthetic_method(
+                base_ref.address,
+                base_type,
+                method,
+                &arg_values,
+                &self.conn,
+            )?;
+
+            // Convert Value to EvalResult
+            Ok(EvalResult {
+                value: format_value(&result_value),
+                type_name: match &result_value {
+                    Value::Scalar { ty, .. } => ty.clone(),
+                    _ => "unknown".to_string(),
+                },
+            })
+        } else {
+            // Try to execute the real method
+            self.execute_real_method(base_ref, method, args)
+        }
+    }
+
+    /// Execute a real method by calling it via LLDB
+    fn execute_real_method(
+        &mut self,
+        base_ref: ValueRef,
+        method: &str,
+        args: &[Expression],
+    ) -> Result<EvalResult> {
+        // First, discover methods for this type to find the method address
+        let discovered_methods = self
+            .debug_info
+            .discover_methods_for_type(&base_ref.type_def)?;
+
+        // Find the specific method we want to call
+        let method_info = discovered_methods
+            .iter()
+            .find(|m| m.name == method)
+            .ok_or_else(|| {
+                anyhow!(
+                    "Method '{}' not found for type '{}'",
+                    method,
+                    base_ref.type_def.display_name()
+                )
+            })?;
+
+        // Check if the method is callable (has an address)
+        if method_info.address == 0 {
+            return Err(anyhow!(
+                "Method '{}' is not callable (no address found)",
+                method
+            ));
+        }
+
+        // Debug logging
+        tracing::debug!(
+            "Executing method '{}' at address {:#x} for type {}",
+            method,
+            method_info.address,
+            base_ref.type_def.display_name()
+        );
+        tracing::debug!("Method signature: {}", method_info.signature);
+        tracing::debug!("Base object address: {:#x}", base_ref.address);
+        tracing::debug!("Number of arguments: {}", args.len());
+
+        // Convert arguments to MethodArguments
+        let mut method_args = Vec::new();
+        for arg_expr in args {
+            match self.convert_expression_to_method_arg(arg_expr) {
+                Ok(method_arg) => method_args.push(method_arg),
+                Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
+            }
+        }
+
+        // Determine return type
+        let return_type = self.infer_return_type(&method_info.signature);
+
+        // Send the ExecuteMethod event
+        let event = EventRequest::ExecuteMethod {
+            method_address: method_info.address,
+            base_address: base_ref.address,
+            args: method_args,
+            return_type: return_type.clone(),
+        };
+
+        let response = self.conn.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::MethodResult { value, return_type } => Ok(EvalResult {
+                value,
+                type_name: return_type,
+            }),
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Method execution failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for ExecuteMethod")),
+        }
+    }
+
+    /// Convert an expression to a MethodArgument for execution
+    fn convert_expression_to_method_arg(&mut self, expr: &Expression) -> Result<MethodArgument> {
+        match expr {
+            Expression::NumberLiteral(value) => Ok(MethodArgument {
+                value: value.to_string(),
+                arg_type: ArgumentType::Integer,
+            }),
+            Expression::StringLiteral(_value) => {
+                // For string literals, we'd need to allocate them in the target process
+                // For now, this is not supported
+                Err(anyhow!("String literal arguments not yet supported"))
+            }
+            Expression::Variable(_) => {
+                // Variables need to be evaluated to get their address/value
+                // For now, this is complex to implement
+                Err(anyhow!("Variable arguments not yet supported"))
+            }
+            _ => Err(anyhow!("Unsupported argument type: {:?}", expr)),
+        }
+    }
+
+    /// Infer the return type from a method signature
+    fn infer_return_type(&self, signature: &str) -> String {
+        // Simple signature parsing - this is a rough heuristic
+        if signature.contains("-> usize") {
+            "usize".to_string()
+        } else if signature.contains("-> bool") {
+            "bool".to_string()
+        } else if signature.contains("-> i32") {
+            "i32".to_string()
+        } else if signature.contains("-> u64") {
+            "u64".to_string()
+        } else {
+            // Default to usize for unknown return types
+            "usize".to_string()
         }
     }
 }

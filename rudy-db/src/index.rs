@@ -106,14 +106,14 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
 
     tracing::trace!("Debug files found: {debug_files:#?}",);
 
-    // TODO: get "main debug files" (i.e. the binary itself, or the debug file adjacent to it)
-    // and insert into the vec + index the symbols
-
     let binary_path = binary
         .file(db)
         .path(db)
         .replace("/deps/", "/")
         .replace("-", "_");
+
+    // TODO: this logic is not super robust. Perhaps we could instead
+    // scan through all CUs to find source files that match the binary path?
     let indexed_debug_files = debug_files
         .iter()
         .filter_map(|((file, _member), debug_file)| {
@@ -195,7 +195,6 @@ pub fn find_all_by_address(
 
             // we also need to adjust the address by the symbol's base address
 
-
             let debug_file = s.debug_file;
             let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
             let Some(f) = indexed.functions.get(&s.name) else {
@@ -206,6 +205,7 @@ pub fn find_all_by_address(
                 );
                 return vec![];
             };
+            let f = f.data(db);
             let Some((relative_start, _)) = f.relative_address_range else {
                 return vec![]
             };
@@ -219,8 +219,7 @@ pub fn find_all_by_address(
                 debug_file.relocatable(db),
             );
 
-                        let relative_address = address - slide;
-
+            let relative_address = address - slide;
 
             tracing::info!(
                 "Resolving function {} at address {address:#x} with slide {slide:#x} (relative addr: {relative_address:#x}) in debug file {}",

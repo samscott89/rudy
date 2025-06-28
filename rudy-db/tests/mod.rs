@@ -221,14 +221,23 @@ fn test_method_discovery(#[case] target: &str) {
     let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, &path).unwrap();
 
-    // Test 1: Discover all methods in the binary
+    // Test 1: Debug version - capture all symbol analysis results
+    let symbol_analysis_results = debug_info
+        .discover_all_methods_debug()
+        .expect("Symbol analysis should succeed");
+
+    salsa::attach(&db, || {
+        insta::assert_debug_snapshot!(symbol_analysis_results)
+    });
+
+    // Test 2: Discover all methods in the binary (original test)
     let methods_by_type = debug_info
         .discover_all_methods()
         .expect("Method discovery should succeed");
 
     insta::assert_debug_snapshot!(methods_by_type);
 
-    // Test 2: Test specific type resolution and method discovery
+    // Test 3: Test specific type resolution and method discovery
     let test_struct0_type = debug_info
         .resolve_type("TestStruct0")
         .expect("Type resolution should succeed")

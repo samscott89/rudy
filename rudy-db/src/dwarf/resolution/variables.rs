@@ -1,23 +1,34 @@
 //! Variable resolution from DWARF debugging information
 
-use crate::database::Db;
-use crate::dwarf::die::declaration_file;
-use crate::dwarf::visitor::{self, DieVisitor};
-use crate::dwarf::{Die, resolution::types::resolve_type_offset};
-use crate::file::SourceFile;
-use rudy_types::{TypeLayout, UnitLayout};
+use crate::{
+    database::Db,
+    dwarf::{
+        Die, FunctionIndexEntry,
+        die::position,
+        parser::{
+            Parser,
+            combinators::all,
+            from_fn,
+            primitives::{entry_type, optional_attr, resolve_type_shallow},
+        },
+        visitor::{self, DieVisitor},
+    },
+    types::Position,
+};
+
+use rudy_types::TypeLayout;
 
 type Result<T> = std::result::Result<T, super::Error>;
 
 /// Tracked variable information
-#[salsa::tracked]
+#[salsa::tracked(debug)]
 pub struct Variable<'db> {
     #[returns(ref)]
-    pub name: String,
+    pub name: Option<String>,
     #[returns(ref)]
     pub ty: TypeLayout,
-    pub file: SourceFile<'db>,
-    pub line: u64,
+    pub location: Option<Position<'db>>,
+    /// The DIE that this variable was parsed from
     pub origin: Die<'db>,
 }
 
@@ -61,7 +72,7 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
         let db = walker.db;
         tracing::debug!("variable: {}", entry.print(db));
 
-        match resolve_variable_entry(db, entry) {
+        match variable().parse(db, entry) {
             Ok(var) => {
                 walker.visitor.locals.push(var);
             }
@@ -81,32 +92,7 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
         let entry = walker.get_die(entry);
         let db = walker.db;
         tracing::debug!("param: {}", entry.print(db));
-        if entry.name(db).is_err() {
-            // we sometimes encounter anonymous parameters
-            // which we'll just push a dummy value
-            let file =
-                match declaration_file(db, entry) {
-                    Ok(file) => file,
-                    Err(e) => {
-                        db.report_warning(entry.format_with_location(
-                            db,
-                            format!("Failed to get declaration file: {e}"),
-                        ));
-                        return;
-                    }
-                };
-
-            walker.visitor.params.push(Variable::new(
-                db,
-                format!("__{}", walker.visitor.params.len()),
-                TypeLayout::Primitive(rudy_types::PrimitiveLayout::Unit(UnitLayout)),
-                file,
-                0,
-                entry,
-            ));
-            return;
-        }
-        match resolve_variable_entry(db, entry) {
+        match variable().parse(db, entry) {
             Ok(var) => {
                 walker.visitor.params.push(var);
             }
@@ -127,8 +113,11 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
 #[salsa::tracked]
 pub fn resolve_function_variables<'db>(
     db: &'db dyn Db,
-    die: Die<'db>,
+    fie: FunctionIndexEntry<'db>,
 ) -> Result<ResolvedVariables<'db>> {
+    let data = fie.data(db);
+    let die = data.specification_die.unwrap_or(data.declaration_die);
+
     tracing::debug!(
         "{}",
         die.format_with_location(db, "resolving function variables")
@@ -142,11 +131,13 @@ pub fn resolve_function_variables<'db>(
     Ok(ResolvedVariables::new(db, visitor.params, visitor.locals))
 }
 
-fn resolve_variable_entry<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Variable<'db>> {
-    let name = entry.name(db)?;
-    let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
-    let ty = resolve_type_offset(db, type_entry)?;
-    let file = declaration_file(db, entry)?;
-    let line = entry.udata_attr(db, gimli::DW_AT_decl_line)?;
-    Ok(Variable::new(db, name, ty, file, line as u64, entry))
+pub fn variable<'db>() -> impl Parser<'db, Variable<'db>> {
+    all((
+        optional_attr(gimli::DW_AT_name),
+        entry_type().then(resolve_type_shallow()),
+        from_fn(position),
+    ))
+    .map_with_db_and_entry(|db, entry, (name, ty, position)| {
+        Variable::new(db, name, ty, position, entry)
+    })
 }

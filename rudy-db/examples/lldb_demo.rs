@@ -21,6 +21,14 @@ struct Session {
     expires_at: u64,
 }
 
+impl Session {
+    fn is_expired(&self) -> bool {
+        // For demo purposes, let's say the session expires after 1 hour
+        let current_time = 1234567890; // Placeholder for current time
+        self.expires_at < current_time
+    }
+}
+
 impl User {
     fn new(id: u64, name: &str, email: &str) -> Self {
         let mut metadata = HashMap::new();
@@ -62,4 +70,10 @@ fn main() {
     }
 
     println!("Created {} users", users.len());
+
+    if session.is_expired() {
+        println!("Session is expired");
+    } else {
+        println!("Session is valid: {session:?}");
+    }
 }

@@ -25,6 +25,7 @@ pub use index::{FileIndex, FunctionIndexEntry, index_debug_file_full, index_debu
 pub use loader::{Dwarf, load};
 pub use names::{ModuleName, RawSymbol, SymbolName, TypeName};
 pub use resolution::{
+    FunctionSignature,
     // Address resolution
     ResolvedLocation,
     // Variable resolution
@@ -32,7 +33,7 @@ pub use resolution::{
     address_to_location,
     fully_resolve_type,
     location_to_address,
-    resolve_entry_type,
+    resolve_function_signature,
     resolve_function_variables,
     resolve_type_offset,
 };

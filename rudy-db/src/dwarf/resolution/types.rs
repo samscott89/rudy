@@ -2,21 +2,25 @@
 
 use std::sync::Arc;
 
-use crate::database::Db;
-use crate::dwarf::Die;
-use crate::dwarf::index::get_die_typename;
-use crate::dwarf::parser::btreemap::btree_map;
-use crate::dwarf::parser::option::option_def;
-use crate::dwarf::parser::result::result_def;
-use crate::dwarf::parser::{
-    Parser,
-    children::parse_children,
-    enums::{c_enum_def, enum_def},
-    hashmap::hashbrown_map,
-    primitives::{entry_type, member, resolved_generic},
-    vec::vec,
+use crate::{
+    database::Db,
+    dwarf::{
+        Die,
+        index::get_die_typename,
+        parser::{
+            Parser,
+            btreemap::btree_map,
+            children::parse_children,
+            enums::{c_enum_def, enum_def},
+            hashmap::hashbrown_map,
+            option::option_def,
+            primitives::{entry_type, member, resolved_generic},
+            result::result_def,
+            vec::vec,
+        },
+    },
+    file::DebugFile,
 };
-use crate::file::DebugFile;
 use rudy_types::*;
 
 use anyhow::Context;
@@ -348,15 +352,16 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
     // From there, we need to full resolve the type the DIE entry
     // (e.g. finding where the pointer + length for the Vec are stored)
     let Some(typename) = get_die_typename(db, entry) else {
-        tracing::warn!(
+        tracing::debug!(
             "no name found for entry: {} at offset {}",
             entry.print(db),
             entry.die_offset(db).0
         );
+
         return Ok(None);
     };
 
-    tracing::info!(
+    tracing::debug!(
         "resolve_as_builtin_type: checking typename: {typename} {:#?} {}",
         typename.typedef,
         entry.location(db)
@@ -431,7 +436,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
-#[salsa::tracked]
+// #[salsa::tracked]
 pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeLayout> {
     Ok(
         if let Some(builtin_ty) = resolve_as_builtin_type(db, entry)? {
@@ -439,7 +444,9 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
             tracing::debug!("builtin: {builtin_ty:?}");
             builtin_ty
         } else {
+            tracing::debug!("not a builtin type: {}", entry.print(db));
             TypeLayout::Alias(UnresolvedType {
+                name: entry.name(db).unwrap_or_else(|_| "unknown".to_string()),
                 cu_offset: entry
                     .cu_offset(db)
                     .as_debug_info_offset()
@@ -808,14 +815,16 @@ pub fn fully_resolve_type(
             TypeLayout::CEnum(c_enum_def)
         }
         TypeLayout::Alias(UnresolvedType {
+            name,
             cu_offset,
             die_offset,
         }) => {
             let die_offset = UnitOffset(die_offset);
             let cu_offset = gimli::UnitSectionOffset::from(DebugInfoOffset(cu_offset));
             let die = Die::new(db, file, cu_offset, die_offset);
-            resolve_type_offset(db, die)
-                .with_context(|| die.format_with_location(db, "Failed to resolve alias type"))?
+            resolve_type_offset(db, die).with_context(|| {
+                die.format_with_location(db, format!("Failed to resolve alias type: {name}"))
+            })?
         }
         TypeLayout::Other { name } => {
             // Other types are not fully resolved, return as is
@@ -861,9 +870,8 @@ mod test {
             .get_function(&db, &f)
             .expect("Failed to find function in debug index");
 
-        let function_die = fie.specification_die.unwrap_or(fie.declaration_die);
-        let params = resolve_function_variables(&db, function_die)
-            .expect("Failed to resolve function variables");
+        let params =
+            resolve_function_variables(&db, fie).expect("Failed to resolve function variables");
         assert_eq!(
             params.params(&db).len(),
             3,

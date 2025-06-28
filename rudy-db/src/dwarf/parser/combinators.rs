@@ -25,7 +25,7 @@ where
     }
 }
 
-/// Combinator that transforms parser output
+/// Combinators that transforms parser output
 pub struct Map<P, F, T> {
     pub(super) parser: P,
     pub(super) f: F,
@@ -40,6 +40,40 @@ where
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
         let result = self.parser.parse(db, entry)?;
         Ok((self.f)(result))
+    }
+}
+
+pub struct MapWithDb<P, F, T> {
+    pub(super) parser: P,
+    pub(super) f: F,
+    pub(super) _marker: std::marker::PhantomData<T>,
+}
+
+impl<'db, T, U, P, F> Parser<'db, U> for MapWithDb<P, F, T>
+where
+    P: Parser<'db, T>,
+    F: Fn(&'db dyn Db, T) -> U,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
+        let result = self.parser.parse(db, entry)?;
+        Ok((self.f)(db, result))
+    }
+}
+
+pub struct MapWithDbAndEntry<P, F, T> {
+    pub(super) parser: P,
+    pub(super) f: F,
+    pub(super) _marker: std::marker::PhantomData<T>,
+}
+
+impl<'db, T, U, P, F> Parser<'db, U> for MapWithDbAndEntry<P, F, T>
+where
+    P: Parser<'db, T>,
+    F: Fn(&'db dyn Db, Die<'db>, T) -> U,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
+        let result = self.parser.parse(db, entry)?;
+        Ok((self.f)(db, entry, result))
     }
 }
 
@@ -61,12 +95,13 @@ where
 }
 
 /// Sequential combinator - applies parsers in sequence, each operating on the result of the previous
-pub struct Then<P1, P2> {
+pub struct Then<P1, P2, T> {
     pub(super) first: P1,
     pub(super) second: P2,
+    pub(super) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2>
+impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2, Die<'db>>
 where
     P1: Parser<'db, Die<'db>>,
     P2: Parser<'db, U>,
@@ -74,6 +109,45 @@ where
     fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
         let intermediate = self.first.parse(db, entry)?;
         self.second.parse(db, intermediate)
+    }
+}
+
+impl<'db, U, P1, P2> Parser<'db, Option<U>> for Then<P1, P2, Option<Die<'db>>>
+where
+    P1: Parser<'db, Option<Die<'db>>>,
+    P2: Parser<'db, U>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<U>> {
+        self.first
+            .parse(db, entry)?
+            .map(|intermediate| self.second.parse(db, intermediate))
+            .transpose()
+    }
+}
+
+impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2, Result<Die<'db>>>
+where
+    P1: Parser<'db, Result<Die<'db>>>,
+    P2: Parser<'db, U>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<U> {
+        self.first
+            .parse(db, entry)?
+            .and_then(|intermediate| self.second.parse(db, intermediate))
+    }
+}
+
+/// Combinator that filters the output of a parser, returning `None` if the parser fails
+pub struct Filter<P> {
+    pub(super) parser: P,
+}
+
+impl<'db, T, P> Parser<'db, Option<T>> for Filter<P>
+where
+    P: Parser<'db, T>,
+{
+    fn parse(&self, db: &'db dyn Db, entry: Die<'db>) -> Result<Option<T>> {
+        Ok(self.parser.parse(db, entry).ok())
     }
 }
 

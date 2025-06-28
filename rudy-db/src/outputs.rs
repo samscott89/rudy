@@ -4,6 +4,8 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use rudy_types::TypeLayout;
 
+use crate::SelfType;
+
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ResolvedAddress {
@@ -142,4 +144,21 @@ impl fmt::Debug for ResolvedFunction {
             .field("params", &self.params)
             .finish()
     }
+}
+
+/// A discovered method with its metadata
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DiscoveredMethod {
+    /// The method name (e.g., "len", "push")
+    pub name: String,
+    /// The full method name including type path
+    pub full_name: String,
+    /// The method signature as a string
+    pub signature: String,
+    /// The memory address of the method
+    pub address: u64,
+    /// Type of self parameter
+    pub self_type: SelfType,
+    /// Whether this method can be called (has an address)
+    pub callable: bool,
 }

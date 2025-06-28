@@ -33,15 +33,21 @@ mod database;
 mod debug_info;
 mod dwarf;
 mod file;
+mod function_discovery;
 mod index;
 mod outputs;
 mod query;
+mod synthetic_methods;
 mod types;
 
 // re-exports
 pub use data::DataResolver;
 pub use database::DebugDatabaseImpl as DebugDb;
-pub use debug_info::{DebugInfo, DiscoveredMethod, SelfType};
+pub use debug_info::DebugInfo;
 pub use index::symbols::Symbol;
-pub use outputs::{ResolvedAddress, ResolvedLocation, Type, Value, Variable, VariableInfo};
+pub use outputs::{
+    DiscoveredMethod, ResolvedAddress, ResolvedLocation, Type, Value, Variable, VariableInfo,
+};
 pub use rudy_types::TypeLayout;
+pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};
+pub use types::SelfType;

@@ -11,8 +11,8 @@ use super::{
     unit::UnitRef,
     utils::{file_entry_to_path, get_unit_ref_attr, parse_die_string_attribute},
 };
-use crate::file::DebugFile;
 use crate::{database::Db, file::SourceFile};
+use crate::{file::DebugFile, types::Position};
 
 /// References a specific DWARF debugging information entry
 #[salsa::interned(debug)]
@@ -268,9 +268,14 @@ impl<'db> Die<'db> {
     }
 }
 
-/// Get the declaration file for a DIE entry
-pub fn declaration_file<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<SourceFile<'db>> {
-    let decl_file_attr = entry.get_attr(db, gimli::DW_AT_decl_file)?;
+/// Get the position for a DIE entry
+pub fn position<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<Position<'db>>> {
+    let Ok(decl_file_attr) = entry.get_attr(db, gimli::DW_AT_decl_file) else {
+        return Ok(None);
+    };
+    let Ok(decl_line) = entry.udata_attr(db, gimli::DW_AT_decl_line) else {
+        return Ok(None);
+    };
     let gimli::AttributeValue::FileIndex(file_idx) = decl_file_attr else {
         return Err(entry.make_error(
             db,
@@ -296,5 +301,6 @@ pub fn declaration_file<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<SourceF
         return Err(entry.make_error(db, anyhow::anyhow!("Failed to convert file entry to path")));
     };
 
-    Ok(SourceFile::new(db, path))
+    let source_file = SourceFile::new(db, path);
+    Ok(Some(Position::new(db, source_file, decl_line as u64, None)))
 }
