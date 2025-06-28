@@ -8,21 +8,142 @@ use rudy_db::{DataResolver, DebugDb, DebugInfo, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-/// A DataResolver that reads from the current process memory
-struct SelfProcessResolver {
-    base_address: u64,
+#[macro_use]
+mod common;
+
+/// Macro that approximates finding a variable in the current process
+/// and reading it from raw memory.
+///
+/// Uses a little hackery since we don't have a real program counter (PC) in tests.
+macro_rules! resolve_variable {
+    ($debug_info:ident, $var:ident) => {{
+        let resolver = SelfProcessResolver::new();
+        let address = $debug_info
+            .resolve_position(file!(), line!() as u64, None)
+            .expect("Failed to resolve current position")
+            .expect("to resolve current position")
+            .address;
+        tracing::debug!("Current address: {address:#x}");
+
+        let mut var_info = $debug_info
+            // we'll pass in a fake program counter (PC) since we're don't actually have it
+            .get_variable_at_pc(address, stringify!($var), &resolver)
+            .expect("Failed to get variable at address")
+            .expect("test_string variable should be found");
+
+        var_info.address = Some(&$var as *const _ as u64);
+
+        let var_info_pointer = var_info
+            .as_pointer()
+            .expect("test_string variable should have a memory address");
+
+        let value = $debug_info
+            .read_pointer(&var_info_pointer, &resolver)
+            .expect("Failed to read string from memory");
+
+        let value = read_value_recursively(&$debug_info, value, &resolver)
+            .expect("Failed to read value recursively");
+
+        value
+    }};
 }
 
-impl SelfProcessResolver {
-    fn new() -> Self {
-        // For reading our own process, base address is 0
-        Self { base_address: 0 }
+fn read_value_recursively(
+    debug_info: &DebugInfo,
+    value: Value,
+    resolver: &dyn DataResolver,
+) -> Result<Value> {
+    match value {
+        Value::Pointer(typed_pointer) => {
+            let value = debug_info.read_pointer(&typed_pointer, resolver)?;
+            read_value_recursively(debug_info, value, resolver)
+        }
+        v @ Value::Scalar { .. } => Ok(v),
+        Value::Array { ty, items } => {
+            let items = items
+                .into_iter()
+                .map(|v| read_value_recursively(debug_info, v, resolver))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Value::Array { ty, items })
+        }
+        Value::Struct { ty, fields } => {
+            let fields = fields
+                .into_iter()
+                .map(|(k, v)| {
+                    read_value_recursively(debug_info, v, resolver).map(|v| (k.clone(), v))
+                })
+                .collect::<Result<BTreeMap<_, _>, _>>()?;
+            Ok(Value::Struct { ty, fields })
+        }
+        Value::Tuple { ty, entries } => {
+            let entries = entries
+                .into_iter()
+                .map(|v| read_value_recursively(debug_info, v, resolver))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Value::Tuple { ty, entries })
+        }
+        Value::Map { ty, entries } => {
+            let entries = entries
+                .into_iter()
+                .map(|(k, v)| {
+                    let key = read_value_recursively(debug_info, k, resolver)?;
+                    let value = read_value_recursively(debug_info, v, resolver)?;
+                    Ok((key, value))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(Value::Map { ty, entries })
+        }
     }
+}
+
+macro_rules! variable_pointer {
+    ($debug_info:ident, $var:ident) => {{
+        let resolver = SelfProcessResolver::new();
+        let address = $debug_info
+            .resolve_position(file!(), line!() as u64, None)
+            .expect("Failed to resolve current position")
+            .expect("to resolve current position")
+            .address;
+        tracing::debug!("Current address: {address:#x}");
+
+        let var_info = $debug_info
+            .get_variable_at_pc(address, stringify!($var), &resolver)
+            .expect("Failed to get variable at address")
+            .expect("test_string variable should be found");
+
+        var_info
+            .as_pointer()
+            .expect("Variable should have a pointer")
+    }};
+}
+/// A DataResolver that reads from the current process memory
+struct SelfProcessResolver;
+
+impl SelfProcessResolver {
+    const fn new() -> Self {
+        // For reading our own process, base address is 0
+        Self
+    }
+}
+
+#[macro_export]
+macro_rules! setup_db {
+    () => {{
+        setup!();
+
+        let db = Box::new(DebugDb::new());
+
+        let exe_path = std::env::current_exe().expect("Failed to get current exe path");
+        let debug_info = DebugInfo::new(Box::leak(db), exe_path.to_str().unwrap())
+            .expect("Failed to load debug info");
+
+        debug_info
+    }};
 }
 
 impl DataResolver for SelfProcessResolver {
     fn base_address(&self) -> u64 {
-        self.base_address
+        0
     }
 
     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
@@ -84,7 +205,7 @@ struct TestBasicStruct {
 struct TestComplexData {
     id: u64,
     values: Vec<i32>,
-    metadata: HashMap<String, String>,
+    metadata: BTreeMap<String, String>,
     location: TestPoint,
 }
 
@@ -115,41 +236,14 @@ enum U8Enum {
 
 #[test]
 fn test_introspect_string() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    // Get the path to our current test executable
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create test data
     let test_string = String::from("Hello, Debugger!");
-    let string_ptr = &test_string as *const String as u64;
 
-    // Create resolver for reading our own memory
-    let resolver = SelfProcessResolver::new();
+    let value = resolve_variable!(debug_info, test_string);
+    insta::assert_debug_snapshot!(value);
 
-    // Find the String type using the public API
-    let typedef = debug_info
-        .resolve_type("String")?
-        .expect("could not resolve String type");
-    // Read the string value from memory
-    let value = debug_info
-        .address_to_value(string_ptr, &typedef, &resolver)
-        .expect("Failed to read String from memory");
-
-    // Verify we got the expected value
-    match value {
-        Value::Scalar { ty, value } if ty == "String" => {
-            assert_eq!(value, "\"Hello, Debugger!\"");
-        }
-        _ => panic!("Expected string value, got: {value:?}"),
-    }
     // Keep string alive
     let _ = test_string;
     Ok(())
@@ -157,15 +251,7 @@ fn test_introspect_string() -> Result<()> {
 
 #[test]
 fn test_introspect_struct() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create test data
     let test_person = TestPerson {
@@ -173,34 +259,9 @@ fn test_introspect_struct() -> Result<()> {
         age: 30,
         email: Some(String::from("alice@example.com")),
     };
-    let person_ptr = &test_person as *const TestPerson as u64;
+    let value = resolve_variable!(debug_info, test_person);
 
-    let resolver = SelfProcessResolver::new();
-
-    // Find TestPerson type using the public API
-    let typedef = debug_info
-        .resolve_type("TestPerson")?
-        .expect("Failed to resolve TestPerson type");
-
-    let value = debug_info
-        .address_to_value(person_ptr, &typedef, &resolver)
-        .expect("Failed to read TestPerson from memory");
-
-    match value {
-        Value::Struct { ty, fields } => {
-            assert_eq!(ty, "TestPerson");
-            assert!(fields.contains_key("name"));
-            assert!(fields.contains_key("age"));
-            assert!(fields.contains_key("email"));
-
-            // Check age field
-            if let Some(Value::Scalar { ty, value }) = fields.get("age") {
-                assert_eq!(ty, "u32");
-                assert_eq!(value, "30");
-            }
-        }
-        _ => panic!("Expected struct value, got: {value:?}"),
-    }
+    insta::assert_debug_snapshot!(value);
 
     // Keep data alive
     let _ = test_person;
@@ -209,32 +270,13 @@ fn test_introspect_struct() -> Result<()> {
 
 #[test]
 fn test_introspect_vec() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create test data
     let test_vec: Vec<i32> = vec![10, 20, 30, 40, 50];
-    let vec_ptr = &test_vec as *const Vec<i32> as u64;
-
-    let resolver = SelfProcessResolver::new();
-
-    // Find Vec<i32> type using the public API
-    let typedef = debug_info
-        .resolve_type("Vec<i32>")?
-        .expect("Vec type should be found");
-
-    // Try to read Vec - this will fail when Vec reading isn't implemented
-    let value = debug_info.address_to_value(vec_ptr, &typedef, &resolver)?;
-
+    let value = resolve_variable!(debug_info, test_vec);
     // If we get here, Vec reading is working
-    println!("Vec value: {value:?}");
+    insta::assert_debug_snapshot!(value);
 
     // Keep vec alive
     let _ = test_vec;
@@ -243,62 +285,17 @@ fn test_introspect_vec() -> Result<()> {
 
 #[test]
 fn test_introspect_option() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Test Option::Some
     let test_some: Option<u32> = Some(42);
-    let some_ptr = &test_some as *const Option<u32> as u64;
+    let value = resolve_variable!(debug_info, test_some);
+    insta::assert_debug_snapshot!(value);
 
     // Test Option::None
     let test_none: Option<u32> = None;
-    let none_ptr = &test_none as *const Option<u32> as u64;
-
-    let resolver = SelfProcessResolver::new();
-
-    // Find Option<u32> type using the public API
-    let typedef = debug_info
-        .resolve_type("Option<u32>")?
-        .expect("Failed to resolve Option type");
-
-    // Test Some variant - Option is implemented and should work
-    let some_value = debug_info
-        .address_to_value(some_ptr, &typedef, &resolver)
-        .expect("Option::Some reading should be implemented");
-
-    match some_value {
-        Value::Scalar { ty, value } => {
-            assert_eq!(ty, "Option<u32>");
-            assert_eq!(value, "42");
-            println!("✓ Option::Some correctly read as: {ty} = {value}");
-        }
-        _ => panic!(
-            "Expected Some(42) to be read as Scalar {{ ty: Option<u32>, value: 42 }}, got: {some_value:?}"
-        ),
-    }
-
-    // Test None variant - Option is implemented and should work
-    let none_value = debug_info
-        .address_to_value(none_ptr, &typedef, &resolver)
-        .expect("Option::None reading should be implemented");
-
-    match none_value {
-        Value::Scalar { ty, value } => {
-            assert_eq!(ty, "Option<u32>");
-            assert_eq!(value, "None");
-            println!("✓ Option::None correctly read as: {ty} = {value}");
-        }
-        _ => panic!(
-            "Expected None to be read as Scalar {{ ty: Option<i32>, value: None }}, got: {none_value:?}"
-        ),
-    }
+    let value = resolve_variable!(debug_info, test_none);
+    insta::assert_debug_snapshot!(value);
 
     // Keep data alive
     let _ = (test_some, test_none);
@@ -307,15 +304,7 @@ fn test_introspect_option() -> Result<()> {
 
 #[test]
 fn test_introspect_hashmap() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create test data
     let mut test_map = HashMap::new();
@@ -323,62 +312,14 @@ fn test_introspect_hashmap() -> Result<()> {
     test_map.insert("two".to_string(), 2);
     test_map.insert("three".to_string(), 3);
 
-    let map_ptr = &test_map as *const HashMap<String, i32> as u64;
-
-    let resolver = SelfProcessResolver::new();
-
-    // Find HashMap type using the public API
-    let typedef = debug_info
-        .resolve_type("HashMap<String, i32>")?
-        .expect("HashMap type should be found");
-
-    // Try to read HashMap - this will fail when HashMap reading isn't implemented
-    let mut value = debug_info.address_to_value(map_ptr, &typedef, &resolver)?;
-
-    // If we get here, HashMap reading is working
-    // sort the values to make comparison easier
-    if let Value::Map { ty, entries } = &mut value {
-        assert_eq!(ty, "HashMap<String, i32>");
-        // Sort entries by key for consistent ordering
-        entries.sort();
-        assert_eq!(
-            entries,
-            &[
-                (
-                    Value::Scalar {
-                        ty: "String".to_string(),
-                        value: "\"one\"".to_string(),
-                    },
-                    Value::Scalar {
-                        ty: "i32".to_string(),
-                        value: "1".to_string(),
-                    }
-                ),
-                (
-                    Value::Scalar {
-                        ty: "String".to_string(),
-                        value: "\"three\"".to_string(),
-                    },
-                    Value::Scalar {
-                        ty: "i32".to_string(),
-                        value: "3".to_string(),
-                    }
-                ),
-                (
-                    Value::Scalar {
-                        ty: "String".to_string(),
-                        value: "\"two\"".to_string(),
-                    },
-                    Value::Scalar {
-                        ty: "i32".to_string(),
-                        value: "2".to_string(),
-                    }
-                )
-            ]
-        );
-    } else {
-        panic!("Expected HashMap<String, i32> to be read as Map, got: {value:?}");
-    }
+    let value = resolve_variable!(debug_info, test_map);
+    let Value::Map { ty, mut entries } = value else {
+        panic!("Expected a Map value, got: {value:?}");
+    };
+    assert_eq!(ty, "HashMap<String, i32>");
+    assert_eq!(entries.len(), 3);
+    entries.sort();
+    insta::assert_debug_snapshot!(entries);
 
     // Keep map alive
     let _ = test_map;
@@ -387,15 +328,7 @@ fn test_introspect_hashmap() -> Result<()> {
 
 #[test]
 fn test_introspect_btreemap() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create test data
     let mut test_map = BTreeMap::new();
@@ -403,62 +336,8 @@ fn test_introspect_btreemap() -> Result<()> {
     test_map.insert("two".to_string(), 2);
     test_map.insert("three".to_string(), 3);
 
-    let map_ptr = &test_map as *const BTreeMap<String, i32> as u64;
-
-    let resolver = SelfProcessResolver::new();
-
-    // Find BTreeMap type using the public API
-    let typedef = debug_info
-        .resolve_type("BTreeMap<String, i32>")?
-        .expect("BTreeMap type should be found");
-
-    // Try to read BTreeMap - this will fail when BTreeMap reading isn't implemented
-    let mut value = debug_info.address_to_value(map_ptr, &typedef, &resolver)?;
-
-    // If we get here, BTreeMap reading is working
-    // sort the values to make comparison easier
-    if let Value::Map { ty, entries } = &mut value {
-        assert_eq!(ty, "BTreeMap<String, i32>");
-        // Sort entries by key for consistent ordering
-        entries.sort();
-        assert_eq!(
-            entries,
-            &[
-                (
-                    Value::Scalar {
-                        ty: "String".to_string(),
-                        value: "\"one\"".to_string(),
-                    },
-                    Value::Scalar {
-                        ty: "i32".to_string(),
-                        value: "1".to_string(),
-                    }
-                ),
-                (
-                    Value::Scalar {
-                        ty: "String".to_string(),
-                        value: "\"three\"".to_string(),
-                    },
-                    Value::Scalar {
-                        ty: "i32".to_string(),
-                        value: "3".to_string(),
-                    }
-                ),
-                (
-                    Value::Scalar {
-                        ty: "String".to_string(),
-                        value: "\"two\"".to_string(),
-                    },
-                    Value::Scalar {
-                        ty: "i32".to_string(),
-                        value: "2".to_string(),
-                    }
-                )
-            ]
-        );
-    } else {
-        panic!("Expected BTreeMap<String, i32> to be read as Map, got: {value:?}");
-    }
+    let value = resolve_variable!(debug_info, test_map);
+    insta::assert_debug_snapshot!(value);
 
     // Keep map alive
     let _ = test_map;
@@ -467,18 +346,10 @@ fn test_introspect_btreemap() -> Result<()> {
 
 #[test]
 fn test_introspect_complex_nested_types() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create complex nested data - NOTE: This contains Vec and HashMap which are not implemented yet
-    let mut metadata = HashMap::new();
+    let mut metadata = BTreeMap::new();
     metadata.insert("version".to_string(), "1.0".to_string());
     metadata.insert("author".to_string(), "test".to_string());
 
@@ -492,29 +363,8 @@ fn test_introspect_complex_nested_types() {
         },
     };
 
-    let data_ptr = &test_data as *const TestComplexData as u64;
-
-    let resolver = SelfProcessResolver::new();
-
-    // Find TestComplexData type using the public API
-    let typedef = debug_info
-        .resolve_type("TestComplexData")
-        .expect("Failed to resolve TestComplexData type")
-        .expect("TestComplexData type should be found");
-
-    // Try to read TestComplexData - this will fail when Vec/HashMap reading isn't implemented
-    let value = debug_info
-        .address_to_value(data_ptr, &typedef, &resolver)
-        .expect("Failed to read TestComplexData from memory");
-
-    // If we get here, complex struct reading is working
-    println!("TestComplexData value: {value:?}");
-
-    // let methods = debug_info
-    //     .discover_methods_for_type(&typedef)
-    //     .expect("Method discovery for TestComplexData should succeed");
-
-    // insta::assert_debug_snapshot!(methods);
+    let value = resolve_variable!(debug_info, test_data);
+    insta::assert_debug_snapshot!(value);
 
     // Keep data alive
     let _ = test_data;
@@ -522,15 +372,7 @@ fn test_introspect_complex_nested_types() {
 
 #[test]
 fn test_introspect_smart_pointers() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create test data with smart pointers
     let test_box: Box<String> = Box::new(String::from("Boxed string"));
@@ -539,96 +381,16 @@ fn test_introspect_smart_pointers() -> Result<()> {
     let test_mutex: std::sync::Mutex<i32> = std::sync::Mutex::new(42);
     let test_cell: std::cell::RefCell<i32> = std::cell::RefCell::new(100);
 
-    let box_ptr = &test_box as *const Box<String> as u64;
-    let arc_ptr = &test_arc as *const Arc<Vec<i32>> as u64;
-    let rc_ptr = &test_rc as *const std::rc::Rc<i32> as u64;
-    let mutex_ptr = &test_mutex as *const std::sync::Mutex<i32> as u64;
-    let cell_ptr = &test_cell as *const std::cell::RefCell<i32> as u64;
-
-    let resolver = SelfProcessResolver::new();
-
-    // Test Box - will fail when Box reading isn't implemented
-    let box_typedef = debug_info
-        .resolve_type("Box<String>")?
-        .expect("Box type should be found");
-
-    let box_value = debug_info.address_to_value(box_ptr, &box_typedef, &resolver)?;
-    assert_eq!(
-        box_value,
-        Value::Scalar {
-            ty: "Box<String>".to_string(),
-            value: "\"Boxed string\"".to_string(),
-        }
-    );
-
-    // Test Arc - will fail when Arc reading isn't implemented
-    let arc_typedef = debug_info
-        .resolve_type("Arc<Vec<i32>>")?
-        .expect("Arc type should be found");
-
-    let arc_value = debug_info.address_to_value(arc_ptr, &arc_typedef, &resolver)?;
-    assert_eq!(
-        arc_value,
-        Value::Array {
-            ty: "Arc<Vec<i32>>".to_string(),
-            items: vec![
-                Value::Scalar {
-                    ty: "i32".to_string(),
-                    value: "1".to_string(),
-                },
-                Value::Scalar {
-                    ty: "i32".to_string(),
-                    value: "2".to_string(),
-                },
-                Value::Scalar {
-                    ty: "i32".to_string(),
-                    value: "3".to_string(),
-                }
-            ]
-        }
-    );
-
-    // Test Rc - will fail when Rc reading isn't implemented
-    let rc_typedef = debug_info
-        .resolve_type("Rc<i32>")?
-        .expect("Rc type should be found");
-
-    let rc_value = debug_info.address_to_value(rc_ptr, &rc_typedef, &resolver)?;
-    assert_eq!(
-        rc_value,
-        Value::Scalar {
-            ty: "Rc<i32>".to_string(),
-            value: "42".to_string(),
-        }
-    );
-
-    // Test Mutex - will fail when Mutex reading isn't implemented
-    let mutex_typedef = debug_info
-        .resolve_type("Mutex<i32>")?
-        .expect("Mutex type should be found");
-
-    let mutex_value = debug_info.address_to_value(mutex_ptr, &mutex_typedef, &resolver)?;
-    assert_eq!(
-        mutex_value,
-        Value::Scalar {
-            ty: "Mutex<i32>".to_string(),
-            value: "42".to_string(),
-        }
-    );
-
-    // Test RefCell - will fail when RefCell reading isn't implemented
-    let cell_typedef = debug_info
-        .resolve_type("RefCell<i32>")?
-        .expect("RefCell type should be found");
-
-    let cell_value = debug_info.address_to_value(cell_ptr, &cell_typedef, &resolver)?;
-    assert_eq!(
-        cell_value,
-        Value::Scalar {
-            ty: "RefCell<i32>".to_string(),
-            value: "100".to_string(),
-        }
-    );
+    let box_value = resolve_variable!(debug_info, test_box);
+    insta::assert_debug_snapshot!(box_value);
+    let arc_value = resolve_variable!(debug_info, test_arc);
+    insta::assert_debug_snapshot!(arc_value);
+    let rc_value = resolve_variable!(debug_info, test_rc);
+    insta::assert_debug_snapshot!(rc_value);
+    let mutex_value = resolve_variable!(debug_info, test_mutex);
+    insta::assert_debug_snapshot!(mutex_value);
+    let cell_value = resolve_variable!(debug_info, test_cell);
+    insta::assert_debug_snapshot!(cell_value);
 
     // Keep data alive
     let _ = (test_box, test_arc, test_rc, test_mutex, test_cell);
@@ -637,15 +399,7 @@ fn test_introspect_smart_pointers() -> Result<()> {
 
 #[test]
 fn test_introspect_basic_struct() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+    let debug_info = setup_db!();
 
     // Create test data with only basic types that should be implemented
     let test_basic = TestBasicStruct {
@@ -655,65 +409,8 @@ fn test_introspect_basic_struct() -> Result<()> {
         bytes: [0xDE, 0xAD, 0xBE, 0xEF],
     };
 
-    let basic_ptr = &test_basic as *const TestBasicStruct as u64;
-
-    let resolver = SelfProcessResolver::new();
-
-    // Find TestBasicStruct type using the public API
-    let typedef = debug_info
-        .resolve_type("TestBasicStruct")?
-        .expect("Failed to resolve TestBasicStruct type");
-
-    // Try to read the basic struct - will fail if any field types aren't implemented
-    let value = debug_info.address_to_value(basic_ptr, &typedef, &resolver)?;
-
-    // If we get here, basic struct reading is working
-    println!("TestBasicStruct value: {value:?}");
-
-    assert_eq!(
-        value,
-        Value::Struct {
-            ty: "TestBasicStruct".to_string(),
-            fields: {
-                let mut fields = std::collections::BTreeMap::new();
-                fields.insert(
-                    "id".to_string(),
-                    Value::Scalar {
-                        ty: "u32".to_string(),
-                        value: "42".to_string(),
-                    },
-                );
-                fields.insert(
-                    "count".to_string(),
-                    Value::Scalar {
-                        ty: "u64".to_string(),
-                        value: "12345".to_string(),
-                    },
-                );
-                fields.insert(
-                    "enabled".to_string(),
-                    Value::Scalar {
-                        ty: "bool".to_string(),
-                        value: "true".to_string(),
-                    },
-                );
-                fields.insert(
-                    "bytes".to_string(),
-                    Value::Array {
-                        ty: "[u8; 4]".to_string(),
-                        items: vec!["222", "173", "190", "239"]
-                            .into_iter()
-                            .map(|v| Value::Scalar {
-                                ty: "u8".to_string(),
-                                value: v.to_string(),
-                            })
-                            .collect(),
-                    },
-                );
-                fields
-            }
-        }
-    );
+    let value = resolve_variable!(debug_info, test_basic);
+    insta::assert_debug_snapshot!(value);
 
     // Keep data alive
     let _ = test_basic;
@@ -722,18 +419,7 @@ fn test_introspect_basic_struct() -> Result<()> {
 
 #[test]
 fn test_introspect_enums() {
-    // test enum introspection for TestEnum, ReprCEnum, and U8Enum
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-
-    let db = DebugDb::new();
-
-    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
-    let debug_info =
-        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
-
-    let resolver = SelfProcessResolver::new();
+    let debug_info = setup_db!();
 
     // Test TestEnum variants
     let unit_variant = TestEnum::Unit;
@@ -743,62 +429,28 @@ fn test_introspect_enums() {
         y: 2.71,
     };
 
-    let unit_ptr = &unit_variant as *const TestEnum as u64;
-    let tuple_ptr = &tuple_variant as *const TestEnum as u64;
-    let struct_ptr = &struct_variant as *const TestEnum as u64;
+    let unit_value = resolve_variable!(debug_info, unit_variant);
+    insta::assert_debug_snapshot!(unit_value);
 
-    // Find TestEnum type
-    let test_enum_typedef = debug_info
-        .resolve_type("TestEnum")
-        .expect("Failed to resolve TestEnum")
-        .expect("TestEnum type should be found");
+    let tuple_value = resolve_variable!(debug_info, tuple_variant);
+    insta::assert_debug_snapshot!(tuple_value);
 
-    // Test unit variant
-    let unit_value = debug_info
-        .address_to_value(unit_ptr, &test_enum_typedef, &resolver)
-        .expect("Failed to read TestEnum::Unit");
-    println!("TestEnum::Unit: {unit_value:?}");
-
-    // Test tuple variant
-    let tuple_value = debug_info
-        .address_to_value(tuple_ptr, &test_enum_typedef, &resolver)
-        .expect("Failed to read TestEnum::Tuple");
-    println!("TestEnum::Tuple: {tuple_value:?}");
-
-    // Test struct variant
-    let struct_value = debug_info
-        .address_to_value(struct_ptr, &test_enum_typedef, &resolver)
-        .expect("Failed to read TestEnum::Struct");
-    println!("TestEnum::Struct: {struct_value:?}");
+    let struct_value = resolve_variable!(debug_info, struct_variant);
+    insta::assert_debug_snapshot!(struct_value);
 
     // Test ReprCEnum variants
     let repr_c_unit = ReprCEnum::Unit;
     let repr_c_tuple = ReprCEnum::Tuple(99, "repr_c".to_string());
     let repr_c_struct = ReprCEnum::Struct { x: 1.41, y: 4.13 };
 
-    let repr_c_unit_ptr = &repr_c_unit as *const ReprCEnum as u64;
-    let repr_c_tuple_ptr = &repr_c_tuple as *const ReprCEnum as u64;
-    let repr_c_struct_ptr = &repr_c_struct as *const ReprCEnum as u64;
+    let repr_c_unit_value = resolve_variable!(debug_info, repr_c_unit);
+    insta::assert_debug_snapshot!(repr_c_unit_value);
 
-    let repr_c_typedef = debug_info
-        .resolve_type("ReprCEnum")
-        .expect("Failed to resolve ReprCEnum")
-        .expect("ReprCEnum type should be found");
+    let repr_c_tuple_value = resolve_variable!(debug_info, repr_c_tuple);
+    insta::assert_debug_snapshot!(repr_c_tuple_value);
 
-    let repr_c_unit_value = debug_info
-        .address_to_value(repr_c_unit_ptr, &repr_c_typedef, &resolver)
-        .expect("Failed to read ReprCEnum::Unit");
-    println!("ReprCEnum::Unit: {repr_c_unit_value:?}");
-
-    let repr_c_tuple_value = debug_info
-        .address_to_value(repr_c_tuple_ptr, &repr_c_typedef, &resolver)
-        .expect("Failed to read ReprCEnum::Tuple");
-    println!("ReprCEnum::Tuple: {repr_c_tuple_value:?}");
-
-    let repr_c_struct_value = debug_info
-        .address_to_value(repr_c_struct_ptr, &repr_c_typedef, &resolver)
-        .expect("Failed to read ReprCEnum::Struct");
-    println!("ReprCEnum::Struct: {repr_c_struct_value:?}");
+    let repr_c_struct_value = resolve_variable!(debug_info, repr_c_struct);
+    insta::assert_debug_snapshot!(repr_c_struct_value);
 
     // Test U8Enum variants
     let u8_first = U8Enum::First;
@@ -806,35 +458,17 @@ fn test_introspect_enums() {
     let u8_third = U8Enum::Third;
     let u8_fifth = U8Enum::Fifth;
 
-    let u8_first_ptr = &u8_first as *const U8Enum as u64;
-    let u8_second_ptr = &u8_second as *const U8Enum as u64;
-    let u8_third_ptr = &u8_third as *const U8Enum as u64;
-    let u8_fifth_ptr = &u8_fifth as *const U8Enum as u64;
+    let u8_first_value = resolve_variable!(debug_info, u8_first);
+    insta::assert_debug_snapshot!(u8_first_value);
 
-    let u8_enum_typedef = debug_info
-        .resolve_type("U8Enum")
-        .expect("Failed to resolve U8Enum")
-        .expect("U8Enum type should be found");
+    let u8_second_value = resolve_variable!(debug_info, u8_second);
+    insta::assert_debug_snapshot!(u8_second_value);
 
-    let u8_first_value = debug_info
-        .address_to_value(u8_first_ptr, &u8_enum_typedef, &resolver)
-        .expect("Failed to read U8Enum::First");
-    println!("U8Enum::First: {u8_first_value:?}");
+    let u8_third_value = resolve_variable!(debug_info, u8_third);
+    insta::assert_debug_snapshot!(u8_third_value);
 
-    let u8_second_value = debug_info
-        .address_to_value(u8_second_ptr, &u8_enum_typedef, &resolver)
-        .expect("Failed to read U8Enum::Second");
-    println!("U8Enum::Second: {u8_second_value:?}");
-
-    let u8_third_value = debug_info
-        .address_to_value(u8_third_ptr, &u8_enum_typedef, &resolver)
-        .expect("Failed to read U8Enum::Third");
-    println!("U8Enum::Third: {u8_third_value:?}");
-
-    let u8_fifth_value = debug_info
-        .address_to_value(u8_fifth_ptr, &u8_enum_typedef, &resolver)
-        .expect("Failed to read U8Enum::Fifth");
-    println!("U8Enum::Fifth: {u8_fifth_value:?}");
+    let u8_fifth_value = resolve_variable!(debug_info, u8_fifth);
+    insta::assert_debug_snapshot!(u8_fifth_value);
 
     // Keep all enum values alive
     let _ = (
@@ -853,19 +487,16 @@ fn test_introspect_enums() {
 
 #[test]
 fn test_real_method_execution() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
-    let db = DebugDb::new();
-    let debug_info = DebugInfo::new(&db, std::env::current_exe()?.to_str().unwrap())?;
+    let debug_info = setup_db!();
 
     // Test Vec::len() method execution - this should be simple and safe
     let test_vec = vec![1, 2, 3, 4, 5];
-    let vec_type = debug_info
-        .resolve_type("Vec<i32>")?
-        .expect("Vec<i32> type should be found");
 
     // Get discovered methods for Vec<i32>
+
+    let vec_pointer = variable_pointer!(debug_info, test_vec);
+    let vec_type = vec_pointer.type_def;
+
     let methods = debug_info.discover_methods_for_type(&vec_type)?;
     println!("Methods found for Vec<i32> ({} total):", methods.len());
 
@@ -912,11 +543,10 @@ fn test_synthetic_methods() -> Result<()> {
 
     // Test Vec synthetic methods
     let test_vec = vec![1, 2, 3, 4, 5];
-    let vec_ptr = &test_vec as *const Vec<i32> as u64;
-    let vec_type = debug_info
-        .resolve_type("Vec<i32>")
-        .expect("Failed to resolve Vec<i32>")
-        .expect("Vec<i32> type should be found");
+
+    let test_vec_ptr = variable_pointer!(debug_info, test_vec);
+    let vec_ptr = test_vec_ptr.address;
+    let vec_type = test_vec_ptr.type_def;
 
     // Evaluate Vec::len()
     let len_value = rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "len", &[], &resolver)?;
@@ -953,11 +583,9 @@ fn test_synthetic_methods() -> Result<()> {
 
     // Test String synthetic methods
     let test_string = String::from("Hello, Rust!");
-    let string_ptr = &test_string as *const String as u64;
-    let string_type = debug_info
-        .resolve_type("String")
-        .expect("Failed to resolve String")
-        .expect("String type should be found");
+    let string_ptr = variable_pointer!(debug_info, test_string);
+    let string_type = string_ptr.type_def;
+    let string_ptr = string_ptr.address;
 
     let string_len =
         rudy_db::evaluate_synthetic_method(string_ptr, &string_type, "len", &[], &resolver)?;
@@ -974,12 +602,11 @@ fn test_synthetic_methods() -> Result<()> {
     let some_option: Option<i32> = Some(42);
     let none_option: Option<i32> = None;
 
-    let some_ptr = &some_option as *const Option<i32> as u64;
-    let none_ptr = &none_option as *const Option<i32> as u64;
-    let option_type = debug_info
-        .resolve_type("Option<i32>")
-        .expect("Failed to resolve Option<i32>")
-        .expect("Option<i32> type should be found");
+    let some_ptr = variable_pointer!(debug_info, some_option);
+    let none_ptr = variable_pointer!(debug_info, none_option);
+    let option_type = some_ptr.type_def;
+    let some_ptr = some_ptr.address;
+    let none_ptr = none_ptr.address;
 
     let is_some =
         rudy_db::evaluate_synthetic_method(some_ptr, &option_type, "is_some", &[], &resolver)?;
@@ -1010,11 +637,9 @@ fn test_synthetic_methods() -> Result<()> {
 
     // Test slice synthetic methods
     let slice: &[i32] = &test_vec[..];
-    let slice_ptr = &slice as *const &[i32] as u64;
-    let slice_type = debug_info
-        .resolve_type("&[i32]")
-        .expect("Failed to resolve &[i32]")
-        .expect("&[i32] type should be found");
+    let slice_ptr = variable_pointer!(debug_info, slice);
+    let slice_type = slice_ptr.type_def;
+    let slice_ptr = slice_ptr.address;
 
     let slice_len =
         rudy_db::evaluate_synthetic_method(slice_ptr, &slice_type, "len", &[], &resolver)?;

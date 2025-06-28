@@ -49,6 +49,16 @@ pub struct VariableInfo {
     pub debug_file: DebugFile,
 }
 
+impl VariableInfo {
+    pub fn as_pointer(&self) -> Option<TypedPointer> {
+        self.address.map(|address| TypedPointer {
+            address,
+            type_def: self.type_def.clone(),
+            debug_file: self.debug_file,
+        })
+    }
+}
+
 /// A pointer to an entry in memory, with its type definition
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypedPointer {

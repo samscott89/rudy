@@ -1,0 +1,43 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: value
+snapshot_kind: text
+---
+Struct {
+    ty: "TestBasicStruct",
+    fields: {
+        "bytes": Array {
+            ty: "[u8; 4]",
+            items: [
+                Scalar {
+                    ty: "u8",
+                    value: "222",
+                },
+                Scalar {
+                    ty: "u8",
+                    value: "173",
+                },
+                Scalar {
+                    ty: "u8",
+                    value: "190",
+                },
+                Scalar {
+                    ty: "u8",
+                    value: "239",
+                },
+            ],
+        },
+        "count": Scalar {
+            ty: "u64",
+            value: "12345",
+        },
+        "enabled": Scalar {
+            ty: "bool",
+            value: "true",
+        },
+        "id": Scalar {
+            ty: "u32",
+            value: "42",
+        },
+    },
+}

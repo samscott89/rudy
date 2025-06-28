@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 
 use std::collections::BTreeMap;
 
-use crate::Value;
 use crate::database::Db;
 use crate::outputs::TypedPointer;
+use crate::{Value, dwarf::Die};
 use rudy_types::{
     ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
     PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
@@ -497,13 +497,12 @@ pub fn read_from_memory(
         }
         TypeLayout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver, debug_file),
         TypeLayout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
-        TypeLayout::Alias(_entry) => {
-            // Return a pointer for lazy resolution
-            Ok(Value::Pointer(TypedPointer {
-                address,
-                type_def: ty.clone().into(),
-                debug_file: *debug_file,
-            }))
+        TypeLayout::Alias(entry) => {
+            // For aliases, we'll resolve the underlying type and read that
+            let entry = Die::from_unresolved_entry(db, *debug_file, entry);
+            let underlying_type = crate::dwarf::resolve_type_offset(db, entry)?;
+            // now read the memory itself
+            read_from_memory(db, address, &underlying_type, data_resolver, debug_file)
         }
         TypeLayout::Other { name } => {
             tracing::warn!("read_from_memory: unsupported type {name}");
@@ -543,7 +542,7 @@ pub fn extract_vec_info(
 }
 
 fn read_primitive_from_memory(
-    _db: &dyn Db,
+    db: &dyn Db,
     address: u64,
     def: &PrimitiveLayout,
     data_resolver: &dyn crate::DataResolver,
@@ -600,25 +599,12 @@ fn read_primitive_from_memory(
             }
         }
         PrimitiveLayout::Pointer(PointerLayout { pointed_type, .. }) => {
-            let pointed_address = data_resolver.read_address(address)?;
-            if pointed_address == 0 {
-                Value::Scalar {
-                    ty: format!("*{}", pointed_type.display_name()),
-                    value: "null".to_string(),
-                }
-            } else {
-                Value::Scalar {
-                    ty: format!("*{}", pointed_type.display_name()),
-                    value: format!("{pointed_address:#x}"),
-                }
-            }
+            let address = data_resolver.read_address(address)?;
+            read_from_memory(db, address, pointed_type, data_resolver, debug_file)?.prefix_type("*")
         }
         PrimitiveLayout::Reference(ReferenceLayout { pointed_type, .. }) => {
-            let pointed_address = data_resolver.read_address(address)?;
-            Value::Scalar {
-                ty: format!("&{}", pointed_type.display_name()),
-                value: format!("{pointed_address:#x}"),
-            }
+            let address = data_resolver.read_address(address)?;
+            read_from_memory(db, address, pointed_type, data_resolver, debug_file)?.prefix_type("&")
         }
         PrimitiveLayout::Slice(SliceLayout {
             element_type,
@@ -884,45 +870,31 @@ fn read_std_from_memory(
                 entries,
             }
         }
-        StdLayout::SmartPtr(s) => {
-            let ptr = match s.variant {
-                SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {
-                    let inner_address = address + s.inner_ptr_offset as u64;
-                    TypedPointer {
-                        address: inner_address,
-                        type_def: s.inner_type.clone(),
-                        debug_file: *debug_file,
-                    }
-                }
-                SmartPtrVariant::Box => {
-                    let inner_address = data_resolver.read_address(address)?;
-                    TypedPointer {
-                        address: inner_address,
-                        type_def: s.inner_type.clone(),
-                        debug_file: *debug_file,
-                    }
-                }
-                SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
-                    let inner_address =
-                        data_resolver.read_address(address + s.inner_ptr_offset as u64)?;
-                    let data_address = inner_address + s.data_ptr_offset as u64;
-                    TypedPointer {
-                        address: data_address,
-                        type_def: s.inner_type.clone(),
-                        debug_file: *debug_file,
-                    }
-                }
-                _ => {
-                    todo!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
-                }
-            };
-            // For smart pointers, we'll return a scalar showing the address
-            // The caller can expand it if needed
-            Value::Scalar {
-                ty: format!("{}<{}>", s.variant.name(), s.inner_type.display_name()),
-                value: format!("{:#x}", ptr.address),
+        StdLayout::SmartPtr(s) => match s.variant {
+            SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {
+                let inner_type = s.inner_type.clone();
+                let address = address + s.inner_ptr_offset as u64;
+                read_from_memory(db, address, &inner_type, data_resolver, debug_file)?
+                    .wrap_type(s.variant.name())
             }
-        }
+            SmartPtrVariant::Box => {
+                let inner_type = s.inner_type.clone();
+                let address = data_resolver.read_address(address)?;
+                read_from_memory(db, address, &inner_type, data_resolver, debug_file)?
+                    .wrap_type(s.variant.name())
+            }
+            SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
+                let inner_type = s.inner_type.clone();
+                let inner_address =
+                    data_resolver.read_address(address + s.inner_ptr_offset as u64)?;
+                let data_address = inner_address + s.data_ptr_offset as u64;
+                read_from_memory(db, data_address, &inner_type, data_resolver, debug_file)?
+                    .wrap_type(s.variant.name())
+            }
+            _ => {
+                todo!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
+            }
+        },
         StdLayout::Result(result_def) => {
             todo!("read_std_from_memory: ResultDef not implemented yet: {result_def:#?}")
         }

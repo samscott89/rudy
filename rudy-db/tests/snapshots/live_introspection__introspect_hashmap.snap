@@ -1,0 +1,37 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: entries
+snapshot_kind: text
+---
+[
+    (
+        Scalar {
+            ty: "String",
+            value: "\"one\"",
+        },
+        Scalar {
+            ty: "i32",
+            value: "1",
+        },
+    ),
+    (
+        Scalar {
+            ty: "String",
+            value: "\"three\"",
+        },
+        Scalar {
+            ty: "i32",
+            value: "3",
+        },
+    ),
+    (
+        Scalar {
+            ty: "String",
+            value: "\"two\"",
+        },
+        Scalar {
+            ty: "i32",
+            value: "2",
+        },
+    ),
+]

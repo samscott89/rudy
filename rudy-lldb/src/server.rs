@@ -242,7 +242,7 @@ impl ClientConnection {
         debug_info: &DebugInfo,
     ) -> Result<MethodDiscoveryResult> {
         // First, try to parse as a type name directly (e.g., "Vec<String>", "HashMap<String, u32>")
-        if let Ok(Some(type_def)) = debug_info.resolve_type(input) {
+        if let Ok(Some((type_def, _))) = debug_info.resolve_type(input) {
             return Ok(self.discover_methods_for_type(&type_def, debug_info));
         }
 
