@@ -8,7 +8,7 @@ use crate::{
     dwarf::{self, Die, resolve_function_variables},
     function_discovery::SymbolAnalysisResult,
     index,
-    outputs::ResolvedFunction,
+    outputs::{ResolvedFunction, TypedPointer},
     query::{lookup_address, lookup_position},
     types::{Address, Position},
 };
@@ -737,6 +737,209 @@ impl<'db> DebugInfo<'db> {
             }
             _ => Err(anyhow::anyhow!("Value is not a pointer")),
         }
+    }
+
+    /// Get a field from a Value::Pointer
+    ///
+    /// This method can extract a field from a pointer value, automatically
+    /// resolving any type aliases if needed. The result is a new Value::Pointer
+    /// pointing to the field.
+    ///
+    /// # Arguments
+    ///
+    /// * `pointer_value` - A Value::Pointer containing the struct/union
+    /// * `field_name` - Name of the field to access
+    ///
+    /// # Returns
+    ///
+    /// A Value::Pointer pointing to the field
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rudy_db::DebugInfo;
+    /// # let debug_info: DebugInfo = unimplemented!();
+    /// # let struct_pointer: rudy_db::Value = unimplemented!();
+    /// let field_pointer = debug_info.get_field_from_pointer(&struct_pointer, "name").unwrap();
+    /// println!("Field pointer: {:?}", field_pointer);
+    /// ```
+    pub fn get_field_from_pointer(
+        &self,
+        pointer_value: &crate::Value,
+        field_name: &str,
+    ) -> Result<crate::Value> {
+        match pointer_value {
+            crate::Value::Pointer(typed_pointer) => {
+                // First, resolve any type aliases
+                let resolved_type = if matches!(*typed_pointer.type_def, TypeLayout::Alias(_)) {
+                    Arc::new(crate::dwarf::fully_resolve_type(
+                        self.db,
+                        typed_pointer.debug_file,
+                        &typed_pointer.type_def,
+                    )?)
+                } else {
+                    typed_pointer.type_def.clone()
+                };
+
+                // Get field info using the resolved type
+                let field_info = self.get_field(
+                    typed_pointer.address,
+                    &resolved_type,
+                    field_name,
+                )?;
+
+                // Return a new pointer to the field
+                Ok(crate::Value::Pointer(TypedPointer {
+                    address: field_info.address.ok_or_else(|| {
+                        anyhow::anyhow!("Field '{}' has no memory address", field_name)
+                    })?,
+                    type_def: field_info.type_def,
+                    debug_file: field_info.debug_file,
+                }))
+            }
+            _ => Err(anyhow::anyhow!("Value is not a pointer")),
+        }
+    }
+
+    /// Get an element from a Value::Pointer by index
+    ///
+    /// This method can extract an element from an array, slice, or vector pointer,
+    /// automatically resolving any type aliases if needed. The result is a new
+    /// Value::Pointer pointing to the element.
+    ///
+    /// # Arguments
+    ///
+    /// * `pointer_value` - A Value::Pointer containing the array/slice/vector
+    /// * `index` - Index of the element to access
+    /// * `data_resolver` - Data resolver for reading vector/slice metadata
+    ///
+    /// # Returns
+    ///
+    /// A Value::Pointer pointing to the element
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rudy_db::DebugInfo;
+    /// # let debug_info: DebugInfo = unimplemented!();
+    /// # let array_pointer: rudy_db::Value = unimplemented!();
+    /// # let resolver = unimplemented!();
+    /// let element_pointer = debug_info.get_index_from_pointer(&array_pointer, 0, &resolver).unwrap();
+    /// println!("Element pointer: {:?}", element_pointer);
+    /// ```
+    pub fn get_index_from_pointer(
+        &self,
+        pointer_value: &crate::Value,
+        index: u64,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<crate::Value> {
+        match pointer_value {
+            crate::Value::Pointer(typed_pointer) => {
+                // First, resolve any type aliases
+                let resolved_type = if matches!(*typed_pointer.type_def, TypeLayout::Alias(_)) {
+                    Arc::new(crate::dwarf::fully_resolve_type(
+                        self.db,
+                        typed_pointer.debug_file,
+                        &typed_pointer.type_def,
+                    )?)
+                } else {
+                    typed_pointer.type_def.clone()
+                };
+
+                // Get element info using the resolved type
+                let element_info = self.get_index_by_int(
+                    typed_pointer.address,
+                    &resolved_type,
+                    index,
+                    data_resolver,
+                )?;
+
+                // Return a new pointer to the element
+                Ok(crate::Value::Pointer(TypedPointer {
+                    address: element_info.address.ok_or_else(|| {
+                        anyhow::anyhow!("Element at index {} has no memory address", index)
+                    })?,
+                    type_def: element_info.type_def,
+                    debug_file: element_info.debug_file,
+                }))
+            }
+            _ => Err(anyhow::anyhow!("Value is not a pointer")),
+        }
+    }
+
+    /// Get a value from a map Value::Pointer by key
+    ///
+    /// This method can extract a value from a map pointer by searching for
+    /// the given key, automatically resolving any type aliases if needed.
+    /// The result is a new Value::Pointer pointing to the value.
+    ///
+    /// # Arguments
+    ///
+    /// * `pointer_value` - A Value::Pointer containing the map
+    /// * `key` - Key to search for in the map
+    /// * `data_resolver` - Data resolver for reading map entries
+    ///
+    /// # Returns
+    ///
+    /// A Value::Pointer pointing to the value associated with the key
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rudy_db::DebugInfo;
+    /// # let debug_info: DebugInfo = unimplemented!();
+    /// # let map_pointer: rudy_db::Value = unimplemented!();
+    /// # let key: rudy_db::Value = unimplemented!();
+    /// # let resolver = unimplemented!();
+    /// let value_pointer = debug_info.get_map_value_from_pointer(&map_pointer, &key, &resolver).unwrap();
+    /// println!("Value pointer: {:?}", value_pointer);
+    /// ```
+    pub fn get_map_value_from_pointer(
+        &self,
+        pointer_value: &crate::Value,
+        key: &crate::Value,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<crate::Value> {
+        match pointer_value {
+            crate::Value::Pointer(typed_pointer) => {
+                // First, resolve any type aliases
+                let resolved_type = if matches!(*typed_pointer.type_def, TypeLayout::Alias(_)) {
+                    Arc::new(crate::dwarf::fully_resolve_type(
+                        self.db,
+                        typed_pointer.debug_file,
+                        &typed_pointer.type_def,
+                    )?)
+                } else {
+                    typed_pointer.type_def.clone()
+                };
+
+                // Get value info using the resolved type
+                let value_info = self.get_index_by_value(
+                    typed_pointer.address,
+                    &resolved_type,
+                    key,
+                    data_resolver,
+                )?;
+
+                // Return a new pointer to the value
+                Ok(crate::Value::Pointer(TypedPointer {
+                    address: value_info.address.ok_or_else(|| {
+                        anyhow::anyhow!("Map value has no memory address")
+                    })?,
+                    type_def: value_info.type_def,
+                    debug_file: value_info.debug_file,
+                }))
+            }
+            _ => Err(anyhow::anyhow!("Value is not a pointer")),
+        }
+    }
+
+    /// Get the first debug file for testing purposes
+    ///
+    /// This is primarily intended for testing and should not be used in production code.
+    /// In the future, we should determine which debug file contains specific types.
+    pub fn first_debug_file(&self) -> Option<crate::file::DebugFile> {
+        self.debug_files.first().cloned()
     }
 
     /// Access a field of a struct/union/enum value

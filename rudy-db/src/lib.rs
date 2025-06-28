@@ -46,7 +46,7 @@ pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
 pub use index::symbols::Symbol;
 pub use outputs::{
-    DiscoveredMethod, ResolvedAddress, ResolvedLocation, Type, Value, Variable, VariableInfo,
+    DiscoveredMethod, ResolvedAddress, ResolvedLocation, Type, TypedPointer, Value, Variable, VariableInfo,
 };
 pub use rudy_types::TypeLayout;
 pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};
