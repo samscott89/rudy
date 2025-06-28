@@ -148,7 +148,7 @@ impl fmt::Debug for ResolvedFunction {
 
 /// A discovered method with its metadata
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct DiscoveredFunction {
+pub struct DiscoveredMethod {
     /// The method name (e.g., "len", "push")
     pub name: String,
     /// The full method name including type path

@@ -54,11 +54,21 @@ unsynn! {
         vtable_shim: Optional<BraceGroupContaining<BraceGroupContaining<VTableShim>>>,
     }
 
+
+    #[derive(Clone)]
+    struct ImplNumber {
+        _impl_kw: Impl,
+        pound: PunctAny<'#'>,
+        number: usize,
+    }
+
+
     #[derive(Clone)]
     enum PathSegment {
         Segment(Segment),
         QualifiedSegment(AngleTokenTree),
         VTableType(BraceGroupContaining<VTableType>),
+        ImplSegment(BraceGroupContaining<ImplNumber>),
     }
 
     #[derive(Clone)]

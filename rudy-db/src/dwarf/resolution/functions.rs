@@ -1,6 +1,7 @@
 //! Function resolution and metadata extraction
 
 use anyhow::Context as _;
+use itertools::Itertools;
 use rudy_types::{TypeLayout, UnitLayout};
 
 use crate::{
@@ -167,26 +168,48 @@ pub fn get_declaration_type<'db>(
 #[salsa::tracked(debug)]
 pub struct FunctionSignature<'db> {
     /// Short name of the function, e.g. "len" for "std::vec::Vec<T>::len"
-    name: String,
+    pub name: String,
 
     /// Params for the function, e.g. "self: &mut Self, index: usize"
-    params: Vec<Variable<'db>>,
+    pub params: Vec<Variable<'db>>,
 
     /// Return type of the function, e.g. "usize" for "std::vec::Vec<T>::len"
-    return_type: TypeLayout,
+    pub return_type: TypeLayout,
 
     /// Somewhat duplicative with the `params` field, this
     /// determines (a) if we have a self parameter, and (b) what kind of self parameter it is.
-    self_type: Option<SelfType>,
+    pub self_type: Option<SelfType>,
     /// `callable` indicates that we expect this function to be callable.
     /// This is true if the function has a symbol in the binary.
     /// If false, it means this is a synthetic method or a function that cannot be called
     /// (e.g., a trait method without an implementation).
-    callable: bool,
+    pub callable: bool,
     /// e.g. /path/to/debug_info.rgcu.o 0x12345
     ///
     /// Mostly useful for debugging
-    debug_location: String,
+    pub debug_location: String,
+}
+
+impl<'db> FunctionSignature<'db> {
+    pub fn print_sig(&self, db: &'db dyn Db) -> String {
+        let params = self
+            .params(db)
+            .iter()
+            .map(|p| {
+                format!(
+                    "{}: {}",
+                    p.name(db).as_deref().unwrap_or("_"),
+                    p.ty(db).display_name()
+                )
+            })
+            .join(", ");
+        let return_type = self.return_type(db).display_name();
+        if return_type == "()" {
+            format!("fn({params})")
+        } else {
+            format!("fn({params}) -> {return_type}")
+        }
+    }
 }
 
 /// Parser to extract function parameters

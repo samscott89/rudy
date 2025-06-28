@@ -195,7 +195,6 @@ pub fn find_all_by_address(
 
             // we also need to adjust the address by the symbol's base address
 
-
             let debug_file = s.debug_file;
             let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
             let Some(f) = indexed.functions.get(&s.name) else {
@@ -220,8 +219,7 @@ pub fn find_all_by_address(
                 debug_file.relocatable(db),
             );
 
-                        let relative_address = address - slide;
-
+            let relative_address = address - slide;
 
             tracing::info!(
                 "Resolving function {} at address {address:#x} with slide {slide:#x} (relative addr: {relative_address:#x}) in debug file {}",

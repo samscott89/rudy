@@ -47,7 +47,6 @@ pub struct ModuleIndexEntry<'db> {
 }
 
 #[salsa::tracked(debug)]
-// #[derive(Clone, Hash, PartialEq, Debug)]
 pub struct FunctionIndexEntry<'db> {
     #[returns(ref)]
     pub data: FunctionData<'db>,
@@ -348,7 +347,7 @@ impl<'db> DieVisitor<'db> for FileIndexBuilder<'db> {
         unit_ref: UnitRef<'a>,
     ) {
         // we'll treat enums as structs for now
-        Self::visit_struct(walker, entry, unit_ref);
+        visit_type(walker, entry, unit_ref);
     }
 
     fn visit_pointer_type<'a>(

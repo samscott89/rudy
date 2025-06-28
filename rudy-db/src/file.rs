@@ -142,6 +142,17 @@ pub struct SourceFile<'db> {
     pub path: String,
 }
 
+impl<'db> SourceFile<'db> {
+    pub fn is_external(&self, db: &'db dyn Db) -> bool {
+        // Check if the source file is external by checking if it is not in the same directory as the binary
+        let current_dir = std::env::current_dir()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+        !self.path(db).starts_with(&current_dir)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Error {
     Gimli(gimli::Error),

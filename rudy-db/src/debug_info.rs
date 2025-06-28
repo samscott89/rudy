@@ -3,7 +3,7 @@ use rudy_types::TypeLayout;
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use crate::{
-    DiscoveredFunction, ResolvedLocation,
+    DiscoveredMethod, ResolvedLocation,
     database::{Db, Diagnostic, handle_diagnostics},
     dwarf::{self, Die, resolve_function_variables},
     function_discovery::SymbolAnalysisResult,
@@ -965,19 +965,19 @@ impl<'db> DebugInfo<'db> {
         }
     }
 
-    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredFunction>>> {
-        todo!()
+    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod>>> {
+        crate::function_discovery::discover_all_methods(self.db, self.binary)
     }
 
     pub fn discover_all_methods_debug(&self) -> Result<BTreeMap<String, SymbolAnalysisResult>> {
-        crate::function_discovery::discover_all_methods_debug(self.db, self.binary)
+        crate::function_discovery::discover_all_functions_debug(self.db, self.binary)
     }
 
     pub fn discover_methods_for_type(
         &self,
-        _target_type: &TypeLayout,
-    ) -> Result<Vec<DiscoveredFunction>> {
-        todo!()
+        target_type: &TypeLayout,
+    ) -> Result<Vec<DiscoveredMethod>> {
+        crate::function_discovery::discover_all_methods_for_type(self.db, self.binary, target_type)
     }
 }
 

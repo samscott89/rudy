@@ -352,15 +352,16 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
     // From there, we need to full resolve the type the DIE entry
     // (e.g. finding where the pointer + length for the Vec are stored)
     let Some(typename) = get_die_typename(db, entry) else {
-        tracing::warn!(
+        tracing::debug!(
             "no name found for entry: {} at offset {}",
             entry.print(db),
             entry.die_offset(db).0
         );
+
         return Ok(None);
     };
 
-    tracing::info!(
+    tracing::debug!(
         "resolve_as_builtin_type: checking typename: {typename} {:#?} {}",
         typename.typedef,
         entry.location(db)
@@ -435,7 +436,7 @@ fn resolve_as_builtin_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Opti
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
-#[salsa::tracked]
+// #[salsa::tracked]
 pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<TypeLayout> {
     Ok(
         if let Some(builtin_ty) = resolve_as_builtin_type(db, entry)? {
@@ -443,6 +444,7 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Typ
             tracing::debug!("builtin: {builtin_ty:?}");
             builtin_ty
         } else {
+            tracing::debug!("not a builtin type: {}", entry.print(db));
             TypeLayout::Alias(UnresolvedType {
                 name: entry.name(db).unwrap_or_else(|_| "unknown".to_string()),
                 cu_offset: entry

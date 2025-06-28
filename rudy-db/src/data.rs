@@ -531,7 +531,7 @@ fn read_primitive_from_memory(
     let value = match def {
         PrimitiveLayout::Bool(_) => {
             let memory = data_resolver.read_memory(address, 1)?;
-            let bool_value = memory[0] != 0;
+            let bool_value = (memory[0] != 0).to_string();
             Value::Scalar {
                 ty: "bool".to_string(),
                 value: bool_value.to_string(),

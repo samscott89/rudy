@@ -853,7 +853,9 @@ fn test_introspect_enums() {
 
 #[test]
 fn test_real_method_execution() -> Result<()> {
-    // No debug logging to avoid spam
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
+        .try_init();
     let db = DebugDb::new();
     let debug_info = DebugInfo::new(&db, std::env::current_exe()?.to_str().unwrap())?;
 

@@ -10,7 +10,6 @@ snapshot_kind: text
         signature: "fn(self: &TestStruct0, param: i32) -> i32",
         address: 4295001484,
         self_type: Borrowed,
-        parameter_count: 2,
         callable: true,
     },
 ]
