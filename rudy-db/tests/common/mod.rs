@@ -55,8 +55,8 @@ pub fn artifacts_dir() -> PathBuf {
     }
 
     // Otherwise, look for test-artifacts relative to workspace
-    if let Ok(workspace_dir) = std::env::var("CARGO_WORKSPACE_DIR") {
-        return PathBuf::from(workspace_dir).join("rudy-db/test-artifacts");
+    if let Ok(workspace_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+        return PathBuf::from(workspace_dir).join("test-artifacts");
     }
 
     // Fall back to relative path from test executable

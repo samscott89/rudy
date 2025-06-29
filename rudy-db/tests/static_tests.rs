@@ -95,6 +95,9 @@ fn test_load_file(#[case] target: &str) {
     let _guards = setup!(target);
 
     let path = binary_path(target, "simple_test");
+
+    println!("Loading debug info from: {}", path);
+
     let db = crate::DebugDb::new();
     let parsed = DebugInfo::new(&db, &path).unwrap();
 
