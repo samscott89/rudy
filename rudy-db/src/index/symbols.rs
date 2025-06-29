@@ -39,7 +39,7 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
 
     // create debug file for teh binary
     let debug_file = DebugFile::new(db, binary_file, false);
-    debug_files.insert((binary_file.path(db).clone(), None), debug_file);
+    debug_files.insert((debug_file.file(db).path(db).clone(), None), debug_file);
 
     // index the symbols in the binary (if it has debug info)
     let mut symbol_index = SymbolIndex::default();
@@ -82,7 +82,7 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
         };
         // Create a debug file for this object
         let debug_file = DebugFile::new(db, file, true);
-        debug_files.insert((object_path, member), debug_file);
+        debug_files.insert((file.path(db).clone(), member), debug_file);
         indexed_object_files.push(debug_file);
     }
 
@@ -240,7 +240,7 @@ mod test {
         let artifact_dir = crate::test_utils::artifacts_dir(Some("aarch64-apple-darwin"));
         let exe_path = artifact_dir.join("small");
 
-        let db = DebugDb::new();
+        let db = crate::test_utils::debug_db(Some("aarch64-apple-darwin"));
         let debug_info = DebugInfo::new(&db, exe_path).expect("Failed to load debug info");
 
         // Build the symbol index

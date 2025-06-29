@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
 
 use crate::{
     DiscoveredMethod, ResolvedLocation,
@@ -223,7 +223,7 @@ impl<'db> DebugInfo<'db> {
 
         Ok(Some(crate::ResolvedLocation {
             function: name.to_string(),
-            file: loc.file(db).path(db).to_string(),
+            file: loc.file(db).path_str(db).to_string(),
             line: loc.line(db),
         }))
     }
@@ -258,7 +258,8 @@ impl<'db> DebugInfo<'db> {
     ) -> Result<Option<crate::ResolvedAddress>> {
         let index = crate::index::debug_index(self.db, self.binary);
 
-        let source_file = crate::file::SourceFile::new(self.db, file);
+        let path = PathBuf::from(file.to_string());
+        let source_file = crate::file::SourceFile::new(self.db, path);
 
         let file = if index.source_to_file(self.db).contains_key(&source_file) {
             // already indexed file, so we can use it directly
@@ -272,7 +273,7 @@ impl<'db> DebugInfo<'db> {
             {
                 tracing::debug!(
                     "found file `{file}` in debug index as `{}`",
-                    source_file.path(self.db)
+                    source_file.path_str(self.db)
                 );
                 *source_file
             } else {
@@ -765,7 +766,7 @@ impl<'db> DebugInfo<'db> {
     /// # Examples
     ///
     /// ```no_run
-    /// # use rudy_db::{DebugDb, DebugInfo, VariableInfo, DataResolver};
+    /// # use rudy_db::{DebugDb, DebugInfo, TypedPointer, VariableInfo, DataResolver};
     /// # struct MyResolver;
     /// # impl DataResolver for MyResolver {
     /// #     fn base_address(&self) -> u64 { 0 }
@@ -992,12 +993,22 @@ impl<'db> DebugInfo<'db> {
         crate::function_discovery::discover_all_functions_debug(self.db, self.binary)
     }
 
-    pub fn discover_methods_for_type(
+    pub fn discover_methods_for_pointer(
         &self,
-        target_type: &TypeLayout,
+        typed_pointer: &TypedPointer,
     ) -> Result<Vec<DiscoveredMethod>> {
-        crate::function_discovery::discover_all_methods_for_type(self.db, self.binary, target_type)
+        crate::function_discovery::discover_all_methods_for_pointer(
+            self.db,
+            self.binary,
+            typed_pointer,
+        )
     }
+    // pub fn discover_methods_for_type(
+    //     &self,
+    //     target_type: &TypeLayout,
+    // ) -> Result<Vec<DiscoveredMethod>> {
+    //     crate::function_discovery::discover_all_methods_for_type(self.db, self.binary, target_type)
+    // }
 }
 
 fn variable_info<'db>(

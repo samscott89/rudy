@@ -380,9 +380,8 @@ fn test_real_method_execution() -> Result<()> {
     // Get discovered methods for Vec<i32>
 
     let vec_pointer = variable_pointer!(debug_info, test_vec);
-    let vec_type = vec_pointer.type_def;
 
-    let methods = debug_info.discover_methods_for_type(&vec_type)?;
+    let methods = debug_info.discover_methods_for_pointer(&vec_pointer)?;
     println!("Methods found for Vec<i32> ({} total):", methods.len());
 
     // Show only the first 10 methods to avoid spam

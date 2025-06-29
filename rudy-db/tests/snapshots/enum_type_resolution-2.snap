@@ -25,7 +25,7 @@ snapshot_kind: text
                         UnresolvedType {
                             name: "Unit",
                             cu_offset: 0,
-                            die_offset: 34998,
+                            die_offset: 13153,
                         },
                     ),
                 },
@@ -38,7 +38,7 @@ snapshot_kind: text
                         UnresolvedType {
                             name: "Tuple",
                             cu_offset: 0,
-                            die_offset: 35006,
+                            die_offset: 13161,
                         },
                     ),
                 },
@@ -51,7 +51,7 @@ snapshot_kind: text
                         UnresolvedType {
                             name: "Struct",
                             cu_offset: 0,
-                            die_offset: 35039,
+                            die_offset: 13194,
                         },
                     ),
                 },
@@ -60,6 +60,6 @@ snapshot_kind: text
         },
     ),
     DebugFile {
-        [salsa id]: Id(822),
+        [salsa id]: Id(826),
     },
 )

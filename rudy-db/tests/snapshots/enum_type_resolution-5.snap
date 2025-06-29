@@ -34,6 +34,6 @@ snapshot_kind: text
         },
     ),
     DebugFile {
-        [salsa id]: Id(822),
+        [salsa id]: Id(826),
     },
 )

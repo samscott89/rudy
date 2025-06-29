@@ -36,13 +36,13 @@ pub fn platform_source_file(_target: &str, file: &str) -> String {
 #[case("x86_64-unknown-linux-gnu")]
 #[case("aarch64-apple-darwin")]
 #[case("x86_64-apple-darwin")]
-pub fn binary_target(#[case] target: &str) {}
+pub fn binary_target(#[case] target: &'static str) {}
 
 #[apply(binary_target)]
-fn test_resolve_function(#[case] target: &str) {
+fn test_resolve_function(#[case] target: &'static str) {
     let _guards = setup!(target);
     let path = binary_path(target, "simple_test");
-    let db = crate::DebugDb::new();
+    let db = common::debug_db(Some(target));
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(resolver.resolve_function("main").unwrap());
@@ -50,17 +50,18 @@ fn test_resolve_function(#[case] target: &str) {
 }
 
 #[apply(binary_target)]
-fn test_resolve_position(#[case] target: &str) {
+fn test_resolve_position(#[case] target: &'static str) {
     let _guards = setup!(target);
     let path = binary_path(target, "simple_test");
-    let db = crate::DebugDb::new();
+    let db = common::debug_db(Some(target));
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
-    let platform_file = platform_source_file(target, "simple_test.rs");
+    let platform_file = "simple_test.rs";
+    let expected = "./crates/rudy-test-examples/examples/simple_test.rs".to_string();
 
     // should be the position of the `let y = x + 1;` line
     let addrs = resolver
-        .resolve_position(&platform_file, 4, None)
+        .resolve_position(platform_file, 2, None)
         .unwrap()
         .unwrap();
     insta::assert_debug_snapshot!(addrs);
@@ -68,14 +69,14 @@ fn test_resolve_position(#[case] target: &str) {
         resolver.address_to_line(addrs.address).unwrap(),
         ResolvedLocation {
             function: "simple_test::function_call".to_string(),
-            file: platform_file.clone(),
-            line: 4,
+            file: expected.clone(),
+            line: 2,
         }
     );
 
     // should be the position of the `const Z: u64 = 0xdeadbeef;` line
     let addrs = resolver
-        .resolve_position(&platform_file, 16, None)
+        .resolve_position(platform_file, 11, None)
         .unwrap()
         .unwrap();
     insta::assert_debug_snapshot!(addrs);
@@ -84,19 +85,19 @@ fn test_resolve_position(#[case] target: &str) {
         resolver.address_to_line(addrs.address).unwrap(),
         ResolvedLocation {
             function: "simple_test::main".to_string(),
-            file: platform_file.clone(),
-            line: 17,
+            file: expected.clone(),
+            line: 12,
         }
     );
 }
 
 #[apply(binary_target)]
-fn test_load_file(#[case] target: &str) {
+fn test_load_file(#[case] target: &'static str) {
     let _guards = setup!(target);
 
     let path = binary_path(target, "simple_test");
 
-    let db = crate::DebugDb::new();
+    let db = common::debug_db(Some(target));
     let parsed = DebugInfo::new(&db, &path).unwrap();
 
     insta::assert_debug_snapshot!(parsed);

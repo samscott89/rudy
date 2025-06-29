@@ -305,7 +305,7 @@ pub fn position<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Option<Position
         ));
     };
 
-    let Some(path) = file_entry_to_path(file, &unit_ref) else {
+    let Some(path) = file_entry_to_path(db, file, &unit_ref) else {
         return Err(entry.make_error(db, anyhow::anyhow!("Failed to convert file entry to path")));
     };
 

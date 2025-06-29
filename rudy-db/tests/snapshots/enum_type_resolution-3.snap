@@ -1,6 +1,7 @@
 ---
 source: rudy-db/tests/dynamic_tests.rs
 expression: option_typedef
+snapshot_kind: text
 ---
 (
     Std(
@@ -28,6 +29,6 @@ expression: option_typedef
         ),
     ),
     DebugFile {
-        [salsa id]: Id(804),
+        [salsa id]: Id(826),
     },
 )

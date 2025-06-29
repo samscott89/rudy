@@ -22,6 +22,9 @@ pub struct File {
 impl File {
     /// Builds the `File` input from a file path and an optional member file name.`
     pub fn build(db: &dyn Db, path: PathBuf, member_file: Option<String>) -> anyhow::Result<File> {
+        // check if we the file needs to be relocated
+        let path = db.remap_path(&path);
+
         let file = std::fs::File::open(&path)?;
         let metadata = file.metadata()?;
         let mtime = metadata.modified()?;
@@ -94,6 +97,7 @@ impl fmt::Debug for LoadedFile {
 pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
     let path = file.path(db);
     let member = file.member_file(db);
+
     let file_handle = std::fs::File::open(path)?;
     let mmap = unsafe { memmap2::Mmap::map(&file_handle) }?;
     let mmap_static_ref = unsafe {
@@ -145,10 +149,14 @@ pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
 #[derive(PartialOrd, Ord)]
 pub struct SourceFile<'db> {
     #[returns(ref)]
-    pub path: String,
+    pub path: PathBuf,
 }
 
 impl<'db> SourceFile<'db> {
+    pub fn path_str(&self, db: &'db dyn Db) -> std::borrow::Cow<'db, str> {
+        self.path(db).to_string_lossy()
+    }
+
     pub fn is_external(&self, db: &'db dyn Db) -> bool {
         // Check if the source file is external by checking if it is not in the same directory as the binary
         let current_dir = std::env::current_dir()

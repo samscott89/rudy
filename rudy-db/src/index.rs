@@ -106,41 +106,49 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
 
     tracing::trace!("Debug files found: {debug_files:#?}",);
 
-    let binary_path = binary
-        .file(db)
-        .path(db)
-        .to_string_lossy()
-        .replace("/deps/", "/")
-        .replace("-", "_");
-
-    // TODO: this logic is not super robust. Perhaps we could instead
-    // scan through all CUs to find source files that match the binary path?
-    let indexed_debug_files = debug_files
-        .iter()
-        .filter_map(|((file, _member), debug_file)| {
-            // filter out files that are not related to the binary
-            if file
-                .to_string_lossy()
-                .replace("/deps/", "/")
-                .replace("-", "_")
-                .contains(&binary_path)
-            {
-                Some(*debug_file)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
+    let mut indexed_debug_files = vec![];
 
     let mut source_file_index: BTreeMap<SourceFile<'_>, Vec<DebugFile>> = Default::default();
 
-    for debug_file in &indexed_debug_files {
-        let sources = dwarf::index_debug_file_sources(db, *debug_file);
+    // attempt to detect the current cargo workspace
+    let cwd = std::env::current_dir().ok();
+    let workspace_root = cwd.and_then(|p| {
+        p.ancestors()
+            .find_map(|a| a.join("Cargo.toml").exists().then(|| a.to_owned()))
+    });
+    if workspace_root.is_none() {
+        tracing::warn!(
+            "Could not find Cargo workspace root, debug and source file indexing may be incomplete."
+        );
+    }
+
+    for debug_file in debug_files.values() {
+        let (compile_dirs, sources) = dwarf::index_debug_file_sources(db, *debug_file);
         for source in sources {
             source_file_index
                 .entry(*source)
                 .or_default()
                 .push(*debug_file);
+        }
+        if let Some(ref workspace_root) = workspace_root {
+            // if the source file is external, we don't want to index it
+            // as it may not be available in the workspace
+            if sources
+                .iter()
+                .any(|s| std::path::Path::new(s.path(db)).starts_with(workspace_root))
+            {
+                tracing::info!(
+                    "Indexing debug file {} with local sources: {compile_dirs:?}",
+                    debug_file.name(db),
+                );
+                // add to the indexed debug files list
+                indexed_debug_files.push(*debug_file);
+            } else {
+                tracing::info!(
+                    "Skipping debug file {} with external sources: {compile_dirs:?}",
+                    debug_file.name(db),
+                );
+            }
         }
     }
 

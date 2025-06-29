@@ -2,7 +2,9 @@
 
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::PathBuf;
 
+use gimli::Reader;
 use itertools::Itertools;
 
 use super::Die;
@@ -416,7 +418,8 @@ fn visit_type<'a, 'db>(
 pub fn index_debug_file_sources<'db>(
     db: &'db dyn Db,
     debug_file: DebugFile,
-) -> BTreeSet<SourceFile<'db>> {
+) -> (BTreeSet<PathBuf>, BTreeSet<SourceFile<'db>>) {
+    let mut compile_dirs = BTreeSet::new();
     let mut sources = BTreeSet::new();
 
     let roots = super::navigation::get_roots(db, debug_file);
@@ -426,6 +429,28 @@ pub fn index_debug_file_sources<'db>(
             continue;
         };
         if is_rust_cu(db, root, unit_ref) {
+            // get the compile directory
+            if let Some(compile_dir) = &unit_ref.comp_dir {
+                match compile_dir.to_string() {
+                    Ok(compile_dir) => {
+                        // if the compile directory is empty, we can skip it
+                        if compile_dir.is_empty() {
+                            tracing::debug!(
+                                "Skipping empty compile directory for unit: {}",
+                                pretty_print_die_entry(root, unit_ref)
+                            );
+                        } else {
+                            compile_dirs.insert(PathBuf::from(compile_dir.to_string()));
+                        }
+                    }
+                    Err(e) => {
+                        db.report_error(format!(
+                            "Failed to convert compile directory to string: {e}"
+                        ));
+                    }
+                }
+            }
+
             // get all referenced files
             let files = unit_ref
                 .line_program
@@ -435,7 +460,8 @@ pub fn index_debug_file_sources<'db>(
                         .file_names()
                         .iter()
                         .flat_map(|f| {
-                            file_entry_to_path(f, unit_ref).map(|path| SourceFile::new(db, path))
+                            file_entry_to_path(db, f, unit_ref)
+                                .map(|path| SourceFile::new(db, path))
                         })
                         .collect::<BTreeSet<_>>()
                 })
@@ -444,7 +470,7 @@ pub fn index_debug_file_sources<'db>(
         }
     }
 
-    sources
+    (compile_dirs, sources)
 }
 
 /// Build an index of all types + functions (using fully qualified names

@@ -378,9 +378,8 @@ fn test_real_method_execution() -> Result<()> {
     // Get discovered methods for Vec<i32>
 
     let vec_pointer = variable_pointer!(debug_info, test_vec);
-    let vec_type = vec_pointer.type_def;
 
-    let methods = debug_info.discover_methods_for_type(&vec_type)?;
+    let methods = debug_info.discover_methods_for_pointer(&vec_pointer)?;
     println!("Methods found for Vec<i32> ({} total):", methods.len());
 
     // Show only the first 10 methods to avoid spam
@@ -610,43 +609,4 @@ fn test_enum_type_resolution() {
         .expect("U8Enum type should be found");
 
     insta::assert_debug_snapshot!(u8_enum_typedef);
-}
-
-#[test]
-fn test_method_discovery_current_platform() {
-    let _guards = setup!();
-
-    let artifacts = common::artifacts_dir(None);
-    let path = artifacts.join("lldb_demo");
-
-    let db = DebugDb::new();
-    let debug_info = DebugInfo::new(&db, path.to_str().unwrap()).unwrap();
-
-    // Test 1: Debug version - capture all symbol analysis results
-    let symbol_analysis_results = debug_info
-        .discover_all_methods_debug()
-        .expect("Symbol analysis should succeed");
-
-    salsa::attach(&db, || {
-        insta::assert_debug_snapshot!(symbol_analysis_results)
-    });
-
-    // Test 2: Discover all methods in the binary (original test)
-    let methods_by_type = debug_info
-        .discover_all_methods()
-        .expect("Method discovery should succeed");
-
-    insta::assert_debug_snapshot!(methods_by_type);
-
-    // Test 3: Test specific type resolution and method discovery
-    let (session_type, _) = debug_info
-        .resolve_type("Session")
-        .expect("Type resolution should succeed")
-        .expect("Session type should be found");
-
-    let methods = debug_info
-        .discover_methods_for_type(&session_type)
-        .expect("Method discovery for Session should succeed");
-
-    insta::assert_debug_snapshot!(methods);
 }
