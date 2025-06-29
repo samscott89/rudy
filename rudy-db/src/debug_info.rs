@@ -269,7 +269,7 @@ impl<'db> DebugInfo<'db> {
             if let Some(source_file) = index
                 .source_to_file(self.db)
                 .keys()
-                .find(|f| f.path(self.db).ends_with(&file))
+                .find(|f| f.path(self.db).ends_with(file))
             {
                 tracing::debug!(
                     "found file `{file}` in debug index as `{}`",
