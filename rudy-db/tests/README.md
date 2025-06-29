@@ -145,10 +145,27 @@ fn test_my_live_feature() {
 ## CI/CD
 
 The GitHub Actions workflow (`.github/workflows/test.yml`) runs:
-1. Builds test artifacts on each platform
-2. Runs static tests on Ubuntu (using all platform artifacts)
-3. Runs dynamic tests on each platform
-4. Runs all other unit tests
+1. **Static tests**: Runs on Ubuntu using checked-in test artifacts from all platforms
+2. **Dynamic tests**: Runs on each platform (Ubuntu x86_64, macOS x86_64/aarch64)
+3. **Unit tests**: Runs on Ubuntu and macOS
+
+### Test Artifacts in CI
+
+Test artifacts are **not** built in CI. Instead, they should be built locally and committed to the repository:
+
+```bash
+# Build artifacts locally (requires Docker for Linux cross-compilation on macOS)
+cargo xtask build-test-artifacts
+
+# Commit the artifacts
+git add rudy-db/test-artifacts/
+git commit -m "Update test artifacts"
+```
+
+This approach ensures:
+- **Faster CI builds** (no cross-compilation overhead)
+- **Deterministic tests** (same artifacts across all CI runs)
+- **Easier debugging** (you can test with the exact same artifacts locally)
 
 ## Troubleshooting
 

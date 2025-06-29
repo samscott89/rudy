@@ -10,56 +10,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Build test artifacts on each platform
-  build-artifacts:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            use-cross: true
-          - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
-    
-    runs-on: ${{ matrix.os }}
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: ${{ matrix.target }}
-    
-    - name: Install cross (if needed)
-      if: matrix.use-cross
-      run: cargo install cross --git https://github.com/cross-rs/cross
-    
-    - name: Build test artifacts
-      run: |
-        if [ "${{ matrix.use-cross }}" = "true" ]; then
-          echo "Using cross for ${{ matrix.target }}"
-          # For cross builds, we'll need to handle this differently
-          # For now, skip cross builds in CI
-          echo "Skipping cross build for now"
-        else
-          cargo xtask build-test-artifacts --current-platform
-        fi
-    
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-artifacts-${{ matrix.target }}
-        path: rudy-db/test-artifacts/${{ matrix.target }}
-        if-no-files-found: ignore
-
-  # Run static tests (can run on any platform with all artifacts)
+  # Run static tests (can run on any platform with checked-in artifacts)
   static-tests:
-    needs: build-artifacts
     runs-on: ubuntu-latest
     
     steps:
@@ -68,12 +20,16 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Download all artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: rudy-db/test-artifacts
-        pattern: test-artifacts-*
-        merge-multiple: true
+    - name: Verify test artifacts exist
+      run: |
+        echo "Checking for test artifacts..."
+        ls -la rudy-db/test-artifacts/ || echo "No test-artifacts directory found"
+        if [ -d "rudy-db/test-artifacts" ]; then
+          find rudy-db/test-artifacts -type f -name "*" | head -10
+        else
+          echo "⚠️  Test artifacts not found. Please run 'cargo xtask build-test-artifacts' locally and commit the results."
+          exit 1
+        fi
     
     - name: Generate test binaries
       run: cargo xtask generate-test-binaries
@@ -110,7 +66,7 @@ jobs:
       run: cargo test -p rudy-db --test live_introspection --target ${{ matrix.target }}
 
   # Run all other tests
-  other-tests:
+  unit-tests:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -123,5 +79,8 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Run all tests
-      run: cargo test --all-features
+    - name: Run unit tests
+      run: cargo test --lib --all-features
+    
+    - name: Run doc tests
+      run: cargo test --doc --all-features
