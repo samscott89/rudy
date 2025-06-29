@@ -96,6 +96,7 @@ impl fmt::Debug for LoadedFile {
 #[salsa::tracked(returns(ref))]
 pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
     let path = file.path(db);
+    let path = db.remap_path(path);
     let member = file.member_file(db);
 
     let file_handle = std::fs::File::open(path)?;
