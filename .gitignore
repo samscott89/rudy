@@ -1,4 +1,4 @@
 target/
 Cargo.lock
 notes/
-rudy-db/bin/test_binaries/
+test-artifacts/

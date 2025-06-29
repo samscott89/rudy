@@ -23,9 +23,9 @@ jobs:
     - name: Verify test artifacts exist
       run: |
         echo "Checking for test artifacts..."
-        ls -la rudy-db/test-artifacts/ || echo "No test-artifacts directory found"
-        if [ -d "rudy-db/test-artifacts" ]; then
-          find rudy-db/test-artifacts -type f -name "*" | head -10
+        ls -la test-artifacts/ || echo "No test-artifacts directory found"
+        if [ -d "test-artifacts" ]; then
+          find test-artifacts -type f -name "*" | head -10
         else
           echo "⚠️  Test artifacts not found. Please run 'cargo xtask build-test-artifacts' locally and commit the results."
           exit 1

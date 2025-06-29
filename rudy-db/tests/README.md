@@ -158,7 +158,7 @@ Test artifacts are **not** built in CI. Instead, they should be built locally an
 cargo xtask build-test-artifacts
 
 # Commit the artifacts
-git add rudy-db/test-artifacts/
+git add test-artifacts/
 git commit -m "Update test artifacts"
 ```
 

@@ -7,6 +7,7 @@ resolver = "3"
 rudy-db = { version = "0.0.2", path = "rudy-db" }
 rudy-types = { version = "0.2", path = "crates/rudy-types" }
 rudy-parser = { version = "0.2", path = "crates/rudy-parser" }
+rudy-test-examples = { version = "0.1.0", path = "crates/rudy-test-examples" }
 
 # external deps
 anyhow = "1.0.97"
