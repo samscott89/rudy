@@ -1,0 +1,60 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: repr_c_typedef
+snapshot_kind: text
+---
+Enum(
+    EnumLayout {
+        name: "ReprCEnum",
+        discriminant: Discriminant {
+            ty: UnsignedInt(
+                UnsignedIntLayout {
+                    size: 4,
+                },
+            ),
+            offset: 0,
+        },
+        variants: [
+            EnumVariantLayout {
+                name: "Unit",
+                discriminant: Some(
+                    0,
+                ),
+                layout: Alias(
+                    UnresolvedType {
+                        name: "Unit",
+                        cu_offset: 619,
+                        die_offset: 2206,
+                    },
+                ),
+            },
+            EnumVariantLayout {
+                name: "Tuple",
+                discriminant: Some(
+                    1,
+                ),
+                layout: Alias(
+                    UnresolvedType {
+                        name: "Tuple",
+                        cu_offset: 619,
+                        die_offset: 2214,
+                    },
+                ),
+            },
+            EnumVariantLayout {
+                name: "Struct",
+                discriminant: Some(
+                    2,
+                ),
+                layout: Alias(
+                    UnresolvedType {
+                        name: "Struct",
+                        cu_offset: 619,
+                        die_offset: 2247,
+                    },
+                ),
+            },
+        ],
+        size: 40,
+    },
+)

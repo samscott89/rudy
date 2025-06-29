@@ -6,7 +6,7 @@ snapshot_kind: text
 Some(
     ResolvedFunction {
         name: "simple_test::function_call",
-        address: "0x10000091c",
+        address: "0x10000097c",
         params: [
             Variable {
                 name: "x",

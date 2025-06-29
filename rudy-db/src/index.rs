@@ -123,7 +123,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     }
 
     for debug_file in debug_files.values() {
-        let (compile_dirs, sources) = dwarf::index_debug_file_sources(db, *debug_file);
+        let (_, sources) = dwarf::index_debug_file_sources(db, *debug_file);
         for source in sources {
             source_file_index
                 .entry(*source)
@@ -133,19 +133,19 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         if let Some(ref workspace_root) = workspace_root {
             // if the source file is external, we don't want to index it
             // as it may not be available in the workspace
-            if sources
-                .iter()
-                .any(|s| std::path::Path::new(s.path(db)).starts_with(workspace_root))
-            {
+            if sources.iter().any(|s| {
+                let p = s.path(db);
+                p.starts_with(workspace_root) || p.starts_with(".")
+            }) {
                 tracing::info!(
-                    "Indexing debug file {} with local sources: {compile_dirs:?}",
+                    "Indexing debug file {} with local sources: {sources:?}",
                     debug_file.name(db),
                 );
                 // add to the indexed debug files list
                 indexed_debug_files.push(*debug_file);
             } else {
                 tracing::info!(
-                    "Skipping debug file {} with external sources: {compile_dirs:?}",
+                    "Skipping debug file {} with external sources: {sources:?}",
                     debug_file.name(db),
                 );
             }

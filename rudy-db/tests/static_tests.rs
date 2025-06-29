@@ -102,3 +102,50 @@ fn test_load_file(#[case] target: &'static str) {
 
     insta::assert_debug_snapshot!(parsed);
 }
+
+#[apply(binary_target)]
+fn test_enum_type_resolution(#[case] target: &'static str) {
+    let _guards = setup!(target);
+
+    let db = common::debug_db(Some(target));
+    let exe_path = binary_path(target, "enums");
+    let debug_info = DebugInfo::new(&db, &exe_path).expect("Failed to load debug info");
+
+    // Find TestEnum type
+    let (test_enum_typedef, _) = debug_info
+        .resolve_type("TestEnum")
+        .expect("Failed to resolve TestEnum")
+        .expect("TestEnum type should be found");
+
+    insta::assert_debug_snapshot!(test_enum_typedef);
+
+    let (repr_c_typedef, _) = debug_info
+        .resolve_type("ReprCEnum")
+        .expect("Failed to resolve ReprCEnum")
+        .expect("ReprCEnum type should be found");
+
+    insta::assert_debug_snapshot!(repr_c_typedef);
+
+    // we'll also test our special-cased enums Option and Result
+    let (option_typedef, _) = debug_info
+        .resolve_type("Option<i32>")
+        .expect("Failed to resolve Option<i32>")
+        .expect("Option<i32> type should be found");
+
+    insta::assert_debug_snapshot!(option_typedef);
+
+    let (result_typedef, _) = debug_info
+        .resolve_type("Result<i32, String>")
+        .expect("Failed to resolve Result<i32, String>")
+        .expect("Result<i32, String> type should be found");
+
+    insta::assert_debug_snapshot!(result_typedef);
+
+    // Test U8Enum variants
+    let (u8_enum_typedef, _) = debug_info
+        .resolve_type("U8Enum")
+        .expect("Failed to resolve U8Enum")
+        .expect("U8Enum type should be found");
+
+    insta::assert_debug_snapshot!(u8_enum_typedef);
+}

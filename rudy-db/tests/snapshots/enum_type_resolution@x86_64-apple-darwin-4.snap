@@ -1,0 +1,47 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: result_typedef
+snapshot_kind: text
+---
+Std(
+    Result(
+        ResultLayout {
+            name: "Result<i32, alloc::string::String>",
+            discriminant: Discriminant {
+                ty: UnsignedInt(
+                    UnsignedIntLayout {
+                        size: 8,
+                    },
+                ),
+                offset: 0,
+            },
+            ok_type: Primitive(
+                Int(
+                    IntLayout {
+                        size: 4,
+                    },
+                ),
+            ),
+            ok_offset: 8,
+            err_type: Std(
+                String(
+                    StringLayout(
+                        VecLayout {
+                            length_offset: 16,
+                            data_ptr_offset: 8,
+                            inner_type: Primitive(
+                                UnsignedInt(
+                                    UnsignedIntLayout {
+                                        size: 1,
+                                    },
+                                ),
+                            ),
+                        },
+                    ),
+                ),
+            ),
+            err_offset: 0,
+            size: 24,
+        },
+    ),
+)

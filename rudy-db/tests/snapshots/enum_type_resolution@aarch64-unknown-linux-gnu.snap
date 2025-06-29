@@ -1,0 +1,58 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: test_enum_typedef
+snapshot_kind: text
+---
+Enum(
+    EnumLayout {
+        name: "TestEnum",
+        discriminant: Discriminant {
+            ty: UnsignedInt(
+                UnsignedIntLayout {
+                    size: 8,
+                },
+            ),
+            offset: 0,
+        },
+        variants: [
+            EnumVariantLayout {
+                name: "Unit",
+                discriminant: Some(
+                    9223372036854775808,
+                ),
+                layout: Alias(
+                    UnresolvedType {
+                        name: "Unit",
+                        cu_offset: 0,
+                        die_offset: 1303,
+                    },
+                ),
+            },
+            EnumVariantLayout {
+                name: "Tuple",
+                discriminant: None,
+                layout: Alias(
+                    UnresolvedType {
+                        name: "Tuple",
+                        cu_offset: 0,
+                        die_offset: 1311,
+                    },
+                ),
+            },
+            EnumVariantLayout {
+                name: "Struct",
+                discriminant: Some(
+                    9223372036854775810,
+                ),
+                layout: Alias(
+                    UnresolvedType {
+                        name: "Struct",
+                        cu_offset: 0,
+                        die_offset: 1344,
+                    },
+                ),
+            },
+        ],
+        size: 32,
+    },
+)

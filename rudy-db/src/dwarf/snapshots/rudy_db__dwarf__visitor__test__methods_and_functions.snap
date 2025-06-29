@@ -2395,7 +2395,7 @@ core::alloc::layout::Layout::size_rounded_up_to_custom_align
 core::alloc::layout::size_align<alloc::collections::btree::node::InternalNode<alloc::string::String, i32>>
 core::alloc::layout::size_align<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>
 core::alloc::layout::size_align<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<alloc::string::String, i32>>>
-core::alloc::layout::size_align<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::InternalNode<alloc::string::String, i32>>>
+core::alloc::layout::size_align<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>>
 core::alloc::layout::size_align<core::mem::maybe_uninit::MaybeUninit<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>>
 core::alloc::layout::{impl#0}::from_size_align_unchecked::precondition_check
 core::alloc::layout::{impl#14}::fmt
@@ -7103,7 +7103,6 @@ core::ptr::mut_ptr::{impl#0}::read<addr2line::line::LineSequence>
 core::ptr::mut_ptr::{impl#0}::read<addr2line::unit::UnitRange>
 core::ptr::mut_ptr::{impl#0}::read<std::backtrace_rs::symbolize::gimli::elf::ParsedSym>
 core::ptr::mut_ptr::{impl#0}::replace<std::sys::thread_local::native::lazy::State<core::cell::Cell<(u64, u64)>, !>>
-core::ptr::mut_ptr::{impl#0}::sub<(alloc::string::String, i32)>
 core::ptr::mut_ptr::{impl#0}::sub<(alloc::string::String, i32)>
 core::ptr::mut_ptr::{impl#0}::sub<(alloc::string::String, i32)>
 core::ptr::mut_ptr::{impl#0}::sub<(alloc::string::String, i32)>
