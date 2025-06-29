@@ -343,3 +343,40 @@ fn test_enum_type_resolution() {
 
     insta::assert_debug_snapshot!(u8_enum_typedef);
 }
+
+#[test]
+fn test_method_discovery_demo() {
+    setup!();
+    let path = "/Users/sam/work/rudy/target/debug/examples/lldb_demo";
+
+    let db = DebugDb::new();
+    let debug_info = DebugInfo::new(&db, path).unwrap();
+
+    // Test 1: Debug version - capture all symbol analysis results
+    let symbol_analysis_results = debug_info
+        .discover_all_methods_debug()
+        .expect("Symbol analysis should succeed");
+
+    salsa::attach(&db, || {
+        insta::assert_debug_snapshot!(symbol_analysis_results)
+    });
+
+    // Test 2: Discover all methods in the binary (original test)
+    let methods_by_type = debug_info
+        .discover_all_methods()
+        .expect("Method discovery should succeed");
+
+    insta::assert_debug_snapshot!(methods_by_type);
+
+    // Test 3: Test specific type resolution and method discovery
+    let (session_type, _) = debug_info
+        .resolve_type("Session")
+        .expect("Type resolution should succeed")
+        .expect("Session type should be found");
+
+    let methods = debug_info
+        .discover_methods_for_type(&session_type)
+        .expect("Method discovery for Session should succeed");
+
+    insta::assert_debug_snapshot!(methods);
+}

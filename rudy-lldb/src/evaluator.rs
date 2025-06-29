@@ -142,7 +142,7 @@ impl<'a> EvalContext<'a> {
     fn pointer_to_result(&mut self, pointer: &TypedPointer) -> Result<EvalResult> {
         let mut value = self.debug_info.read_pointer(pointer, &self.conn)?;
 
-        value = self.read_pointer_recursive(&value, 3)?;
+        value = self.read_pointer_recursive(&value, 8)?;
 
         Ok(EvalResult {
             value: format_value(&value),
@@ -255,14 +255,8 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Get the type of an expression without evaluating its value
-    pub fn get_expression_type(&mut self, expr: &Expression) -> Result<rudy_types::TypeLayout> {
-        let value_ref = self.evaluate_to_ref(expr)?;
-        Ok((*value_ref.type_def).clone())
-    }
-
     /// Evaluates an expression to a TypedPointer (for intermediate computation)
-    fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer> {
+    pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable_to_ref(name),
             Expression::FieldAccess { base, field } => {

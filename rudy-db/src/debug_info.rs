@@ -1008,13 +1008,22 @@ fn variable_info<'db>(
 
     tracing::debug!("variable info: {:?} at {:?}", var.name(db), location);
 
+    let type_def = match var.ty(db) {
+        TypeLayout::Alias(unresolved_type) => {
+            // For type aliases, resolve the actual type
+            let entry = Die::from_unresolved_entry(db, die.file(db), unresolved_type);
+            crate::dwarf::resolve_type_offset(db, entry).context("Failed to resolve type alias")?
+        }
+        t => t.clone(),
+    };
+
     Ok(crate::VariableInfo {
         name: var
             .name(db)
             .as_ref()
             .map_or_else(|| "_".to_string(), |s| s.to_string()),
         address: location,
-        type_def: Arc::new(var.ty(db).clone()),
+        type_def: Arc::new(type_def),
         debug_file: die.file(db),
     })
 }

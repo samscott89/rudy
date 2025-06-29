@@ -1,0 +1,15 @@
+---
+source: rudy-db/tests/resolve.rs
+expression: methods
+snapshot_kind: text
+---
+[
+    DiscoveredMethod {
+        name: "is_expired",
+        full_name: "lldb_demo::Session::is_expired",
+        signature: "fn(self: &Session) -> bool",
+        address: 4294993844,
+        self_type: Borrowed,
+        callable: true,
+    },
+]

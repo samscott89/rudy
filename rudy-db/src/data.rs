@@ -3,6 +3,7 @@
 use anyhow::{Context, Result};
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use crate::database::Db;
 use crate::outputs::TypedPointer;
@@ -574,6 +575,13 @@ fn read_primitive_from_memory(
             element_type,
             length,
         }) => {
+            let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
+                // Resolve the alias to get the actual type
+                let entry = Die::from_unresolved_entry(db, *debug_file, entry);
+                Arc::new(crate::dwarf::resolve_type_offset(db, entry)?)
+            } else {
+                element_type.clone()
+            };
             let element_size = element_type.size().with_context(|| {
                 format!(
                     "inner type: {} has unknown size",
@@ -615,6 +623,14 @@ fn read_primitive_from_memory(
             let length_bytes = data_resolver.read_memory(length, 8)?;
             let length = u64::from_le_bytes(length_bytes.try_into().unwrap());
             tracing::trace!("length: {length}");
+
+            let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
+                // Resolve the alias to get the actual type
+                let entry = Die::from_unresolved_entry(db, *debug_file, entry);
+                Arc::new(crate::dwarf::resolve_type_offset(db, entry)?)
+            } else {
+                element_type.clone()
+            };
 
             let element_size = element_type.size().with_context(|| {
                 format!(
@@ -807,7 +823,14 @@ fn read_std_from_memory(
             tracing::trace!(
                 "reading Vec at {address:#x}, length_offset: {length_offset:#x}, data_ptr_offset: {data_ptr_offset:#x}",
             );
-            let element_type = inner_type;
+            let element_type = if let TypeLayout::Alias(entry) = inner_type.as_ref() {
+                // Resolve the alias to get the actual type
+                let entry = Die::from_unresolved_entry(db, *debug_file, entry);
+                Arc::new(crate::dwarf::resolve_type_offset(db, entry)?)
+            } else {
+                inner_type.clone()
+            };
+
             let element_size = element_type.size().with_context(|| {
                 format!(
                     "inner type: {} has unknown size",

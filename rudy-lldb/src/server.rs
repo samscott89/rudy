@@ -242,16 +242,25 @@ impl ClientConnection {
         debug_info: &DebugInfo,
     ) -> Result<MethodDiscoveryResult> {
         // First, try to parse as a type name directly (e.g., "Vec<String>", "HashMap<String, u32>")
-        if let Ok(Some((type_def, _))) = debug_info.resolve_type(input) {
-            return Ok(self.discover_methods_for_type(&type_def, debug_info));
-        }
 
         // If not a type name, try to parse as an expression and get its type
         if let Ok(expr) = parse_expression(input) {
+            tracing::info!("Parsed expression: {expr:#?}");
             let mut eval_context = EvalContext::new(debug_info.clone(), self);
-            if let Ok(type_def) = eval_context.get_expression_type(&expr) {
-                return Ok(self.discover_methods_for_type(&type_def, debug_info));
+            let pointer = eval_context.evaluate_to_ref(&expr);
+            match pointer {
+                Ok(pointer) => {
+                    tracing::info!("Resolved pointer: {pointer:#?}");
+                    return Ok(self.discover_methods_for_type(&pointer.type_def, debug_info));
+                }
+                Err(e) => {
+                    tracing::error!("Error resolving type for expression: {input}: {e}");
+                }
             }
+        }
+
+        if let Ok(Some((type_def, _))) = debug_info.resolve_type(input) {
+            return Ok(self.discover_methods_for_type(&type_def, debug_info));
         }
 
         Err(anyhow!(
