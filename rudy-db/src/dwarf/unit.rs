@@ -1,4 +1,5 @@
 use std::hash::Hash;
+use std::path::PathBuf;
 
 use gimli::{Unit, UnitSectionOffset};
 
@@ -11,7 +12,7 @@ pub type UnitRef<'a, R = DwarfReader> = gimli::UnitRef<'a, R>;
 
 #[derive(Debug)]
 struct DwarfUnit {
-    file_path: String,
+    file_path: PathBuf,
     offset: UnitSectionOffset<usize>,
     unit: Unit<DwarfReader>,
 }
@@ -66,7 +67,7 @@ pub fn get_unit_ref<'db>(
         while let Ok(Some(header)) = units.next() {
             if header.offset() == cu_offset {
                 return Some(DwarfUnit {
-                    file_path: file.file(db).path(db).to_string(),
+                    file_path: file.file(db).path(db).clone(),
                     offset: cu_offset,
                     unit: dwarf.unit(header).unwrap(),
                 });

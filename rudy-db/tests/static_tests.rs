@@ -8,10 +8,10 @@ use rudy_db::*;
 #[macro_use]
 pub mod common;
 
-use common::artifacts_dir;
+use common::root_artifacts_dir;
 
 pub fn binary_path(target: &str, example: &str) -> String {
-    let artifacts = artifacts_dir();
+    let artifacts = root_artifacts_dir();
     let binary_path = artifacts.join(target).join(example);
 
     if !binary_path.exists() {

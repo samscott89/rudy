@@ -31,7 +31,7 @@ pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
     file: DebugFile,
     visitor: &'a mut V,
 ) {
-    tracing::trace!("Walking DWARF for file: {}", file.file(db).path(db));
+    tracing::trace!("Walking DWARF for file: {}", file.name(db));
     // Get the root compilation units for this file
     let roots = super::navigation::get_roots(db, file);
 
@@ -378,7 +378,6 @@ pub trait DieVisitor<'db>: Sized {
 #[cfg(test)]
 mod test {
     use itertools::Itertools;
-    use tracing_subscriber::EnvFilter;
 
     use crate::{dwarf::utils::get_string_attr, file::File};
 
@@ -426,34 +425,13 @@ mod test {
 
     #[test]
     fn test_visitor() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .try_init();
+        crate::test_utils::init_tracing();
+        let small_file = crate::test_utils::root_artifacts_dir()
+            .join("x86_64-unknown-linux-gnu")
+            .join("small");
         let db = crate::database::DebugDatabaseImpl::new();
         // Load a test DWARF file
-        let file = File::build(
-            &db,
-            "bin/test_binaries/small.small.f3ea0c7117bb9874-cgu.0.rcgu.o".to_string(),
-            None,
-        )
-        .unwrap();
-        let file = super::DebugFile::new(&db, file, true);
-        let mut visitor = TestVisitor {
-            visited: Vec::new(),
-        };
-
-        super::walk_file(&db, file, &mut visitor);
-
-        // Check that we visited the expected entries
-        assert!(!visitor.visited.is_empty(), "No entries were visited");
-        insta::assert_snapshot!(visitor.visited.join("\n"));
-
-        let file = File::build(
-            &db,
-            "bin/test_binaries/medium.medium.b63b38f5b684d51-cgu.0.rcgu.o".to_string(),
-            None,
-        )
-        .unwrap();
+        let file = File::build(&db, small_file, None).unwrap();
         let file = super::DebugFile::new(&db, file, true);
         let mut visitor = TestVisitor {
             visited: Vec::new(),
@@ -537,12 +515,15 @@ mod test {
 
     #[test]
     fn methods_and_functions() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .try_init();
+        crate::test_utils::init_tracing();
+
+        let small_file = crate::test_utils::root_artifacts_dir()
+            .join("x86_64-unknown-linux-gnu")
+            .join("small");
+
         let db = crate::database::DebugDatabaseImpl::new();
         // Load a test DWARF file
-        let (_, debug_files) = db.analyze_file("bin/test_binaries/small").unwrap();
+        let (_, debug_files) = db.analyze_file(small_file).unwrap();
 
         let mut visitor = ModuleFunctionVisitor::default();
         for file in debug_files {

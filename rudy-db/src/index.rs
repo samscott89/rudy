@@ -88,7 +88,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         .with_context(|| {
             format!(
                 "Failed to index debug files for binary: {}",
-                binary.file(db).path(db)
+                binary.name(db)
             )
         })
         .inspect_err(|e| {
@@ -109,6 +109,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     let binary_path = binary
         .file(db)
         .path(db)
+        .to_string_lossy()
         .replace("/deps/", "/")
         .replace("-", "_");
 
@@ -119,6 +120,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         .filter_map(|((file, _member), debug_file)| {
             // filter out files that are not related to the binary
             if file
+                .to_string_lossy()
                 .replace("/deps/", "/")
                 .replace("-", "_")
                 .contains(&binary_path)
@@ -251,7 +253,7 @@ pub fn resolve_type(
     if indexed_debug_files.is_empty() {
         tracing::warn!(
             "No indexed debug files found for binary: {}",
-            binary.file(db).path(db)
+            binary.name(db)
         );
         return Ok(None);
     }

@@ -73,7 +73,7 @@ pub fn discover_all_functions_debug(
             symbol_results.insert(
                 symbol_name.clone(),
                 SymbolAnalysisResult::UnindexedFile {
-                    file: debug_file.file(db).path(db).to_string(),
+                    file: debug_file.name(db),
                 },
             );
             continue;

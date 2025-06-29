@@ -1,4 +1,5 @@
 use std::fmt::{self, Debug};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use memmap2::Mmap;
@@ -11,7 +12,7 @@ use crate::dwarf::Dwarf;
 #[salsa::input(debug)]
 pub struct File {
     #[returns(ref)]
-    pub path: String,
+    pub path: PathBuf,
     #[returns(ref)]
     pub member_file: Option<String>,
     pub mtime: std::time::SystemTime,
@@ -20,13 +21,17 @@ pub struct File {
 
 impl File {
     /// Builds the `File` input from a file path and an optional member file name.`
-    pub fn build(db: &dyn Db, path: String, member_file: Option<String>) -> anyhow::Result<File> {
+    pub fn build(db: &dyn Db, path: PathBuf, member_file: Option<String>) -> anyhow::Result<File> {
         let file = std::fs::File::open(&path)?;
         let metadata = file.metadata()?;
         let mtime = metadata.modified()?;
         let size = metadata.len();
 
         Ok(Self::new(db, path, member_file, mtime, size))
+    }
+
+    pub fn name(&self, db: &dyn Db) -> String {
+        self.path(db).display().to_string()
     }
 }
 
@@ -37,7 +42,7 @@ pub struct Binary {
 
 impl Binary {
     pub fn name(&self, db: &dyn Db) -> String {
-        self.file(db).path(db).to_string()
+        self.file(db).name(db)
     }
 }
 
@@ -54,9 +59,9 @@ impl DebugFile {
     pub fn name(&self, db: &dyn Db) -> String {
         let file = self.file(db);
         if let Some(member) = file.member_file(db) {
-            format!("{}({})", file.path(db), member)
+            format!("{}({})", file.name(db), member)
         } else {
-            file.path(db).to_string()
+            file.name(db)
         }
     }
 }
@@ -114,7 +119,8 @@ pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
             object::File::parse(file.data(mmap_static_ref)?)?
         } else {
             return Err(Error::MemberFileNotFound(format!(
-                "object file {member} not found in archive {path}"
+                "object file {member} not found in archive {}",
+                file.name(db)
             )));
         }
     } else {
@@ -124,9 +130,9 @@ pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
 
     Ok(LoadedFile {
         filepath: if let Some(member) = member {
-            format!("{path}({member}")
+            format!("{}({member}", file.name(db))
         } else {
-            path.to_string()
+            file.name(db)
         },
         file,
         mapped_file: mmap,

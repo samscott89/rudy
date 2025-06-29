@@ -59,10 +59,14 @@ impl<'db> DebugInfo<'db> {
     /// let db = DebugDb::new();
     /// let debug_info = DebugInfo::new(&db, "/path/to/binary").unwrap();
     /// ```
-    pub fn new(db: &'db crate::database::DebugDatabaseImpl, binary_path: &str) -> Result<Self> {
+    pub fn new<P: AsRef<std::path::Path>>(
+        db: &'db crate::database::DebugDatabaseImpl,
+        binary_path: P,
+    ) -> Result<Self> {
+        let binary_path = binary_path.as_ref();
         let (binary, debug_files) = db
-            .analyze_file(binary_path)
-            .with_context(|| format!("Failed to analyze binary file: {binary_path}"))?;
+            .analyze_file(binary_path.to_owned())
+            .with_context(|| format!("Failed to analyze binary file: {}", binary_path.display()))?;
 
         let pb = Self {
             db,

@@ -79,7 +79,7 @@ pub fn location_to_address(
 
     tracing::info!(
         "searching for `{file}:{target_line}` in `{}`",
-        debug_file.file(db).path(db)
+        debug_file.name(db)
     );
 
     for (section_offset, unit_ref) in get_roots(db, debug_file) {
@@ -109,7 +109,7 @@ pub fn location_to_address(
             tracing::trace!(
                 "could not find target file `{file}` in line program for {:#x} in file {}",
                 section_offset.as_debug_info_offset().unwrap().0,
-                debug_file.file(db).path(db)
+                debug_file.name(db)
             );
             continue;
         };

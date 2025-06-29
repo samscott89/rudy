@@ -31,43 +31,43 @@ Comprehensive tests that read debug info from the running test process itself, i
 
 ## Test Artifacts
 
-Test artifacts are pre-built binaries checked into version control to ensure consistent testing across platforms.
+Test artifacts are pre-built binaries stored as GitHub releases and downloaded on-demand. This provides versioned, cross-platform test data without bloating the repository.
 
-### Building Test Artifacts
+### Managing Test Artifacts
 
-Use the xtask pattern to build artifacts:
+Use xtask commands to manage artifacts:
 
 ```bash
-# Build artifacts for all platforms (requires cross-compilation setup)
-cargo xtask build-test-artifacts
+# Download latest test artifacts
+cargo xtask download-artifacts
 
-# Build artifacts for current platform only
-cargo xtask build-test-artifacts --current-platform
+# Download specific version
+cargo xtask download-artifacts --version 0.2.0
 
-# Generate test binaries (small, medium, large)
-cargo xtask generate-test-binaries
+# Build and publish new artifacts (after updating examples)
+cargo xtask publish-artifacts
+
+# Build examples locally for development
+cargo xtask build-examples
 ```
 
 ### Artifact Structure
 
 ```
 test-artifacts/
+├── VERSION                           # Version metadata
 ├── aarch64-apple-darwin/
-│   ├── simple_test
-│   └── lldb_demo
+│   ├── simple_test                   # Example binaries
+│   ├── lldb_demo
+│   ├── small                         # Generated benchmarks
+│   ├── medium
+│   └── large
 ├── x86_64-apple-darwin/
-│   ├── simple_test
-│   └── lldb_demo
+│   └── ... (same structure)
 ├── aarch64-unknown-linux-gnu/
-│   ├── simple_test
-│   └── lldb_demo
-├── x86_64-unknown-linux-gnu/
-│   ├── simple_test
-│   └── lldb_demo
-└── generated/
-    ├── small
-    ├── medium
-    └── large
+│   └── ... (same structure)
+└── x86_64-unknown-linux-gnu/
+    └── ... (same structure)
 ```
 
 ## Running Tests
@@ -137,10 +137,12 @@ fn test_my_live_feature() {
 ```
 
 ### Adding Test Examples
-1. Create a new example in `rudy-db/examples/`
-2. Update `xtask/src/main.rs` to include the new example in the build list
-3. Run `cargo xtask build-test-artifacts` to generate artifacts
-4. Commit the generated artifacts to version control
+1. Create a new example in `crates/rudy-test-examples/examples/`
+2. Test locally with `cargo xtask build-examples --current-platform`
+3. When ready, bump the version in `crates/rudy-test-examples/Cargo.toml` (or let release-plz do it)
+4. Publish new artifacts with `cargo xtask publish-artifacts`
+
+The new example will automatically be included in builds since we use `--examples` flag.
 
 ## CI/CD
 
@@ -151,21 +153,18 @@ The GitHub Actions workflow (`.github/workflows/test.yml`) runs:
 
 ### Test Artifacts in CI
 
-Test artifacts are **not** built in CI. Instead, they should be built locally and committed to the repository:
+Test artifacts are automatically downloaded in CI from GitHub releases:
 
-```bash
-# Build artifacts locally (requires Docker for Linux cross-compilation on macOS)
-cargo xtask build-test-artifacts
-
-# Commit the artifacts
-git add test-artifacts/
-git commit -m "Update test artifacts"
+```yaml
+- name: Download test artifacts
+  run: cargo xtask download-artifacts
 ```
 
 This approach ensures:
-- **Faster CI builds** (no cross-compilation overhead)
-- **Deterministic tests** (same artifacts across all CI runs)
-- **Easier debugging** (you can test with the exact same artifacts locally)
+- **Fast CI builds** (no cross-compilation overhead)
+- **Deterministic tests** (same versioned artifacts across all CI runs)
+- **Clean repository** (no large binaries in git history)
+- **Easy versioning** (artifacts tied to example code versions)
 
 ## Troubleshooting
 
@@ -173,10 +172,17 @@ This approach ensures:
 If you see errors about missing test binaries:
 ```
 Test binary not found at: /path/to/artifact
-Please run `cargo xtask build-test-artifacts` to generate test binaries.
 ```
 
-Run the suggested command to build the artifacts.
+Download the latest artifacts:
+```bash
+cargo xtask download-artifacts
+```
+
+Or build them locally for development:
+```bash
+cargo xtask build-examples --current-platform
+```
 
 ### Platform-Specific Issues
 - **macOS**: Requires code signing for debugging. The xtask automatically handles this.

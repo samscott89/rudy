@@ -584,15 +584,11 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
 
 #[cfg(test)]
 mod test {
-    use tracing_subscriber::EnvFilter;
-
     use crate::{DebugDb, DebugInfo, dwarf::resolve_function_variables};
 
     #[test]
     fn test_std_type_detection() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .try_init();
+        crate::test_utils::init_tracing();
 
         let db = DebugDb::new();
 

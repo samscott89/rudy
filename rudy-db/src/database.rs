@@ -43,7 +43,7 @@
 //! in via making the Binary file and all object files inputs -- this way if we recompile the
 //! binary we can recompute which parts of the binary are the same and which are unchanged.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 
 use anyhow::Result;
 use salsa::Accumulator;
@@ -181,10 +181,10 @@ impl DebugDatabaseImpl {
         }
     }
 
-    pub(crate) fn analyze_file(&self, binary_file: &str) -> Result<(Binary, Vec<DebugFile>)> {
+    pub(crate) fn analyze_file(&self, binary_file: PathBuf) -> Result<(Binary, Vec<DebugFile>)> {
         // TODO: we should do some deduplication here to see if we've already loaded
         // this file. We can do thy by checking file path, size, mtime, etc.
-        let file = File::build(self, binary_file.to_string(), None)?;
+        let file = File::build(self, binary_file, None)?;
         let bin = Binary::new(self, file);
 
         let index = crate::index::debug_index(self, bin);

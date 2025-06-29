@@ -8,9 +8,7 @@ pub mod common;
 
 #[test]
 fn test_simple_resolve_debug() -> Result<()> {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .try_init();
+    common::init_tracing();
 
     let db = DebugDb::new();
     let exe_path = std::env::current_exe().expect("Failed to get current exe path");

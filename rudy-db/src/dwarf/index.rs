@@ -484,7 +484,7 @@ pub fn index_debug_file_full<'db>(db: &'db dyn Db, debug_file: DebugFile) -> Fil
 
     tracing::trace!(
         "Indexed file data: {data:#?} for file: {}",
-        debug_file.file(db).path(db)
+        debug_file.name(db)
     );
 
     super::FileIndex::new(db, data)

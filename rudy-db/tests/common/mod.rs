@@ -1,8 +1,12 @@
 mod definitions;
 
-pub use definitions::*;
+// re-import the test utilities
+// from the main project
+#[path = "../../src/test_utils.rs"]
+mod test_utils;
 
-use std::path::PathBuf;
+pub use definitions::*;
+pub use test_utils::*;
 
 use itertools::Itertools as _;
 use rudy_db::DataResolver;
@@ -24,11 +28,7 @@ macro_rules! function_name {
 #[macro_export]
 macro_rules! setup {
     ($($target:ident)?) => {{
-        let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-        )
-        .try_init();
+        common::init_tracing();
         let mut settings = insta::Settings::clone_current();
 
         // get current OS as a prefix
@@ -46,32 +46,6 @@ macro_rules! setup {
         let _span = tracing::info_span!("test", test_name, $($target)?).entered();
         (_guard, _span)
     }};
-}
-
-pub fn artifacts_dir() -> PathBuf {
-    // First check if we have a specific artifacts directory set
-    if let Ok(dir) = std::env::var("RUDY_TEST_ARTIFACTS_DIR") {
-        return PathBuf::from(dir);
-    }
-
-    // Otherwise, look for test-artifacts relative to workspace
-    if let Ok(workspace_dir) = std::env::var("CARGO_MANIFEST_DIR") {
-        return PathBuf::from(workspace_dir).join("test-artifacts");
-    }
-
-    // Fall back to relative path from test executable
-    let mut path = std::env::current_exe()
-        .expect("Failed to get current exe path")
-        .parent()
-        .expect("Failed to get parent directory")
-        .to_path_buf();
-
-    // Navigate up to find test-artifacts
-    while !path.join("test-artifacts").exists() && path.parent().is_some() {
-        path = path.parent().unwrap().to_path_buf();
-    }
-
-    path.join("test-artifacts")
 }
 
 /// A DataResolver that reads from the current process memory

@@ -112,8 +112,8 @@ fn main() {
     code.push_str(
         r#"
     // Some computation to prevent optimization
-    println!("Total: {}", total);
-    
+    println!("Total: {total}");
+
     // Create some enum values
     let _e1 = TestEnum0::Variant1(42);
     

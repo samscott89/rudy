@@ -129,25 +129,21 @@ impl<'db> Die<'db> {
         DieAccessError {
             inner: error.into(),
             location: DieLocation {
-                path: self.file(db).file(db).path(db).to_string(),
+                path: self.file(db).name(db),
                 die_offset: self.die_offset(db).0,
             },
         }
     }
 
     pub fn location(&self, db: &'db dyn Db) -> String {
-        format!(
-            "{} {:#010x}",
-            self.file(db).file(db).path(db),
-            self.die_offset(db).0,
-        )
+        format!("{} {:#010x}", self.file(db).name(db), self.die_offset(db).0,)
     }
 
     pub fn format_with_location<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
         format!(
             "{} for {} {:#010x}",
             message.as_ref(),
-            self.file(db).file(db).path(db),
+            self.file(db).name(db),
             self.die_offset(db).0,
         )
     }

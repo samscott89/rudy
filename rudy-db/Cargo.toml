@@ -47,8 +47,3 @@ test = false
 name = "bench_operations"
 path = "bin/bench_operations.rs"
 test = false
-
-[[bin]]
-name = "generate_test_binaries"
-path = "bin/generate_test_binaries.rs"
-test = false

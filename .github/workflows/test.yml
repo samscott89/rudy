@@ -20,22 +20,20 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
     
-    - name: Verify test artifacts exist
+    - name: Download test artifacts
       run: |
-        echo "Checking for test artifacts..."
-        ls -la test-artifacts/ || echo "No test-artifacts directory found"
-        if [ -d "test-artifacts" ]; then
-          find test-artifacts -type f -name "*" | head -10
-        else
-          echo "⚠️  Test artifacts not found. Please run 'cargo xtask build-test-artifacts' locally and commit the results."
-          exit 1
-        fi
+        echo "📦 Downloading latest test artifacts..."
+        cargo xtask download-artifacts
     
-    - name: Generate test binaries
-      run: cargo xtask generate-test-binaries
+    - name: Run unit tests
+      run: cargo test --lib
     
+    - name: Run doc tests
+      run: cargo test --doc
+
     - name: Run static tests
       run: cargo test -p rudy-db --test static_tests
+
 
   # Run dynamic tests on each platform
   dynamic-tests:
@@ -58,29 +56,14 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         targets: ${{ matrix.target }}
+
+    - name: Download test artifacts
+      run: |
+        echo "📦 Downloading latest test artifacts..."
+        cargo xtask download-artifacts
     
     - name: Run dynamic tests
       run: cargo test -p rudy-db --test dynamic_tests --target ${{ matrix.target }}
     
     - name: Run live introspection tests
       run: cargo test -p rudy-db --test live_introspection --target ${{ matrix.target }}
-
-  # Run all other tests
-  unit-tests:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    
-    runs-on: ${{ matrix.os }}
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-    
-    - name: Run unit tests
-      run: cargo test --lib --all-features
-    
-    - name: Run doc tests
-      run: cargo test --doc --all-features
