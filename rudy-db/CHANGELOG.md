@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.2](https://github.com/samscott89/rudy/compare/rudy-db-v0.0.1...rudy-db-v0.0.2) - 2025-06-29
+
 ## [0.0.1](https://github.com/samscott89/rudy/releases/tag/rudy-db-v0.0.1) - 2025-06-27
 
 Initial release!
