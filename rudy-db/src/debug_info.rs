@@ -771,8 +771,8 @@ impl<'db> DebugInfo<'db> {
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
-    /// # let var_info: VariableInfo = unimplemented!();
-    /// if let Ok(element_info) = debug_info.get_index_by_int(var_info.address.unwrap(), &var_info.type_def, 0, &resolver) {
+    /// # let var_pointer: TypedPointer = unimplemented!();
+    /// if let Ok(element_info) = debug_info.get_index_by_int(&var_pointer, 0, &resolver) {
     ///     println!("Element 0 at address {:?}", element_info.address);
     /// }
     /// ```

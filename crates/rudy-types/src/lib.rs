@@ -120,7 +120,9 @@ impl TypeLayout {
             (TypeLayout::Enum(e1), TypeLayout::Other { name }) => &e1.name == name,
             (TypeLayout::CEnum(e1), TypeLayout::CEnum(e2)) => e1.name == e2.name,
             (TypeLayout::CEnum(e1), TypeLayout::Other { name }) => &e1.name == name,
-            (TypeLayout::Alias(_), TypeLayout::Alias(_)) => false,
+            (TypeLayout::Alias(alias), x) | (x, TypeLayout::Alias(alias)) => {
+                x.display_name().contains(&alias.name)
+            }
             _ => false,
         }
     }

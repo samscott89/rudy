@@ -1,0 +1,8 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: cell_value
+---
+Scalar {
+    ty: "RefCell<i32>",
+    value: "100",
+}

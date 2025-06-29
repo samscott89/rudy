@@ -1,9 +1,0 @@
----
-source: rudy-db/tests/mod.rs
-expression: location
----
-ResolvedLocation {
-    function: "medium::TestStruct0::method_0",
-    file: "/Users/sam/work/rudy/rudy-db/bin/test_binaries/medium.rs",
-    line: 20,
-}

@@ -1,0 +1,8 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: rc_value
+---
+Scalar {
+    ty: "Rc<i32>",
+    value: "42",
+}

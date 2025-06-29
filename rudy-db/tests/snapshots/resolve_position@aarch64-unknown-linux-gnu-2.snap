@@ -1,7 +1,0 @@
----
-source: rudy-db/tests/mod.rs
-expression: addrs
----
-ResolvedAddress {
-    address: "0x6620",
-}

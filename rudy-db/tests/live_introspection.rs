@@ -1,15 +1,17 @@
 //! Live introspection tests that read debug info from a running process
 
+// We have a lot of tests that are only used in tests -- we'll allow dead codex
 #![allow(dead_code)]
 
 use anyhow::Result;
-use itertools::Itertools;
 use rudy_db::{DataResolver, DebugDb, DebugInfo, Value};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 #[macro_use]
-mod common;
+pub mod common;
+
+use common::*;
 
 /// Macro that approximates finding a variable in the current process
 /// and reading it from raw memory.
@@ -17,7 +19,7 @@ mod common;
 /// Uses a little hackery since we don't have a real program counter (PC) in tests.
 macro_rules! resolve_variable {
     ($debug_info:ident, $var:ident) => {{
-        let resolver = SelfProcessResolver::new();
+        let resolver = SelfProcessResolver;
         let var_info_pointer = variable_pointer!($debug_info, $var);
 
         let value = $debug_info
@@ -33,7 +35,7 @@ macro_rules! resolve_variable {
 
 macro_rules! variable_pointer {
     ($debug_info:ident, $var:ident) => {{
-        let resolver = SelfProcessResolver::new();
+        let resolver = SelfProcessResolver;
         let address = $debug_info
             .resolve_position(file!(), line!() as u64, None)
             .expect("Failed to resolve current position")
@@ -102,20 +104,10 @@ fn read_value_recursively(
     }
 }
 
-/// A DataResolver that reads from the current process memory
-struct SelfProcessResolver;
-
-impl SelfProcessResolver {
-    const fn new() -> Self {
-        // For reading our own process, base address is 0
-        Self
-    }
-}
-
 #[macro_export]
 macro_rules! setup_db {
     () => {{
-        setup!();
+        let _guards = setup!();
 
         let db = Box::new(DebugDb::new());
 
@@ -123,106 +115,13 @@ macro_rules! setup_db {
         let debug_info = DebugInfo::new(Box::leak(db), exe_path.to_str().unwrap())
             .expect("Failed to load debug info");
 
-        debug_info
+        (_guards, debug_info)
     }};
-}
-
-impl DataResolver for SelfProcessResolver {
-    fn base_address(&self) -> u64 {
-        0
-    }
-
-    fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
-        if size > 4096 {
-            return Err(anyhow::anyhow!("Attempting to read too much memory"));
-        }
-        // Read from our own process memory
-        // This is safe because we're only reading memory we own
-        let ptr = address as *const u8;
-        let mut buffer = vec![0u8; size];
-
-        unsafe {
-            std::ptr::copy_nonoverlapping(ptr, buffer.as_mut_ptr(), size);
-        }
-
-        tracing::debug!(
-            "Read {size} bytes from address {address:#016x}: {:?}",
-            buffer
-                .iter()
-                .chunks(2)
-                .into_iter()
-                .map(|chunk| { chunk.map(|byte| format!("{byte:02x}")).collect::<String>() })
-                .join(" ")
-        );
-
-        Ok(buffer)
-    }
-
-    fn get_registers(&self) -> Result<Vec<u64>> {
-        // For testing, we don't need actual register values
-        Ok(vec![0; 32])
-    }
-}
-
-// Test structs that will be included in our test binary
-#[derive(Debug)]
-struct TestPerson {
-    name: String,
-    age: u32,
-    email: Option<String>,
-}
-
-#[derive(Debug)]
-struct TestPoint {
-    x: f64,
-    y: f64,
-}
-
-// Struct with only basic types that should work
-#[derive(Debug)]
-struct TestBasicStruct {
-    id: u32,
-    count: u64,
-    enabled: bool,
-    bytes: [u8; 4],
-}
-
-#[derive(Debug)]
-struct TestComplexData {
-    id: u64,
-    values: Vec<i32>,
-    metadata: BTreeMap<String, String>,
-    location: TestPoint,
-}
-
-#[derive(Debug)]
-enum TestEnum {
-    Unit,
-    Tuple(u32, String),
-    Struct { x: f64, y: f64 },
-}
-
-#[derive(Debug)]
-#[repr(C)]
-enum ReprCEnum {
-    Unit,
-    Tuple(u32, String),
-    Struct { x: f64, y: f64 },
-}
-
-#[derive(Debug)]
-#[repr(u8)]
-enum U8Enum {
-    First,
-    Second,
-    Third,
-    // skip fourth to see what happens
-    Fifth = 5,
 }
 
 #[test]
 fn test_introspect_string() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create test data
     let test_string = String::from("Hello, Debugger!");
@@ -237,7 +136,7 @@ fn test_introspect_string() -> Result<()> {
 
 #[test]
 fn test_introspect_struct() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create test data
     let test_person = TestPerson {
@@ -256,7 +155,7 @@ fn test_introspect_struct() -> Result<()> {
 
 #[test]
 fn test_introspect_vec() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create test data
     let test_vec: Vec<i32> = vec![10, 20, 30, 40, 50];
@@ -271,7 +170,7 @@ fn test_introspect_vec() -> Result<()> {
 
 #[test]
 fn test_introspect_option() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Test Option::Some
     let test_some: Option<u32> = Some(42);
@@ -290,7 +189,7 @@ fn test_introspect_option() -> Result<()> {
 
 #[test]
 fn test_introspect_hashmap() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create test data
     let mut test_map = HashMap::new();
@@ -314,7 +213,7 @@ fn test_introspect_hashmap() -> Result<()> {
 
 #[test]
 fn test_introspect_btreemap() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create test data
     let mut test_map = BTreeMap::new();
@@ -332,7 +231,7 @@ fn test_introspect_btreemap() -> Result<()> {
 
 #[test]
 fn test_introspect_complex_nested_types() {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create complex nested data - NOTE: This contains Vec and HashMap which are not implemented yet
     let mut metadata = BTreeMap::new();
@@ -358,7 +257,7 @@ fn test_introspect_complex_nested_types() {
 
 #[test]
 fn test_introspect_smart_pointers() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create test data with smart pointers
     let test_box: Box<String> = Box::new(String::from("Boxed string"));
@@ -385,7 +284,7 @@ fn test_introspect_smart_pointers() -> Result<()> {
 
 #[test]
 fn test_introspect_basic_struct() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Create test data with only basic types that should be implemented
     let test_basic = TestBasicStruct {
@@ -405,7 +304,7 @@ fn test_introspect_basic_struct() -> Result<()> {
 
 #[test]
 fn test_introspect_enums() {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Test TestEnum variants
     let unit_variant = TestEnum::Unit;
@@ -473,7 +372,7 @@ fn test_introspect_enums() {
 
 #[test]
 fn test_real_method_execution() -> Result<()> {
-    let debug_info = setup_db!();
+    let (_guards, debug_info) = setup_db!();
 
     // Test Vec::len() method execution - this should be simple and safe
     let test_vec = vec![1, 2, 3, 4, 5];
@@ -519,8 +418,8 @@ fn test_real_method_execution() -> Result<()> {
 
 #[test]
 fn test_synthetic_methods() -> Result<()> {
-    let debug_info = setup_db!();
-    let resolver = SelfProcessResolver::new();
+    let (_guards, debug_info) = setup_db!();
+    let resolver = SelfProcessResolver;
 
     // Test Vec synthetic methods
     let test_vec = vec![1, 2, 3, 4, 5];

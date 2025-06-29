@@ -4,7 +4,7 @@ use anyhow::Result;
 use rudy_db::{DebugDb, DebugInfo};
 
 #[macro_use]
-mod common;
+pub mod common;
 
 #[test]
 fn test_simple_resolve_debug() -> Result<()> {

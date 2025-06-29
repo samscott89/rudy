@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*", "rudy-lldb", "rudy-db"]
+members = ["crates/*", "rudy-lldb", "rudy-db", "xtask"]
 resolver = "3"
 
 [workspace.dependencies]

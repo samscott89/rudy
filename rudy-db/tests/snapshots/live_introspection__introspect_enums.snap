@@ -1,9 +1,0 @@
----
-source: rudy-db/tests/live_introspection.rs
-expression: unit_value
-snapshot_kind: text
----
-Scalar {
-    ty: "TestEnum::Unit",
-    value: "Unit",
-}
