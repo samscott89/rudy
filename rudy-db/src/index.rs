@@ -241,7 +241,7 @@ pub fn resolve_type(
     db: &dyn Db,
     binary: Binary,
     type_name: &str,
-) -> anyhow::Result<Option<TypeLayout>> {
+) -> anyhow::Result<Option<(TypeLayout, DebugFile)>> {
     let parsed = TypeName::parse(&[], type_name)?;
     tracing::info!("Finding type '{parsed}'");
     let index = debug_index(db, binary);
@@ -292,10 +292,7 @@ pub fn resolve_type(
                         "Resolved type '{type_name}' to {typedef:#?} in {}",
                         entry.die(db).print(db)
                     );
-                    // nowe we've found a match, we can fully resolve the type
-                    return Ok(Some(crate::dwarf::fully_resolve_type(
-                        db, debug_file, &typedef,
-                    )?));
+                    return Ok(Some((typedef, debug_file)));
                 }
                 Err(e) => {
                     tracing::warn!("Failed to resolve type '{type_name}': {e:?}");

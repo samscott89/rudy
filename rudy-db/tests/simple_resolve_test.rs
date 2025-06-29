@@ -3,6 +3,9 @@
 use anyhow::Result;
 use rudy_db::{DebugDb, DebugInfo};
 
+#[macro_use]
+mod common;
+
 #[test]
 fn test_simple_resolve_debug() -> Result<()> {
     let _ = tracing_subscriber::fmt()
@@ -19,7 +22,7 @@ fn test_simple_resolve_debug() -> Result<()> {
 
     // Try to resolve a simple type
     match debug_info.resolve_type("u32") {
-        Ok(Some(typedef)) => {
+        Ok(Some((typedef, _))) => {
             println!(
                 "Found u32 type in {:?}: {}",
                 start.elapsed(),

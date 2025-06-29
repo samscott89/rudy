@@ -1,14 +1,15 @@
 use anyhow::{Context, Result};
-use rudy_types::TypeLayout;
+use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use crate::{
     DiscoveredMethod, ResolvedLocation,
     database::{Db, Diagnostic, handle_diagnostics},
     dwarf::{self, Die, resolve_function_variables},
+    file::DebugFile,
     function_discovery::SymbolAnalysisResult,
     index,
-    outputs::ResolvedFunction,
+    outputs::{ResolvedFunction, TypedPointer},
     query::{lookup_address, lookup_position},
     types::{Address, Position},
 };
@@ -502,7 +503,13 @@ impl<'db> DebugInfo<'db> {
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::Value> {
         if let Some(address) = var_info.address {
-            crate::data::read_from_memory(self.db, address, &var_info.type_def, data_resolver)
+            crate::data::read_from_memory(
+                self.db,
+                address,
+                &var_info.type_def,
+                data_resolver,
+                &var_info.debug_file,
+            )
         } else {
             // Variable doesn't have a memory location (e.g., optimized out)
             Err(anyhow::anyhow!(
@@ -632,11 +639,11 @@ impl<'db> DebugInfo<'db> {
     /// # use rudy_db::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// if let Some(typedef) = debug_info.resolve_type("String").unwrap() {
+    /// if let Some((typedef, _)) = debug_info.resolve_type("String").unwrap() {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
-    pub fn resolve_type(&self, type_name: &str) -> Result<Option<TypeLayout>> {
+    pub fn resolve_type(&self, type_name: &str) -> Result<Option<(TypeLayout, DebugFile)>> {
         crate::index::resolve_type(self.db, self.binary, type_name)
     }
 
@@ -645,38 +652,24 @@ impl<'db> DebugInfo<'db> {
     /// # Arguments
     ///
     /// * `address` - The memory address to read from
-    /// * `typedef` - The type definition to use for interpreting the memory
+    /// * `typed_pointer` - TODO
     /// * `data_resolver` - Interface for reading memory and register values
     ///
     /// # Returns
     ///
     /// The interpreted value from memory
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use rudy_db::{DebugDb, DebugInfo, DataResolver};
-    /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// # }
-    /// # let db = DebugDb::new();
-    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// # let resolver = MyResolver;
-    /// if let Some(typedef) = debug_info.resolve_type("String").unwrap() {
-    ///     let value = debug_info.address_to_value(0x12345, &typedef, &resolver).unwrap();
-    ///     println!("Value at address: {:?}", value);
-    /// }
     /// ```
-    pub fn address_to_value(
+    pub fn read_pointer(
         &self,
-        address: u64,
-        typedef: &TypeLayout,
+        typed_pointer: &TypedPointer,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<crate::Value> {
-        crate::data::read_from_memory(self.db, address, typedef, data_resolver)
+        let TypedPointer {
+            address,
+            type_def,
+            debug_file,
+        } = typed_pointer;
+        crate::data::read_from_memory(self.db, *address, type_def, data_resolver, debug_file)
     }
 
     /// Access a field of a struct/union/enum value
@@ -707,9 +700,7 @@ impl<'db> DebugInfo<'db> {
         base_address: u64,
         base_type: &TypeLayout,
         field_name: &str,
-    ) -> Result<crate::VariableInfo> {
-        use rudy_types::TypeLayout;
-
+    ) -> Result<TypedPointer> {
         match base_type {
             TypeLayout::Struct(struct_def) => {
                 let field = struct_def
@@ -726,10 +717,16 @@ impl<'db> DebugInfo<'db> {
 
                 let field_address = base_address + field.offset as u64;
 
-                Ok(crate::VariableInfo {
-                    name: field_name.to_string(),
-                    address: Some(field_address),
+                // TODO: We should determine which debug file contains this type
+                // For now, use the first debug file
+                let debug_file = self
+                    .debug_files
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
+                Ok(TypedPointer {
+                    address: field_address,
                     type_def: field.ty.clone(),
+                    debug_file: *debug_file,
                 })
             }
             TypeLayout::Enum(enum_def) => {
@@ -781,14 +778,18 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn get_index_by_int(
         &self,
-        base_address: u64,
-        base_type: &TypeLayout,
+        type_pointer: &TypedPointer,
         index: u64,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<crate::VariableInfo> {
-        use rudy_types::{PrimitiveLayout, TypeLayout};
+    ) -> Result<TypedPointer> {
+        let TypedPointer {
+            address: base_address,
+            type_def: base_type,
+            debug_file,
+        } = type_pointer;
+        let base_address = *base_address;
 
-        match base_type {
+        match base_type.as_ref() {
             TypeLayout::Primitive(PrimitiveLayout::Array(array_def)) => {
                 // Fixed-size array [T; N]
                 if index >= array_def.length as u64 {
@@ -806,17 +807,21 @@ impl<'db> DebugInfo<'db> {
                     )
                 })? as u64;
                 let element_address = base_address + (index * element_size);
-
-                Ok(crate::VariableInfo {
-                    name: format!("[{index}]"),
-                    address: Some(element_address),
+                Ok(TypedPointer {
+                    address: element_address,
                     type_def: array_def.element_type.clone(),
+                    debug_file: *debug_file,
                 })
             }
             TypeLayout::Primitive(PrimitiveLayout::Slice(slice_def)) => {
                 // Slice [T] - need to read the fat pointer to get actual data pointer and length
-                let slice_value =
-                    crate::data::read_from_memory(self.db, base_address, base_type, data_resolver)?;
+                let slice_value = crate::data::read_from_memory(
+                    self.db,
+                    base_address,
+                    base_type,
+                    data_resolver,
+                    debug_file,
+                )?;
                 let (data_ptr, slice_len) = extract_slice_info(&slice_value)?;
 
                 if index >= slice_len {
@@ -835,14 +840,13 @@ impl<'db> DebugInfo<'db> {
                 })? as u64;
                 let element_address = data_ptr + (index * element_size);
 
-                Ok(crate::VariableInfo {
-                    name: format!("[{index}]"),
-                    address: Some(element_address),
+                Ok(TypedPointer {
+                    address: element_address,
                     type_def: slice_def.element_type.clone(),
+                    debug_file: *debug_file,
                 })
             }
             TypeLayout::Std(std_def) => {
-                use rudy_types::StdLayout;
                 match std_def {
                     StdLayout::Vec(vec_def) => {
                         let (data_ptr, vec_len) =
@@ -864,10 +868,16 @@ impl<'db> DebugInfo<'db> {
                         })? as u64;
                         let element_address = data_ptr + (index * element_size);
 
-                        Ok(crate::VariableInfo {
-                            name: format!("[{index}]"),
-                            address: Some(element_address),
+                        // TODO: We should determine which debug file contains this type
+                        // For now, use the first debug file
+                        let debug_file = self
+                            .debug_files
+                            .first()
+                            .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
+                        Ok(TypedPointer {
+                            address: element_address,
                             type_def: vec_def.inner_type.clone(),
+                            debug_file: *debug_file,
                         })
                     }
                     _ => Err(anyhow::anyhow!(
@@ -921,34 +931,39 @@ impl<'db> DebugInfo<'db> {
         base_type: &TypeLayout,
         key: &crate::Value,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<crate::VariableInfo> {
-        use rudy_types::{StdLayout, TypeLayout};
-
+    ) -> Result<TypedPointer> {
         match base_type {
             TypeLayout::Std(StdLayout::Map(map_def)) => {
                 // For maps, we'll iterate through all key-value pairs
                 // and return the variable info for the value that matches the key.
 
-                let map_entries =
-                    crate::data::read_map_entries(base_address, map_def, data_resolver)?;
+                // TODO: We should determine which debug file contains this type
+                // For now, use the first debug file
+                let debug_file = self
+                    .debug_files
+                    .first()
+                    .ok_or_else(|| anyhow::anyhow!("No debug files available"))?;
+                let map_entries = crate::data::read_map_entries(
+                    base_address,
+                    map_def,
+                    data_resolver,
+                    debug_file,
+                )?;
 
                 for (k, v) in map_entries {
                     let map_key = crate::data::read_from_memory(
                         self.db,
                         k.address,
-                        &map_def.key_type,
+                        &k.type_def,
                         data_resolver,
+                        &k.debug_file,
                     )?;
 
                     if values_equal(key, &map_key) {
-                        // For HashMap indexing, we can't return a direct memory address
-                        // since the value might be stored in a complex hash table structure.
-                        // Instead, we return the value itself as if it were at a fake address.
-                        // This is a simplification for developer experience.
-                        return Ok(crate::VariableInfo {
-                            name: format!("[{}]", format_value_key(key)),
-                            address: Some(v.address), // No direct memory address for HashMap values
+                        return Ok(TypedPointer {
+                            address: v.address,
                             type_def: v.type_def.clone(),
+                            debug_file: v.debug_file,
                         });
                     }
                 }
@@ -991,10 +1006,16 @@ fn variable_info<'db>(
     let die = var.origin(db);
     let location = dwarf::resolve_data_location(db, function, base_address, die, data_resolver)?;
 
-    // before resolving the value, we'll need to full resolve the type
-    let ty = crate::dwarf::fully_resolve_type(db, die.file(db), var.ty(db))?;
-
     tracing::debug!("variable info: {:?} at {:?}", var.name(db), location);
+
+    let type_def = match var.ty(db) {
+        TypeLayout::Alias(unresolved_type) => {
+            // For type aliases, resolve the actual type
+            let entry = Die::from_unresolved_entry(db, die.file(db), unresolved_type);
+            crate::dwarf::resolve_type_offset(db, entry).context("Failed to resolve type alias")?
+        }
+        t => t.clone(),
+    };
 
     Ok(crate::VariableInfo {
         name: var
@@ -1002,7 +1023,8 @@ fn variable_info<'db>(
             .as_ref()
             .map_or_else(|| "_".to_string(), |s| s.to_string()),
         address: location,
-        type_def: Arc::new(ty),
+        type_def: Arc::new(type_def),
+        debug_file: die.file(db),
     })
 }
 

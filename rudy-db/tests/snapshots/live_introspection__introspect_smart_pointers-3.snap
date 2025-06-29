@@ -1,0 +1,9 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: rc_value
+snapshot_kind: text
+---
+Scalar {
+    ty: "Rc<i32>",
+    value: "42",
+}

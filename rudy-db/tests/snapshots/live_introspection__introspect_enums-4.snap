@@ -1,0 +1,9 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: repr_c_unit_value
+snapshot_kind: text
+---
+Scalar {
+    ty: "ReprCEnum::Unit",
+    value: "Unit",
+}

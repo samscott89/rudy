@@ -31,7 +31,6 @@ pub use resolution::{
     // Variable resolution
     Variable,
     address_to_location,
-    fully_resolve_type,
     location_to_address,
     resolve_function_signature,
     resolve_function_variables,

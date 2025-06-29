@@ -3,7 +3,7 @@
 use std::fmt;
 
 use anyhow::Context;
-use gimli::UnitSectionOffset;
+use gimli::{DebugInfoOffset, UnitOffset, UnitSectionOffset};
 
 use super::{
     CompilationUnitId,
@@ -21,6 +21,18 @@ pub struct Die<'db> {
     pub file: DebugFile,
     pub cu_offset: UnitSectionOffset<usize>,
     pub die_offset: Offset,
+}
+
+impl<'db> Die<'db> {
+    pub fn from_unresolved_entry(
+        db: &'db dyn Db,
+        file: DebugFile,
+        alias: &rudy_types::UnresolvedType,
+    ) -> Self {
+        let die_offset = UnitOffset(alias.die_offset);
+        let cu_offset = gimli::UnitSectionOffset::from(DebugInfoOffset(alias.cu_offset));
+        Die::new(db, file, cu_offset, die_offset)
+    }
 }
 
 struct DieLocation {

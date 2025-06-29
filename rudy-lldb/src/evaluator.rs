@@ -4,10 +4,12 @@
 //! and reading memory through event callbacks.
 
 use anyhow::{Context, Result, anyhow};
-use rudy_db::{DataResolver, DebugInfo, Value, evaluate_synthetic_method, get_synthetic_methods};
+use rudy_db::{
+    DataResolver, DebugInfo, TypedPointer, Value, evaluate_synthetic_method, get_synthetic_methods,
+};
 use rudy_types::{StdLayout, TypeLayout};
 use std::cell::RefCell;
-use std::sync::Arc;
+use std::collections::BTreeMap;
 
 use crate::protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument};
 use crate::server::ClientConnection;
@@ -136,15 +138,76 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Convert a ValueRef to a final EvalResult by reading and formatting the value
-    fn value_ref_to_result(&mut self, value_ref: &ValueRef) -> Result<EvalResult> {
-        let value =
-            self.debug_info
-                .address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+    /// Convert a TypedPointer to a final EvalResult by reading and formatting the value
+    fn pointer_to_result(&mut self, pointer: &TypedPointer) -> Result<EvalResult> {
+        let mut value = self.debug_info.read_pointer(pointer, &self.conn)?;
+
+        value = self.read_pointer_recursive(&value, 8)?;
+
         Ok(EvalResult {
             value: format_value(&value),
-            type_name: value_ref.type_def.display_name(),
+            type_name: pointer.type_def.display_name(),
         })
+    }
+
+    fn read_pointer_recursive(&mut self, value: &Value, max_depth: usize) -> Result<Value> {
+        if max_depth == 0 {
+            return Ok(value.clone()); // Stop recursion at max depth
+        }
+        match value {
+            Value::Pointer(typed_pointer) => {
+                let value = self.debug_info.read_pointer(typed_pointer, &self.conn)?;
+                self.read_pointer_recursive(&value, max_depth - 1)
+            }
+            v @ Value::Scalar { .. } => Ok(v.clone()),
+            Value::Array { ty, items } => {
+                let items = items
+                    .iter()
+                    .map(|v| self.read_pointer_recursive(v, max_depth - 1))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Value::Array {
+                    ty: ty.clone(),
+                    items,
+                })
+            }
+            Value::Struct { ty, fields } => {
+                let fields = fields
+                    .iter()
+                    .map(|(k, v)| {
+                        self.read_pointer_recursive(v, max_depth - 1)
+                            .map(|v| (k.clone(), v))
+                    })
+                    .collect::<Result<BTreeMap<_, _>, _>>()?;
+                Ok(Value::Struct {
+                    ty: ty.clone(),
+                    fields,
+                })
+            }
+            Value::Tuple { ty, entries } => {
+                let entries = entries
+                    .iter()
+                    .map(|v| self.read_pointer_recursive(v, max_depth - 1))
+                    .collect::<Result<Vec<_>, _>>()?;
+                Ok(Value::Tuple {
+                    ty: ty.clone(),
+                    entries,
+                })
+            }
+            Value::Map { ty, entries } => {
+                let entries = entries
+                    .iter()
+                    .map(|(k, v)| {
+                        let key = self.read_pointer_recursive(k, max_depth - 1)?;
+                        let value = self.read_pointer_recursive(v, max_depth - 1)?;
+                        Ok((key, value))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                Ok(Value::Map {
+                    ty: ty.clone(),
+                    entries,
+                })
+            }
+        }
     }
 
     /// Resolve variables at the current program counter
@@ -192,14 +255,8 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Get the type of an expression without evaluating its value
-    pub fn get_expression_type(&mut self, expr: &Expression) -> Result<rudy_types::TypeLayout> {
-        let value_ref = self.evaluate_to_ref(expr)?;
-        Ok((*value_ref.type_def).clone())
-    }
-
-    /// Evaluates an expression to a ValueRef (for intermediate computation)
-    fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<ValueRef> {
+    /// Evaluates an expression to a TypedPointer (for intermediate computation)
+    pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable_to_ref(name),
             Expression::FieldAccess { base, field } => {
@@ -222,51 +279,46 @@ impl<'a> EvalContext<'a> {
     }
 
     fn evaluate_variable(&mut self, name: &str) -> Result<EvalResult> {
-        // Try to get a ValueRef, then convert to result
+        // Try to get a TypedPointer, then convert to result
         let value_ref = self.evaluate_variable_to_ref(name)?;
-        self.value_ref_to_result(&value_ref)
+        self.pointer_to_result(&value_ref)
     }
 
-    fn evaluate_variable_to_ref(&mut self, name: &str) -> Result<ValueRef> {
+    fn evaluate_variable_to_ref(&mut self, name: &str) -> Result<TypedPointer> {
         let pc = self.get_pc()?;
 
         let var_info = self
             .debug_info
             .get_variable_at_pc(pc, name, &self.conn)?
             .with_context(|| format!("Failed to resolve variable '{name}'",))?;
-
-        let address = var_info
-            .address
-            .with_context(|| format!("Variable '{name}' has no memory address"))?;
-        Ok(ValueRef {
-            address,
-            type_def: var_info.type_def,
-        })
+        var_info
+            .as_pointer()
+            .ok_or_else(|| anyhow!("Variable '{name}' has no address"))
     }
 
     fn evaluate_field_access(&mut self, base: &Expression, field: &str) -> Result<EvalResult> {
-        // Get the field as a ValueRef, then convert to result
+        // Get the field as a TypedPointer, then convert to result
         let field_ref = self.evaluate_field_access_to_ref(base, field)?;
-        self.value_ref_to_result(&field_ref)
+        self.pointer_to_result(&field_ref)
     }
 
-    fn evaluate_field_access_to_ref(&mut self, base: &Expression, field: &str) -> Result<ValueRef> {
-        // First evaluate the base expression to a ValueRef
+    fn evaluate_field_access_to_ref(
+        &mut self,
+        base: &Expression,
+        field: &str,
+    ) -> Result<TypedPointer> {
+        // First evaluate the base expression to a TypedPointer
         let base_ref = self.evaluate_to_ref(base)?;
 
-        let field_info = self
-            .debug_info
-            .get_field(base_ref.address, &base_ref.type_def, field)?;
-
-        Ok(ValueRef {
-            address: field_info
-                .address
-                .ok_or_else(|| anyhow!("Field has no address"))?,
-            type_def: field_info.type_def,
-        })
+        self.debug_info
+            .get_field(base_ref.address, &base_ref.type_def, field)
     }
 
-    fn evaluate_index_to_ref(&mut self, base: &Expression, index: &Expression) -> Result<ValueRef> {
+    fn evaluate_index_to_ref(
+        &mut self,
+        base: &Expression,
+        index: &Expression,
+    ) -> Result<TypedPointer> {
         let base_ref = self.evaluate_to_ref(base)?;
 
         // Check if the base type supports string indexing (HashMap, etc.)
@@ -284,35 +336,12 @@ impl<'a> EvalContext<'a> {
                 &self.conn,
             )?;
 
-            // HashMap values don't have direct memory addresses, so we need special handling
-            if element_info.address.is_none() {
-                // For HashMap, we can't create a ValueRef since there's no memory address
-                // This means we need to handle HashMap indexing at the EvalResult level
-                return Err(anyhow!(
-                    "HashMap indexing requires special handling - use evaluate_index instead"
-                ));
-            }
-
-            Ok(ValueRef {
-                address: element_info.address.unwrap(),
-                type_def: element_info.type_def,
-            })
+            Ok(element_info)
         } else {
             // Default to integer indexing
             let index_int = self.evaluate_to_int(index)?;
-            let element_info = self.debug_info.get_index_by_int(
-                base_ref.address,
-                &base_ref.type_def,
-                index_int,
-                &self.conn,
-            )?;
-
-            Ok(ValueRef {
-                address: element_info
-                    .address
-                    .ok_or_else(|| anyhow!("Element has no address"))?,
-                type_def: element_info.type_def,
-            })
+            self.debug_info
+                .get_index_by_int(&base_ref, index_int, &self.conn)
         }
     }
 
@@ -369,11 +398,9 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Read an integer value from memory using a ValueRef
-    fn read_integer_from_memory(&self, value_ref: &ValueRef) -> Result<u64> {
-        let value =
-            self.debug_info
-                .address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+    /// Read an integer value from memory using a TypedPointer
+    fn read_integer_from_memory(&self, pointer: &TypedPointer) -> Result<u64> {
+        let value = self.debug_info.read_pointer(pointer, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
                 // Try to parse as different number formats
@@ -386,15 +413,14 @@ impl<'a> EvalContext<'a> {
                     Err(anyhow!("Could not parse integer value: {}", value))
                 }
             }
+            Value::Pointer(p) => self.read_integer_from_memory(&p),
             _ => Err(anyhow!("Expected scalar integer value, got: {:?}", value)),
         }
     }
 
-    /// Read a string value from memory using a ValueRef
-    fn read_string_from_memory(&self, value_ref: &ValueRef) -> Result<String> {
-        let value =
-            self.debug_info
-                .address_to_value(value_ref.address, &value_ref.type_def, &self.conn)?;
+    /// Read a string value from memory using a TypedPointer
+    fn read_string_from_memory(&self, pointer: &TypedPointer) -> Result<String> {
+        let value = self.debug_info.read_pointer(pointer, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
                 // For strings, the formatted value should be the string content
@@ -402,20 +428,21 @@ impl<'a> EvalContext<'a> {
                 let trimmed = value.trim_matches('"');
                 Ok(trimmed.to_string())
             }
+            Value::Pointer(_) => self.read_string_from_memory(pointer),
             _ => Err(anyhow!("Expected scalar string value, got: {:?}", value)),
         }
     }
 
     fn evaluate_index(&mut self, base: &Expression, index: &Expression) -> Result<EvalResult> {
-        let base_ref = self.evaluate_to_ref(base)?;
+        let pointer = self.evaluate_to_ref(base)?;
 
         // Check if the base type supports string indexing (HashMap, etc.)
-        if self.supports_string_indexing(&base_ref.type_def) {
+        if self.supports_string_indexing(&pointer.type_def) {
             let key_string = self.evaluate_to_string(index)?;
             tracing::debug!(
                 "Evaluating index with string key: {} for base type: {}",
                 key_string,
-                base_ref.type_def.display_name()
+                pointer.type_def.display_name()
             );
             // Use get_index_by_value with string key
             let key_value = Value::Scalar {
@@ -423,45 +450,21 @@ impl<'a> EvalContext<'a> {
                 value: key_string,
             };
             let element_info = self.debug_info.get_index_by_value(
-                base_ref.address,
-                &base_ref.type_def,
+                pointer.address,
+                &pointer.type_def,
                 &key_value,
                 &self.conn,
             )?;
 
-            // HashMap values don't have direct memory addresses, so we need special handling
-            if element_info.address.is_none() {
-                // For HashMap, we need to read the value directly since it was already resolved
-                let value = self.debug_info.read_variable(&element_info, &self.conn)?;
-                return Ok(EvalResult {
-                    value: format_value(&value),
-                    type_name: element_info.type_def.display_name(),
-                });
-            }
-
-            // If we do have an address, create a ValueRef and convert normally
-            let element_ref = ValueRef {
-                address: element_info.address.unwrap(),
-                type_def: element_info.type_def,
-            };
-            self.value_ref_to_result(&element_ref)
+            self.pointer_to_result(&element_info)
         } else {
             // Default to integer indexing
             let index_int = self.evaluate_to_int(index)?;
-            let element_info = self.debug_info.get_index_by_int(
-                base_ref.address,
-                &base_ref.type_def,
-                index_int,
-                &self.conn,
-            )?;
+            let element_info = self
+                .debug_info
+                .get_index_by_int(&pointer, index_int, &self.conn)?;
 
-            let element_ref = ValueRef {
-                address: element_info
-                    .address
-                    .ok_or_else(|| anyhow!("Element has no address"))?,
-                type_def: element_info.type_def,
-            };
-            self.value_ref_to_result(&element_ref)
+            self.pointer_to_result(&element_info)
         }
     }
 
@@ -506,6 +509,7 @@ impl<'a> EvalContext<'a> {
                 value: format_value(&result_value),
                 type_name: match &result_value {
                     Value::Scalar { ty, .. } => ty.clone(),
+                    Value::Pointer(ptr) => ptr.type_def.display_name(),
                     _ => "unknown".to_string(),
                 },
             })
@@ -518,7 +522,7 @@ impl<'a> EvalContext<'a> {
     /// Execute a real method by calling it via LLDB
     fn execute_real_method(
         &mut self,
-        base_ref: ValueRef,
+        base_ref: TypedPointer,
         method: &str,
         args: &[Expression],
     ) -> Result<EvalResult> {
@@ -631,15 +635,6 @@ impl<'a> EvalContext<'a> {
     }
 }
 
-/// Reference to a typed value in memory (used for intermediate evaluation)
-#[derive(Debug, Clone)]
-struct ValueRef {
-    /// Memory address where the value is stored
-    address: u64,
-    /// Full type definition for the value
-    type_def: Arc<TypeLayout>,
-}
-
 /// Final result of evaluating an expression (for display/serialization)
 #[derive(Debug, serde::Serialize, Clone)]
 pub struct EvalResult {
@@ -691,6 +686,9 @@ fn format_value(value: &Value) -> String {
         Value::Tuple { ty, entries } => {
             let entries_str: Vec<String> = entries.iter().map(format_value).collect();
             format!("{ty} (\n{}\n)", indent(&entries_str.join(",\n"), 1))
+        }
+        Value::Pointer(ptr) => {
+            format!("<{} @ {:#x}>", ptr.type_def.display_name(), ptr.address)
         }
     }
 }

@@ -5,6 +5,7 @@
 //! and other common expression forms.
 
 use anyhow::{Result, anyhow};
+use itertools::Itertools;
 use std::fmt;
 
 /// Represents a parsed expression
@@ -75,24 +76,10 @@ impl fmt::Display for Expression {
             Expression::StringLiteral(value) => write!(f, "\"{value}\""),
             Expression::Parenthesized(expr) => write!(f, "({expr})"),
             Expression::MethodCall { base, method, args } => {
-                write!(f, "{base}.{method}(")?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{arg}")?;
-                }
-                write!(f, ")")
+                write!(f, "{base}.{method}({})", args.iter().join(", "))
             }
             Expression::FunctionCall { function, args } => {
-                write!(f, "{function}(")?;
-                for (i, arg) in args.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{arg}")?;
-                }
-                write!(f, ")")
+                write!(f, "{function}({})", args.iter().join(", "))
             }
         }
     }

@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use rudy_types::TypeLayout;
 
-use crate::SelfType;
+use crate::{SelfType, file::DebugFile};
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -45,19 +45,33 @@ pub struct VariableInfo {
     pub address: Option<u64>,
     /// Full type definition for the variable
     pub type_def: Arc<TypeLayout>,
+    /// Debug file containing the type information
+    pub debug_file: DebugFile,
+}
+
+impl VariableInfo {
+    pub fn as_pointer(&self) -> Option<TypedPointer> {
+        self.address.map(|address| TypedPointer {
+            address,
+            type_def: self.type_def.clone(),
+            debug_file: self.debug_file,
+        })
+    }
 }
 
 /// A pointer to an entry in memory, with its type definition
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TypedPointer {
     /// Memory address where variable is stored (if available)
     pub address: u64,
     /// Full type definition for the variable
     pub type_def: Arc<TypeLayout>,
+    /// Debug file containing the type information
+    pub debug_file: DebugFile,
 }
 
 /// A value read from memory, supporting scalars, arrays, and structs.
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Value {
     Scalar {
         ty: String,
@@ -79,6 +93,7 @@ pub enum Value {
         ty: String,
         entries: Vec<(Value, Value)>,
     },
+    Pointer(TypedPointer),
 }
 
 impl Value {
@@ -107,6 +122,11 @@ impl Value {
                 ty: type_map(ty),
                 entries: entries.clone(),
             },
+            Value::Pointer(ptr) => Value::Pointer(TypedPointer {
+                address: ptr.address,
+                type_def: ptr.type_def.clone(),
+                debug_file: ptr.debug_file,
+            }),
         }
     }
 
@@ -119,6 +139,84 @@ impl Value {
     pub(crate) fn wrap_type<T: AsRef<str>>(&self, new_ty: T) -> Self {
         let new_ty = new_ty.as_ref();
         self.map_type(|ty| format!("{new_ty}<{ty}>"))
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering;
+        match (self, other) {
+            (
+                Value::Scalar {
+                    ty: ty1,
+                    value: val1,
+                },
+                Value::Scalar {
+                    ty: ty2,
+                    value: val2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| val1.cmp(val2)),
+            (
+                Value::Array {
+                    ty: ty1,
+                    items: items1,
+                },
+                Value::Array {
+                    ty: ty2,
+                    items: items2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| items1.cmp(items2)),
+            (
+                Value::Struct {
+                    ty: ty1,
+                    fields: fields1,
+                },
+                Value::Struct {
+                    ty: ty2,
+                    fields: fields2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| fields1.cmp(fields2)),
+            (
+                Value::Tuple {
+                    ty: ty1,
+                    entries: entries1,
+                },
+                Value::Tuple {
+                    ty: ty2,
+                    entries: entries2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| entries1.cmp(entries2)),
+            (
+                Value::Map {
+                    ty: ty1,
+                    entries: entries1,
+                },
+                Value::Map {
+                    ty: ty2,
+                    entries: entries2,
+                },
+            ) => ty1.cmp(ty2).then_with(|| entries1.cmp(entries2)),
+            (Value::Pointer(ptr1), Value::Pointer(ptr2)) => ptr1.address.cmp(&ptr2.address),
+            // Define ordering between different variants
+            (Value::Scalar { .. }, _) => Ordering::Less,
+            (Value::Array { .. }, Value::Scalar { .. }) => Ordering::Greater,
+            (Value::Array { .. }, _) => Ordering::Less,
+            (Value::Struct { .. }, Value::Scalar { .. }) => Ordering::Greater,
+            (Value::Struct { .. }, Value::Array { .. }) => Ordering::Greater,
+            (Value::Struct { .. }, _) => Ordering::Less,
+            (Value::Tuple { .. }, Value::Pointer(_)) => Ordering::Less,
+            (Value::Tuple { .. }, Value::Map { .. }) => Ordering::Less,
+            (Value::Tuple { .. }, _) => Ordering::Greater,
+            (Value::Map { .. }, Value::Pointer(_)) => Ordering::Less,
+            (Value::Map { .. }, _) => Ordering::Greater,
+            (Value::Pointer(_), _) => Ordering::Greater,
+        }
     }
 }
 
