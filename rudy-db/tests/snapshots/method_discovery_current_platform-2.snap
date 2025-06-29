@@ -1,0 +1,6 @@
+---
+source: rudy-db/tests/dynamic_tests.rs
+expression: methods_by_type
+snapshot_kind: text
+---
+{}

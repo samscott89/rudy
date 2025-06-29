@@ -1,6 +1,7 @@
 ---
 source: rudy-db/tests/dynamic_tests.rs
 expression: repr_c_typedef
+snapshot_kind: text
 ---
 (
     Enum(
@@ -24,7 +25,7 @@ expression: repr_c_typedef
                         UnresolvedType {
                             name: "Unit",
                             cu_offset: 0,
-                            die_offset: 18443,
+                            die_offset: 34998,
                         },
                     ),
                 },
@@ -37,7 +38,7 @@ expression: repr_c_typedef
                         UnresolvedType {
                             name: "Tuple",
                             cu_offset: 0,
-                            die_offset: 18451,
+                            die_offset: 35006,
                         },
                     ),
                 },
@@ -50,7 +51,7 @@ expression: repr_c_typedef
                         UnresolvedType {
                             name: "Struct",
                             cu_offset: 0,
-                            die_offset: 18484,
+                            die_offset: 35039,
                         },
                     ),
                 },
@@ -59,6 +60,6 @@ expression: repr_c_typedef
         },
     ),
     DebugFile {
-        [salsa id]: Id(804),
+        [salsa id]: Id(822),
     },
 )
