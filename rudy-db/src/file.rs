@@ -25,7 +25,9 @@ impl File {
         // check if we the file needs to be relocated
         let path = db.remap_path(&path);
 
-        let file = std::fs::File::open(&path)?;
+        let file = std::fs::File::open(&path).inspect_err(|_| {
+            tracing::warn!("Failed to open file: {}:", path.display());
+        })?;
         let metadata = file.metadata()?;
         let mtime = metadata.modified()?;
         let size = metadata.len();
@@ -99,7 +101,8 @@ pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
     let path = db.remap_path(path);
     let member = file.member_file(db);
 
-    let file_handle = std::fs::File::open(path)?;
+    let file_handle = std::fs::File::open(path)
+        .inspect_err(|_| tracing::warn!("Failed to open file: {}", file.name(db)))?;
     let mmap = unsafe { memmap2::Mmap::map(&file_handle) }?;
     let mmap_static_ref = unsafe {
         // SAFETY: we hold onto the Mmap until the end of the program

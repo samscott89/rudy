@@ -46,30 +46,21 @@ enum Commands {
         #[arg(long)]
         force: bool,
     },
+    /// Run Linux tests using Docker
+    TestLinux,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::BuildExamples { current_platform } => {
-            build_examples(current_platform)?;
-        }
-        Commands::GenerateBenchmarkExamples => {
-            generate_bench_examples()?;
-        }
-        Commands::CleanDocker { images } => {
-            clean_docker(images)?;
-        }
-        Commands::PublishArtifacts { force } => {
-            publish_artifacts(force)?;
-        }
-        Commands::DownloadArtifacts { version, force } => {
-            download_artifacts(version, force)?;
-        }
+        Commands::BuildExamples { current_platform } => build_examples(current_platform),
+        Commands::GenerateBenchmarkExamples => generate_bench_examples(),
+        Commands::CleanDocker { images } => clean_docker(images),
+        Commands::PublishArtifacts { force } => publish_artifacts(force),
+        Commands::DownloadArtifacts { version, force } => download_artifacts(version, force),
+        Commands::TestLinux => run_in_docker("x86_64-unknown-linux-gnu", "cargo test -p rudy-db"),
     }
-
-    Ok(())
 }
 
 fn workspace_root() -> Result<PathBuf> {

@@ -49,9 +49,9 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
 
     // next, if we have any mapped objects (via Mach-O)
     // then we'll locate all the debug files, and index their symbols
-    let mut indexed_object_files = vec![];
+    let mut indexed_object_files = vec![None; loaded_file.object.object_map().objects().len()];
     let object_map = loaded_file.object.object_map();
-    for object_file in object_map.objects() {
+    for (i, object_file) in object_map.objects().iter().enumerate() {
         let object_path = object_file.path();
         let Ok(object_path) = String::from_utf8(object_path.to_vec()) else {
             tracing::debug!("Failed to parse object file path: {:?}", object_file.path());
@@ -73,17 +73,17 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
         let file = match File::build(db, object_path.clone(), member.clone()) {
             Ok(file) => file,
             Err(e) => {
-                db.report_critical(format!(
+                tracing::error!(
                     "Failed to load debug file {} with member: {member:?}: {e}",
                     object_path.display()
-                ));
+                );
                 continue;
             }
         };
         // Create a debug file for this object
         let debug_file = DebugFile::new(db, file, true);
         debug_files.insert((file.path(db).clone(), member), debug_file);
-        indexed_object_files.push(debug_file);
+        indexed_object_files[i] = Some(debug_file);
     }
 
     // split objects by index
@@ -93,8 +93,9 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
         .into_group_map_by(|s| s.object_index());
 
     for (object_index, symbols) in grouped_symbols {
-        let debug_file = indexed_object_files[object_index];
-        symbol_index.index_mapped_file(symbols.into_iter(), debug_file)?;
+        if let Some(debug_file) = indexed_object_files[object_index] {
+            symbol_index.index_mapped_file(symbols.into_iter(), debug_file)?;
+        }
     }
 
     Ok((debug_files, symbol_index))

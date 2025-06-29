@@ -669,11 +669,23 @@ mod test {
 
         let binary_path = temp_dir.join("test_binary");
 
+        #[cfg(target_os = "macos")]
         let output = Command::new("rustc")
             .args([
                 "-g", // Include debug info
                 "-C",
                 "split-debuginfo=unpacked", // Use unpacked split debuginfo
+                "-o",
+                binary_path.to_str().unwrap(),
+                src_file.to_str().unwrap(),
+            ])
+            .output()
+            .expect("Failed to compile test binary");
+
+        #[cfg(target_os = "linux")]
+        let output = Command::new("rustc")
+            .args([
+                "-g", // Include debug info
                 "-o",
                 binary_path.to_str().unwrap(),
                 src_file.to_str().unwrap(),

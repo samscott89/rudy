@@ -43,7 +43,7 @@
 //! in via making the Binary file and all object files inputs -- this way if we recompile the
 //! binary we can recompute which parts of the binary are the same and which are unchanged.
 
-use std::{collections::HashMap, fmt::Debug, path::PathBuf};
+use std::{fmt::Debug, path::PathBuf};
 
 use anyhow::Result;
 use salsa::Accumulator;
@@ -88,7 +88,7 @@ pub trait Db: salsa::Database {
 
     /// Returns a map from source to destination paths
     /// for any remapped source/debugging files.
-    fn get_source_map(&self) -> &HashMap<PathBuf, PathBuf>;
+    fn get_source_map(&self) -> &[(PathBuf, PathBuf)];
 
     fn remap_path(&self, path: &std::path::Path) -> PathBuf {
         let mut path = path.to_path_buf();
@@ -127,12 +127,12 @@ pub struct Diagnostic {
 #[derive(Clone)]
 pub struct DebugDatabaseImpl {
     storage: salsa::Storage<Self>,
-    source_map: HashMap<PathBuf, PathBuf>,
+    source_map: Vec<(PathBuf, PathBuf)>,
 }
 
 pub struct DebugDbRef {
     handle: salsa::StorageHandle<DebugDatabaseImpl>,
-    source_map: HashMap<PathBuf, PathBuf>,
+    source_map: Vec<(PathBuf, PathBuf)>,
 }
 
 impl DebugDbRef {
@@ -201,11 +201,11 @@ impl DebugDatabaseImpl {
     pub fn new() -> Self {
         Self {
             storage: salsa::Storage::default(),
-            source_map: HashMap::new(),
+            source_map: Default::default(),
         }
     }
 
-    pub fn with_source_map(mut self, source_map: HashMap<PathBuf, PathBuf>) -> Self {
+    pub fn with_source_map(mut self, source_map: Vec<(PathBuf, PathBuf)>) -> Self {
         self.source_map = source_map;
         self
     }
@@ -242,7 +242,7 @@ impl Db for DebugDatabaseImpl {
         self
     }
 
-    fn get_source_map(&self) -> &HashMap<PathBuf, PathBuf> {
+    fn get_source_map(&self) -> &[(PathBuf, PathBuf)] {
         &self.source_map
     }
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 pub fn init_tracing() {
     let _ = tracing_subscriber::fmt()
@@ -26,22 +26,33 @@ fn workspace_dir() -> PathBuf {
 }
 
 pub fn debug_db(target: Option<&'static str>) -> crate::DebugDb {
-    let previous_root = workspace_dir().join("target/debug/examples/");
     let subfolder = target.unwrap_or_else(current_arch);
-    let new_root = PathBuf::from(".").join("test-artifacts").join(subfolder);
+    let old_target_dir = workspace_dir()
+        .join("target")
+        .join(subfolder)
+        .join("debug")
+        .join("examples");
+    let new_artifacts = workspace_dir().join("test-artifacts").join(subfolder);
     // we add some source maps to make our debug/source files work correctly
     // on whatever platform
     // NOTE: a better approach might be to use `--remap-path-prefix` rust flag
     // to standardize paths across platforms
-    crate::DebugDb::new().with_source_map(HashMap::from_iter([
-        (previous_root, new_root),
-        (PathBuf::from("/workspace/"), PathBuf::from(".")),
-        (
-            workspace_dir().join("crates/rudy-test-examples/examples"),
-            PathBuf::from("./crates/rudy-test-examples/examples"),
-        ),
-        (PathBuf::from("/app/"), PathBuf::from(".")),
-    ]))
+
+    let sam_workspace = PathBuf::from("/Users/sam/work/rudy");
+
+    crate::DebugDb::new().with_source_map(vec![
+        // first, replace `sam_workspace` with the current workspace root
+        (sam_workspace.clone(), workspace_dir()),
+        // TODO: This is probably not currently active
+        // but if we use `remap-path-prefix` in the future, we can use this
+        // to remap the workspace root to the current workspace root
+        (PathBuf::from("/workspace"), workspace_dir()),
+        // this is the path where the xtask is run from in docker
+        (PathBuf::from("/app"), workspace_dir()),
+        // then, remap any path in the generic target dir, into the target
+        // artifacts directory
+        (old_target_dir, new_artifacts.clone()),
+    ])
 }
 
 pub fn root_artifacts_dir() -> PathBuf {
