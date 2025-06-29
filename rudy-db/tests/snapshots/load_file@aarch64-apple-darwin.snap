@@ -70,10 +70,24 @@ DebugInfo {
             relocatable: true,
         },
         DebugFile {
+            [salsa id]: Id(800),
+            file: File {
+                [salsa id]: Id(0),
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test",
+                member_file: None,
+                mtime: SystemTime {
+                    tv_sec: 1751235406,
+                    tv_nsec: 893422041,
+                },
+                size: 440592,
+            },
+            relocatable: false,
+        },
+        DebugFile {
             [salsa id]: Id(801),
             file: File {
                 [salsa id]: Id(1),
-                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: 1751235406,
@@ -87,7 +101,7 @@ DebugInfo {
             [salsa id]: Id(802),
             file: File {
                 [salsa id]: Id(2),
-                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: 1751235406,
@@ -101,7 +115,7 @@ DebugInfo {
             [salsa id]: Id(803),
             file: File {
                 [salsa id]: Id(3),
-                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: 1751235406,
@@ -115,7 +129,7 @@ DebugInfo {
             [salsa id]: Id(804),
             file: File {
                 [salsa id]: Id(4),
-                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: 1751235406,
@@ -129,7 +143,7 @@ DebugInfo {
             [salsa id]: Id(805),
             file: File {
                 [salsa id]: Id(5),
-                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: 1751235406,
@@ -143,7 +157,7 @@ DebugInfo {
             [salsa id]: Id(806),
             file: File {
                 [salsa id]: Id(6),
-                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: 1751235406,
@@ -157,7 +171,7 @@ DebugInfo {
             [salsa id]: Id(807),
             file: File {
                 [salsa id]: Id(7),
-                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
+                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: 1751235406,
@@ -166,20 +180,6 @@ DebugInfo {
                 size: 2856,
             },
             relocatable: true,
-        },
-        DebugFile {
-            [salsa id]: Id(800),
-            file: File {
-                [salsa id]: Id(0),
-                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test",
-                member_file: None,
-                mtime: SystemTime {
-                    tv_sec: 1751235406,
-                    tv_nsec: 893422041,
-                },
-                size: 440592,
-            },
-            relocatable: false,
         },
     ],
     index: Index {
@@ -270,125 +270,6 @@ DebugInfo {
                 relocatable: true,
             },
             (
-                "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
-                None,
-            ): DebugFile {
-                [salsa id]: Id(801),
-                file: File {
-                    [salsa id]: Id(1),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 628773333,
-                    },
-                    size: 5184,
-                },
-                relocatable: true,
-            },
-            (
-                "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
-                None,
-            ): DebugFile {
-                [salsa id]: Id(802),
-                file: File {
-                    [salsa id]: Id(2),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 629143501,
-                    },
-                    size: 6184,
-                },
-                relocatable: true,
-            },
-            (
-                "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
-                None,
-            ): DebugFile {
-                [salsa id]: Id(803),
-                file: File {
-                    [salsa id]: Id(3),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 627728456,
-                    },
-                    size: 5048,
-                },
-                relocatable: true,
-            },
-            (
-                "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
-                None,
-            ): DebugFile {
-                [salsa id]: Id(804),
-                file: File {
-                    [salsa id]: Id(4),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 628809583,
-                    },
-                    size: 5736,
-                },
-                relocatable: true,
-            },
-            (
-                "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
-                None,
-            ): DebugFile {
-                [salsa id]: Id(805),
-                file: File {
-                    [salsa id]: Id(5),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 625407492,
-                    },
-                    size: 5592,
-                },
-                relocatable: true,
-            },
-            (
-                "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
-                None,
-            ): DebugFile {
-                [salsa id]: Id(806),
-                file: File {
-                    [salsa id]: Id(6),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 626237411,
-                    },
-                    size: 3280,
-                },
-                relocatable: true,
-            },
-            (
-                "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
-                None,
-            ): DebugFile {
-                [salsa id]: Id(807),
-                file: File {
-                    [salsa id]: Id(7),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 625068033,
-                    },
-                    size: 2856,
-                },
-                relocatable: true,
-            },
-            (
                 "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test",
                 None,
             ): DebugFile {
@@ -404,6 +285,125 @@ DebugInfo {
                     size: 440592,
                 },
                 relocatable: false,
+            },
+            (
+                "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                None,
+            ): DebugFile {
+                [salsa id]: Id(801),
+                file: File {
+                    [salsa id]: Id(1),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235406,
+                        tv_nsec: 628773333,
+                    },
+                    size: 5184,
+                },
+                relocatable: true,
+            },
+            (
+                "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
+                None,
+            ): DebugFile {
+                [salsa id]: Id(802),
+                file: File {
+                    [salsa id]: Id(2),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235406,
+                        tv_nsec: 629143501,
+                    },
+                    size: 6184,
+                },
+                relocatable: true,
+            },
+            (
+                "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                None,
+            ): DebugFile {
+                [salsa id]: Id(803),
+                file: File {
+                    [salsa id]: Id(3),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235406,
+                        tv_nsec: 627728456,
+                    },
+                    size: 5048,
+                },
+                relocatable: true,
+            },
+            (
+                "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                None,
+            ): DebugFile {
+                [salsa id]: Id(804),
+                file: File {
+                    [salsa id]: Id(4),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235406,
+                        tv_nsec: 628809583,
+                    },
+                    size: 5736,
+                },
+                relocatable: true,
+            },
+            (
+                "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                None,
+            ): DebugFile {
+                [salsa id]: Id(805),
+                file: File {
+                    [salsa id]: Id(5),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235406,
+                        tv_nsec: 625407492,
+                    },
+                    size: 5592,
+                },
+                relocatable: true,
+            },
+            (
+                "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
+                None,
+            ): DebugFile {
+                [salsa id]: Id(806),
+                file: File {
+                    [salsa id]: Id(6),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235406,
+                        tv_nsec: 626237411,
+                    },
+                    size: 3280,
+                },
+                relocatable: true,
+            },
+            (
+                "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
+                None,
+            ): DebugFile {
+                [salsa id]: Id(807),
+                file: File {
+                    [salsa id]: Id(7),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235406,
+                        tv_nsec: 625068033,
+                    },
+                    size: 2856,
+                },
+                relocatable: true,
             },
         },
         symbol_index: SymbolIndex {
@@ -526,7 +526,7 @@ DebugInfo {
                             [salsa id]: Id(806),
                             file: File {
                                 [salsa id]: Id(6),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -1110,7 +1110,7 @@ DebugInfo {
                             [salsa id]: Id(801),
                             file: File {
                                 [salsa id]: Id(1),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -1128,7 +1128,7 @@ DebugInfo {
                             [salsa id]: Id(801),
                             file: File {
                                 [salsa id]: Id(1),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -1308,7 +1308,7 @@ DebugInfo {
                             [salsa id]: Id(801),
                             file: File {
                                 [salsa id]: Id(1),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -5002,7 +5002,7 @@ DebugInfo {
                             [salsa id]: Id(803),
                             file: File {
                                 [salsa id]: Id(3),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -6056,7 +6056,7 @@ DebugInfo {
                             [salsa id]: Id(804),
                             file: File {
                                 [salsa id]: Id(4),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -6226,7 +6226,7 @@ DebugInfo {
                             [salsa id]: Id(803),
                             file: File {
                                 [salsa id]: Id(3),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -6644,7 +6644,7 @@ DebugInfo {
                             [salsa id]: Id(805),
                             file: File {
                                 [salsa id]: Id(5),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -6686,7 +6686,7 @@ DebugInfo {
                             [salsa id]: Id(805),
                             file: File {
                                 [salsa id]: Id(5),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -6706,7 +6706,7 @@ DebugInfo {
                             [salsa id]: Id(802),
                             file: File {
                                 [salsa id]: Id(2),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -8054,7 +8054,7 @@ DebugInfo {
                             [salsa id]: Id(807),
                             file: File {
                                 [salsa id]: Id(7),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -9960,7 +9960,7 @@ DebugInfo {
                             [salsa id]: Id(804),
                             file: File {
                                 [salsa id]: Id(4),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10668,7 +10668,7 @@ DebugInfo {
                             [salsa id]: Id(801),
                             file: File {
                                 [salsa id]: Id(1),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10688,7 +10688,7 @@ DebugInfo {
                             [salsa id]: Id(801),
                             file: File {
                                 [salsa id]: Id(1),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10708,7 +10708,7 @@ DebugInfo {
                             [salsa id]: Id(801),
                             file: File {
                                 [salsa id]: Id(1),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10728,7 +10728,7 @@ DebugInfo {
                             [salsa id]: Id(802),
                             file: File {
                                 [salsa id]: Id(2),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10748,7 +10748,7 @@ DebugInfo {
                             [salsa id]: Id(803),
                             file: File {
                                 [salsa id]: Id(3),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10768,7 +10768,7 @@ DebugInfo {
                             [salsa id]: Id(803),
                             file: File {
                                 [salsa id]: Id(3),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10788,7 +10788,7 @@ DebugInfo {
                             [salsa id]: Id(804),
                             file: File {
                                 [salsa id]: Id(4),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10808,7 +10808,7 @@ DebugInfo {
                             [salsa id]: Id(804),
                             file: File {
                                 [salsa id]: Id(4),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10828,7 +10828,7 @@ DebugInfo {
                             [salsa id]: Id(805),
                             file: File {
                                 [salsa id]: Id(5),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10848,7 +10848,7 @@ DebugInfo {
                             [salsa id]: Id(805),
                             file: File {
                                 [salsa id]: Id(5),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10868,7 +10868,7 @@ DebugInfo {
                             [salsa id]: Id(806),
                             file: File {
                                 [salsa id]: Id(6),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -10888,7 +10888,7 @@ DebugInfo {
                             [salsa id]: Id(807),
                             file: File {
                                 [salsa id]: Id(7),
-                                path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
+                                path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
                                 member_file: None,
                                 mtime: SystemTime {
                                     tv_sec: 1751235406,
@@ -20788,22 +20788,7 @@ DebugInfo {
                 ],
             },
         },
-        indexed_debug_files: [
-            DebugFile {
-                [salsa id]: Id(803),
-                file: File {
-                    [salsa id]: Id(3),
-                    path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235406,
-                        tv_nsec: 627728456,
-                    },
-                    size: 5048,
-                },
-                relocatable: true,
-            },
-        ],
+        indexed_debug_files: [],
         source_to_file: {
             SourceFile {
                 path: "/rustc/6b00bc3880198600130e1cf62b8f8a93494488cc/library/core/src/fmt/mod.rs",
@@ -30164,7 +30149,7 @@ DebugInfo {
                     [salsa id]: Id(801),
                     file: File {
                         [salsa id]: Id(1),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30182,7 +30167,7 @@ DebugInfo {
                     [salsa id]: Id(801),
                     file: File {
                         [salsa id]: Id(1),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.1cvqumgrslwbo6wsmw8ekz780.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30200,7 +30185,7 @@ DebugInfo {
                     [salsa id]: Id(802),
                     file: File {
                         [salsa id]: Id(2),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.4xkntk00lkz2m47jp7bfhxv9b.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30214,7 +30199,7 @@ DebugInfo {
                     [salsa id]: Id(805),
                     file: File {
                         [salsa id]: Id(5),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.96rihqyp6sy1m26k7flcetmd9.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30226,13 +30211,13 @@ DebugInfo {
                 },
             ],
             SourceFile {
-                path: "./crates/rudy-test-examples/examples/simple_test.rs",
+                path: "/Users/sam/work/rudy/crates/rudy-test-examples/examples/simple_test.rs",
             }: [
                 DebugFile {
                     [salsa id]: Id(803),
                     file: File {
                         [salsa id]: Id(3),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.73xotjit01u8prztkey1n4hy6.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30250,7 +30235,7 @@ DebugInfo {
                     [salsa id]: Id(804),
                     file: File {
                         [salsa id]: Id(4),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30268,7 +30253,7 @@ DebugInfo {
                     [salsa id]: Id(804),
                     file: File {
                         [salsa id]: Id(4),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30286,7 +30271,7 @@ DebugInfo {
                     [salsa id]: Id(804),
                     file: File {
                         [salsa id]: Id(4),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.7ved0vvbbm2ce9zsy721oaszg.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30300,7 +30285,7 @@ DebugInfo {
                     [salsa id]: Id(807),
                     file: File {
                         [salsa id]: Id(7),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.ac0v8lascsd8pjfu2vpok90lu.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30318,7 +30303,7 @@ DebugInfo {
                     [salsa id]: Id(806),
                     file: File {
                         [salsa id]: Id(6),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,
@@ -30336,7 +30321,7 @@ DebugInfo {
                     [salsa id]: Id(806),
                     file: File {
                         [salsa id]: Id(6),
-                        path: "/Users/sam/work/rudy/target/aarch64-apple-darwin/debug/examples/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
+                        path: "/Users/sam/work/rudy/test-artifacts/aarch64-apple-darwin/simple_test-6ab276a02362f47c.a2v0djlbjptxm8us6dp2cjm8h.023ir4t.rcgu.o",
                         member_file: None,
                         mtime: SystemTime {
                             tv_sec: 1751235406,

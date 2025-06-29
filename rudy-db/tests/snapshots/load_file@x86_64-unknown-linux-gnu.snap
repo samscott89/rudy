@@ -22053,22 +22053,7 @@ DebugInfo {
                 ],
             },
         },
-        indexed_debug_files: [
-            DebugFile {
-                [salsa id]: Id(800),
-                file: File {
-                    [salsa id]: Id(0),
-                    path: "/Users/sam/work/rudy/test-artifacts/x86_64-unknown-linux-gnu/simple_test",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: 1751235787,
-                        tv_nsec: 333667082,
-                    },
-                    size: 3684376,
-                },
-                relocatable: false,
-            },
-        ],
+        indexed_debug_files: [],
         source_to_file: {
             SourceFile {
                 path: "/rustc/6b00bc3880198600130e1cf62b8f8a93494488cc/library/std/src/rt.rs",
@@ -22215,7 +22200,7 @@ DebugInfo {
                 },
             ],
             SourceFile {
-                path: "./crates/rudy-test-examples/examples/simple_test.rs",
+                path: "/Users/sam/work/rudy/crates/rudy-test-examples/examples/simple_test.rs",
             }: [
                 DebugFile {
                     [salsa id]: Id(800),

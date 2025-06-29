@@ -113,8 +113,12 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     // attempt to detect the current cargo workspace
     let cwd = std::env::current_dir().ok();
     let workspace_root = cwd.and_then(|p| {
-        p.ancestors()
-            .find_map(|a| a.join("Cargo.toml").exists().then(|| a.to_owned()))
+        if p.join("Cargo.toml").exists() {
+            Some(p)
+        } else {
+            p.ancestors()
+                .find_map(|a| a.join("Cargo.toml").exists().then(|| a.to_owned()))
+        }
     });
     if workspace_root.is_none() {
         tracing::warn!(

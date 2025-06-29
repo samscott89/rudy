@@ -25,11 +25,6 @@ pub fn binary_path(target: &str, example: &str) -> String {
     binary_path.to_str().unwrap().to_string()
 }
 
-pub fn platform_source_file(_target: &str, file: &str) -> String {
-    // For test artifacts, we'll use a consistent path structure
-    format!("/test/{file}")
-}
-
 #[template]
 #[rstest]
 #[case("aarch64-unknown-linux-gnu")]
@@ -57,7 +52,11 @@ fn test_resolve_position(#[case] target: &'static str) {
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
     let platform_file = "simple_test.rs";
-    let expected = "./crates/rudy-test-examples/examples/simple_test.rs".to_string();
+    let expected = common::workspace_dir()
+        .join("crates/rudy-test-examples/examples/simple_test.rs")
+        .to_str()
+        .expect("Failed to convert path to string")
+        .to_string();
 
     // should be the position of the `let y = x + 1;` line
     let addrs = resolver

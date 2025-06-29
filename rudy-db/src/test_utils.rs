@@ -9,13 +9,13 @@ pub fn init_tracing() {
         .try_init();
 }
 
-fn workspace_dir() -> PathBuf {
+pub fn workspace_dir() -> PathBuf {
     std::env::var("CARGO_WORKSPACE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             // If not in cargo environment, find workspace root
             let mut path = std::env::current_dir().expect("Failed to get current directory");
-            while !path.join("Cargo.toml").exists() || !path.join("xtask").exists() {
+            while !path.join("Cargo.toml").exists() {
                 path = path
                     .parent()
                     .expect("Could not find workspace root")

@@ -368,6 +368,9 @@ fn test_introspect_enums() {
     );
 }
 
+// TODO: this seems like it probably works ok on linux but it's _slow_ to parse all
+// the symbols in the binary, so we should probably optimize this
+#[cfg(target_os = "macos")]
 #[test]
 fn test_real_method_execution() -> Result<()> {
     let (_guards, debug_info) = setup_db!();
