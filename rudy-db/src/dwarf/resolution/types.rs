@@ -584,15 +584,11 @@ pub fn resolve_type_offset<'db>(db: &'db dyn Db, entry: Die<'db>) -> Result<Type
 
 #[cfg(test)]
 mod test {
-    use tracing_subscriber::EnvFilter;
-
     use crate::{DebugDb, DebugInfo, dwarf::resolve_function_variables};
 
     #[test]
     fn test_std_type_detection() {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(EnvFilter::from_default_env())
-            .try_init();
+        crate::test_utils::init_tracing();
 
         let db = DebugDb::new();
 
@@ -625,16 +621,14 @@ mod test {
             "Expected 3 parameters in test_fn"
         );
 
+        let mut settings = insta::Settings::clone_current();
+        settings.set_prepend_module_to_snapshot(false);
+        crate::test_utils::add_filters(&mut settings);
         // Check if we can resolve the types of the parameters
         for param in params.params(&db) {
             let ty = param.ty(&db);
 
-            insta::with_settings!({
-                prepend_module_to_snapshot => false,
-                filters => vec![
-                (r"tv_sec: [0-9]+", "tv_sec: [ts]"),
-                (r"tv_nsec: [0-9]+", "tv_nsec: [ts]"),
-            ]}, {
+            settings.bind(|| {
                 salsa::attach(&db, || insta::assert_debug_snapshot!(ty));
             });
         }
@@ -673,11 +667,23 @@ mod test {
 
         let binary_path = temp_dir.join("test_binary");
 
+        #[cfg(target_os = "macos")]
         let output = Command::new("rustc")
             .args([
                 "-g", // Include debug info
                 "-C",
                 "split-debuginfo=unpacked", // Use unpacked split debuginfo
+                "-o",
+                binary_path.to_str().unwrap(),
+                src_file.to_str().unwrap(),
+            ])
+            .output()
+            .expect("Failed to compile test binary");
+
+        #[cfg(target_os = "linux")]
+        let output = Command::new("rustc")
+            .args([
+                "-g", // Include debug info
                 "-o",
                 binary_path.to_str().unwrap(),
                 src_file.to_str().unwrap(),

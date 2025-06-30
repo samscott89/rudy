@@ -1,4 +1,5 @@
 use std::fmt::{self, Debug};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use memmap2::Mmap;
@@ -8,10 +9,36 @@ use object::read::archive::ArchiveFile;
 use crate::database::Db;
 use crate::dwarf::Dwarf;
 
+pub fn detect_cargo_root() -> Option<PathBuf> {
+    fn cargo_detect_workspace() -> Option<PathBuf> {
+        let output = std::process::Command::new(env!("CARGO"))
+            .arg("locate-project")
+            .arg("--workspace")
+            .arg("--message-format=plain")
+            .output()
+            .ok()?
+            .stdout;
+        let cargo_path = PathBuf::from(std::str::from_utf8(&output).ok()?.trim());
+        Some(cargo_path.parent()?.to_path_buf())
+    }
+
+    fn cwd_detect_workspace() -> Option<PathBuf> {
+        let mut path = std::env::current_dir().ok()?;
+        while !path.join("Cargo.toml").exists() {
+            path = path.parent()?.to_path_buf();
+        }
+        Some(path)
+    }
+
+    // use cargo to detect workspace, falling back to a manual
+    // detection if cargo is not available
+    cargo_detect_workspace().or_else(cwd_detect_workspace)
+}
+
 #[salsa::input(debug)]
 pub struct File {
     #[returns(ref)]
-    pub path: String,
+    pub path: PathBuf,
     #[returns(ref)]
     pub member_file: Option<String>,
     pub mtime: std::time::SystemTime,
@@ -20,13 +47,22 @@ pub struct File {
 
 impl File {
     /// Builds the `File` input from a file path and an optional member file name.`
-    pub fn build(db: &dyn Db, path: String, member_file: Option<String>) -> anyhow::Result<File> {
-        let file = std::fs::File::open(&path)?;
+    pub fn build(db: &dyn Db, path: PathBuf, member_file: Option<String>) -> anyhow::Result<File> {
+        // check if we the file needs to be relocated
+        let path = db.remap_path(&path);
+
+        let file = std::fs::File::open(&path).inspect_err(|_| {
+            tracing::warn!("Failed to open file: {}:", path.display());
+        })?;
         let metadata = file.metadata()?;
         let mtime = metadata.modified()?;
         let size = metadata.len();
 
         Ok(Self::new(db, path, member_file, mtime, size))
+    }
+
+    pub fn name(&self, db: &dyn Db) -> String {
+        self.path(db).display().to_string()
     }
 }
 
@@ -37,7 +73,7 @@ pub struct Binary {
 
 impl Binary {
     pub fn name(&self, db: &dyn Db) -> String {
-        self.file(db).path(db).to_string()
+        self.file(db).name(db)
     }
 }
 
@@ -54,9 +90,9 @@ impl DebugFile {
     pub fn name(&self, db: &dyn Db) -> String {
         let file = self.file(db);
         if let Some(member) = file.member_file(db) {
-            format!("{}({})", file.path(db), member)
+            format!("{}({})", file.name(db), member)
         } else {
-            file.path(db).to_string()
+            file.name(db)
         }
     }
 }
@@ -88,8 +124,11 @@ impl fmt::Debug for LoadedFile {
 #[salsa::tracked(returns(ref))]
 pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
     let path = file.path(db);
+    let path = db.remap_path(path);
     let member = file.member_file(db);
-    let file_handle = std::fs::File::open(path)?;
+
+    let file_handle = std::fs::File::open(path)
+        .inspect_err(|_| tracing::warn!("Failed to open file: {}", file.name(db)))?;
     let mmap = unsafe { memmap2::Mmap::map(&file_handle) }?;
     let mmap_static_ref = unsafe {
         // SAFETY: we hold onto the Mmap until the end of the program
@@ -114,7 +153,8 @@ pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
             object::File::parse(file.data(mmap_static_ref)?)?
         } else {
             return Err(Error::MemberFileNotFound(format!(
-                "object file {member} not found in archive {path}"
+                "object file {member} not found in archive {}",
+                file.name(db)
             )));
         }
     } else {
@@ -124,9 +164,9 @@ pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
 
     Ok(LoadedFile {
         filepath: if let Some(member) = member {
-            format!("{path}({member}")
+            format!("{}({member}", file.name(db))
         } else {
-            path.to_string()
+            file.name(db)
         },
         file,
         mapped_file: mmap,
@@ -139,10 +179,14 @@ pub fn load<'db>(db: &'db dyn Db, file: File) -> Result<LoadedFile, Error> {
 #[derive(PartialOrd, Ord)]
 pub struct SourceFile<'db> {
     #[returns(ref)]
-    pub path: String,
+    pub path: PathBuf,
 }
 
 impl<'db> SourceFile<'db> {
+    pub fn path_str(&self, db: &'db dyn Db) -> std::borrow::Cow<'db, str> {
+        self.path(db).to_string_lossy()
+    }
+
     pub fn is_external(&self, db: &'db dyn Db) -> bool {
         // Check if the source file is external by checking if it is not in the same directory as the binary
         let current_dir = std::env::current_dir()

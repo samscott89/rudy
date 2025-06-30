@@ -522,14 +522,12 @@ impl<'a> EvalContext<'a> {
     /// Execute a real method by calling it via LLDB
     fn execute_real_method(
         &mut self,
-        base_ref: TypedPointer,
+        pointer: TypedPointer,
         method: &str,
         args: &[Expression],
     ) -> Result<EvalResult> {
         // First, discover methods for this type to find the method address
-        let discovered_methods = self
-            .debug_info
-            .discover_methods_for_type(&base_ref.type_def)?;
+        let discovered_methods = self.debug_info.discover_methods_for_pointer(&pointer)?;
 
         // Find the specific method we want to call
         let method_info = discovered_methods
@@ -539,7 +537,7 @@ impl<'a> EvalContext<'a> {
                 anyhow!(
                     "Method '{}' not found for type '{}'",
                     method,
-                    base_ref.type_def.display_name()
+                    pointer.type_def.display_name()
                 )
             })?;
 
@@ -556,10 +554,10 @@ impl<'a> EvalContext<'a> {
             "Executing method '{}' at address {:#x} for type {}",
             method,
             method_info.address,
-            base_ref.type_def.display_name()
+            pointer.type_def.display_name()
         );
         tracing::debug!("Method signature: {}", method_info.signature);
-        tracing::debug!("Base object address: {:#x}", base_ref.address);
+        tracing::debug!("Base object address: {:#x}", pointer.address);
         tracing::debug!("Number of arguments: {}", args.len());
 
         // Convert arguments to MethodArguments
@@ -577,7 +575,7 @@ impl<'a> EvalContext<'a> {
         // Send the ExecuteMethod event
         let event = EventRequest::ExecuteMethod {
             method_address: method_info.address,
-            base_address: base_ref.address,
+            base_address: pointer.address,
             args: method_args,
             return_type: return_type.clone(),
         };

@@ -43,7 +43,7 @@
 //! in via making the Binary file and all object files inputs -- this way if we recompile the
 //! binary we can recompute which parts of the binary are the same and which are unchanged.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, path::PathBuf};
 
 use anyhow::Result;
 use salsa::Accumulator;
@@ -85,6 +85,26 @@ pub trait Db: salsa::Database {
     }
 
     fn upcast(&self) -> &dyn Db;
+
+    /// Returns a map from source to destination paths
+    /// for any remapped source/debugging files.
+    fn get_source_map(&self) -> &[(PathBuf, PathBuf)];
+
+    fn remap_path(&self, path: &std::path::Path) -> PathBuf {
+        let mut path = path.to_path_buf();
+        for (source, target) in self.get_source_map() {
+            if let Ok(stripped) = path.strip_prefix(source) {
+                tracing::debug!(
+                    "Remapping {} from {} to {}",
+                    path.display(),
+                    source.display(),
+                    target.display()
+                );
+                path = target.join(stripped);
+            }
+        }
+        path
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -107,16 +127,19 @@ pub struct Diagnostic {
 #[derive(Clone)]
 pub struct DebugDatabaseImpl {
     storage: salsa::Storage<Self>,
+    source_map: Vec<(PathBuf, PathBuf)>,
 }
 
 pub struct DebugDbRef {
     handle: salsa::StorageHandle<DebugDatabaseImpl>,
+    source_map: Vec<(PathBuf, PathBuf)>,
 }
 
 impl DebugDbRef {
     pub fn get_db(self) -> DebugDatabaseImpl {
         DebugDatabaseImpl {
             storage: self.handle.into_storage(),
+            source_map: self.source_map,
         }
     }
 }
@@ -178,13 +201,19 @@ impl DebugDatabaseImpl {
     pub fn new() -> Self {
         Self {
             storage: salsa::Storage::default(),
+            source_map: Default::default(),
         }
     }
 
-    pub(crate) fn analyze_file(&self, binary_file: &str) -> Result<(Binary, Vec<DebugFile>)> {
+    pub fn with_source_map(mut self, source_map: Vec<(PathBuf, PathBuf)>) -> Self {
+        self.source_map = source_map;
+        self
+    }
+
+    pub(crate) fn analyze_file(&self, binary_file: PathBuf) -> Result<(Binary, Vec<DebugFile>)> {
         // TODO: we should do some deduplication here to see if we've already loaded
         // this file. We can do thy by checking file path, size, mtime, etc.
-        let file = File::build(self, binary_file.to_string(), None)?;
+        let file = File::build(self, binary_file, None)?;
         let bin = Binary::new(self, file);
 
         let index = crate::index::debug_index(self, bin);
@@ -199,6 +228,7 @@ impl DebugDatabaseImpl {
     pub fn get_sync_ref(&self) -> DebugDbRef {
         DebugDbRef {
             handle: self.storage.clone().into_zalsa_handle(),
+            source_map: self.source_map.clone(),
         }
     }
 }
@@ -210,5 +240,9 @@ impl salsa::Database for DebugDatabaseImpl {}
 impl Db for DebugDatabaseImpl {
     fn upcast(&self) -> &dyn Db {
         self
+    }
+
+    fn get_source_map(&self) -> &[(PathBuf, PathBuf)] {
+        &self.source_map
     }
 }

@@ -88,7 +88,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         .with_context(|| {
             format!(
                 "Failed to index debug files for binary: {}",
-                binary.file(db).path(db)
+                binary.name(db)
             )
         })
         .inspect_err(|e| {
@@ -106,39 +106,46 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
 
     tracing::trace!("Debug files found: {debug_files:#?}",);
 
-    let binary_path = binary
-        .file(db)
-        .path(db)
-        .replace("/deps/", "/")
-        .replace("-", "_");
-
-    // TODO: this logic is not super robust. Perhaps we could instead
-    // scan through all CUs to find source files that match the binary path?
-    let indexed_debug_files = debug_files
-        .iter()
-        .filter_map(|((file, _member), debug_file)| {
-            // filter out files that are not related to the binary
-            if file
-                .replace("/deps/", "/")
-                .replace("-", "_")
-                .contains(&binary_path)
-            {
-                Some(*debug_file)
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
+    let mut indexed_debug_files = vec![];
 
     let mut source_file_index: BTreeMap<SourceFile<'_>, Vec<DebugFile>> = Default::default();
 
-    for debug_file in &indexed_debug_files {
-        let sources = dwarf::index_debug_file_sources(db, *debug_file);
+    // attempt to detect the current cargo workspace
+
+    let workspace_root = crate::file::detect_cargo_root();
+    if workspace_root.is_none() {
+        tracing::warn!(
+            "Could not find Cargo workspace root, debug and source file indexing may be incomplete."
+        );
+    }
+
+    for debug_file in debug_files.values() {
+        let (_, sources) = dwarf::index_debug_file_sources(db, *debug_file);
         for source in sources {
             source_file_index
                 .entry(*source)
                 .or_default()
                 .push(*debug_file);
+        }
+        if let Some(ref workspace_root) = workspace_root {
+            // if the source file is external, we don't want to index it
+            // as it may not be available in the workspace
+            if sources.iter().any(|s| {
+                let p = s.path(db);
+                p.starts_with(workspace_root) || p.starts_with(".")
+            }) {
+                tracing::debug!(
+                    "Indexing debug file {} with local sources.",
+                    debug_file.name(db),
+                );
+                // add to the indexed debug files list
+                indexed_debug_files.push(*debug_file);
+            } else {
+                tracing::debug!(
+                    "Skipping debug file {} with no local sources.",
+                    debug_file.name(db),
+                );
+            }
         }
     }
 
@@ -251,7 +258,7 @@ pub fn resolve_type(
     if indexed_debug_files.is_empty() {
         tracing::warn!(
             "No indexed debug files found for binary: {}",
-            binary.file(db).path(db)
+            binary.name(db)
         );
         return Ok(None);
     }

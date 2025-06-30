@@ -1,5 +1,7 @@
 //! DWARF parsing utilities and helper functions
 
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 use gimli::Reader;
 use itertools::Itertools;
@@ -81,9 +83,10 @@ pub fn parse_die_string_attribute<'a>(
 }
 
 pub fn file_entry_to_path<'db>(
+    db: &'db dyn crate::database::Db,
     f: &gimli::FileEntry<DwarfReader>,
     unit_ref: &UnitRef<'db>,
-) -> Option<String> {
+) -> Option<PathBuf> {
     let lp = unit_ref
         .line_program
         .as_ref()
@@ -106,7 +109,7 @@ pub fn file_entry_to_path<'db>(
         })
         .ok()?;
 
-    if let Some(d) = dir {
+    let path = if let Some(d) = dir {
         if !d.starts_with("/") {
             // this is a relative path, so we need to prepend the current working directory
             let compilation_dir = unit_ref.comp_dir.as_ref().map_or_else(
@@ -117,13 +120,17 @@ pub fn file_entry_to_path<'db>(
                         .map_or_else(|| "/".to_string(), |d| d.into_owned())
                 },
             );
-            Some(format!("{compilation_dir}/{d}/{path}"))
+            format!("{compilation_dir}/{d}/{path}")
         } else {
-            Some(format!("{d}/{path}"))
+            format!("{d}/{path}")
         }
     } else {
-        Some(path.to_string())
-    }
+        path.to_string()
+    };
+
+    // adjust for source map
+    let path = PathBuf::from(path);
+    Some(db.remap_path(&path))
 }
 
 pub fn to_range(mut iter: gimli::RangeIter<DwarfReader>) -> Result<Option<(u64, u64)>> {

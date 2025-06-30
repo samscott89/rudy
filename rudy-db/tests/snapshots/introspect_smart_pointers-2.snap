@@ -1,0 +1,21 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: arc_value
+---
+Array {
+    ty: "Arc<Vec<i32>>",
+    items: [
+        Scalar {
+            ty: "i32",
+            value: "1",
+        },
+        Scalar {
+            ty: "i32",
+            value: "2",
+        },
+        Scalar {
+            ty: "i32",
+            value: "3",
+        },
+    ],
+}

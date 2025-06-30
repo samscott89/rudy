@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  # Run tests on each platform
+  tests:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            targets: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
+    
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.targets }}
+
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: nextest
+        
+    - name: Download test artifacts
+      run: cargo xtask download-artifacts
+    
+    # Run all tests
+    # NOTE: see `.config/nextest.toml` for the default filter
+    - name: Run tests
+      run: cargo nextest run --profile ci
+

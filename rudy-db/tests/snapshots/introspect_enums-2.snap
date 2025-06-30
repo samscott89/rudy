@@ -1,0 +1,17 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: tuple_value
+---
+Tuple {
+    ty: "TestEnum::Tuple",
+    entries: [
+        Scalar {
+            ty: "u32",
+            value: "42",
+        },
+        Scalar {
+            ty: "String",
+            value: "\"test\"",
+        },
+    ],
+}

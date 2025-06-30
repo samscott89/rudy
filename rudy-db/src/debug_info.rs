@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
 
 use crate::{
     DiscoveredMethod, ResolvedLocation,
@@ -30,10 +30,14 @@ pub struct DebugInfo<'db> {
 
 impl<'db> fmt::Debug for DebugInfo<'db> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        salsa::attach(self.db, || {
+        let db = self.db;
+        salsa::attach(db, || {
+            let index = crate::index::debug_index(db, self.binary);
+
             f.debug_struct("DebugInfo")
-                .field("debug_files", &self.debug_files)
-                .field("index", crate::index::debug_index(self.db, self.binary))
+                // .field("debug_files", &index.debug_files(db))
+                .field("symbol_index", &index.symbol_index(db))
+                .field("indexed_debug_files", &index.indexed_debug_files(db))
                 .finish()
         })
     }
@@ -59,10 +63,14 @@ impl<'db> DebugInfo<'db> {
     /// let db = DebugDb::new();
     /// let debug_info = DebugInfo::new(&db, "/path/to/binary").unwrap();
     /// ```
-    pub fn new(db: &'db crate::database::DebugDatabaseImpl, binary_path: &str) -> Result<Self> {
+    pub fn new<P: AsRef<std::path::Path>>(
+        db: &'db crate::database::DebugDatabaseImpl,
+        binary_path: P,
+    ) -> Result<Self> {
+        let binary_path = binary_path.as_ref();
         let (binary, debug_files) = db
-            .analyze_file(binary_path)
-            .with_context(|| format!("Failed to analyze binary file: {binary_path}"))?;
+            .analyze_file(binary_path.to_owned())
+            .with_context(|| format!("Failed to analyze binary file: {}", binary_path.display()))?;
 
         let pb = Self {
             db,
@@ -219,7 +227,7 @@ impl<'db> DebugInfo<'db> {
 
         Ok(Some(crate::ResolvedLocation {
             function: name.to_string(),
-            file: loc.file(db).path(db).to_string(),
+            file: loc.file(db).path_str(db).to_string(),
             line: loc.line(db),
         }))
     }
@@ -254,7 +262,8 @@ impl<'db> DebugInfo<'db> {
     ) -> Result<Option<crate::ResolvedAddress>> {
         let index = crate::index::debug_index(self.db, self.binary);
 
-        let source_file = crate::file::SourceFile::new(self.db, file);
+        let path = PathBuf::from(file.to_string());
+        let source_file = crate::file::SourceFile::new(self.db, path);
 
         let file = if index.source_to_file(self.db).contains_key(&source_file) {
             // already indexed file, so we can use it directly
@@ -264,11 +273,11 @@ impl<'db> DebugInfo<'db> {
             if let Some(source_file) = index
                 .source_to_file(self.db)
                 .keys()
-                .find(|f| f.path(self.db).ends_with(&file))
+                .find(|f| f.path(self.db).ends_with(file))
             {
                 tracing::debug!(
                     "found file `{file}` in debug index as `{}`",
-                    source_file.path(self.db)
+                    source_file.path_str(self.db)
                 );
                 *source_file
             } else {
@@ -761,7 +770,7 @@ impl<'db> DebugInfo<'db> {
     /// # Examples
     ///
     /// ```no_run
-    /// # use rudy_db::{DebugDb, DebugInfo, VariableInfo, DataResolver};
+    /// # use rudy_db::{DebugDb, DebugInfo, TypedPointer, VariableInfo, DataResolver};
     /// # struct MyResolver;
     /// # impl DataResolver for MyResolver {
     /// #     fn base_address(&self) -> u64 { 0 }
@@ -771,8 +780,8 @@ impl<'db> DebugInfo<'db> {
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
-    /// # let var_info: VariableInfo = unimplemented!();
-    /// if let Ok(element_info) = debug_info.get_index_by_int(var_info.address.unwrap(), &var_info.type_def, 0, &resolver) {
+    /// # let var_pointer: TypedPointer = unimplemented!();
+    /// if let Ok(element_info) = debug_info.get_index_by_int(&var_pointer, 0, &resolver) {
     ///     println!("Element 0 at address {:?}", element_info.address);
     /// }
     /// ```
@@ -988,12 +997,22 @@ impl<'db> DebugInfo<'db> {
         crate::function_discovery::discover_all_functions_debug(self.db, self.binary)
     }
 
-    pub fn discover_methods_for_type(
+    pub fn discover_methods_for_pointer(
         &self,
-        target_type: &TypeLayout,
+        typed_pointer: &TypedPointer,
     ) -> Result<Vec<DiscoveredMethod>> {
-        crate::function_discovery::discover_all_methods_for_type(self.db, self.binary, target_type)
+        crate::function_discovery::discover_all_methods_for_pointer(
+            self.db,
+            self.binary,
+            typed_pointer,
+        )
     }
+    // pub fn discover_methods_for_type(
+    //     &self,
+    //     target_type: &TypeLayout,
+    // ) -> Result<Vec<DiscoveredMethod>> {
+    //     crate::function_discovery::discover_all_methods_for_type(self.db, self.binary, target_type)
+    // }
 }
 
 fn variable_info<'db>(

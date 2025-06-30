@@ -31,7 +31,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
-insta.workspace = true
+insta = { workspace = true, features = ["filters"] }
 pretty_assertions.workspace = true
 rstest = "0.25"
 rstest_reuse = { version = "0.7" }
@@ -46,9 +46,4 @@ test = false
 [[bin]]
 name = "bench_operations"
 path = "bin/bench_operations.rs"
-test = false
-
-[[bin]]
-name = "generate_test_binaries"
-path = "bin/generate_test_binaries.rs"
 test = false

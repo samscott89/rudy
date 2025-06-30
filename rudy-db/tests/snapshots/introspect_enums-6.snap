@@ -1,0 +1,17 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: repr_c_struct_value
+---
+Struct {
+    ty: "ReprCEnum::Struct",
+    fields: {
+        "x": Scalar {
+            ty: "f64",
+            value: "1.41",
+        },
+        "y": Scalar {
+            ty: "f64",
+            value: "4.13",
+        },
+    },
+}

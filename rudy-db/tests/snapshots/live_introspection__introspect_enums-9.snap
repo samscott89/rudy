@@ -1,9 +1,0 @@
----
-source: rudy-db/tests/live_introspection.rs
-expression: u8_third_value
-snapshot_kind: text
----
-Scalar {
-    ty: "U8Enum::Third",
-    value: "2",
-}

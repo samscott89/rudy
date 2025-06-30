@@ -1,0 +1,8 @@
+---
+source: rudy-db/tests/live_introspection.rs
+expression: u8_fifth_value
+---
+Scalar {
+    ty: "U8Enum::Fifth",
+    value: "5",
+}

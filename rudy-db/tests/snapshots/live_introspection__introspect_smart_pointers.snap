@@ -1,9 +1,0 @@
----
-source: rudy-db/tests/live_introspection.rs
-expression: box_value
-snapshot_kind: text
----
-Scalar {
-    ty: "Box<String>",
-    value: "\"Boxed string\"",
-}

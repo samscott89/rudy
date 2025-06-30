@@ -1,0 +1,8 @@
+[profile.ci]
+# Do not cancel the test run on the first failure.
+fail-fast = false
+
+
+[[profile.ci.overrides]]
+platform = 'cfg(target_os = "linux")'
+default-filter = "not binary_id(~dynamic)"

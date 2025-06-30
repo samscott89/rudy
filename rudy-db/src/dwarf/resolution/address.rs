@@ -45,7 +45,7 @@ pub fn address_to_location<'db>(
             };
             let file = match row.file(header) {
                 Some(file) => {
-                    let path = file_entry_to_path(file, &unit_ref)?;
+                    let path = file_entry_to_path(db, file, &unit_ref)?;
                     SourceFile::new(db, path)
                 }
                 None => {
@@ -78,8 +78,9 @@ pub fn location_to_address(
     let mut closest_address: Option<u64> = None;
 
     tracing::info!(
-        "searching for `{file}:{target_line}` in `{}`",
-        debug_file.file(db).path(db)
+        "searching for `{}:{target_line}` in `{}`",
+        file.display(),
+        debug_file.name(db)
     );
 
     for (section_offset, unit_ref) in get_roots(db, debug_file) {
@@ -94,11 +95,15 @@ pub fn location_to_address(
                 .iter()
                 .enumerate()
                 .find_map(|(idx, f)| {
-                    let Some(file_path) = file_entry_to_path(f, &unit_ref) else {
+                    let Some(file_path) = file_entry_to_path(db, f, &unit_ref) else {
                         tracing::debug!("failed to convert file entry to path");
                         return None;
                     };
-                    tracing::trace!("checking file `{file_path}` against target `{file}`");
+                    tracing::trace!(
+                        "checking file `{}` against target `{}`",
+                        file_path.display(),
+                        file.display()
+                    );
                     if &file_path == file {
                         Some(idx as u64 + 1) // +1 because file indices are 1-based
                     } else {
@@ -107,9 +112,10 @@ pub fn location_to_address(
                 })
         else {
             tracing::trace!(
-                "could not find target file `{file}` in line program for {:#x} in file {}",
+                "could not find target file `{}` in line program for {:#x} in file {}",
+                file.display(),
                 section_offset.as_debug_info_offset().unwrap().0,
-                debug_file.file(db).path(db)
+                debug_file.name(db)
             );
             continue;
         };

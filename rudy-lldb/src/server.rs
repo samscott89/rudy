@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
-use rudy_db::{DebugDb, DebugInfo};
+use rudy_db::{DebugDb, DebugInfo, TypedPointer};
 use rudy_parser::parse_expression;
 use tracing::{debug, error, info, trace, warn};
 
@@ -251,16 +251,12 @@ impl ClientConnection {
             match pointer {
                 Ok(pointer) => {
                     tracing::info!("Resolved pointer: {pointer:#?}");
-                    return Ok(self.discover_methods_for_type(&pointer.type_def, debug_info));
+                    return Ok(self.discover_methods_for_pointer(&pointer, debug_info));
                 }
                 Err(e) => {
                     tracing::error!("Error resolving type for expression: {input}: {e}");
                 }
             }
-        }
-
-        if let Ok(Some((type_def, _))) = debug_info.resolve_type(input) {
-            return Ok(self.discover_methods_for_type(&type_def, debug_info));
         }
 
         Err(anyhow!(
@@ -270,13 +266,13 @@ impl ClientConnection {
     }
 
     /// Discover methods available for a given type using DWARF debug information
-    fn discover_methods_for_type(
+    fn discover_methods_for_pointer(
         &self,
-        type_def: &rudy_types::TypeLayout,
+        pointer: &TypedPointer,
         debug_info: &DebugInfo,
     ) -> MethodDiscoveryResult {
         // Use the real DWARF-based method discovery
-        match debug_info.discover_methods_for_type(type_def) {
+        match debug_info.discover_methods_for_pointer(pointer) {
             Ok(discovered_methods) => {
                 // Convert DiscoveredMethod to MethodInfo
                 let methods = discovered_methods
@@ -290,14 +286,14 @@ impl ClientConnection {
                     .collect();
 
                 MethodDiscoveryResult {
-                    type_name: type_def.display_name(),
+                    type_name: pointer.type_def.display_name(),
                     methods,
                 }
             }
             Err(e) => {
                 // Fallback to indicating an error occurred
                 MethodDiscoveryResult {
-                    type_name: type_def.display_name(),
+                    type_name: pointer.type_def.display_name(),
                     methods: vec![MethodInfo {
                         name: "error".to_string(),
                         signature: "discovery failed".to_string(),

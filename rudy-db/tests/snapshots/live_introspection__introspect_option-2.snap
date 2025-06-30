@@ -1,9 +1,0 @@
----
-source: rudy-db/tests/live_introspection.rs
-expression: value
-snapshot_kind: text
----
-Scalar {
-    ty: "Option<u32>",
-    value: "None",
-}

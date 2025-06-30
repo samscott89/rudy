@@ -7,6 +7,7 @@ use crate::database::Db;
 use crate::dwarf::{RawSymbol, SymbolName};
 use crate::file::{Binary, DebugFile, File, load};
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use itertools::Itertools;
 
@@ -17,7 +18,7 @@ pub struct Symbol {
     pub address: u64,
     pub debug_file: DebugFile,
 }
-pub type DebugFiles = BTreeMap<(String, Option<String>), DebugFile>;
+pub type DebugFiles = BTreeMap<(PathBuf, Option<String>), DebugFile>;
 
 /// Reads the binary file for all the declared symbols
 /// and potentially external symbols. Turns it into
@@ -32,13 +33,13 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
         Ok(file) => file,
         Err(e) => {
             return Err(e.clone())
-                .with_context(|| format!("Failed to load binary file: {}", binary_file.path(db)));
+                .with_context(|| format!("Failed to load binary file: {}", binary_file.name(db)));
         }
     };
 
     // create debug file for teh binary
     let debug_file = DebugFile::new(db, binary_file, false);
-    debug_files.insert((binary_file.path(db).to_string(), None), debug_file);
+    debug_files.insert((debug_file.file(db).path(db).clone(), None), debug_file);
 
     // index the symbols in the binary (if it has debug info)
     let mut symbol_index = SymbolIndex::default();
@@ -48,14 +49,15 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
 
     // next, if we have any mapped objects (via Mach-O)
     // then we'll locate all the debug files, and index their symbols
-    let mut indexed_object_files = vec![];
+    let mut indexed_object_files = vec![None; loaded_file.object.object_map().objects().len()];
     let object_map = loaded_file.object.object_map();
-    for object_file in object_map.objects() {
+    for (i, object_file) in object_map.objects().iter().enumerate() {
         let object_path = object_file.path();
         let Ok(object_path) = String::from_utf8(object_path.to_vec()) else {
             tracing::debug!("Failed to parse object file path: {:?}", object_file.path());
             continue;
         };
+        let object_path = PathBuf::from(object_path);
         let Ok(member) = object_file
             .member()
             .map(|m| String::from_utf8(m.to_vec()))
@@ -71,16 +73,17 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
         let file = match File::build(db, object_path.clone(), member.clone()) {
             Ok(file) => file,
             Err(e) => {
-                db.report_critical(format!(
-                    "Failed to load debug file {object_path} with member: {member:?}: {e}",
-                ));
+                tracing::error!(
+                    "Failed to load debug file {} with member: {member:?}: {e}",
+                    object_path.display()
+                );
                 continue;
             }
         };
         // Create a debug file for this object
         let debug_file = DebugFile::new(db, file, true);
-        debug_files.insert((object_path, member), debug_file);
-        indexed_object_files.push(debug_file);
+        debug_files.insert((file.path(db).clone(), member), debug_file);
+        indexed_object_files[i] = Some(debug_file);
     }
 
     // split objects by index
@@ -90,8 +93,9 @@ pub fn index_symbol_map(db: &dyn Db, binary: Binary) -> anyhow::Result<(DebugFil
         .into_group_map_by(|s| s.object_index());
 
     for (object_index, symbols) in grouped_symbols {
-        let debug_file = indexed_object_files[object_index];
-        symbol_index.index_mapped_file(symbols.into_iter(), debug_file)?;
+        if let Some(debug_file) = indexed_object_files[object_index] {
+            symbol_index.index_mapped_file(symbols.into_iter(), debug_file)?;
+        }
     }
 
     Ok((debug_files, symbol_index))
@@ -230,12 +234,14 @@ mod test {
 
     #[test]
     fn test_symbol_index_basic() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        crate::test_utils::init_tracing();
 
-        let db = DebugDb::new();
-        let exe_path = "bin/test_binaries/small";
+        // Initialize the debug database and load a binary with debug info
+        // test on macos file because it has the external symbol files
+        let artifact_dir = crate::test_utils::artifacts_dir(Some("aarch64-apple-darwin"));
+        let exe_path = artifact_dir.join("small");
+
+        let db = crate::test_utils::debug_db(Some("aarch64-apple-darwin"));
         let debug_info = DebugInfo::new(&db, exe_path).expect("Failed to load debug info");
 
         // Build the symbol index
@@ -270,13 +276,10 @@ mod test {
 
     #[test]
     fn test_symbol_index_performance() -> Result<()> {
-        let _ = tracing_subscriber::fmt()
-            .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-            .try_init();
+        crate::test_utils::init_tracing();
 
         let db = DebugDb::new();
         let exe_path = current_exe().unwrap();
-        let exe_path = exe_path.to_str().unwrap();
         let start = std::time::Instant::now();
         let binary = db
             .analyze_file(exe_path)

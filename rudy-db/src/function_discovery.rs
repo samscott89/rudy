@@ -3,7 +3,7 @@ use rudy_types::TypeLayout;
 use std::collections::BTreeMap;
 
 use crate::{
-    DiscoveredMethod,
+    DiscoveredMethod, TypedPointer,
     database::Db,
     dwarf::{FunctionSignature, resolve_function_signature},
     file::Binary,
@@ -73,7 +73,7 @@ pub fn discover_all_functions_debug(
             symbol_results.insert(
                 symbol_name.clone(),
                 SymbolAnalysisResult::UnindexedFile {
-                    file: debug_file.file(db).path(db).to_string(),
+                    file: debug_file.name(db),
                 },
             );
             continue;
@@ -194,21 +194,13 @@ pub fn discover_all_methods(
     Ok(methods_by_type)
 }
 
-/// Discover all methods in the binary and organize them by type of the first
-pub fn discover_all_methods_for_type(
+/// Discover all methods in the binary that take a pointer to the target type as the first parameter.
+pub fn discover_all_methods_for_pointer(
     db: &dyn Db,
     binary: Binary,
-    target_type: &TypeLayout,
+    pointer: &TypedPointer,
 ) -> Result<Vec<DiscoveredMethod>> {
     let index = crate::index::debug_index(db, binary);
-
-    // get the debug files that we eagerly loaded
-    // we'll eagerly scan _all_ functions in this file
-    // while only selectively scanning methods elsewhere
-    // this is mostly important on macos platforms where we
-    // the debug info points to many files, like the rustc .rlib
-    // files containing more debug symbols.
-    let indexed_debug_files = index.indexed_debug_files(db);
 
     let symbol_index = index.symbol_index(db);
     let mut methods: Vec<DiscoveredMethod> = Vec::new();
@@ -218,14 +210,12 @@ pub fn discover_all_methods_for_type(
         tracing::debug!("Processing symbol: {}", symbol.name);
 
         let debug_file = symbol.debug_file;
-
-        let symbol_name = symbol.name.to_string();
-
-        // skip symbols in external debug files that
-        // we don't want to load
-        if !indexed_debug_files.contains(&debug_file) {
+        if debug_file != pointer.debug_file {
+            // If the symbol is not in the same debug file as the pointer, we can skip it
             continue;
         }
+
+        let symbol_name = symbol.name.to_string();
 
         // finally, get the function index entry
         let Some(function_entry) = crate::dwarf::index_debug_file_full(db, debug_file)
@@ -245,7 +235,11 @@ pub fn discover_all_methods_for_type(
                     continue;
                 };
 
-                if !first_param.ty(db).dereferenced().matching_type(target_type) {
+                if !first_param
+                    .ty(db)
+                    .dereferenced()
+                    .matching_type(&pointer.type_def)
+                {
                     // Not the target type, skip
                     continue;
                 }

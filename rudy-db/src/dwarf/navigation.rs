@@ -95,7 +95,7 @@ pub fn parse_roots<'db>(db: &'db dyn Db, file: DebugFile) -> Vec<Root<'db>> {
                     .file_names()
                     .iter()
                     .flat_map(|f| {
-                        let path = file_entry_to_path(f, &unit_ref)?;
+                        let path = file_entry_to_path(db, f, &unit_ref)?;
                         Some(SourceFile::new(db, path))
                     })
                     .collect_vec()

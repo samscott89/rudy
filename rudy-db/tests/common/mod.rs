@@ -1,3 +1,16 @@
+mod definitions;
+
+// re-import the test utilities
+// from the main project
+#[path = "../../src/test_utils.rs"]
+mod test_utils;
+
+pub use definitions::*;
+pub use test_utils::*;
+
+use itertools::Itertools as _;
+use rudy_db::DataResolver;
+
 #[macro_export]
 macro_rules! function_name {
     () => {{
@@ -14,13 +27,11 @@ macro_rules! function_name {
 
 #[macro_export]
 macro_rules! setup {
-    ($($target:ident)?) => {
-        let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::from_default_env()
-        )
-        .try_init();
+    ($($target:ident)?) => {{
+        common::init_tracing();
         let mut settings = insta::Settings::clone_current();
+
+        common::add_filters(&mut settings);
 
         // get current OS as a prefix
         $(
@@ -35,5 +46,46 @@ macro_rules! setup {
             .unwrap_or(test_name);
         let test_name = test_name.strip_prefix("tests::").unwrap_or(test_name);
         let _span = tracing::info_span!("test", test_name, $($target)?).entered();
-    };
+        (_guard, _span)
+    }};
+}
+
+/// A DataResolver that reads from the current process memory
+pub struct SelfProcessResolver;
+
+impl DataResolver for SelfProcessResolver {
+    fn base_address(&self) -> u64 {
+        0
+    }
+
+    fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> {
+        if size > 4096 {
+            return Err(anyhow::anyhow!("Attempting to read too much memory"));
+        }
+        // Read from our own process memory
+        // This is safe because we're only reading memory we own
+        let ptr = address as *const u8;
+        let mut buffer = vec![0u8; size];
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(ptr, buffer.as_mut_ptr(), size);
+        }
+
+        tracing::debug!(
+            "Read {size} bytes from address {address:#016x}: {:?}",
+            buffer
+                .iter()
+                .chunks(2)
+                .into_iter()
+                .map(|chunk| { chunk.map(|byte| format!("{byte:02x}")).collect::<String>() })
+                .join(" ")
+        );
+
+        Ok(buffer)
+    }
+
+    fn get_registers(&self) -> anyhow::Result<Vec<u64>> {
+        // For testing, we don't need actual register values
+        Ok(vec![0; 32])
+    }
 }

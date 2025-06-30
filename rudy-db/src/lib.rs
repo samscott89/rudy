@@ -38,6 +38,8 @@ mod index;
 mod outputs;
 mod query;
 mod synthetic_methods;
+#[cfg(test)]
+pub mod test_utils;
 mod types;
 
 // re-exports
