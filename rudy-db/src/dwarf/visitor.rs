@@ -92,6 +92,10 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         Die::new(self.db, self.file, self.unit_offset, raw.offset())
     }
 
+    pub fn peek_next_offset(&mut self) -> Option<usize> {
+        Some(self.peek()?.1.offset().0)
+    }
+
     fn peek(&mut self) -> Option<(isize, RawDie<'a>)> {
         if self.next_entry.is_none() {
             match self.cursor.next_dfs() {
@@ -276,7 +280,10 @@ pub trait DieVisitor<'db>: Sized {
             }
             gimli::DW_TAG_member
             | gimli::DW_TAG_template_type_parameter
-            | gimli::DW_TAG_variant_part => {
+            | gimli::DW_TAG_variant_part
+            | gimli::DW_TAG_subrange_type
+            | gimli::DW_TAG_enumerator
+            | gimli::DW_TAG_inlined_subroutine => {
                 // these should typically be visited explicitly
                 // as part of visiting the parent
             }
