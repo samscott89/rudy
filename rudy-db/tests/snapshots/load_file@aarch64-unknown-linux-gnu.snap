@@ -22055,7 +22055,22 @@ DebugInfo {
                 ],
             },
         },
-        indexed_debug_files: [],
+        indexed_debug_files: [
+            DebugFile {
+                [salsa id]: Id(800),
+                file: File {
+                    [salsa id]: Id(0),
+                    path: "/Users/sam/work/rudy/test-artifacts/aarch64-unknown-linux-gnu/simple_test",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: 1751235786,
+                        tv_nsec: 261705262,
+                    },
+                    size: 3756568,
+                },
+                relocatable: false,
+            },
+        ],
         source_to_file: {
             SourceFile {
                 path: "/Users/sam/work/rudy/crates/rudy-test-examples/examples/simple_test.rs",

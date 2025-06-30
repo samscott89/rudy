@@ -111,15 +111,8 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     let mut source_file_index: BTreeMap<SourceFile<'_>, Vec<DebugFile>> = Default::default();
 
     // attempt to detect the current cargo workspace
-    let cwd = std::env::current_dir().ok();
-    let workspace_root = cwd.and_then(|p| {
-        if p.join("Cargo.toml").exists() {
-            Some(p)
-        } else {
-            p.ancestors()
-                .find_map(|a| a.join("Cargo.toml").exists().then(|| a.to_owned()))
-        }
-    });
+
+    let workspace_root = crate::file::detect_cargo_root();
     if workspace_root.is_none() {
         tracing::warn!(
             "Could not find Cargo workspace root, debug and source file indexing may be incomplete."
@@ -141,15 +134,15 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
                 let p = s.path(db);
                 p.starts_with(workspace_root) || p.starts_with(".")
             }) {
-                tracing::info!(
-                    "Indexing debug file {} with local sources: {sources:?}",
+                tracing::debug!(
+                    "Indexing debug file {} with local sources.",
                     debug_file.name(db),
                 );
                 // add to the indexed debug files list
                 indexed_debug_files.push(*debug_file);
             } else {
-                tracing::info!(
-                    "Skipping debug file {} with external sources: {sources:?}",
+                tracing::debug!(
+                    "Skipping debug file {} with no local sources.",
                     debug_file.name(db),
                 );
             }

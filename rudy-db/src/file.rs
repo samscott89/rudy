@@ -9,6 +9,32 @@ use object::read::archive::ArchiveFile;
 use crate::database::Db;
 use crate::dwarf::Dwarf;
 
+pub fn detect_cargo_root() -> Option<PathBuf> {
+    fn cargo_detect_workspace() -> Option<PathBuf> {
+        let output = std::process::Command::new(env!("CARGO"))
+            .arg("locate-project")
+            .arg("--workspace")
+            .arg("--message-format=plain")
+            .output()
+            .ok()?
+            .stdout;
+        let cargo_path = PathBuf::from(std::str::from_utf8(&output).ok()?.trim());
+        Some(cargo_path.parent()?.to_path_buf())
+    }
+
+    fn cwd_detect_workspace() -> Option<PathBuf> {
+        let mut path = std::env::current_dir().ok()?;
+        while !path.join("Cargo.toml").exists() {
+            path = path.parent()?.to_path_buf();
+        }
+        Some(path)
+    }
+
+    // use cargo to detect workspace, falling back to a manual
+    // detection if cargo is not available
+    cargo_detect_workspace().or_else(cwd_detect_workspace)
+}
+
 #[salsa::input(debug)]
 pub struct File {
     #[returns(ref)]
