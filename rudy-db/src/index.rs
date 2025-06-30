@@ -37,9 +37,9 @@ impl<'db> Index<'db> {
                 None
             })?
             .clone();
-        let indexed = dwarf::index_debug_file_full(db, sym.debug_file).data(db);
+        let indexed = dwarf::function_index(db, sym.debug_file);
         indexed
-            .functions
+            .by_symbol_name(db)
             .get(name)
             .cloned()
             .or_else(|| {
@@ -92,7 +92,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             )
         })
         .inspect_err(|e| {
-            db.report_critical(format!("Failed to index debug files: {e}"));
+            db.report_critical(format!("Failed to index debug files: {e:?}"));
         })
     else {
         return Index::new(
@@ -203,8 +203,8 @@ pub fn find_all_by_address(
             // we also need to adjust the address by the symbol's base address
 
             let debug_file = s.debug_file;
-            let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
-            let Some(f) = indexed.functions.get(&s.name) else {
+            let function_index = dwarf::function_index(db, debug_file);
+            let Some(f) = function_index.by_symbol_name(db).get(&s.name) else {
                 tracing::warn!(
                     "No function found for symbol {} in debug file {}",
                     s.name,
@@ -235,7 +235,7 @@ pub fn find_all_by_address(
             );
 
             // if not relocatable, we can use the address directly
-            indexed.function_addresses.query_address(relative_address).into_iter().map(|f| {
+            function_index.by_address(db).query_address(relative_address).into_iter().map(|f| {
                 // return the relative address and the function info
                 (relative_address, f)
             }).collect_vec()
@@ -263,55 +263,57 @@ pub fn resolve_type(
         return Ok(None);
     }
 
+    todo!("Implement type resolution by name: {type_name}");
+
     // Search through all debug files to find the type
-    for debug_file in indexed_debug_files {
-        let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
+    // // for debug_file in indexed_debug_files {
+    // //     let indexed = dwarf::function_index(db, debug_file);
 
-        // Look for types that match the given name
-        let entries = indexed
-            .types
-            .iter()
-            .filter(|(name, _)| {
-                if name.name.starts_with(&parsed.name) {
-                    tracing::info!("Found type name: {} vs {}", name.name, parsed.name);
-                    tracing::info!("Checking type '{name}' vs '{parsed}'");
-                    if !name.typedef.matching_type(&parsed.typedef) {
-                        tracing::info!(
-                            "Type '{:#?}' does not match '{:#?}'",
-                            name.typedef,
-                            parsed.typedef
-                        );
-                        return false;
-                    }
-                    name.module.segments.ends_with(&parsed.module.segments)
-                } else {
-                    false
-                }
-            })
-            .flat_map(|(_, entry)| entry);
+    // //     // Look for types that match the given name
+    // //     let entries = indexed
+    // //         .types
+    // //         .iter()
+    // //         .filter(|(name, _)| {
+    // //             if name.name.starts_with(&parsed.name) {
+    // //                 tracing::info!("Found type name: {} vs {}", name.name, parsed.name);
+    // //                 tracing::info!("Checking type '{name}' vs '{parsed}'");
+    // //                 if !name.typedef.matching_type(&parsed.typedef) {
+    // //                     tracing::info!(
+    // //                         "Type '{:#?}' does not match '{:#?}'",
+    // //                         name.typedef,
+    // //                         parsed.typedef
+    // //                     );
+    // //                     return false;
+    // //                 }
+    // //                 name.module.segments.ends_with(&parsed.module.segments)
+    // //             } else {
+    // //                 false
+    // //             }
+    // //         })
+    // //         .flat_map(|(_, entry)| entry);
 
-        for entry in entries {
-            // Resolve the type using the DWARF resolution logic
-            match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
-                Ok(typedef) => {
-                    // Successfully resolved the type
-                    tracing::info!(
-                        "Resolved type '{type_name}' to {typedef:#?} in {}",
-                        entry.die(db).print(db)
-                    );
-                    return Ok(Some((typedef, debug_file)));
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to resolve type '{type_name}': {e:?}");
-                }
-            }
-        }
-        tracing::trace!(
-            "No type '{}' found in debug file: {}",
-            type_name,
-            debug_file.name(db)
-        );
-    }
+    // //     for entry in entries {
+    // //         // Resolve the type using the DWARF resolution logic
+    // //         match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
+    // //             Ok(typedef) => {
+    // //                 // Successfully resolved the type
+    // //                 tracing::info!(
+    // //                     "Resolved type '{type_name}' to {typedef:#?} in {}",
+    // //                     entry.die(db).print(db)
+    // //                 );
+    // //                 return Ok(Some((typedef, debug_file)));
+    // //             }
+    // //             Err(e) => {
+    // //                 tracing::warn!("Failed to resolve type '{type_name}': {e:?}");
+    // //             }
+    // //         }
+    // //     }
+    // //     tracing::trace!(
+    // //         "No type '{}' found in debug file: {}",
+    // //         type_name,
+    // //         debug_file.name(db)
+    // //     );
+    // }
 
     // Type not found in any debug file
     Ok(None)

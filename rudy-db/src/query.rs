@@ -29,9 +29,8 @@ pub fn lookup_position<'db>(db: &'db dyn Db, binary: Binary, query: Position<'db
             tracing::debug!("found match  {addr:#x} at distance {distance}");
             if distance < closest_line {
                 // if we found a closer match, find the absolute address
-                let matching_functions = dwarf::index_debug_file_full(db, *debug_file)
-                    .data(db)
-                    .function_addresses
+                let matching_functions = dwarf::function_index(db, *debug_file)
+                    .by_address(db)
                     .query_address(addr);
 
                 if matching_functions.is_empty() {
@@ -82,9 +81,8 @@ pub fn lookup_address<'db>(
     find_all_by_address(db, binary, address)
         .into_iter()
         .filter_map(|(relative_addr, fai)| {
-            let indexed_function = dwarf::index_debug_file_full(db, fai.file)
-                .data(db)
-                .functions
+            let indexed_function = dwarf::function_index(db, fai.file)
+                .by_symbol_name(db)
                 .get(&fai.name)?;
             let cu = indexed_function.data(db).declaration_die.cu(db);
             dwarf::address_to_location(db, cu, relative_addr).map(|loc| (fai.name.clone(), loc))

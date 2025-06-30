@@ -80,12 +80,10 @@ pub fn discover_all_functions_debug(
         }
 
         // finally, get the function index entry
-        let Some(function_entry) = crate::dwarf::index_debug_file_full(db, debug_file)
-            .data(db)
-            .functions
-            .get(&symbol.name)
-        else {
+        let function_index = crate::dwarf::function_index(db, debug_file);
+        let Some(function_entry) = function_index.by_symbol_name(db).get(&symbol.name) else {
             symbol_results.insert(symbol_name.clone(), SymbolAnalysisResult::NoDebugInfo);
+
             continue;
         };
 
@@ -140,12 +138,9 @@ pub fn discover_all_methods(
             continue;
         }
 
-        // finally, get the function index entry
-        let Some(function_entry) = crate::dwarf::index_debug_file_full(db, debug_file)
-            .data(db)
-            .functions
-            .get(&symbol.name)
-        else {
+        // Use targeted function indexing instead of full indexing
+        let function_index = crate::dwarf::function_index(db, debug_file);
+        let Some(function_entry) = function_index.by_symbol_name(db).get(&symbol.name) else {
             continue;
         };
 
@@ -217,12 +212,9 @@ pub fn discover_all_methods_for_pointer(
 
         let symbol_name = symbol.name.to_string();
 
-        // finally, get the function index entry
-        let Some(function_entry) = crate::dwarf::index_debug_file_full(db, debug_file)
-            .data(db)
-            .functions
-            .get(&symbol.name)
-        else {
+        // Use targeted function indexing instead of full indexing
+        let function_index = crate::dwarf::function_index(db, debug_file);
+        let Some(function_entry) = function_index.by_symbol_name(db).get(&symbol.name) else {
             tracing::debug!("No function entry found for symbol: {symbol_name}",);
             continue;
         };
