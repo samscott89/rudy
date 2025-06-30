@@ -539,3 +539,110 @@ fn is_rust_cu(db: &dyn Db, root: &RawDie<'_>, unit_ref: &UnitRef<'_>) -> bool {
         }
     }
 }
+
+// ===== TARGETED INDEXING FUNCTIONS =====
+
+/// Find compilation unit containing an address by reusing existing navigation
+pub fn find_cu_for_address<'db>(
+    db: &'db dyn Db,
+    debug_file: DebugFile,
+    address: u64,
+) -> Option<super::CompilationUnitId<'db>> {
+    let roots = super::navigation::parse_roots(db, debug_file);
+
+    for root in roots {
+        let (start, end) = root.address_range(db);
+        if address >= start && address <= end {
+            return Some(root.cu(db));
+        }
+    }
+
+    None
+}
+
+/// Targeted function index containing only functions
+#[salsa::tracked(debug)]
+pub struct FunctionIndex<'db> {
+    #[returns(ref)]
+    pub functions: BTreeMap<SymbolName, FunctionIndexEntry<'db>>,
+    #[returns(ref)]
+    pub function_addresses: AddressTree,
+}
+
+/// Visitor for building function index efficiently
+#[derive(Default)]
+struct FunctionIndexBuilder<'db> {
+    functions: BTreeMap<SymbolName, FunctionIndexEntry<'db>>,
+    function_addresses: Vec<FunctionAddressInfo>,
+}
+
+impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
+    fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
+        if is_rust_cu(walker.db, &die, &unit_ref) {
+            walker.walk_cu();
+        }
+    }
+
+    fn visit_function<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        entry: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        let function_declaration_type = get_declaration_type(walker.db, &entry, &unit_ref);
+
+        if matches!(
+            function_declaration_type,
+            FunctionDeclarationType::Function { .. }
+                | FunctionDeclarationType::ClassMethodDeclaration
+        ) {
+            if let (Ok(Some(function_name)), Ok(Some(linkage_name))) = (
+                get_string_attr(&entry, gimli::DW_AT_name, &unit_ref),
+                get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref),
+            ) {
+                if let Ok(demangled) = RawSymbol::new(linkage_name.as_bytes().to_vec()).demangle() {
+                    let relative_address_range = unit_ref
+                        .die_ranges(&entry)
+                        .map_err(anyhow::Error::from)
+                        .and_then(to_range)
+                        .unwrap_or(None);
+
+                    let die = walker.get_die(entry);
+
+                    let function_data = FunctionData {
+                        declaration_die: die,
+                        relative_address_range,
+                        name: function_name,
+                        specification_die: None,
+                        alternate_locations: vec![],
+                    };
+
+                    // Add to address tree if we have address range
+                    if let Some((start, end)) = relative_address_range {
+                        walker.visitor.function_addresses.push(FunctionAddressInfo {
+                            start,
+                            end,
+                            name: demangled.clone(),
+                            file: walker.file,
+                        });
+                    }
+
+                    let entry = FunctionIndexEntry::new(walker.db, function_data);
+                    walker.visitor.functions.insert(demangled, entry);
+                }
+            }
+        }
+    }
+}
+
+/// Index only functions in debug file using visitor pattern
+#[salsa::tracked(returns(ref))]
+pub fn index_functions_only<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FunctionIndex<'db> {
+    let mut builder = FunctionIndexBuilder::default();
+    walk_file(db, debug_file, &mut builder);
+
+    FunctionIndex::new(
+        db,
+        builder.functions,
+        AddressTree::new(builder.function_addresses),
+    )
+}
