@@ -12,6 +12,38 @@ pub fn init_tracing() {
         .try_init();
 }
 
+fn rustup_home() -> String {
+    std::env::var("RUSTUP_HOME").unwrap_or_else(|_| {
+        // If RUST_HOME is not set, assume it's the default location
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        format!("{home}/.rustup")
+    })
+}
+
+/// Filters to scrub machine-specific paths from snapshots.
+pub fn add_filters(s: &mut insta::Settings) {
+    let filters = [
+        (
+            workspace_dir().to_str().unwrap().to_string(),
+            "[CARGO_WORKSPACE_DIR]/",
+        ),
+        (rustup_home(), "[RUSTUP_HOME]"),
+        // also need to set these for files generated
+        // from my laptop or from the docker container
+        (
+            "/Users/sam/work/rudy/".to_string(),
+            "[CARGO_WORKSPACE_DIR]/",
+        ),
+        ("/app/".to_string(), "[CARGO_WORKSPACE_DIR]/"),
+        ("/Users/sam/.rustup".to_string(), "[RUSTUP_HOME]"),
+        ("/root/.rustup".to_string(), "[RUSTUP_HOME]"),
+    ];
+
+    for (from, to) in filters.iter() {
+        s.add_filter(from, *to);
+    }
+}
+
 pub fn workspace_dir() -> PathBuf {
     std::env::var("CARGO_WORKSPACE_DIR")
         .map(PathBuf::from)

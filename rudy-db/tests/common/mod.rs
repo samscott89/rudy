@@ -31,6 +31,8 @@ macro_rules! setup {
         common::init_tracing();
         let mut settings = insta::Settings::clone_current();
 
+        common::add_filters(&mut settings);
+
         // get current OS as a prefix
         $(
             settings.set_snapshot_suffix($target);
