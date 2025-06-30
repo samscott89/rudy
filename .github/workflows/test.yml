@@ -14,10 +14,10 @@ jobs:
     strategy:
       matrix:
         include:
+          - os: ubuntu-latest
+            targets: x86_64-unknown-linux-gnu
           - os: macos-latest
-            target: x86_64-apple-darwin
-          - os: macos-latest
-            target: aarch64-apple-darwin
+            targets: aarch64-apple-darwin,x86_64-apple-darwin
     
     runs-on: ${{ matrix.os }}
     
@@ -27,21 +27,17 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
       with:
-        targets: ${{ matrix.target }}
+        targets: ${{ matrix.targets }}
 
     - uses: taiki-e/install-action@v2
       with:
         tool: nextest
         
     - name: Download test artifacts
-      run: |
-        echo "📦 Downloading latest test artifacts..."
-        cargo xtask download-artifacts
+      run: cargo xtask download-artifacts
     
     # Run all tests
     # NOTE: see `.config/nextest.toml` for the default filter
     - name: Run tests
-      run: |
-        echo "🚀 Running tests for target: ${{ matrix.target }}"
-        cargo nextest run --profile ci
+      run: cargo nextest run --profile ci
 
