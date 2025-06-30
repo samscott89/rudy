@@ -30,10 +30,14 @@ pub struct DebugInfo<'db> {
 
 impl<'db> fmt::Debug for DebugInfo<'db> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        salsa::attach(self.db, || {
+        let db = self.db;
+        salsa::attach(db, || {
+            let index = crate::index::debug_index(db, self.binary);
+
             f.debug_struct("DebugInfo")
-                .field("debug_files", &self.debug_files)
-                .field("index", crate::index::debug_index(self.db, self.binary))
+                // .field("debug_files", &index.debug_files(db))
+                .field("symbol_index", &index.symbol_index(db))
+                .field("indexed_debug_files", &index.indexed_debug_files(db))
                 .finish()
         })
     }

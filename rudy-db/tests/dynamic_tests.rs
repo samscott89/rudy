@@ -118,6 +118,38 @@ macro_rules! setup_db {
 }
 
 #[test]
+fn test_simple_resolve_debug() -> Result<()> {
+    common::init_tracing();
+
+    let db = DebugDb::new();
+    let exe_path = std::env::current_exe().expect("Failed to get current exe path");
+    let debug_info =
+        DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
+
+    println!("Starting resolve_type call...");
+    let start = std::time::Instant::now();
+
+    // Try to resolve a simple type
+    match debug_info.resolve_type("u32") {
+        Ok(Some((typedef, _))) => {
+            println!(
+                "Found u32 type in {:?}: {}",
+                start.elapsed(),
+                typedef.display_name()
+            );
+        }
+        Ok(None) => {
+            println!("u32 type not found in {:?}", start.elapsed());
+        }
+        Err(e) => {
+            println!("Error resolving u32 type in {:?}: {}", start.elapsed(), e);
+        }
+    }
+
+    Ok(())
+}
+
+#[test]
 fn test_introspect_string() -> Result<()> {
     let (_guards, debug_info) = setup_db!();
 

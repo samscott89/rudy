@@ -22,21 +22,21 @@ fn rustup_home() -> String {
 
 /// Filters to scrub machine-specific paths from snapshots.
 pub fn add_filters(s: &mut insta::Settings) {
+    let ws = workspace_dir();
+    let ws = ws.to_str().unwrap();
+    let rustup_home = rustup_home();
+    let rustup_home = rustup_home.as_str();
     let filters = [
-        (
-            workspace_dir().to_str().unwrap().to_string(),
-            "[CARGO_WORKSPACE_DIR]/",
-        ),
-        (rustup_home(), "[RUSTUP_HOME]"),
+        (ws, "[CARGO_WORKSPACE_DIR]/"),
+        (rustup_home, "[RUSTUP_HOME]"),
         // also need to set these for files generated
         // from my laptop or from the docker container
-        (
-            "/Users/sam/work/rudy/".to_string(),
-            "[CARGO_WORKSPACE_DIR]/",
-        ),
-        ("/app/".to_string(), "[CARGO_WORKSPACE_DIR]/"),
-        ("/Users/sam/.rustup".to_string(), "[RUSTUP_HOME]"),
-        ("/root/.rustup".to_string(), "[RUSTUP_HOME]"),
+        ("/Users/sam/work/rudy/", "[CARGO_WORKSPACE_DIR]/"),
+        ("/app/", "[CARGO_WORKSPACE_DIR]/"),
+        ("/Users/sam/.rustup", "[RUSTUP_HOME]"),
+        ("/root/.rustup", "[RUSTUP_HOME]"),
+        (r"tv_sec: [0-9]+", "tv_sec: [ts]"),
+        (r"tv_nsec: [0-9]+", "tv_nsec: [ts]"),
     ];
 
     for (from, to) in filters.iter() {
@@ -68,6 +68,8 @@ pub fn debug_db(target: Option<&'static str>) -> crate::DebugDb {
         .join("debug")
         .join("examples");
     let new_artifacts = workspace_dir().join("test-artifacts").join(subfolder);
+    let rustup_home = PathBuf::from(rustup_home());
+    tracing::info!("RUSTUP HOME: {}", rustup_home.display());
     // we add some source maps to make our debug/source files work correctly
     // on whatever platform
     // NOTE: a better approach might be to use `--remap-path-prefix` rust flag
@@ -87,6 +89,10 @@ pub fn debug_db(target: Option<&'static str>) -> crate::DebugDb {
         // then, remap any path in the generic target dir, into the target
         // artifacts directory
         (old_target_dir, new_artifacts.clone()),
+        // also remap the rustup home directory
+        (PathBuf::from("/Users/sam/.rustup"), rustup_home.clone()),
+        (PathBuf::from("/root/.rustup"), rustup_home.clone()),
+        (PathBuf::from("/rust_home"), rustup_home),
     ])
 }
 

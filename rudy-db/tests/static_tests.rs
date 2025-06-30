@@ -29,8 +29,13 @@ pub fn binary_path(target: &str, example: &str) -> String {
 #[rstest]
 #[case("aarch64-unknown-linux-gnu")]
 #[case("x86_64-unknown-linux-gnu")]
-#[case("aarch64-apple-darwin")]
-#[case("x86_64-apple-darwin")]
+// we can only really run these on macOS when we have the sources
+// installed, since macos relies on debug symbols living
+// alongside the standard libraries
+// on mac we can run all of these, since the linux debug info is
+// self-contained
+#[cfg_attr(target_os = "macos", case("aarch64-apple-darwin"))]
+#[cfg_attr(target_os = "macos", case("x86_64-apple-darwin"))]
 pub fn binary_target(#[case] target: &'static str) {}
 
 #[apply(binary_target)]
@@ -98,6 +103,8 @@ fn test_load_file(#[case] target: &'static str) {
 
     let db = common::debug_db(Some(target));
     let parsed = DebugInfo::new(&db, &path).unwrap();
+
+    // let index = parsed.
 
     insta::assert_debug_snapshot!(parsed);
 }
