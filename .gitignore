@@ -2,3 +2,6 @@ target/
 Cargo.lock
 notes/
 test-artifacts/
+
+# We'll keep this local for now
+CLAUDE.md
