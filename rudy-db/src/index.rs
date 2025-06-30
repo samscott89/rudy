@@ -8,7 +8,7 @@ use rudy_types::TypeLayout;
 
 use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;
-use crate::dwarf::{self, FunctionIndexEntry, SymbolName, TypeName};
+use crate::dwarf::{self, CompilationUnitId, FunctionIndexEntry, SymbolName, TypeName};
 use crate::file::{Binary, DebugFile, SourceFile};
 use crate::index::symbols::{DebugFiles, SymbolIndex};
 
@@ -16,9 +16,12 @@ pub mod symbols;
 
 #[salsa::tracked(debug)]
 pub struct Index<'db> {
+    #[returns(ref)]
     pub debug_files: DebugFiles,
+    #[returns(ref)]
     pub symbol_index: SymbolIndex,
     pub indexed_debug_files: Vec<DebugFile>,
+    #[returns(ref)]
     pub source_to_file: BTreeMap<SourceFile<'db>, Vec<DebugFile>>,
 }
 
@@ -28,8 +31,8 @@ impl<'db> Index<'db> {
         db: &'db dyn Db,
         name: &SymbolName,
     ) -> Option<(DebugFile, FunctionIndexEntry)> {
-        let sym = self
-            .symbol_index(db)
+        let symbol_index = self.symbol_index(db);
+        let sym = symbol_index
             .get_functions_by_lookup_name(&name.lookup_name)?
             .get(name)
             .or_else(|| {
@@ -37,15 +40,16 @@ impl<'db> Index<'db> {
                 None
             })?
             .clone();
-        let indexed = dwarf::function_index(db, sym.debug_file);
+        let indexed = symbol_index.function_index(db, sym.debug_file)?;
         indexed
             .by_symbol_name(db)
             .get(name)
             .cloned()
             .or_else(|| {
                 tracing::debug!(
-                    "Function {name} not found in debug file {}",
-                    sym.debug_file.name(db)
+                    "Function {name} not found in debug file {}, {:#?}",
+                    sym.debug_file.name(db),
+                    indexed.by_symbol_name(db)
                 );
                 None
             })
@@ -182,14 +186,18 @@ pub fn find_closest_function<'db>(
 }
 
 /// Finds all functions
-pub fn find_all_by_address(
-    db: &dyn Db,
+pub fn find_all_by_address<'db>(
+    db: &'db dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<(u64, &FunctionAddressInfo)> {
+) -> Vec<(u64, CompilationUnitId<'db>, &FunctionAddressInfo)> {
     // first, find the closest function by address
     let index = debug_index(db, binary).symbol_index(db);
     let Some((_, function_symbols)) = index.function_at_address(address) else {
+        tracing::debug!(
+            "No function found at address {address:#x} in binary {}",
+            binary.name(db)
+        );
         return vec![];
     };
 
@@ -197,48 +205,38 @@ pub fn find_all_by_address(
     function_symbols
         .iter()
         .flat_map(|s| {
+            let debug_file = s.debug_file;
             // our index says that this symbol is _approximately_ at `address`
             // but we want to find the exact address in the debug file
 
             // we also need to adjust the address by the symbol's base address
 
-            let debug_file = s.debug_file;
-            let function_index = dwarf::function_index(db, debug_file);
-            let Some(f) = function_index.by_symbol_name(db).get(&s.name) else {
+            let Some(function_index) = index.function_index(db, debug_file) else {
                 tracing::warn!(
-                    "No function found for symbol {} in debug file {}",
-                    s.name,
+                    "No function index found for debug file {}",
                     debug_file.name(db)
                 );
                 return vec![];
             };
-            let f = f.data(db);
-            let Some((relative_start, _)) = f.relative_address_range else {
-                return vec![]
-            };
 
-            // compute the necessary address slide
-            let slide = s.address - relative_start;
-
-            debug_assert!(
-                debug_file.relocatable(db) || slide == 0,
-                "Expected slide to be 0 for non-relocatable debug files, got relocatable={} and slide={slide}",
-                debug_file.relocatable(db),
-            );
-
-            let relative_address = address - slide;
-
-            tracing::info!(
-                "Resolving function {} at address {address:#x} with slide {slide:#x} (relative addr: {relative_address:#x}) in debug file {}",
-                s.name,
-                debug_file.name(db)
-            );
-
-            // if not relocatable, we can use the address directly
-            function_index.by_address(db).query_address(relative_address).into_iter().map(|f| {
-                // return the relative address and the function info
-                (relative_address, f)
-            }).collect_vec()
+            function_index
+                .by_absolute_address(db)
+                .query_address(address)
+                .into_iter()
+                .filter_map(|f| {
+                    // the relative address
+                    // in the case of no relocations, f.start == s.address
+                    // and this returns just `address`
+                    let relative_address = f.relative_start +  (address - s.address);
+                    let function = function_index.by_symbol_name(db).get(&f.name)?.data(db);
+                    tracing::info!(
+                        "Found function {f:#?} for address {address:#x} and symbol {s:#?} at address {relative_address:#x} in debug file {}",
+                        debug_file.name(db)
+                    );
+                    let cu: CompilationUnitId<'_> = function.declaration_die.cu(db);
+                    Some((relative_address, cu, f))
+                })
+                .collect_vec()
         })
         .collect()
 }

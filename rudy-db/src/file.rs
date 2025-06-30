@@ -78,6 +78,7 @@ impl Binary {
 }
 
 #[salsa::input(debug)]
+#[derive(PartialOrd, Ord)]
 pub struct DebugFile {
     /// The underlying file/metadata for this debug file
     pub file: File,

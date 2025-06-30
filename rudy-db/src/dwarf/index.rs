@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use gimli::Reader;
+use itertools::Itertools;
 
 use super::Die;
 use super::loader::RawDie;
@@ -12,20 +13,12 @@ use super::utils::{
     file_entry_to_path, get_lang_attr, get_string_attr, pretty_print_die_entry, to_range,
 };
 use super::visitor::{DieVisitor, DieWalker, walk_file};
+use crate::Symbol;
 use crate::address_tree::{AddressTree, FunctionAddressInfo};
 use crate::database::Db;
 use crate::dwarf::RawSymbol;
-use crate::dwarf::{
-    SymbolName, TypeName,
-    resolution::{FunctionDeclarationType, get_declaration_type},
-};
+use crate::dwarf::{SymbolName, TypeName};
 use crate::file::{DebugFile, SourceFile};
-
-#[salsa::tracked(debug)]
-pub struct ModuleIndexEntry<'db> {
-    /// DIE entry for the module
-    pub die: Die<'db>,
-}
 
 #[salsa::tracked(debug)]
 pub struct FunctionIndexEntry<'db> {
@@ -37,8 +30,8 @@ pub struct FunctionIndexEntry<'db> {
 pub struct FunctionData<'db> {
     /// Die entry for the function
     pub declaration_die: Die<'db>,
-    /// Address range of the function relative to the base address of the compilation unit
-    pub relative_address_range: Option<(u64, u64)>,
+    /// Address range of the function relative to the binary
+    pub address_range: Option<(u64, u64)>,
     pub name: String,
     pub specification_die: Option<Die<'db>>,
     /// Sometimes we'll find the same definition mulitple times
@@ -285,14 +278,29 @@ pub struct FunctionIndex<'db> {
     #[returns(ref)]
     pub by_symbol_name: BTreeMap<SymbolName, FunctionIndexEntry<'db>>,
     #[returns(ref)]
-    pub by_address: AddressTree,
+    pub by_relative_address: AddressTree,
+    #[returns(ref)]
+    pub by_absolute_address: AddressTree,
 }
 
 /// Visitor for building function index efficiently
-#[derive(Default)]
 struct FunctionIndexBuilder<'db> {
     functions: BTreeMap<SymbolName, FunctionIndexEntry<'db>>,
-    function_addresses: Vec<FunctionAddressInfo>,
+    absolute_function_addresses: Vec<FunctionAddressInfo>,
+    relative_function_addresses: Vec<FunctionAddressInfo>,
+    symbol_map: &'db BTreeMap<RawSymbol, Symbol>,
+}
+
+impl<'db> FunctionIndexBuilder<'db> {
+    /// Create a new function index builder
+    pub fn new(symbol_map: &'db BTreeMap<RawSymbol, Symbol>) -> Self {
+        Self {
+            functions: BTreeMap::new(),
+            absolute_function_addresses: Vec::new(),
+            relative_function_addresses: Vec::new(),
+            symbol_map,
+        }
+    }
 }
 
 impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
@@ -307,65 +315,110 @@ impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
         entry: RawDie<'a>,
         unit_ref: UnitRef<'a>,
     ) {
-        let function_declaration_type = get_declaration_type(walker.db, &entry, &unit_ref);
-
-        if matches!(
-            function_declaration_type,
-            FunctionDeclarationType::Function { .. }
-                | FunctionDeclarationType::ClassMethodDeclaration
-        ) {
-            if let (Ok(Some(function_name)), Ok(Some(linkage_name))) = (
-                get_string_attr(&entry, gimli::DW_AT_name, &unit_ref),
-                get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref),
-            ) {
-                if let Ok(demangled) = RawSymbol::new(linkage_name.as_bytes().to_vec()).demangle() {
-                    let relative_address_range = unit_ref
-                        .die_ranges(&entry)
-                        .map_err(anyhow::Error::from)
-                        .and_then(to_range)
-                        .unwrap_or(None);
-
-                    let die = walker.get_die(entry);
-
-                    let function_data = FunctionData {
-                        declaration_die: die,
-                        relative_address_range,
-                        name: function_name,
-                        specification_die: None,
-                        alternate_locations: vec![],
-                    };
-
-                    // Add to address tree if we have address range
-                    if let Some((start, end)) = relative_address_range {
-                        walker.visitor.function_addresses.push(FunctionAddressInfo {
-                            start,
-                            end,
-                            name: demangled.clone(),
-                            file: walker.file,
-                        });
-                    }
-
-                    let entry = FunctionIndexEntry::new(walker.db, function_data);
-                    walker.visitor.functions.insert(demangled, entry);
-                }
+        let mut linkage_name = match get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref) {
+            Ok(Some(linkage_name)) => linkage_name,
+            Ok(None) => {
+                tracing::trace!(
+                    "Skipping function with no linkage name: {}",
+                    pretty_print_die_entry(&entry, &unit_ref)
+                );
+                return;
             }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to get linkage name for function: {e}: \n{}",
+                    pretty_print_die_entry(&entry, &unit_ref)
+                );
+                return;
+            }
+        };
+
+        if walker.file.relocatable(walker.db) {
+            linkage_name.insert(0, '_'); // Ensure linkage name starts with underscore for relocatable files
+        }
+
+        // find if the symbol is actually linked in the binary
+        if let Some(symbol) = walker
+            .visitor
+            .symbol_map
+            .get(&RawSymbol::new(linkage_name.as_bytes().to_vec()))
+        {
+            let address_range = unit_ref
+                .die_ranges(&entry)
+                .map_err(anyhow::Error::from)
+                .and_then(to_range)
+                .unwrap_or(None);
+
+            let die = walker.get_die(entry);
+
+            let function_data = FunctionData {
+                declaration_die: die,
+                address_range,
+                name: symbol.name.lookup_name.clone(),
+                specification_die: None,
+                alternate_locations: vec![],
+            };
+
+            // Add to address tree if we have address range
+            if let Some((relative_start, relative_end)) = address_range {
+                walker
+                    .visitor
+                    .absolute_function_addresses
+                    .push(FunctionAddressInfo {
+                        start: symbol.address,
+                        end: symbol.address + relative_end - relative_start,
+                        relative_start,
+                        name: symbol.name.clone(),
+                        file: walker.file,
+                    });
+                walker
+                    .visitor
+                    .relative_function_addresses
+                    .push(FunctionAddressInfo {
+                        start: relative_start,
+                        end: relative_end,
+                        relative_start,
+                        name: symbol.name.clone(),
+                        file: walker.file,
+                    });
+            } else {
+                tracing::trace!(
+                    "Function {} has no address range in debug file {}",
+                    symbol.name,
+                    walker.file.name(walker.db)
+                );
+            }
+
+            let entry = FunctionIndexEntry::new(walker.db, function_data);
+            walker.visitor.functions.insert(symbol.name.clone(), entry);
+        } else {
+            tracing::trace!(
+                "Skipping unlinked function: {linkage_name} in {:#?}",
+                walker
+                    .visitor
+                    .symbol_map
+                    .values()
+                    .map(|s| &s.name)
+                    .join("\n")
+            );
         }
     }
 }
 
 /// Index only functions in debug file using visitor pattern
 #[salsa::tracked(returns(ref))]
-pub fn function_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> FunctionIndex<'db> {
-    // TODO: it would be good if we took in the symbol -> address map
-    // for this debug file so that we can immediately shift the addresses
-    // to absolute addresses instead of relative ones
-
-    let mut builder = FunctionIndexBuilder::default();
+pub fn function_index<'db>(
+    db: &'db dyn Db,
+    debug_file: DebugFile,
+    symbol_map: &'db BTreeMap<RawSymbol, Symbol>,
+) -> FunctionIndex<'db> {
+    let mut builder = FunctionIndexBuilder::new(symbol_map);
     walk_file(db, debug_file, &mut builder);
 
     FunctionIndex::new(
         db,
         builder.functions,
-        AddressTree::new(builder.function_addresses),
+        AddressTree::new(builder.relative_function_addresses),
+        AddressTree::new(builder.absolute_function_addresses),
     )
 }

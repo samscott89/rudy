@@ -5,9 +5,11 @@ use crate::file::DebugFile;
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FunctionAddressInfo {
     /// The start address of the function
-    /// This is _relative_ to the debug file
+    ///
+    /// These are absolute addresses in the binary, not relative to any debug file.
     pub start: u64,
     pub end: u64,
+    pub relative_start: u64,
     pub file: DebugFile,
     pub name: crate::dwarf::SymbolName,
 }
@@ -19,6 +21,7 @@ impl fmt::Debug for FunctionAddressInfo {
             f.debug_struct("FunctionAddressInfo")
                 .field("start", &self.start)
                 .field("end", &self.end)
+                .field("relative_start", &self.relative_start)
                 .field("file", &file_path)
                 .field("name", &self.name)
                 .finish()
@@ -27,6 +30,7 @@ impl fmt::Debug for FunctionAddressInfo {
             f.debug_struct("FunctionAddressInfo")
                 .field("start", &self.start)
                 .field("end", &self.end)
+                .field("relative_start", &self.relative_start)
                 .finish()
         })
     }
