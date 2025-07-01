@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.1...rudy-lldb-v0.1.2) - 2025-07-01
+
+### Other
+
+- Get to bearable perf on linux ([#10](https://github.com/samscott89/rudy/pull/10))
+- Clean up tests and make them work cross-platform ([#8](https://github.com/samscott89/rudy/pull/8))
+
 ## [0.1.1](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.0...rudy-lldb-v0.1.1) - 2025-06-29
 
 ## [0.1.0](https://github.com/samscott89/rudy/releases/tag/rudy-lldb-v0.1.0) - 2025-06-27
