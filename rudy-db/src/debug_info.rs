@@ -282,6 +282,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -377,6 +378,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -464,6 +466,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -518,6 +521,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -743,6 +747,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -891,6 +896,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
