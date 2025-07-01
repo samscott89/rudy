@@ -116,6 +116,7 @@ pub enum FunctionDeclarationType {
 ///                DW_AT_high_pc   (0x0000000000002df4)
 ///                DW_AT_frame_base        (DW_OP_reg29 W29)
 ///                DW_AT_specification     (0x000058e0 "_ZN5small11TestStruct08method_017h636bec720e368708E")
+#[allow(dead_code)]
 pub fn get_declaration_type<'db>(
     _db: &'db dyn Db,
     die: &RawDie<'db>,
