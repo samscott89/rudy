@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4](https://github.com/samscott89/rudy/compare/rudy-db-v0.0.3...rudy-db-v0.0.4) - 2025-07-01
+
+### Other
+
+- Refactor core dwarf features into `rudy-dwarf` ([#11](https://github.com/samscott89/rudy/pull/11))
+
 ## [0.0.3](https://github.com/samscott89/rudy/compare/rudy-db-v0.0.2...rudy-db-v0.0.3) - 2025-07-01
 
 ### Other
