@@ -23,7 +23,7 @@ Enum(
                 layout: Alias(
                     UnresolvedType {
                         name: "Unit",
-                        cu_offset: 8490,
+                        cu_offset: 0,
                         die_offset: 297,
                     },
                 ),
@@ -34,7 +34,7 @@ Enum(
                 layout: Alias(
                     UnresolvedType {
                         name: "Tuple",
-                        cu_offset: 8490,
+                        cu_offset: 0,
                         die_offset: 305,
                     },
                 ),
@@ -47,7 +47,7 @@ Enum(
                 layout: Alias(
                     UnresolvedType {
                         name: "Struct",
-                        cu_offset: 8490,
+                        cu_offset: 0,
                         die_offset: 338,
                     },
                 ),

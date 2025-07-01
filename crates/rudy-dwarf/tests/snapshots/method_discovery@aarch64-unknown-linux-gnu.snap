@@ -1,0 +1,59 @@
+---
+source: crates/rudy-dwarf/tests/example_visitor.rs
+expression: all_structure
+snapshot_kind: text
+---
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/method_discovery ===
+0x0000002a:  namespace 'method_discovery'
+0x0000002f:    namespace 'utils'
+0x00000034:      subprogram 'validate_session'
+0x00000051:        formal_parameter 'session'
+0x00000060:      subprogram 'format_session'
+0x0000007d:        formal_parameter 'session'
+0x000000aa:    structure_type 'Session'
+0x00000480:  namespace 'method_discovery'
+0x00000485:    structure_type 'Session'
+0x000004a6:    structure_type 'Container<method_discovery::Session>'
+0x0000002a:  namespace 'method_discovery'
+0x0000002f:    structure_type 'Session'
+0x0000004f:      subprogram 'new'
+0x0000005e:        formal_parameter
+0x00000063:        formal_parameter
+0x00000069:      subprogram 'get_id'
+0x00000078:        formal_parameter
+0x0000007e:      subprogram 'set_name'
+0x00000089:        formal_parameter
+0x0000008e:        formal_parameter
+0x00000095:    namespace '{impl#1}'
+0x0000009a:      subprogram 'describe'
+0x000000b7:        formal_parameter 'self'
+0x000000e3:      subprogram 'description_length'
+0x00000100:        formal_parameter 'self'
+0x00000110:    namespace '{impl#2}'
+0x00000115:      subprogram 'identifier'
+0x00000132:        formal_parameter 'self'
+0x0000015f:    namespace '{impl#3}'
+0x00000164:      subprogram 'fmt'
+0x00000181:        formal_parameter 'self'
+0x0000018f:        formal_parameter 'f'
+0x0000019f:    structure_type 'Container<method_discovery::Session>'
+0x000001bc:      subprogram 'get_session_id'
+0x000001cb:        formal_parameter
+0x000001d2:    subprogram 'process_session'
+0x000001ef:      formal_parameter 'session'
+0x0000021b:    subprogram 'modify_session'
+0x00000234:      formal_parameter 'session'
+0x00000242:      formal_parameter 'new_name'
+0x00000252:    subprogram 'test_all_methods'
+0x00000270:      variable 'session'
+0x000002a2:      variable 'container'
+0x000002b5:    subprogram 'main'
+0x00000496:  namespace 'method_discovery'
+0x0000049b:    structure_type 'Session'
+0x0000002a:  namespace 'method_discovery'
+0x0000002f:    structure_type 'Container<method_discovery::Session>'
+0x0000004c:      subprogram 'new<method_discovery::Session>'
+0x00000064:        formal_parameter
+0x0000006a:      subprogram 'get<method_discovery::Session>'
+0x00000082:        formal_parameter
+0x00000089:    structure_type 'Session'

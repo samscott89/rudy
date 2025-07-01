@@ -30,7 +30,10 @@ rudy-parser = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 insta = { workspace = true, features = ["filters"] }
 pretty_assertions = { workspace = true }
+rstest = { workspace = true }
+rstest_reuse = { workspace = true }
 test-utils.workspace = true
+
 
 [features]
 default = []

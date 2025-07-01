@@ -9,9 +9,12 @@ use rudy_dwarf::{
     visitor::{walk_file, DieVisitor, DieWalker, VisitorNode},
 };
 
+use rstest::rstest;
+use rstest_reuse::{self, *};
+
 pub mod common;
 
-use common::{load_binary, test_db};
+use common::{binary_target, load_binary, test_db};
 
 use anyhow::Result;
 
@@ -83,20 +86,13 @@ impl TestVisitor {
                 depth,
                 tag,
                 name,
-                module_path,
                 offset,
+                module_path: _,
             } = entry;
             let indent = "  ".repeat(*depth);
             let name_part = name.as_ref().map(|n| format!(" '{n}'")).unwrap_or_default();
-            let module_part = if module_path.is_empty() {
-                String::new()
-            } else {
-                format!(" ({})", module_path.join("::"))
-            };
 
-            output.push_str(&format!(
-                "{offset}:  {indent}{tag}{name_part} @ {module_part}\n",
-            ));
+            output.push_str(&format!("{offset}:  {indent}{tag}{name_part}\n",));
         }
 
         output
@@ -191,14 +187,19 @@ impl<'db> DieVisitor<'db> for TestVisitor {
     }
 }
 
-#[test]
-fn dwarf_outline_examples() {
-    let _guard = test_utils::init_tracing_and_insta();
+#[apply(binary_target)]
+fn dwarf_outline_examples(#[case] target: &'static str) {
+    test_utils::init_tracing();
+    let mut settings = insta::Settings::clone_current();
+    settings.set_prepend_module_to_snapshot(false);
+    settings.set_snapshot_suffix(target);
+    test_utils::add_filters(&mut settings);
+    let _guard = settings.bind_to_scope();
 
     // Build the method_discovery example first
-    let artifact_dir = test_utils::artifacts_dir(None);
+    let artifact_dir = test_utils::artifacts_dir(Some(target));
 
-    let db = test_db(None);
+    let db = test_db(Some(target));
     let db = &db;
 
     for name in ["method_discovery", "simple_test", "lldb_demo"] {

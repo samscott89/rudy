@@ -7,5 +7,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 insta.workspace = true
+rstest.workspace = true
+rstest_reuse.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use rstest_reuse::{self, *};
+
 pub fn init_tracing() {
     let _ = tracing_subscriber::fmt()
         .with_env_filter(
@@ -149,3 +151,17 @@ pub fn artifacts_dir(target: Option<&'static str>) -> PathBuf {
     let subfolder = target.unwrap_or_else(current_arch);
     root_artifacts_dir().join(subfolder)
 }
+
+#[template]
+#[export]
+#[rstest]
+#[case("aarch64-unknown-linux-gnu")]
+#[case("x86_64-unknown-linux-gnu")]
+// we can only really run these on macOS when we have the sources
+// installed, since macos relies on debug symbols living
+// alongside the standard libraries
+// on mac we can run all of these, since the linux debug info is
+// self-contained
+#[cfg_attr(target_os = "macos", case("aarch64-apple-darwin"))]
+#[cfg_attr(target_os = "macos", case("x86_64-apple-darwin"))]
+pub fn binary_target(#[case] target: &'static str) {}
