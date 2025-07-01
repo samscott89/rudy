@@ -1,6 +1,6 @@
 [package]
 name = "rudy-db"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 authors = ["Sam Scott"]
 description = "A user-friendly library for interacting with debugging information of Rust compiled artifacts using DWARF"
