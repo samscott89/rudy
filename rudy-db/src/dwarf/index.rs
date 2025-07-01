@@ -91,6 +91,17 @@ impl<'db> DieVisitor<'db> for ModuleRangeBulider<'db> {
         }
     }
 
+    fn visit_die<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        die: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        if die.tag() == gimli::DW_TAG_namespace {
+            // Only visit namespaces, skip other DIEs
+            Self::visit_namespace(walker, die, unit_ref);
+        }
+    }
+
     fn visit_namespace<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         entry: RawDie<'a>,
@@ -341,6 +352,22 @@ impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
         }
     }
 
+    fn visit_die<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        die: RawDie<'a>,
+        unit_ref: UnitRef<'a>,
+    ) {
+        match die.tag() {
+            gimli::DW_TAG_subprogram => {
+                Self::visit_function(walker, die, unit_ref);
+            }
+            gimli::DW_TAG_namespace | gimli::DW_TAG_structure_type => {
+                walker.walk_children();
+            }
+            _ => {}
+        }
+    }
+
     fn visit_function<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         entry: RawDie<'a>,
@@ -443,8 +470,27 @@ pub fn function_index<'db>(
     debug_file: DebugFile,
     symbol_map: &'db BTreeMap<RawSymbol, Symbol>,
 ) -> FunctionIndex<'db> {
+    let start = std::time::Instant::now();
     let mut builder = FunctionIndexBuilder::new(symbol_map);
     walk_file(db, debug_file, &mut builder);
+
+    let elapsed = start.elapsed();
+    if elapsed.as_secs() > 1 {
+        tracing::info!(
+            "Indexed {} functions in debug file {} in {}.{:03}s",
+            builder.functions.len(),
+            debug_file.name(db),
+            elapsed.as_secs(),
+            elapsed.subsec_millis()
+        );
+    } else {
+        tracing::debug!(
+            "Indexed {} functions in debug file {} in {:03}ms",
+            builder.functions.len(),
+            debug_file.name(db),
+            elapsed.as_millis()
+        );
+    }
 
     FunctionIndex::new(
         db,

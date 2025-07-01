@@ -26,6 +26,7 @@ pub struct Index<'db> {
 }
 
 impl<'db> Index<'db> {
+    #[tracing::instrument(skip_all)]
     pub fn get_function(
         &self,
         db: &'db dyn Db,
@@ -86,6 +87,7 @@ impl<'db> Index<'db> {
 /// Build an index of all types + functions (using fully qualified names
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
+#[tracing::instrument(skip_all)]
 #[salsa::tracked(returns(ref))]
 pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     let Ok((debug_files, symbol_index)) = symbols::index_symbol_map(db, binary)
