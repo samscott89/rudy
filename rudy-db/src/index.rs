@@ -187,13 +187,23 @@ pub fn find_closest_function<'db>(
     None
 }
 
-/// Finds all functions
-pub fn find_all_by_address<'db>(
-    db: &'db dyn Db,
+/// Finds all functions at a specific address in the binary.
+///
+/// Returns a vector of tuples containing the function symbol name containing
+/// the address, and the exact source location (if found)
+pub fn find_all_by_address(
+    db: &dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<(u64, (), &'db FunctionAddressInfo)> {
-    // first, find the closest function by address
+) -> Vec<(SymbolName, rudy_dwarf::file::SourceLocation<'_>)> {
+    // first, find the closest function/set of functions by address
+    // this is assuming that if we have symbols like:
+    //  0x000: qux
+    //  0x100: foo, bar
+    //  0x200: baz
+    // and we query for 0x110, then the address *must* be in either foo or bar
+    // and cannot be in baz or qux (or anything else)
+    // This might not be the case if functions are interleaved,
     let index = debug_index(db, binary).symbol_index(db);
     let Some((_, function_symbols)) = index.function_at_address(address) else {
         tracing::debug!(
@@ -206,13 +216,11 @@ pub fn find_all_by_address<'db>(
     // then, query the debug file index to find the actual matching addresses
     function_symbols
         .iter()
-        .flat_map(|s| {
-            let debug_file = s.debug_file;
+        .map(|s| s.debug_file)
+        .unique()
+        .flat_map(|debug_file| {
             // our index says that this symbol is _approximately_ at `address`
             // but we want to find the exact address in the debug file
-
-            // we also need to adjust the address by the symbol's base address
-
             let Some(function_index) = index.function_index(db, debug_file) else {
                 tracing::warn!(
                     "No function index found for debug file {}",
@@ -220,26 +228,7 @@ pub fn find_all_by_address<'db>(
                 );
                 return vec![];
             };
-
-            function_index
-                .by_absolute_address(db)
-                .query_address(address)
-                .into_iter()
-                .filter_map(|f| {
-                    // the relative address
-                    // in the case of no relocations, f.start == s.address
-                    // and this returns just `address`
-                    let relative_address = f.relative_start +  (address - s.address);
-                    let function = function_index.by_symbol_name(db).get(&f.name)?.data(db);
-                    tracing::info!(
-                        "Found function {f:#?} for address {address:#x} and symbol {s:#?} at address {relative_address:#x} in debug file {}",
-                        debug_file.name(db)
-                    );
-                    todo!("fix this to not use internal APIs");
-                    // let cu: CompilationUnitId<'_> = function.declaration_die.cu(db);
-                    // Some((relative_address, cu, f))
-                })
-                .collect_vec()
+            function_index.address_to_locations(db, address)
         })
         .collect()
 }

@@ -113,6 +113,8 @@ pub fn index_symbol_map(
     Ok((debug_files, symbol_index))
 }
 
+pub type DebugFileSymbols = BTreeMap<RawSymbol, Symbol>;
+
 /// Fast symbol-based index built from symbol tables
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct SymbolIndex {
@@ -126,7 +128,7 @@ pub struct SymbolIndex {
     /// All symbols grouped by file
     ///
     /// This is useful for quickly finding all symbols in a specific file
-    pub symbols_by_file: BTreeMap<DebugFile, BTreeMap<RawSymbol, Symbol>>,
+    pub symbols_by_file: BTreeMap<DebugFile, DebugFileSymbols>,
 
     /// All functions sorted by address for binary search lookup
     /// Used for address-to-function mapping

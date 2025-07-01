@@ -108,32 +108,6 @@ impl<'db> DebugInfo<'db> {
         self.resolve_address_to_location(address).unwrap()
     }
 
-    // pub fn resolve_function(&self, name: &str) -> Option<ResolvedAddress> {
-    //     let f = self.lookup_function(name).unwrap()?;
-    //     let address = f.relative_body_address(self.db);
-    //     Some(ResolvedAddress { address })
-    // }
-
-    // pub fn get_source_lines(&self, _address: u64) -> Vec<String> {
-    //     todo!()
-    // }
-
-    // pub fn resolve_variables_at_address(
-    //     &self,
-    //     address: u64,
-    //     data_resolver: &dyn DataResolver,
-    // ) -> (Vec<Variable>, Vec<Variable>, Vec<Variable>) {
-    //     let (locals, params, globals) = self
-    //         .db
-    //         .resolve_variables_at_address(address, data_resolver)
-    //         .unwrap();
-    //     (locals, params, globals)
-    // }
-
-    // pub fn test_get_shape(&self) -> TypeDef<'_> {
-    //     self.db.test_get_shape().unwrap()
-    // }
-
     /// Resolves a function name to its debug information.
     ///
     /// The function name can include module paths using `::` separators.

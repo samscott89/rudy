@@ -1,17 +1,26 @@
 //! Address to location and location to address resolution
 
-use crate::die::navigation::get_roots;
-use crate::die::{file_entry_to_path, CompilationUnitId};
+use itertools::Itertools;
+
+use crate::die::file_entry_to_path;
+use crate::die::navigation::parse_roots;
 use crate::file::{DebugFile, SourceFile, SourceLocation};
+use crate::index::{FunctionData, FunctionIndex};
 use crate::DwarfDb;
 
 /// Convert an address to source location within a compilation unit
+///
+/// This function takes in the `address` to find, as well as
+/// the function data for the function that contains the address.
 pub fn address_to_location<'db>(
     db: &'db dyn DwarfDb,
-    cu: CompilationUnitId<'db>,
     relative_address: u64,
+    data: &FunctionData<'db>,
 ) -> Option<SourceLocation<'db>> {
-    let unit_ref = cu.unit_ref(db)?;
+    let unit_ref = data
+        .declaration_die
+        .unit_ref(db)
+        .expect("declaration die should have a unit reference");
 
     let line_program = unit_ref.line_program.clone()?;
 
@@ -54,9 +63,12 @@ pub fn address_to_location<'db>(
 }
 
 /// Convert a source location to an address within a compilation unit
+///
+/// Returns an _absolute_ address by using the known function address information
 pub fn location_to_address(
     db: &dyn DwarfDb,
     debug_file: DebugFile,
+    function_index: &FunctionIndex<'_>,
     query: SourceLocation,
 ) -> Option<(u64, u64)> {
     let file = query.file(db);
@@ -75,7 +87,25 @@ pub fn location_to_address(
         debug_file.name(db)
     );
 
-    for (section_offset, unit_ref) in get_roots(db, debug_file) {
+    for root in parse_roots(db, debug_file) {
+        if !root.files(db).contains(&query.file(db)) {
+            tracing::debug!(
+                "skipping root compilation unit {:#x} -- no matching file for `{}`",
+                root.cu(db).offset(db).as_debug_info_offset().unwrap().0,
+                file.display()
+            );
+            continue;
+        }
+
+        let cu = root.cu(db);
+        let Some(unit_ref) = cu.unit_ref(db) else {
+            tracing::debug!(
+                "skipping root compilation unit {:#x} -- no unit reference",
+                cu.offset(db).as_debug_info_offset().unwrap().0
+            );
+            continue;
+        };
+
         let line_program = unit_ref.line_program.clone()?;
 
         let header = line_program.header();
@@ -106,13 +136,13 @@ pub fn location_to_address(
             tracing::trace!(
                 "could not find target file `{}` in line program for {:#x} in file {}",
                 file.display(),
-                section_offset.as_debug_info_offset().unwrap().0,
+                cu.offset(db).as_debug_info_offset().unwrap().0,
                 debug_file.name(db)
             );
             continue;
         };
 
-        tracing::debug!("searching for target file: {target_file_idx}");
+        tracing::debug!("searching for rows with target file: {target_file_idx}");
 
         let mut rows = line_program.clone().rows();
 
@@ -124,8 +154,9 @@ pub fn location_to_address(
                     }
 
                     if row.file_index() == target_file_idx {
+                        let address = row.address();
                         let Some(line) = row.line() else {
-                            tracing::trace!("no line info: {:#x}", row.address());
+                            tracing::trace!("no line info: {address:#x}");
                             continue;
                         };
 
@@ -134,11 +165,43 @@ pub fn location_to_address(
                             continue;
                         };
                         if closest_address.is_none() || line_diff < min_line_distance {
-                            closest_address = Some(row.address());
+                            // lets attempt to find the function that contains this address
+                            let addresses = function_index.by_address(db).query_address(
+                                address,
+                                // we have relative addresses in the line program,
+                                false,
+                            );
+
+                            let absolute_address = match &addresses[..] {
+                                [] => {
+                                    tracing::warn!(
+                                        "location resolves to address: {address:#x}, but function not found",
+                                    );
+                                    continue;
+                                }
+                                [function] => {
+                                    tracing::debug!(
+                                        "location resolves to function: {}",
+                                        function.name
+                                    );
+                                    function.absolute_start + address - function.relative_start
+                                }
+                                [function, rest @ ..] => {
+                                    tracing::debug!(
+                                        "location resolves to multiple functions: {} and {}",
+                                        function.name,
+                                        rest.iter().map(|f| &f.name).join(", ")
+                                    );
+                                    // we can just use the first one for now
+                                    function.absolute_start + address - function.relative_start
+                                }
+                            };
+
+                            closest_address = Some(absolute_address);
                             min_line_distance = line_diff;
                             if line_diff == 0 {
                                 // we found an exact match -- let's just return immediately
-                                return Some((row.address(), 0));
+                                return Some((absolute_address, 0));
                             }
                         }
                     } else {

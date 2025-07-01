@@ -2,7 +2,8 @@ mod resolution;
 
 use std::fmt;
 
-pub use resolution::{address_to_location, location_to_address};
+pub(crate) use resolution::address_to_location;
+pub(crate) use resolution::location_to_address;
 
 use crate::file::DebugFile;
 
@@ -16,9 +17,12 @@ pub struct FunctionAddressInfo {
     /// The start address of the function
     ///
     /// These are absolute addresses in the binary, not relative to any debug file.
-    pub start: u64,
-    pub end: u64,
+    pub absolute_start: u64,
+    pub absolute_end: u64,
+
+    /// The relative start address of the function within the debug file
     pub relative_start: u64,
+    pub relative_end: u64,
     pub file: DebugFile,
     pub name: crate::SymbolName,
 }
@@ -28,24 +32,56 @@ impl fmt::Debug for FunctionAddressInfo {
         salsa::with_attached_database(|db| {
             let file_path = self.file.file(db).path(db);
             f.debug_struct("FunctionAddressInfo")
-                .field("start", &self.start)
-                .field("end", &self.end)
+                .field("absolute_start", &self.absolute_start)
+                .field("absolute_end", &self.absolute_end)
                 .field("relative_start", &self.relative_start)
+                .field("relative_end", &self.relative_end)
                 .field("file", &file_path)
                 .field("name", &self.name)
                 .finish()
         })
         .unwrap_or_else(|| {
             f.debug_struct("FunctionAddressInfo")
-                .field("start", &self.start)
-                .field("end", &self.end)
+                .field("absolute_start", &self.absolute_start)
+                .field("absolute_end", &self.absolute_end)
                 .field("relative_start", &self.relative_start)
+                .field("relative_end", &self.relative_end)
                 .finish()
         })
     }
 }
 
-impl FunctionAddressInfo {
+impl FunctionAddressInfo {}
+
+// Define the Node for the Interval Tree
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct Node {
+    info: FunctionAddressInfo,
+    start: u64,              // Start of the function's address range
+    end: u64,                // End of the function's address range
+    max_end_in_subtree: u64, // Maximum endpoint in the subtree rooted at this node
+    left: Option<Box<Node>>,
+    right: Option<Box<Node>>,
+}
+
+impl Node {
+    fn new(info: FunctionAddressInfo, absolute: bool) -> Self {
+        let (start, end) = if absolute {
+            (info.absolute_start, info.absolute_end)
+        } else {
+            (info.relative_start, info.relative_end)
+        };
+
+        Node {
+            start,
+            end,
+            max_end_in_subtree: end,
+            info,
+            left: None,
+            right: None,
+        }
+    }
+
     fn contains_address(&self, address: u64) -> bool {
         address >= self.start && address < self.end
     }
@@ -54,29 +90,9 @@ impl FunctionAddressInfo {
         // Check if the current function's range overlaps with the query range
         self.start < end && start < self.end
     }
-}
-
-// Define the Node for the Interval Tree
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct Node {
-    info: FunctionAddressInfo,
-    max_end_in_subtree: u64, // Maximum endpoint in the subtree rooted at this node
-    left: Option<Box<Node>>,
-    right: Option<Box<Node>>,
-}
-
-impl Node {
-    fn new(info: FunctionAddressInfo) -> Self {
-        Node {
-            max_end_in_subtree: info.end,
-            info,
-            left: None,
-            right: None,
-        }
-    }
 
     fn update_max_end(&mut self) {
-        self.max_end_in_subtree = self.info.end;
+        self.max_end_in_subtree = self.end;
         if let Some(ref left_child) = self.left {
             self.max_end_in_subtree =
                 std::cmp::max(self.max_end_in_subtree, left_child.max_end_in_subtree);
@@ -90,13 +106,17 @@ impl Node {
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AddressTree {
-    root: Option<Box<Node>>,
+    absolute_root: Option<Box<Node>>,
+    relative_root: Option<Box<Node>>,
 }
 
 impl AddressTree {
     pub fn new(mut info: Vec<FunctionAddressInfo>) -> Self {
         /// Recursive helper function to build the tree from a sorted slice of addresses.
-        fn build_recursive(sorted_ranges: &[FunctionAddressInfo]) -> Option<Box<Node>> {
+        fn build_recursive(
+            sorted_ranges: &[FunctionAddressInfo],
+            absolute: bool,
+        ) -> Option<Box<Node>> {
             if sorted_ranges.is_empty() {
                 return None;
             }
@@ -104,13 +124,13 @@ impl AddressTree {
             let mid_idx = sorted_ranges.len() / 2;
             let median_range = sorted_ranges[mid_idx].clone(); // This range becomes the root
 
-            let mut node = Box::new(Node::new(median_range));
+            let mut node = Box::new(Node::new(median_range, absolute));
 
             // Recursively build the left subtree from the part of the slice to the left of the median
-            node.left = build_recursive(&sorted_ranges[0..mid_idx]);
+            node.left = build_recursive(&sorted_ranges[0..mid_idx], absolute);
 
             // Recursively build the right subtree from the part of the slice to the right of the median
-            node.right = build_recursive(&sorted_ranges[mid_idx + 1..]);
+            node.right = build_recursive(&sorted_ranges[mid_idx + 1..], absolute);
 
             // Update the max_end_in_subtree for the current node after its children are built
             node.update_max_end();
@@ -122,16 +142,26 @@ impl AddressTree {
             return AddressTree::default();
         }
 
-        info.sort_unstable_by_key(|i| i.start); // Sort intervals by start point
+        info.sort_unstable_by_key(|i| i.absolute_start); // Sort intervals by start point
 
-        let root = build_recursive(&info);
-        AddressTree { root }
+        let absolute_root = build_recursive(&info, true);
+
+        info.sort_unstable_by_key(|i| i.relative_start); // Sort intervals by relative start point
+        let relative_root = build_recursive(&info, false);
+        AddressTree {
+            absolute_root,
+            relative_root,
+        }
     }
 
     /// Finds all functions in the tree that contain the given address.
-    pub fn query_address(&self, address: u64) -> Vec<&FunctionAddressInfo> {
+    pub fn query_address(&self, address: u64, absolute: bool) -> Vec<&FunctionAddressInfo> {
         let mut result = Vec::new();
-        if let Some(ref root_node) = self.root {
+        if absolute {
+            if let Some(ref root_node) = self.absolute_root {
+                Self::query_address_recursive(root_node, address, &mut result);
+            }
+        } else if let Some(ref root_node) = self.relative_root {
             Self::query_address_recursive(root_node, address, &mut result);
         }
 
@@ -148,7 +178,7 @@ impl AddressTree {
         result: &mut Vec<&'a FunctionAddressInfo>,
     ) {
         // 1. Check if the address is contained in the current node's range
-        if node.info.contains_address(address) {
+        if node.contains_address(address) {
             result.push(&node.info);
         }
 
@@ -173,7 +203,7 @@ impl AddressTree {
         //    If the point is less than the start of an interval, it cannot be contained.
         if let Some(ref right_child) = node.right {
             // Pruning: if the query point is beyond the maximum reach of the right subtree, don't go there.
-            if address <= right_child.max_end_in_subtree && address >= node.info.start {
+            if address <= right_child.max_end_in_subtree && address >= node.start {
                 // The second condition (point >= node.info.start) is because our insertion
                 // puts smaller start times to the left. If the point is smaller than the
                 // current node's interval's start, it won't be in the right subtree intervals
@@ -184,7 +214,7 @@ impl AddressTree {
                 // An interval [s,e] in the right subtree has s >= node.info.start.
                 // So if point < node.info.start, it can't be in any interval in the right subtree.
                 // Combined with max_end_in_subtree:
-                if address >= node.info.start || address <= right_child.max_end_in_subtree {
+                if address >= node.start || address <= right_child.max_end_in_subtree {
                     // The check `point >= node.info.start` is more about interval overlap queries.
                     // For a point query, if point > node.info.start, it *might* be in the right.
                     // If point < node.info.start, it *might* still be in the right if an interval there
@@ -211,9 +241,14 @@ impl AddressTree {
         &self,
         query_start: u64,
         query_end: u64,
+        absolute: bool,
     ) -> Vec<&FunctionAddressInfo> {
         let mut result = Vec::new();
-        if let Some(ref root_node) = self.root {
+        if absolute {
+            if let Some(ref root_node) = self.absolute_root {
+                Self::query_interval_recursive(root_node, query_start, query_end, &mut result);
+            }
+        } else if let Some(ref root_node) = self.relative_root {
             Self::query_interval_recursive(root_node, query_start, query_end, &mut result);
         }
         result
@@ -226,7 +261,7 @@ impl AddressTree {
         result: &mut Vec<&'a FunctionAddressInfo>,
     ) {
         // 1. Check if current node overlaps with the query range
-        if node.info.overlaps(query_start, query_end) {
+        if node.overlaps(query_start, query_end) {
             result.push(&node.info);
         }
 
@@ -241,10 +276,10 @@ impl AddressTree {
         //    and the right child's max_end_in_subtree is relevant
         if let Some(ref right_child) = node.right {
             // The query interval must potentially overlap with intervals in the right subtree.
-            // Intervals in the right subtree start at or after node.info.start.
-            // The query must extend to or past node.info.start.
+            // Intervals in the right subtree start at or after node.start.
+            // The query must extend to or past node.start.
             // And the query must not end before any interval in the right subtree could start.
-            if node.info.start <= query_end && // Current node's interval allows going right
+            if node.start <= query_end && // Current node's interval allows going right
                right_child.max_end_in_subtree >= query_start
             // Right subtree might contain an overlap
             {

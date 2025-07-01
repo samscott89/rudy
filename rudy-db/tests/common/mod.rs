@@ -103,6 +103,6 @@ impl DataResolver for SelfProcessResolver {
 
     #[cfg(not(target_os = "linux"))]
     fn get_stack_pointer(&self) -> anyhow::Result<u64> {
-        todo!()
+        panic!("not supported on this platform");
     }
 }

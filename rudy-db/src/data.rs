@@ -37,18 +37,18 @@ use rudy_types::{
 ///     }
 ///
 ///     fn get_stack_pointer(&self) -> Result<u64> {
-///         todo!()
+///         unimplemented!()
 ///     }
 ///
 ///     
 ///     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
 ///         // Read from target process memory
-///         todo!()
+///         unimplemented!()
 ///     }
 ///     
 ///     fn get_registers(&self) -> Result<Vec<u64>> {
 ///         // Get current register values
-///         todo!()
+///         unimplemented!()
 ///     }
 /// }
 /// ```
@@ -267,7 +267,9 @@ pub fn read_map_entries(
             Ok(entries)
         }
         MapVariant::IndexMap => {
-            todo!("read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}")
+            unimplemented!(
+                "read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}"
+            )
         }
     }
 }
@@ -754,10 +756,12 @@ fn read_primitive_from_memory(
             }
         }
         PrimitiveLayout::Str(()) => {
-            todo!("read_primitive_from_memory: bare `str` is not supported yet");
+            unimplemented!("read_primitive_from_memory: bare `str` is not supported yet");
         }
         PrimitiveLayout::Tuple(tuple_def) => {
-            todo!("read_primitive_from_memory: TupleDef not implemented yet: {tuple_def:#?}");
+            unimplemented!(
+                "read_primitive_from_memory: TupleDef not implemented yet: {tuple_def:#?}"
+            );
         }
         PrimitiveLayout::Unit(_) => {
             // The Unit type is a zero-sized type, so we return a placeholder value.
@@ -923,11 +927,11 @@ fn read_std_from_memory(
                     .wrap_type(s.variant.name())
             }
             _ => {
-                todo!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
+                unimplemented!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
             }
         },
         StdLayout::Result(result_def) => {
-            todo!("read_std_from_memory: ResultDef not implemented yet: {result_def:#?}")
+            unimplemented!("read_std_from_memory: ResultDef not implemented yet: {result_def:#?}")
         }
     };
 

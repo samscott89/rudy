@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use gimli::Reader;
 use itertools::Itertools;
 
+use crate::address::{address_to_location, location_to_address};
+use crate::file::SourceLocation;
 use crate::{
     address::{AddressTree, FunctionAddressInfo},
     die::{
@@ -318,16 +320,44 @@ pub struct FunctionIndex<'db> {
     #[returns(ref)]
     pub by_symbol_name: BTreeMap<SymbolName, FunctionIndexEntry<'db>>,
     #[returns(ref)]
-    pub by_relative_address: AddressTree,
-    #[returns(ref)]
-    pub by_absolute_address: AddressTree,
+    pub by_address: AddressTree,
+}
+
+impl<'db> FunctionIndex<'db> {
+    pub fn address_to_locations(
+        &self,
+        db: &'db dyn DwarfDb,
+        address: u64,
+    ) -> Vec<(SymbolName, SourceLocation<'db>)> {
+        self.by_address(db)
+            .query_address(address, true)
+            .into_iter()
+            .filter_map(|f| {
+                // we've found a function that contains this address
+                // next, shift the address to a relative address
+                let relative_address = f.relative_start + (address - f.absolute_start);
+
+                let function = self.by_symbol_name(db).get(&f.name)?.data(db);
+
+                address_to_location(db, relative_address, function).map(|loc| (f.name.clone(), loc))
+            })
+            .collect_vec()
+    }
+
+    pub fn location_to_address(
+        &self,
+        db: &'db dyn DwarfDb,
+        debug_file: DebugFile,
+        location: SourceLocation<'db>,
+    ) -> Option<(u64, u64)> {
+        location_to_address(db, debug_file, self, location)
+    }
 }
 
 /// Visitor for building function index efficiently
 struct FunctionIndexBuilder<'db> {
     functions: BTreeMap<SymbolName, FunctionIndexEntry<'db>>,
-    absolute_function_addresses: Vec<FunctionAddressInfo>,
-    relative_function_addresses: Vec<FunctionAddressInfo>,
+    by_address: Vec<FunctionAddressInfo>,
     symbol_map: &'db BTreeMap<RawSymbol, Symbol>,
 }
 
@@ -336,8 +366,7 @@ impl<'db> FunctionIndexBuilder<'db> {
     pub fn new(symbol_map: &'db BTreeMap<RawSymbol, Symbol>) -> Self {
         Self {
             functions: BTreeMap::new(),
-            absolute_function_addresses: Vec::new(),
-            relative_function_addresses: Vec::new(),
+            by_address: Vec::new(),
             symbol_map,
         }
     }
@@ -417,26 +446,14 @@ impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
 
             // Add to address tree if we have address range
             if let Some((relative_start, relative_end)) = address_range {
-                walker
-                    .visitor
-                    .absolute_function_addresses
-                    .push(FunctionAddressInfo {
-                        start: symbol.address,
-                        end: symbol.address + relative_end - relative_start,
-                        relative_start,
-                        name: symbol.name.clone(),
-                        file: walker.file,
-                    });
-                walker
-                    .visitor
-                    .relative_function_addresses
-                    .push(FunctionAddressInfo {
-                        start: relative_start,
-                        end: relative_end,
-                        relative_start,
-                        name: symbol.name.clone(),
-                        file: walker.file,
-                    });
+                walker.visitor.by_address.push(FunctionAddressInfo {
+                    absolute_start: symbol.address,
+                    absolute_end: symbol.address + relative_end - relative_start,
+                    relative_start,
+                    relative_end,
+                    name: symbol.name.clone(),
+                    file: walker.file,
+                });
             } else {
                 tracing::trace!(
                     "Function {} has no address range in debug file {}",
@@ -490,12 +507,7 @@ pub fn function_index<'db>(
         );
     }
 
-    FunctionIndex::new(
-        db,
-        builder.functions,
-        AddressTree::new(builder.relative_function_addresses),
-        AddressTree::new(builder.absolute_function_addresses),
-    )
+    FunctionIndex::new(db, builder.functions, AddressTree::new(builder.by_address))
 }
 
 pub fn find_type_by_name<'db>(

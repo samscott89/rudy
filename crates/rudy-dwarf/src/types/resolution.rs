@@ -82,7 +82,7 @@ fn resolve_map_type<'db>(
             .parse(db, entry)
             .context("failed to parse btree map layout")?),
         _ => {
-            todo!(
+            unimplemented!(
                 "Map variant `{variant:?}` not yet implemented: {}",
                 entry.location(db)
             )
@@ -114,7 +114,7 @@ fn resolve_smart_ptr_type<'db>(
             shallow_resolve_type(db, type_entry).context("failed to resolve the inner type")?
         }
         _ => {
-            todo!(
+            unimplemented!(
                 "{}",
                 entry.format_with_location(
                     db,
@@ -200,7 +200,7 @@ fn resolve_smart_ptr_type<'db>(
             (inner_offset, data_ptr_offset)
         }
         _ => {
-            todo!(
+            unimplemented!(
                 "{}",
                 entry.format_with_location(
                     db,

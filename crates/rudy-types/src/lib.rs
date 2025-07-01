@@ -421,7 +421,7 @@ impl PrimitiveLayout {
                 0
             }
             PrimitiveLayout::Slice(_) => size_of::<&[u8]>(),
-            PrimitiveLayout::Str(_) => todo!(),
+            PrimitiveLayout::Str(_) => unimplemented!(),
             PrimitiveLayout::StrSlice(_) => size_of::<&str>(),
             PrimitiveLayout::Tuple(tuple_def) => tuple_def.size,
             PrimitiveLayout::Unit(_) => 0,
@@ -588,7 +588,7 @@ impl StdLayout {
             StdLayout::Map(map_def) => match map_def.variant {
                 MapVariant::HashMap { .. } => size_of::<std::collections::HashMap<(), ()>>(),
                 MapVariant::BTreeMap { .. } => size_of::<std::collections::BTreeMap<(), ()>>(),
-                MapVariant::IndexMap => todo!(),
+                MapVariant::IndexMap => unimplemented!(),
             },
             StdLayout::Option(def) => def.size,
             StdLayout::Result(def) => def.size,
