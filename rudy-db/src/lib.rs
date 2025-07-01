@@ -27,12 +27,10 @@
 //! }
 //! ```
 
-mod address_tree;
 mod data;
 mod database;
 mod debug_info;
-mod dwarf;
-mod file;
+mod expressions;
 mod function_discovery;
 mod index;
 mod outputs;
@@ -46,11 +44,10 @@ mod types;
 pub use data::DataResolver;
 pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
-pub use index::symbols::Symbol;
 pub use outputs::{
     DiscoveredMethod, ResolvedAddress, ResolvedLocation, Type, TypedPointer, Value, Variable,
     VariableInfo,
 };
+pub use rudy_dwarf::symbols::Symbol;
 pub use rudy_types::TypeLayout;
 pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};
-pub use types::SelfType;

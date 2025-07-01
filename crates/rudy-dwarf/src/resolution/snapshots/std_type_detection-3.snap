@@ -1,0 +1,42 @@
+---
+source: rudy-db/src/dwarf/resolution/types.rs
+expression: ty
+---
+Std(
+    Map(
+        MapLayout {
+            key_type: Std(
+                String(
+                    StringLayout(
+                        VecLayout {
+                            length_offset: 16,
+                            data_ptr_offset: 8,
+                            inner_type: Primitive(
+                                UnsignedInt(
+                                    UnsignedIntLayout {
+                                        size: 1,
+                                    },
+                                ),
+                            ),
+                        },
+                    ),
+                ),
+            ),
+            value_type: Primitive(
+                Int(
+                    IntLayout {
+                        size: 4,
+                    },
+                ),
+            ),
+            variant: HashMap {
+                bucket_mask_offset: 8,
+                ctrl_offset: 0,
+                items_offset: 24,
+                pair_size: 32,
+                key_offset: 0,
+                value_offset: 24,
+            },
+        },
+    ),
+)

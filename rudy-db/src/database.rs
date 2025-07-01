@@ -46,12 +46,13 @@
 use std::{fmt::Debug, path::PathBuf};
 
 use anyhow::Result;
+use rudy_dwarf::DwarfDb;
 use salsa::Accumulator;
 
-use crate::file::{Binary, DebugFile, File};
+use rudy_dwarf::{Binary, DebugFile, File};
 
 #[salsa::db]
-pub trait Db: salsa::Database {
+pub trait Db: salsa::Database + DwarfDb {
     fn report_info(&self, message: String) {
         Diagnostic {
             message,
@@ -82,28 +83,6 @@ pub trait Db: salsa::Database {
             severity: DiagnosticSeverity::Error,
         }
         .accumulate(self);
-    }
-
-    fn upcast(&self) -> &dyn Db;
-
-    /// Returns a map from source to destination paths
-    /// for any remapped source/debugging files.
-    fn get_source_map(&self) -> &[(PathBuf, PathBuf)];
-
-    fn remap_path(&self, path: &std::path::Path) -> PathBuf {
-        let mut path = path.to_path_buf();
-        for (source, target) in self.get_source_map() {
-            if let Ok(stripped) = path.strip_prefix(source) {
-                tracing::debug!(
-                    "Remapping {} from {} to {}",
-                    path.display(),
-                    source.display(),
-                    target.display()
-                );
-                path = target.join(stripped);
-            }
-        }
-        path
     }
 }
 
@@ -237,12 +216,11 @@ impl DebugDatabaseImpl {
 impl salsa::Database for DebugDatabaseImpl {}
 
 #[salsa::db]
-impl Db for DebugDatabaseImpl {
-    fn upcast(&self) -> &dyn Db {
-        self
-    }
-
+impl DwarfDb for DebugDatabaseImpl {
     fn get_source_map(&self) -> &[(PathBuf, PathBuf)] {
         &self.source_map
     }
 }
+
+#[salsa::db]
+impl Db for DebugDatabaseImpl {}

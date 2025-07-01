@@ -5,14 +5,13 @@ use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
 use crate::{
     DiscoveredMethod, ResolvedLocation,
     database::{Db, Diagnostic, handle_diagnostics},
-    dwarf::{self, Die, resolve_function_variables},
-    file::DebugFile,
     function_discovery::SymbolAnalysisResult,
     index,
     outputs::{ResolvedFunction, TypedPointer},
     query::{lookup_address, lookup_position},
     types::{Address, Position},
 };
+use rudy_dwarf::{self as dwarf, DebugFile, Die, File, SourceFile, resolve_function_variables};
 
 /// Main interface for accessing debug information from binary files.
 ///
@@ -23,8 +22,8 @@ use crate::{
 /// binary file and associated debug files.
 #[derive(Clone)]
 pub struct DebugInfo<'db> {
-    pub(crate) binary: crate::file::Binary,
-    debug_files: Vec<crate::file::DebugFile>,
+    pub(crate) binary: rudy_dwarf::Binary,
+    debug_files: Vec<rudy_dwarf::DebugFile>,
     pub(crate) db: &'db crate::database::DebugDatabaseImpl,
 }
 
@@ -263,7 +262,7 @@ impl<'db> DebugInfo<'db> {
         let index = crate::index::debug_index(self.db, self.binary);
 
         let path = PathBuf::from(file.to_string());
-        let source_file = crate::file::SourceFile::new(self.db, path);
+        let source_file = SourceFile::new(self.db, path);
 
         let file = if index.source_to_file(self.db).contains_key(&source_file) {
             // already indexed file, so we can use it directly
@@ -286,7 +285,7 @@ impl<'db> DebugInfo<'db> {
             }
         };
 
-        let query = Position::new(self.db, file, line, column);
+        let query = rudy_dwarf::types::Position::new(self.db, file, line, column);
         let pos = lookup_position(self.db, self.binary, query);
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }
@@ -1033,7 +1032,8 @@ fn variable_info<'db>(
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::VariableInfo> {
     let die = var.origin(db);
-    let location = dwarf::resolve_data_location(db, function, base_address, die, data_resolver)?;
+    let location =
+        crate::expressions::resolve_data_location(db, function, base_address, die, data_resolver)?;
 
     tracing::debug!("variable info: {:?} at {:?}", var.name(db), location);
 
@@ -1041,7 +1041,7 @@ fn variable_info<'db>(
         TypeLayout::Alias(unresolved_type) => {
             // For type aliases, resolve the actual type
             let entry = Die::from_unresolved_entry(db, die.file(db), unresolved_type);
-            crate::dwarf::resolve_type_offset(db, entry).context("Failed to resolve type alias")?
+            rudy_dwarf::resolve_type_offset(db, entry).context("Failed to resolve type alias")?
         }
         t => t.clone(),
     };

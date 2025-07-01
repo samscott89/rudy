@@ -1,0 +1,37 @@
+[package]
+name = "rudy-dwarf"
+version = "0.1.0"
+edition = "2021"
+description = "DWARF debug information parsing and querying for Rust debugging tools"
+license = "MIT"
+repository = "https://github.com/anthropics/rudy"
+
+[dependencies]
+# Core dependencies
+salsa = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+# DWARF and object file parsing
+gimli = { version = "0.32.0", features = ["read", "std"] }
+object = { version = "0.37.0", features = ["read"] }
+
+# Data structures
+itertools = { workspace = true }
+rustc-demangle = "0.1"
+memmap2 = "0.9"
+serde = { workspace = true }
+
+# Internal dependencies
+rudy-types = { workspace = true }
+rudy-parser = { workspace = true }
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+insta = { workspace = true, features = ["filters"] }
+pretty_assertions = { workspace = true }
+rudy-test-examples = { workspace = true }
+test-utils.workspace = true
+
+[features]
+default = []

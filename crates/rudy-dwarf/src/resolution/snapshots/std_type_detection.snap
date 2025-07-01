@@ -1,0 +1,21 @@
+---
+source: rudy-db/src/dwarf/resolution/types.rs
+expression: ty
+---
+Std(
+    String(
+        StringLayout(
+            VecLayout {
+                length_offset: 16,
+                data_ptr_offset: 8,
+                inner_type: Primitive(
+                    UnsignedInt(
+                        UnsignedIntLayout {
+                            size: 1,
+                        },
+                    ),
+                ),
+            },
+        ),
+    ),
+)

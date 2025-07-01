@@ -4,7 +4,7 @@ use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use rudy_types::TypeLayout;
 
-use crate::{SelfType, file::DebugFile};
+use rudy_dwarf::{file::DebugFile, types::SelfType};
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]

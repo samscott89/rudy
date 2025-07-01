@@ -6,13 +6,11 @@ use anyhow::Context;
 use itertools::Itertools;
 use rudy_types::TypeLayout;
 
-use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;
-use crate::dwarf::{self, CompilationUnitId, FunctionIndexEntry, SymbolName, TypeName};
-use crate::file::{Binary, DebugFile, SourceFile};
-use crate::index::symbols::{DebugFiles, SymbolIndex};
-
-pub mod symbols;
+use rudy_dwarf::address_tree::FunctionAddressInfo;
+use rudy_dwarf::symbols::{DebugFiles, SymbolIndex};
+use rudy_dwarf::{self, CompilationUnitId, FunctionIndexEntry, SymbolName, TypeName};
+use rudy_dwarf::{Binary, DebugFile, SourceFile};
 
 #[salsa::tracked(debug)]
 pub struct Index<'db> {
@@ -90,7 +88,7 @@ impl<'db> Index<'db> {
 #[tracing::instrument(skip_all)]
 #[salsa::tracked(returns(ref))]
 pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
-    let Ok((debug_files, symbol_index)) = symbols::index_symbol_map(db, binary)
+    let Ok((debug_files, symbol_index)) = rudy_dwarf::symbols::index_symbol_map(db, binary)
         .with_context(|| {
             format!(
                 "Failed to index debug files for binary: {}",
@@ -118,7 +116,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
 
     // attempt to detect the current cargo workspace
 
-    let workspace_root = crate::file::detect_cargo_root();
+    let workspace_root = rudy_dwarf::file::detect_cargo_root();
     if workspace_root.is_none() {
         tracing::warn!(
             "Could not find Cargo workspace root, debug and source file indexing may be incomplete."
@@ -126,7 +124,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     }
 
     for debug_file in debug_files.values() {
-        let (_, sources) = dwarf::index_debug_file_sources(db, *debug_file);
+        let (_, sources) = rudy_dwarf::index_debug_file_sources(db, *debug_file);
         for source in sources {
             source_file_index
                 .entry(*source)
@@ -283,12 +281,12 @@ pub fn resolve_type(
 
     // Search through all debug files to find the type
     for debug_file in indexed_debug_files {
-        let Some(type_def) = dwarf::find_type_by_name(db, debug_file, parsed.clone()) else {
+        let Some(type_def) = rudy_dwarf::find_type_by_name(db, debug_file, parsed.clone()) else {
             continue;
         };
 
         return Ok(Some((
-            dwarf::resolve_type_offset(db, type_def)?,
+            rudy_dwarf::resolve_type_offset(db, type_def)?,
             debug_file,
         )));
     }
