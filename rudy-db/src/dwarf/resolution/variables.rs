@@ -45,24 +45,6 @@ struct VariableVisitor<'db> {
 }
 
 impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
-    fn visit_function<'a>(
-        walker: &mut visitor::DieWalker<'a, 'db, Self>,
-        entry: crate::dwarf::loader::RawDie<'a>,
-        _unit_ref: crate::dwarf::unit::UnitRef<'a>,
-    ) {
-        tracing::debug!("function: {}", walker.get_die(entry).print(walker.db));
-        walker.walk_children();
-    }
-
-    fn visit_lexical_block<'a>(
-        walker: &mut crate::dwarf::visitor::DieWalker<'a, 'db, Self>,
-        _entry: crate::dwarf::loader::RawDie<'a>,
-        _unit_ref: crate::dwarf::unit::UnitRef<'a>,
-    ) {
-        tracing::debug!("lexical block: {}", walker.get_die(_entry).print(walker.db));
-        walker.walk_children();
-    }
-
     fn visit_variable<'a>(
         walker: &mut crate::dwarf::visitor::DieWalker<'a, 'db, Self>,
         entry: crate::dwarf::loader::RawDie<'a>,

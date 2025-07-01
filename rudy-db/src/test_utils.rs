@@ -9,6 +9,7 @@ pub fn init_tracing() {
                 .unwrap()
                 .add_directive("salsa=warn".parse().unwrap()),
         )
+        .with_line_number(true)
         .try_init();
 }
 

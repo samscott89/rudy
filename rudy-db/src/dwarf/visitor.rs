@@ -92,6 +92,10 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         Die::new(self.db, self.file, self.unit_offset, raw.offset())
     }
 
+    pub fn peek_next_offset(&mut self) -> Option<usize> {
+        Some(self.peek()?.1.offset().0)
+    }
+
     fn peek(&mut self) -> Option<(isize, RawDie<'a>)> {
         if self.next_entry.is_none() {
             match self.cursor.next_dfs() {
@@ -242,10 +246,11 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
 /// Visitor trait for walking DWARF DIE trees
 pub trait DieVisitor<'db>: Sized {
     fn visit_cu<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _die: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_cu();
     }
 
     /// Called for each DIE entry
@@ -275,7 +280,10 @@ pub trait DieVisitor<'db>: Sized {
             }
             gimli::DW_TAG_member
             | gimli::DW_TAG_template_type_parameter
-            | gimli::DW_TAG_variant_part => {
+            | gimli::DW_TAG_variant_part
+            | gimli::DW_TAG_subrange_type
+            | gimli::DW_TAG_enumerator
+            | gimli::DW_TAG_inlined_subroutine => {
                 // these should typically be visited explicitly
                 // as part of visiting the parent
             }
@@ -291,87 +299,98 @@ pub trait DieVisitor<'db>: Sized {
 
     /// Visit a namespace
     fn visit_namespace<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_namespace();
     }
 
     /// Visit a function/subprogram
     fn visit_function<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     /// Visit a struct type
     fn visit_struct<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     /// Visit an enum type
     fn visit_enum<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     /// Visit a variable
     fn visit_variable<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     /// Visit a variable
     fn visit_parameter<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     /// Visit a base type
     fn visit_base_type<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     /// Visit a pointer type
     fn visit_pointer_type<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     /// Visit a array type
     fn visit_array_type<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
     fn visit_union_type<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 
     fn visit_lexical_block<'a>(
-        _walker: &mut DieWalker<'a, 'db, Self>,
+        walker: &mut DieWalker<'a, 'db, Self>,
         _entry: RawDie<'a>,
         _unit_ref: UnitRef<'a>,
     ) {
+        walker.walk_children();
     }
 }
 
@@ -392,7 +411,6 @@ mod test {
             unit_ref: crate::dwarf::unit::UnitRef<'a>,
         ) {
             Self::visit_die(walker, die, unit_ref);
-            walker.walk_cu();
         }
 
         fn visit_die<'a>(
@@ -451,14 +469,6 @@ mod test {
     }
 
     impl<'db> super::DieVisitor<'db> for ModuleFunctionVisitor {
-        fn visit_cu<'a>(
-            walker: &mut super::DieWalker<'a, 'db, Self>,
-            _die: crate::dwarf::loader::RawDie<'a>,
-            _unit_ref: crate::dwarf::unit::UnitRef<'a>,
-        ) {
-            walker.walk_children();
-        }
-
         fn visit_struct<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
             entry: crate::dwarf::loader::RawDie<'a>,
@@ -470,20 +480,6 @@ mod test {
             walker.visitor.path.push(name);
             walker.walk_children();
             walker.visitor.path.pop();
-        }
-        fn visit_enum<'a>(
-            walker: &mut super::DieWalker<'a, 'db, Self>,
-            _entry: crate::dwarf::loader::RawDie<'a>,
-            _unit_ref: crate::dwarf::unit::UnitRef<'a>,
-        ) {
-            walker.walk_children();
-        }
-        fn visit_pointer_type<'a>(
-            walker: &mut super::DieWalker<'a, 'db, Self>,
-            _entry: crate::dwarf::loader::RawDie<'a>,
-            _unit_ref: crate::dwarf::unit::UnitRef<'a>,
-        ) {
-            walker.walk_children();
         }
 
         fn visit_namespace<'a>(

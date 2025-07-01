@@ -325,12 +325,12 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn get_variable_at_pc(
         &self,
-        address: u64,
+        addr: u64,
         name: &str,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<Option<crate::VariableInfo>> {
         let db = self.db;
-        let address = Address::new(db, address);
+        let address = Address::new(db, addr);
         let f = lookup_address(db, self.binary, address);
         let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
         handle_diagnostics(&diagnostics)?;
@@ -339,6 +339,8 @@ impl<'db> DebugInfo<'db> {
             tracing::debug!("no function found for address {:#x}", address.address(db));
             return Ok(None);
         };
+
+        tracing::info!("Address {addr:#08x} found in function {function_name}");
 
         let index = crate::index::debug_index(db, self.binary);
         let Some((_, fie)) = index.get_function(db, &function_name) else {
@@ -363,6 +365,10 @@ impl<'db> DebugInfo<'db> {
             .into_iter()
             .find(|var| var.name(db).as_deref() == Some(name))
         {
+            tracing::info!(
+                "Found parameter {name} in function {function_name} with type: {}",
+                param.ty(db).display_name()
+            );
             return variable_info(db, fie.declaration_die, base_addr, param, data_resolver)
                 .map(Some);
         }
@@ -373,6 +379,10 @@ impl<'db> DebugInfo<'db> {
             .into_iter()
             .find(|var| var.name(db).as_deref() == Some(name))
         {
+            tracing::info!(
+                "Found variable {name} in function {function_name} with type: {}",
+                local.ty(db).display_name()
+            );
             return variable_info(db, fie.declaration_die, base_addr, local, data_resolver)
                 .map(Some);
         }

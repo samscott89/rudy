@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use object::{Object, ObjectSymbol};
 
 use crate::database::Db;
-use crate::dwarf::{RawSymbol, SymbolName};
+use crate::dwarf::{FunctionIndex, RawSymbol, SymbolName};
 use crate::file::{Binary, DebugFile, File, load};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -111,6 +111,11 @@ pub struct SymbolIndex {
     /// Non-function symbols, grouped similarly
     pub symbols: BTreeMap<String, BTreeMap<SymbolName, Symbol>>,
 
+    /// All symbols grouped by file
+    ///
+    /// This is useful for quickly finding all symbols in a specific file
+    pub symbols_by_file: BTreeMap<DebugFile, BTreeMap<RawSymbol, Symbol>>,
+
     /// All functions sorted by address for binary search lookup
     /// Used for address-to-function mapping
     pub functions_by_address: BTreeMap<u64, Vec<Symbol>>,
@@ -139,7 +144,21 @@ impl SymbolIndex {
             .map(|(base_addr, v)| (*base_addr, v))
     }
 
+    pub fn function_index<'db>(
+        &'db self,
+        db: &'db dyn Db,
+        debug_file: DebugFile,
+    ) -> Option<&'db FunctionIndex<'db>> {
+        Some(crate::dwarf::function_index(
+            db,
+            debug_file,
+            self.symbols_by_file.get(&debug_file)?,
+        ))
+    }
+
     pub fn index_binary(&mut self, object: &object::File<'_>, debug_file: DebugFile) -> Result<()> {
+        let file_symbols = self.symbols_by_file.entry(debug_file).or_default();
+
         for s in object.symbols() {
             let Ok(name) = s.name_bytes() else {
                 tracing::debug!("Failed to parse symbol name at: {:#010x}", s.address());
@@ -163,6 +182,8 @@ impl SymbolIndex {
                 address: s.address(),
                 debug_file,
             };
+            file_symbols.insert(symbol.clone(), entry.clone());
+
             let map = if is_function {
                 self.functions_by_address
                     .entry(entry.address)
@@ -186,6 +207,7 @@ impl SymbolIndex {
         symbol_iter: impl Iterator<Item = &'a object::ObjectMapEntry<'a>>,
         debug_file: DebugFile,
     ) -> Result<()> {
+        let file_symbols = self.symbols_by_file.entry(debug_file).or_default();
         for s in symbol_iter {
             let symbol = RawSymbol::new(s.name().to_vec());
 
@@ -204,6 +226,7 @@ impl SymbolIndex {
                 address: s.address(),
                 debug_file,
             };
+            file_symbols.insert(symbol.clone(), entry.clone());
             let map = if is_function {
                 self.functions_by_address
                     .entry(entry.address)

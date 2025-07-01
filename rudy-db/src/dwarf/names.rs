@@ -108,9 +108,18 @@ impl fmt::Display for TypeName {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RawSymbol {
     name_bytes: Vec<u8>,
+}
+
+impl fmt::Debug for RawSymbol {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name_str = std::str::from_utf8(&self.name_bytes)
+            .unwrap_or("<invalid UTF-8>")
+            .to_string();
+        write!(f, "RawSymbol({name_str})")
+    }
 }
 
 impl RawSymbol {

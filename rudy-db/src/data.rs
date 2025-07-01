@@ -123,6 +123,8 @@ pub trait DataResolver {
                 })
             })
     }
+
+    fn get_stack_pointer(&self) -> Result<u64>;
 }
 
 /// Returns a list of map entries from a memory address.

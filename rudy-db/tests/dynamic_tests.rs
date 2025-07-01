@@ -37,7 +37,7 @@ macro_rules! variable_pointer {
         let address = $debug_info
             .resolve_position(file!(), line!() as u64, None)
             .expect("Failed to resolve current position")
-            .expect("to resolve current position")
+            .expect("should resolve current position")
             .address;
         tracing::debug!("Current address: {address:#x}");
 

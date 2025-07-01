@@ -9,7 +9,7 @@ use crate::{
     dwarf::{
         Die, FunctionIndexEntry, Variable,
         index::FunctionData,
-        loader::{Offset, RawDie},
+        loader::RawDie,
         parser::{
             Parser,
             children::{for_each_child, try_for_each_child},
@@ -39,12 +39,12 @@ pub enum FunctionDeclarationType {
     Closure,
     ClassMethodDeclaration,
     /// Class methods are declared in the class, but implemented elsewhere
-    ClassMethodImplementation(Offset),
+    ClassMethodImplementation,
     Function {
         #[allow(dead_code)]
         inlined: bool,
     },
-    InlinedFunctionImplementation(Offset),
+    InlinedFunctionImplementation,
 }
 
 /// Infer what kind of declaration this DIE represents
@@ -116,6 +116,7 @@ pub enum FunctionDeclarationType {
 ///                DW_AT_high_pc   (0x0000000000002df4)
 ///                DW_AT_frame_base        (DW_OP_reg29 W29)
 ///                DW_AT_specification     (0x000058e0 "_ZN5small11TestStruct08method_017h636bec720e368708E")
+#[allow(dead_code)]
 pub fn get_declaration_type<'db>(
     _db: &'db dyn Db,
     die: &RawDie<'db>,
@@ -124,22 +125,30 @@ pub fn get_declaration_type<'db>(
     if die.attr(gimli::DW_AT_declaration).ok().flatten().is_some() {
         return FunctionDeclarationType::ClassMethodDeclaration;
     }
-    if let Some(gimli::AttributeValue::UnitRef(offset)) = die
+    if let Some(gimli::AttributeValue::UnitRef(_)) = die
         .attr(gimli::DW_AT_specification)
         .ok()
         .flatten()
         .map(|v| v.value())
     {
-        return FunctionDeclarationType::ClassMethodImplementation(offset);
+        return FunctionDeclarationType::ClassMethodImplementation;
+    }
+    if let Some(gimli::AttributeValue::DebugInfoRef(_)) = die
+        .attr(gimli::DW_AT_specification)
+        .ok()
+        .flatten()
+        .map(|v| v.value())
+    {
+        return FunctionDeclarationType::ClassMethodImplementation;
     }
 
-    if let Some(gimli::AttributeValue::UnitRef(offset)) = die
+    if let Some(gimli::AttributeValue::UnitRef(_)) = die
         .attr(gimli::DW_AT_abstract_origin)
         .ok()
         .flatten()
         .map(|v| v.value())
     {
-        return FunctionDeclarationType::InlinedFunctionImplementation(offset);
+        return FunctionDeclarationType::InlinedFunctionImplementation;
     }
 
     if let Ok(Some(name)) = get_string_attr(die, gimli::DW_AT_name, unit_ref) {

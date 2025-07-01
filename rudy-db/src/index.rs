@@ -8,7 +8,7 @@ use rudy_types::TypeLayout;
 
 use crate::address_tree::FunctionAddressInfo;
 use crate::database::Db;
-use crate::dwarf::{self, FunctionIndexEntry, SymbolName, TypeName};
+use crate::dwarf::{self, CompilationUnitId, FunctionIndexEntry, SymbolName, TypeName};
 use crate::file::{Binary, DebugFile, SourceFile};
 use crate::index::symbols::{DebugFiles, SymbolIndex};
 
@@ -16,20 +16,24 @@ pub mod symbols;
 
 #[salsa::tracked(debug)]
 pub struct Index<'db> {
+    #[returns(ref)]
     pub debug_files: DebugFiles,
+    #[returns(ref)]
     pub symbol_index: SymbolIndex,
     pub indexed_debug_files: Vec<DebugFile>,
+    #[returns(ref)]
     pub source_to_file: BTreeMap<SourceFile<'db>, Vec<DebugFile>>,
 }
 
 impl<'db> Index<'db> {
+    #[tracing::instrument(skip_all)]
     pub fn get_function(
         &self,
         db: &'db dyn Db,
         name: &SymbolName,
     ) -> Option<(DebugFile, FunctionIndexEntry)> {
-        let sym = self
-            .symbol_index(db)
+        let symbol_index = self.symbol_index(db);
+        let sym = symbol_index
             .get_functions_by_lookup_name(&name.lookup_name)?
             .get(name)
             .or_else(|| {
@@ -37,15 +41,16 @@ impl<'db> Index<'db> {
                 None
             })?
             .clone();
-        let indexed = dwarf::index_debug_file_full(db, sym.debug_file).data(db);
+        let indexed = symbol_index.function_index(db, sym.debug_file)?;
         indexed
-            .functions
+            .by_symbol_name(db)
             .get(name)
             .cloned()
             .or_else(|| {
                 tracing::debug!(
-                    "Function {name} not found in debug file {}",
-                    sym.debug_file.name(db)
+                    "Function {name} not found in debug file {}, {:#?}",
+                    sym.debug_file.name(db),
+                    indexed.by_symbol_name(db)
                 );
                 None
             })
@@ -82,6 +87,7 @@ impl<'db> Index<'db> {
 /// Build an index of all types + functions (using fully qualified names
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
+#[tracing::instrument(skip_all)]
 #[salsa::tracked(returns(ref))]
 pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     let Ok((debug_files, symbol_index)) = symbols::index_symbol_map(db, binary)
@@ -92,7 +98,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             )
         })
         .inspect_err(|e| {
-            db.report_critical(format!("Failed to index debug files: {e}"));
+            db.report_critical(format!("Failed to index debug files: {e:?}"));
         })
     else {
         return Index::new(
@@ -182,14 +188,18 @@ pub fn find_closest_function<'db>(
 }
 
 /// Finds all functions
-pub fn find_all_by_address(
-    db: &dyn Db,
+pub fn find_all_by_address<'db>(
+    db: &'db dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<(u64, &FunctionAddressInfo)> {
+) -> Vec<(u64, CompilationUnitId<'db>, &'db FunctionAddressInfo)> {
     // first, find the closest function by address
     let index = debug_index(db, binary).symbol_index(db);
     let Some((_, function_symbols)) = index.function_at_address(address) else {
+        tracing::debug!(
+            "No function found at address {address:#x} in binary {}",
+            binary.name(db)
+        );
         return vec![];
     };
 
@@ -197,48 +207,38 @@ pub fn find_all_by_address(
     function_symbols
         .iter()
         .flat_map(|s| {
+            let debug_file = s.debug_file;
             // our index says that this symbol is _approximately_ at `address`
             // but we want to find the exact address in the debug file
 
             // we also need to adjust the address by the symbol's base address
 
-            let debug_file = s.debug_file;
-            let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
-            let Some(f) = indexed.functions.get(&s.name) else {
+            let Some(function_index) = index.function_index(db, debug_file) else {
                 tracing::warn!(
-                    "No function found for symbol {} in debug file {}",
-                    s.name,
+                    "No function index found for debug file {}",
                     debug_file.name(db)
                 );
                 return vec![];
             };
-            let f = f.data(db);
-            let Some((relative_start, _)) = f.relative_address_range else {
-                return vec![]
-            };
 
-            // compute the necessary address slide
-            let slide = s.address - relative_start;
-
-            debug_assert!(
-                debug_file.relocatable(db) || slide == 0,
-                "Expected slide to be 0 for non-relocatable debug files, got relocatable={} and slide={slide}",
-                debug_file.relocatable(db),
-            );
-
-            let relative_address = address - slide;
-
-            tracing::info!(
-                "Resolving function {} at address {address:#x} with slide {slide:#x} (relative addr: {relative_address:#x}) in debug file {}",
-                s.name,
-                debug_file.name(db)
-            );
-
-            // if not relocatable, we can use the address directly
-            indexed.function_addresses.query_address(relative_address).into_iter().map(|f| {
-                // return the relative address and the function info
-                (relative_address, f)
-            }).collect_vec()
+            function_index
+                .by_absolute_address(db)
+                .query_address(address)
+                .into_iter()
+                .filter_map(|f| {
+                    // the relative address
+                    // in the case of no relocations, f.start == s.address
+                    // and this returns just `address`
+                    let relative_address = f.relative_start +  (address - s.address);
+                    let function = function_index.by_symbol_name(db).get(&f.name)?.data(db);
+                    tracing::info!(
+                        "Found function {f:#?} for address {address:#x} and symbol {s:#?} at address {relative_address:#x} in debug file {}",
+                        debug_file.name(db)
+                    );
+                    let cu: CompilationUnitId<'_> = function.declaration_die.cu(db);
+                    Some((relative_address, cu, f))
+                })
+                .collect_vec()
         })
         .collect()
 }
@@ -249,7 +249,25 @@ pub fn resolve_type(
     binary: Binary,
     type_name: &str,
 ) -> anyhow::Result<Option<(TypeLayout, DebugFile)>> {
-    let parsed = TypeName::parse(&[], type_name)?;
+    let (segments, name) = if let Some((name, generics)) = type_name.split_once('<') {
+        // If the type name has generics, we need to handle them separately
+        let mut segments = name
+            .split("::")
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
+        let type_name = segments.pop().context("Type name cannot be empty")?;
+
+        (segments, format!("{type_name}<{generics}"))
+    } else {
+        let mut segments = type_name
+            .split("::")
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
+        let type_name = segments.pop().context("Type name cannot be empty")?;
+        (segments, type_name)
+    };
+
+    let parsed = TypeName::parse(&segments, &name)?;
     tracing::info!("Finding type '{parsed}'");
     let index = debug_index(db, binary);
 
@@ -265,52 +283,14 @@ pub fn resolve_type(
 
     // Search through all debug files to find the type
     for debug_file in indexed_debug_files {
-        let indexed = dwarf::index_debug_file_full(db, debug_file).data(db);
+        let Some(type_def) = dwarf::find_type_by_name(db, debug_file, parsed.clone()) else {
+            continue;
+        };
 
-        // Look for types that match the given name
-        let entries = indexed
-            .types
-            .iter()
-            .filter(|(name, _)| {
-                if name.name.starts_with(&parsed.name) {
-                    tracing::info!("Found type name: {} vs {}", name.name, parsed.name);
-                    tracing::info!("Checking type '{name}' vs '{parsed}'");
-                    if !name.typedef.matching_type(&parsed.typedef) {
-                        tracing::info!(
-                            "Type '{:#?}' does not match '{:#?}'",
-                            name.typedef,
-                            parsed.typedef
-                        );
-                        return false;
-                    }
-                    name.module.segments.ends_with(&parsed.module.segments)
-                } else {
-                    false
-                }
-            })
-            .flat_map(|(_, entry)| entry);
-
-        for entry in entries {
-            // Resolve the type using the DWARF resolution logic
-            match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
-                Ok(typedef) => {
-                    // Successfully resolved the type
-                    tracing::info!(
-                        "Resolved type '{type_name}' to {typedef:#?} in {}",
-                        entry.die(db).print(db)
-                    );
-                    return Ok(Some((typedef, debug_file)));
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to resolve type '{type_name}': {e:?}");
-                }
-            }
-        }
-        tracing::trace!(
-            "No type '{}' found in debug file: {}",
-            type_name,
-            debug_file.name(db)
-        );
+        return Ok(Some((
+            dwarf::resolve_type_offset(db, type_def)?,
+            debug_file,
+        )));
     }
 
     // Type not found in any debug file

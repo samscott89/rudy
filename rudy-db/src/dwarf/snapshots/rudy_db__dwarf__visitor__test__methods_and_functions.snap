@@ -4501,6 +4501,35 @@ core::mem::maybe_uninit::MaybeUninit::zeroed<libc::unix::linux_like::sockaddr_un
 core::mem::maybe_uninit::MaybeUninit::zeroed<libc::unix::linux_like::statx>
 core::mem::maybe_uninit::MaybeUninit::zeroed<std::sys::process::unix::unix::{impl#0}::recv_pidfd::Cmsg>
 core::mem::maybe_uninit::MaybeUninit::zeroed<std::sys::process::unix::unix::{impl#0}::send_pidfd::Cmsg>
+core::mem::maybe_uninit::as_mut_ptr<[core::slice::sort::stable::drift::DriftsortRun; 66]>
+core::mem::maybe_uninit::as_mut_ptr<[u8; 66]>
+core::mem::maybe_uninit::as_mut_ptr<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>
+core::mem::maybe_uninit::as_mut_ptr<alloc::string::String>
+core::mem::maybe_uninit::as_ptr<(alloc::string::String, i32)>
+core::mem::maybe_uninit::as_ptr<alloc::string::String>
+core::mem::maybe_uninit::as_ptr<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>>
+core::mem::maybe_uninit::as_ptr<i32>
+core::mem::maybe_uninit::as_ptr<usize>
+core::mem::maybe_uninit::assume_init<*const (alloc::string::String, i32)>
+core::mem::maybe_uninit::assume_init_drop<alloc::string::String>
+core::mem::maybe_uninit::assume_init_mut<alloc::string::String>
+core::mem::maybe_uninit::assume_init_mut<i32>
+core::mem::maybe_uninit::assume_init_read<(alloc::string::String, i32)>
+core::mem::maybe_uninit::assume_init_read<alloc::string::String>
+core::mem::maybe_uninit::assume_init_read<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>>
+core::mem::maybe_uninit::assume_init_read<i32>
+core::mem::maybe_uninit::assume_init_read<usize>
+core::mem::maybe_uninit::new<*const (alloc::string::String, i32)>
+core::mem::maybe_uninit::new<alloc::string::String>
+core::mem::maybe_uninit::new<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>>
+core::mem::maybe_uninit::new<i32>
+core::mem::maybe_uninit::new<u16>
+core::mem::maybe_uninit::slice_as_mut_ptr<(alloc::string::String, i32)>
+core::mem::maybe_uninit::slice_as_mut_ptr<(alloc::string::String, i32)>
+core::mem::maybe_uninit::write<alloc::string::String>
+core::mem::maybe_uninit::write<core::ptr::non_null::NonNull<alloc::collections::btree::node::LeafNode<alloc::string::String, i32>>>
+core::mem::maybe_uninit::write<i32>
+core::mem::maybe_uninit::write<u16>
 core::mem::maybe_uninit::{impl#3}::assume_init_drop<(alloc::string::String, i32)>
 core::mem::maybe_uninit::{impl#3}::assume_init_drop<usize>
 core::mem::maybe_uninit::{impl#3}::write_copy_of_slice<u8>
