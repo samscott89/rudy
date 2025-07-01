@@ -21,7 +21,9 @@ mod visitor;
 pub use cu::CompilationUnitId;
 pub use die::Die;
 pub use expressions::resolve_data_location;
-pub use index::{FunctionIndex, FunctionIndexEntry, function_index, index_debug_file_sources};
+pub use index::{
+    FunctionIndex, FunctionIndexEntry, find_type_by_name, function_index, index_debug_file_sources,
+};
 pub use loader::{Dwarf, load};
 pub use names::{RawSymbol, SymbolName, TypeName};
 pub use resolution::{

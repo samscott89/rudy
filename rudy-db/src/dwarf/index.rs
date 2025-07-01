@@ -47,14 +47,28 @@ pub struct SymbolIndexEntry<'db> {
     pub die: Die<'db>,
 }
 
-#[salsa::tracked(debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
 pub struct TypeIndexEntry<'db> {
     pub die: Die<'db>,
 }
 
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
+pub struct Module<'db> {
+    modules: BTreeMap<String, Module<'db>>,
+    entries: Vec<Die<'db>>,
+}
+
+#[salsa::tracked(debug)]
+pub struct ModuleIndex<'db> {
+    #[returns(ref)]
+    pub by_offset: Vec<ModuleRange>,
+    #[returns(ref)]
+    pub by_name: BTreeMap<String, Module<'db>>,
+}
+
 /// Namespace range representing a module's DIE offset coverage
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct NamespaceRange {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
+pub struct ModuleRange {
     module_path: Vec<String>,
     start_offset: usize,
     end_offset: usize,
@@ -63,13 +77,14 @@ struct NamespaceRange {
 /// Visitor for building namespace ranges efficiently
 /// Only visits namespaces and uses depth-first traversal to capture ranges
 #[derive(Default)]
-struct NamespaceRangeBuilder {
-    namespace_ranges: Vec<NamespaceRange>,
+struct ModuleRangeBulider<'db> {
+    module_ranges: Vec<ModuleRange>,
+    modules: BTreeMap<String, Module<'db>>,
     current_path: Vec<String>,
     namespace_stack: Vec<(Vec<String>, usize)>, // (path, start_offset)
 }
 
-impl<'db> DieVisitor<'db> for NamespaceRangeBuilder {
+impl<'db> DieVisitor<'db> for ModuleRangeBulider<'db> {
     fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
         if is_rust_cu(walker.db, &die, &unit_ref) {
             walker.walk_cu();
@@ -84,10 +99,25 @@ impl<'db> DieVisitor<'db> for NamespaceRangeBuilder {
         let module_name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
             .unwrap()
             .unwrap();
+
+        let start_offset = entry.offset().0;
+        let die = walker.get_die(entry);
+
+        let mut module_entry = &mut walker.visitor.modules;
+        // Traverse or create the module path
+        for segment in &walker.visitor.current_path {
+            let module = module_entry.entry(segment.clone()).or_default();
+            module_entry = &mut module.modules;
+        }
+
+        module_entry
+            .entry(module_name.clone())
+            .or_default()
+            .entries
+            .push(die);
         walker.visitor.current_path.push(module_name);
 
         // Record the start of this namespace
-        let start_offset = entry.offset().0;
         walker
             .visitor
             .namespace_stack
@@ -100,7 +130,7 @@ impl<'db> DieVisitor<'db> for NamespaceRangeBuilder {
             let end_offset = walker.peek_next_offset().unwrap_or(usize::MAX);
 
             // Use the current offset as the end (we'll update this with the next entry)
-            walker.visitor.namespace_ranges.push(NamespaceRange {
+            walker.visitor.module_ranges.push(ModuleRange {
                 module_path: path,
                 start_offset: start,
                 end_offset,
@@ -114,18 +144,19 @@ impl<'db> DieVisitor<'db> for NamespaceRangeBuilder {
 /// Build namespace ranges for efficient offset-based lookups
 /// This is used to efficiently resolve type contexts without full indexing
 #[salsa::tracked(returns(ref))]
-pub fn build_namespace_ranges<'db>(db: &'db dyn Db, debug_file: DebugFile) -> Vec<NamespaceRange> {
-    let mut builder = NamespaceRangeBuilder::default();
+pub fn module_index<'db>(db: &'db dyn Db, debug_file: DebugFile) -> ModuleIndex<'db> {
+    let mut builder = ModuleRangeBulider::default();
     walk_file(db, debug_file, &mut builder);
 
     // Sort ranges by start offset and fix overlapping ranges
-    let mut ranges = builder.namespace_ranges;
+    let mut ranges = builder.module_ranges;
     ranges.sort_by_key(|r| r.start_offset);
-    ranges
+
+    ModuleIndex::new(db, ranges, builder.modules)
 }
 
 /// Find the namespace path for a given DIE offset using range lookup
-fn find_namespace_for_offset(ranges: &[NamespaceRange], target_offset: usize) -> Vec<String> {
+fn find_namespace_for_offset(ranges: &[ModuleRange], target_offset: usize) -> Vec<String> {
     // Find the most specific (deepest) namespace that contains this offset
 
     // first, find the first node that starts _after_ the target offset -- we'll search backwards
@@ -164,17 +195,17 @@ pub fn get_die_typename<'db>(db: &'db dyn Db, die: Die<'db>) -> Option<TypeName>
             .flatten()?;
 
         // Get the namespace ranges for this debug file (cached)
-        let namespace_ranges = build_namespace_ranges(db, die.file(db));
+        let module_index = module_index(db, die.file(db));
 
         // Find the module path for this DIE using range lookup
-        let module_path = find_namespace_for_offset(namespace_ranges, target_entry.offset().0);
+        let module_path =
+            find_namespace_for_offset(module_index.by_offset(db), target_entry.offset().0);
 
         tracing::debug!(
-            "Found module path: {:?} for DIE: {} at offset {:#x} (ranges: {})",
+            "Found module path: {:?} for DIE: {} at offset {:#x}",
             module_path,
             die.print(db),
             target_entry.offset().0,
-            namespace_ranges.len()
         );
 
         // Parse the typename with the module path
@@ -421,4 +452,77 @@ pub fn function_index<'db>(
         AddressTree::new(builder.relative_function_addresses),
         AddressTree::new(builder.absolute_function_addresses),
     )
+}
+
+pub fn find_type_by_name<'db>(
+    db: &'db dyn Db,
+    debug_file: DebugFile,
+    type_name: TypeName,
+) -> Option<Die<'db>> {
+    let module_index = module_index(db, debug_file);
+
+    // let indexed = super::navigation::function_index(db, debug_file);
+    // let type_name = TypeName::parse(type_name).ok()?;
+
+    // Search through all debug files to find the type
+    let mut modules = module_index.by_name(db);
+    let mut found_module = vec![];
+
+    // tracing::info!("")
+
+    for segment in &type_name.module.segments {
+        if let Some(module) = modules.get(segment) {
+            found_module = module.entries.clone();
+            modules = &module.modules;
+            tracing::info!(
+                "Found module segment {segment} in debug file {} {:#?}",
+                debug_file.name(db),
+                modules.keys().collect::<Vec<_>>()
+            );
+        } else {
+            tracing::info!(
+                "Module segment {segment} not found in debug file {}",
+                debug_file.name(db)
+            );
+        }
+    }
+
+    if found_module.is_empty() {
+        tracing::warn!(
+            "No module found for type {type_name:#?} in debug file {}\n\n{:#?}",
+            debug_file.name(db),
+            module_index.by_name(db).keys().collect::<Vec<_>>(),
+        );
+        return None;
+    }
+
+    tracing::info!(
+        "Searching for type {type_name:#?} in modules: {:?}",
+        found_module
+    );
+
+    // Now search for the type in the remaining modules
+    for module in found_module {
+        tracing::info!(
+            "Searching in module: {} at location: {}",
+            module.name(db).unwrap(),
+            module.location(db)
+        );
+        // find the type name in the module
+        for entry in module.children(db).unwrap_or_default() {
+            if let Ok(name) = entry.name(db) {
+                let Ok(parsed) = TypeName::parse(&type_name.module.segments, &name) else {
+                    tracing::warn!("Failed to parse type name `{name}` in module {module:?}");
+                    continue;
+                };
+                tracing::info!("Checking type name: {name} vs {}", type_name.name);
+                if parsed.typedef.matching_type(&type_name.typedef) {
+                    tracing::info!("Found type {type_name:#?}  {}", entry.location(db));
+                    return Some(entry);
+                }
+            }
+        }
+    }
+
+    None
 }

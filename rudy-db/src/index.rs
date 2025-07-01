@@ -190,7 +190,7 @@ pub fn find_all_by_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<(u64, CompilationUnitId<'db>, &FunctionAddressInfo)> {
+) -> Vec<(u64, CompilationUnitId<'db>, &'db FunctionAddressInfo)> {
     // first, find the closest function by address
     let index = debug_index(db, binary).symbol_index(db);
     let Some((_, function_symbols)) = index.function_at_address(address) else {
@@ -247,7 +247,25 @@ pub fn resolve_type(
     binary: Binary,
     type_name: &str,
 ) -> anyhow::Result<Option<(TypeLayout, DebugFile)>> {
-    let parsed = TypeName::parse(&[], type_name)?;
+    let (segments, name) = if let Some((name, generics)) = type_name.split_once('<') {
+        // If the type name has generics, we need to handle them separately
+        let mut segments = name
+            .split("::")
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
+        let type_name = segments.pop().context("Type name cannot be empty")?;
+
+        (segments, format!("{type_name}<{generics}"))
+    } else {
+        let mut segments = type_name
+            .split("::")
+            .map(|s| s.to_owned())
+            .collect::<Vec<String>>();
+        let type_name = segments.pop().context("Type name cannot be empty")?;
+        (segments, type_name)
+    };
+
+    let parsed = TypeName::parse(&segments, &name)?;
     tracing::info!("Finding type '{parsed}'");
     let index = debug_index(db, binary);
 
@@ -261,57 +279,17 @@ pub fn resolve_type(
         return Ok(None);
     }
 
-    todo!("Implement type resolution by name: {type_name}");
-
     // Search through all debug files to find the type
-    // // for debug_file in indexed_debug_files {
-    // //     let indexed = dwarf::function_index(db, debug_file);
+    for debug_file in indexed_debug_files {
+        let Some(type_def) = dwarf::find_type_by_name(db, debug_file, parsed.clone()) else {
+            continue;
+        };
 
-    // //     // Look for types that match the given name
-    // //     let entries = indexed
-    // //         .types
-    // //         .iter()
-    // //         .filter(|(name, _)| {
-    // //             if name.name.starts_with(&parsed.name) {
-    // //                 tracing::info!("Found type name: {} vs {}", name.name, parsed.name);
-    // //                 tracing::info!("Checking type '{name}' vs '{parsed}'");
-    // //                 if !name.typedef.matching_type(&parsed.typedef) {
-    // //                     tracing::info!(
-    // //                         "Type '{:#?}' does not match '{:#?}'",
-    // //                         name.typedef,
-    // //                         parsed.typedef
-    // //                     );
-    // //                     return false;
-    // //                 }
-    // //                 name.module.segments.ends_with(&parsed.module.segments)
-    // //             } else {
-    // //                 false
-    // //             }
-    // //         })
-    // //         .flat_map(|(_, entry)| entry);
-
-    // //     for entry in entries {
-    // //         // Resolve the type using the DWARF resolution logic
-    // //         match crate::dwarf::resolve_type_offset(db, entry.die(db)) {
-    // //             Ok(typedef) => {
-    // //                 // Successfully resolved the type
-    // //                 tracing::info!(
-    // //                     "Resolved type '{type_name}' to {typedef:#?} in {}",
-    // //                     entry.die(db).print(db)
-    // //                 );
-    // //                 return Ok(Some((typedef, debug_file)));
-    // //             }
-    // //             Err(e) => {
-    // //                 tracing::warn!("Failed to resolve type '{type_name}': {e:?}");
-    // //             }
-    // //         }
-    // //     }
-    // //     tracing::trace!(
-    // //         "No type '{}' found in debug file: {}",
-    // //         type_name,
-    // //         debug_file.name(db)
-    // //     );
-    // }
+        return Ok(Some((
+            dwarf::resolve_type_offset(db, type_def)?,
+            debug_file,
+        )));
+    }
 
     // Type not found in any debug file
     Ok(None)

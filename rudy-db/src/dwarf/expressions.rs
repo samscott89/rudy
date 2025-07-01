@@ -47,12 +47,16 @@ fn get_function_frame_base<'db>(
     let unit_ref = function_entry.unit_ref(db)?;
 
     let mut eval = loc_exp.evaluation(unit_ref.encoding());
-    let result = eval.evaluate()?;
+    let mut result = eval.evaluate()?;
     let result = loop {
         match result {
             gimli::EvaluationResult::Complete => {
                 // evaluation complete -- break the loop
                 break eval.result();
+            }
+            gimli::EvaluationResult::RequiresCallFrameCfa => {
+                todo!("implement RequiresCallFrameCfa handling");
+                // result = eval.evaluate()?;
             }
             r => {
                 todo!("handle incomplete evaluation: {r:?}");

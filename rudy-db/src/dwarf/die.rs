@@ -136,7 +136,11 @@ impl<'db> Die<'db> {
     }
 
     pub fn location(&self, db: &'db dyn Db) -> String {
-        format!("{} {:#010x}", self.file(db).name(db), self.die_offset(db).0,)
+        format!(
+            "{} {:#010x}",
+            self.file(db).name(db),
+            self.cu_offset(db).as_debug_info_offset().unwrap().0 + self.die_offset(db).0,
+        )
     }
 
     pub fn format_with_location<T: AsRef<str>>(&self, db: &'db dyn Db, message: T) -> String {
