@@ -11,7 +11,9 @@ use crate::{
     query::{lookup_address, lookup_position},
     types::Address,
 };
-use rudy_dwarf::{self as dwarf, DebugFile, Die, SourceFile, resolve_function_variables};
+use rudy_dwarf::{
+    DebugFile, Die, SourceFile, function::resolve_function_variables, types::resolve_type_offset,
+};
 
 /// Main interface for accessing debug information from binary files.
 ///
@@ -279,7 +281,7 @@ impl<'db> DebugInfo<'db> {
             }
         };
 
-        let query = rudy_dwarf::types::Position::new(self.db, file, line, column);
+        let query = rudy_dwarf::file::SourceLocation::new(self.db, file, line, column);
         let pos = lookup_position(self.db, self.binary, query);
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }
@@ -339,7 +341,7 @@ impl<'db> DebugInfo<'db> {
             return Ok(None);
         };
 
-        let vars = dwarf::resolve_function_variables(db, fie)?;
+        let vars = resolve_function_variables(db, fie)?;
 
         let base_addr = crate::index::debug_index(db, self.binary)
             .symbol_index(db)
@@ -438,7 +440,7 @@ impl<'db> DebugInfo<'db> {
             return Ok(Default::default());
         };
 
-        let vars = dwarf::resolve_function_variables(db, fie)?;
+        let vars = resolve_function_variables(db, fie)?;
 
         let base_addr = crate::index::debug_index(db, self.binary)
             .symbol_index(db)
@@ -1014,7 +1016,7 @@ fn variable_info<'db>(
     db: &'db dyn Db,
     function: Die<'db>,
     base_address: u64,
-    var: dwarf::Variable<'db>,
+    var: rudy_dwarf::function::Variable<'db>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::VariableInfo> {
     let die = var.origin(db);
@@ -1027,7 +1029,7 @@ fn variable_info<'db>(
         TypeLayout::Alias(unresolved_type) => {
             // For type aliases, resolve the actual type
             let entry = Die::from_unresolved_entry(db, die.file(db), unresolved_type);
-            rudy_dwarf::resolve_type_offset(db, entry).context("Failed to resolve type alias")?
+            resolve_type_offset(db, entry).context("Failed to resolve type alias")?
         }
         t => t.clone(),
     };

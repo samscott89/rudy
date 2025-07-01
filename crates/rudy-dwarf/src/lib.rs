@@ -3,55 +3,32 @@
 //! This crate provides functionality for parsing DWARF debug information
 //! from object files and querying it through a salsa database.
 
-// Sub-modules
-pub mod address_tree;
-mod cu;
-mod die;
+// Public modules - clean API for users
+pub mod address;
+pub mod die;
+pub mod error;
 pub mod file;
-mod index;
-mod loader;
-mod names;
-mod navigation;
-mod parser;
-mod resolution;
+pub mod function;
+pub mod index;
+pub mod parser;
 pub mod symbols;
 pub mod types;
-mod unit;
-mod utils;
-mod visitor;
+pub mod visitor;
 
+// Test utilities
 #[cfg(test)]
 pub mod test_utils;
 
+// Essential re-exports for convenience
 pub use gimli;
 
-use std::path::{Path, PathBuf};
-
-// Re-exports for the public API
-pub use address_tree::{AddressTree, FunctionAddressInfo};
-pub use cu::CompilationUnitId;
+// Core types that most users will need
 pub use die::Die;
-pub use file::{Binary, DebugFile, File, SourceFile};
-pub use index::{
-    find_type_by_name, function_index, index_debug_file_sources, FunctionIndex, FunctionIndexEntry,
-};
-pub use loader::{load, Dwarf, DwarfReader};
-pub use names::{RawSymbol, SymbolName, TypeName};
-pub use resolution::{
-    address_to_location,
-    location_to_address,
-    resolve_function_signature,
-    resolve_function_variables,
-    resolve_type_offset,
-    FunctionSignature,
-    // Address resolution
-    ResolvedLocation,
-    // Variable resolution
-    Variable,
-};
-pub use unit::UnitRef;
-pub use utils::get_string_attr;
-pub use visitor::{walk_file, DieVisitor, DieWalker};
+pub use error::Error;
+pub use file::{Binary, DebugFile, SourceFile};
+pub use symbols::{SymbolName, TypeName};
+
+use std::path::{Path, PathBuf};
 
 // Database trait that this crate requires
 #[salsa::db]

@@ -3,8 +3,10 @@ use rudy_types::TypeLayout;
 use std::collections::BTreeMap;
 
 use crate::{DiscoveredMethod, TypedPointer, database::Db};
-use rudy_dwarf::Binary;
-use rudy_dwarf::{FunctionSignature, resolve_function_signature};
+use rudy_dwarf::{
+    Binary,
+    function::{FunctionSignature, resolve_function_signature},
+};
 
 /// Result of analyzing a symbol for method discovery
 #[derive(Debug, Clone)]

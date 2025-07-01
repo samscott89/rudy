@@ -509,7 +509,7 @@ pub fn read_from_memory(
         TypeLayout::Alias(entry) => {
             // For aliases, we'll resolve the underlying type and read that
             let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-            let underlying_type = rudy_dwarf::resolve_type_offset(db, entry)?;
+            let underlying_type = rudy_dwarf::types::resolve_type_offset(db, entry)?;
             // now read the memory itself
             read_from_memory(db, address, &underlying_type, data_resolver, debug_file)
         }
@@ -586,7 +586,7 @@ fn read_primitive_from_memory(
             let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(rudy_dwarf::resolve_type_offset(db, entry)?)
+                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
             } else {
                 element_type.clone()
             };
@@ -635,7 +635,7 @@ fn read_primitive_from_memory(
             let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(rudy_dwarf::resolve_type_offset(db, entry)?)
+                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
             } else {
                 element_type.clone()
             };
@@ -834,7 +834,7 @@ fn read_std_from_memory(
             let element_type = if let TypeLayout::Alias(entry) = inner_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(rudy_dwarf::resolve_type_offset(db, entry)?)
+                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
             } else {
                 inner_type.clone()
             };

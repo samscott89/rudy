@@ -2,14 +2,15 @@
 
 use crate::database::Db;
 use crate::index::{self, find_all_by_address};
-use crate::types::{Address, Position};
+use crate::types::Address;
+use rudy_dwarf::address::{address_to_location, location_to_address};
 use rudy_dwarf::{Binary, SymbolName};
 
 #[salsa::tracked]
 pub fn lookup_position<'db>(
     db: &'db dyn Db,
     binary: Binary,
-    query: rudy_dwarf::types::Position<'db>,
+    query: rudy_dwarf::file::SourceLocation<'db>,
 ) -> Option<u64> {
     let file = query.file(db);
 
@@ -28,7 +29,7 @@ pub fn lookup_position<'db>(
         //     continue;
         // };
         // tracing::debug!("looking for matches in {cu:?}");
-        if let Some((addr, distance)) = rudy_dwarf::location_to_address(db, *debug_file, query) {
+        if let Some((addr, distance)) = location_to_address(db, *debug_file, query) {
             tracing::debug!("found match  {addr:#x} at distance {distance}");
             if distance < closest_line {
                 // if we found a closer match, find the absolute address
@@ -79,15 +80,15 @@ pub fn lookup_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: Address<'db>,
-) -> Option<(SymbolName, rudy_dwarf::ResolvedLocation<'db>)> {
+) -> Option<(SymbolName, rudy_dwarf::file::SourceLocation<'db>)> {
     let address = address.address(db);
 
     find_all_by_address(db, binary, address)
         .into_iter()
         .filter_map(|(relative_addr, cu, fai)| {
             tracing::debug!("looking up address {relative_addr:#x} in {cu:?} for function {fai:?}");
-            rudy_dwarf::address_to_location(db, cu, relative_addr)
-                .map(|loc| (fai.name.clone(), loc))
+            todo!("fix this to not use `cu`")
+            // address_to_location(db, cu, relative_addr).map(|loc| (fai.name.clone(), loc))
         })
         .next()
 }

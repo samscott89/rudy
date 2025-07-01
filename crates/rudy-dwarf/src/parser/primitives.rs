@@ -1,8 +1,8 @@
 //! DWARF-specific primitive parsers and utilities
 
 use super::{Parser, Result};
-use crate::DwarfDb;
 use crate::Die;
+use crate::DwarfDb;
 use anyhow::Context as _;
 use rudy_types::*;
 use std::sync::Arc;
@@ -189,12 +189,9 @@ pub struct IsMemberOffset {
 
 impl<'db> Parser<'db, usize> for IsMemberOffset {
     fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<usize> {
-        let entry_name = entry.name(db).map_err(|e| {
-            crate::resolution::Error::from(anyhow::anyhow!(
-                "Failed to get entry name: {}",
-                e
-            ))
-        })?;
+        let entry_name = entry
+            .name(db)
+            .map_err(|e| crate::Error::from(anyhow::anyhow!("Failed to get entry name: {}", e)))?;
         if entry_name == self.expected_name {
             entry
                 .udata_attr(db, gimli::DW_AT_data_member_location)
@@ -267,12 +264,9 @@ impl<'db> Parser<'db, Die<'db>> for Generic {
                 entry.tag(db)
             ));
         }
-        let entry_name = entry.name(db).map_err(|e| {
-            crate::resolution::Error::from(anyhow::anyhow!(
-                "Failed to get entry name: {}",
-                e
-            ))
-        })?;
+        let entry_name = entry
+            .name(db)
+            .map_err(|e| crate::Error::from(anyhow::anyhow!("Failed to get entry name: {}", e)))?;
         if entry_name == self.expected_name {
             Ok(entry.get_referenced_entry(db, gimli::DW_AT_type)?)
         } else {
@@ -299,7 +293,7 @@ pub struct ResolveType;
 
 impl<'db> Parser<'db, TypeLayout> for ResolveType {
     fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<TypeLayout> {
-        Ok(crate::resolution::resolve_type_offset(db, entry)?)
+        Ok(crate::types::resolve_type_offset(db, entry)?)
     }
 }
 
@@ -326,7 +320,7 @@ pub struct ResolveTypeShallow;
 
 impl<'db> Parser<'db, TypeLayout> for ResolveTypeShallow {
     fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<TypeLayout> {
-        Ok(crate::resolution::shallow_resolve_type(db, entry)?)
+        Ok(crate::types::shallow_resolve_type(db, entry)?)
     }
 }
 

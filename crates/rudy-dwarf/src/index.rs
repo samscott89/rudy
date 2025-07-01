@@ -6,19 +6,19 @@ use std::path::PathBuf;
 use gimli::Reader;
 use itertools::Itertools;
 
-use super::loader::RawDie;
-use super::unit::UnitRef;
-use super::utils::{
-    file_entry_to_path, get_lang_attr, get_string_attr, pretty_print_die_entry, to_range,
+use crate::{
+    address::{AddressTree, FunctionAddressInfo},
+    die::{
+        file_entry_to_path,
+        navigation::get_roots,
+        utils::{get_lang_attr, get_string_attr, pretty_print_die_entry, to_range},
+        Die, UnitRef,
+    },
+    file::{DebugFile, RawDie, SourceFile},
+    symbols::{RawSymbol, Symbol},
+    visitor::{walk_file, DieVisitor, DieWalker},
+    DwarfDb, SymbolName, TypeName,
 };
-use super::visitor::{walk_file, DieVisitor, DieWalker};
-use super::Die;
-use crate::address_tree::{AddressTree, FunctionAddressInfo};
-use crate::file::{DebugFile, SourceFile};
-use crate::symbols::Symbol;
-use crate::DwarfDb;
-use crate::RawSymbol;
-use crate::{SymbolName, TypeName};
 
 #[salsa::tracked(debug)]
 pub struct FunctionIndexEntry<'db> {
@@ -237,7 +237,7 @@ pub fn index_debug_file_sources<'db>(
     let mut compile_dirs = BTreeSet::new();
     let mut sources = BTreeSet::new();
 
-    let roots = super::navigation::get_roots(db, debug_file);
+    let roots = get_roots(db, debug_file);
     for (_unit_offset, unit_ref) in &roots {
         let mut entries = unit_ref.entries();
         let Some((_, root)) = entries.next_dfs().ok().flatten() else {

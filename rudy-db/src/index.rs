@@ -4,12 +4,14 @@ use std::collections::BTreeMap;
 
 use anyhow::Context;
 use itertools::Itertools;
+use rudy_dwarf::index::{FunctionIndexEntry, find_type_by_name, index_debug_file_sources};
+use rudy_dwarf::types::resolve_type_offset;
 use rudy_types::TypeLayout;
 
 use crate::database::Db;
-use rudy_dwarf::address_tree::FunctionAddressInfo;
+use rudy_dwarf::address::FunctionAddressInfo;
 use rudy_dwarf::symbols::{DebugFiles, SymbolIndex};
-use rudy_dwarf::{self, CompilationUnitId, FunctionIndexEntry, SymbolName, TypeName};
+use rudy_dwarf::{self, SymbolName, TypeName};
 use rudy_dwarf::{Binary, DebugFile, SourceFile};
 
 #[salsa::tracked(debug)]
@@ -124,7 +126,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
     }
 
     for debug_file in debug_files.values() {
-        let (_, sources) = rudy_dwarf::index_debug_file_sources(db, *debug_file);
+        let (_, sources) = index_debug_file_sources(db, *debug_file);
         for source in sources {
             source_file_index
                 .entry(*source)
@@ -190,7 +192,7 @@ pub fn find_all_by_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<(u64, CompilationUnitId<'db>, &'db FunctionAddressInfo)> {
+) -> Vec<(u64, (), &'db FunctionAddressInfo)> {
     // first, find the closest function by address
     let index = debug_index(db, binary).symbol_index(db);
     let Some((_, function_symbols)) = index.function_at_address(address) else {
@@ -233,8 +235,9 @@ pub fn find_all_by_address<'db>(
                         "Found function {f:#?} for address {address:#x} and symbol {s:#?} at address {relative_address:#x} in debug file {}",
                         debug_file.name(db)
                     );
-                    let cu: CompilationUnitId<'_> = function.declaration_die.cu(db);
-                    Some((relative_address, cu, f))
+                    todo!("fix this to not use internal APIs");
+                    // let cu: CompilationUnitId<'_> = function.declaration_die.cu(db);
+                    // Some((relative_address, cu, f))
                 })
                 .collect_vec()
         })
@@ -281,14 +284,11 @@ pub fn resolve_type(
 
     // Search through all debug files to find the type
     for debug_file in indexed_debug_files {
-        let Some(type_def) = rudy_dwarf::find_type_by_name(db, debug_file, parsed.clone()) else {
+        let Some(type_def) = find_type_by_name(db, debug_file, parsed.clone()) else {
             continue;
         };
 
-        return Ok(Some((
-            rudy_dwarf::resolve_type_offset(db, type_def)?,
-            debug_file,
-        )));
+        return Ok(Some((resolve_type_offset(db, type_def)?, debug_file)));
     }
 
     // Type not found in any debug file

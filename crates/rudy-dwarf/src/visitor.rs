@@ -1,7 +1,8 @@
-use super::loader::{DwarfReader, RawDie};
-use super::unit::UnitRef;
 use super::Die;
+use crate::die::navigation::get_roots;
+use crate::die::UnitRef;
 use crate::file::DebugFile;
+use crate::file::{DwarfReader, RawDie};
 use crate::DwarfDb;
 
 /// Walker that drives the visitor through the DIE tree
@@ -33,7 +34,7 @@ pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
 ) {
     tracing::trace!("Walking DWARF for file: {}", file.name(db));
     // Get the root compilation units for this file
-    let roots = super::navigation::get_roots(db, file);
+    let roots = get_roots(db, file);
 
     for (unit_offset, unit_ref) in &roots {
         // Create a walker for each unit
@@ -393,9 +394,10 @@ pub trait DieVisitor<'db>: Sized {
 
 #[cfg(test)]
 mod test {
-    use itertools::Itertools;
+    use crate::die::utils::get_string_attr;
 
-    use crate::utils::get_string_attr;
+    use super::*;
+    use itertools::Itertools;
 
     struct TestVisitor {
         pub visited: Vec<String>,
@@ -404,16 +406,16 @@ mod test {
     impl<'db> super::DieVisitor<'db> for TestVisitor {
         fn visit_cu<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            die: crate::loader::RawDie<'a>,
-            unit_ref: crate::unit::UnitRef<'a>,
+            die: RawDie<'a>,
+            unit_ref: UnitRef<'a>,
         ) {
             Self::visit_die(walker, die, unit_ref);
         }
 
         fn visit_die<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            die: crate::loader::RawDie<'a>,
-            unit_ref: crate::unit::UnitRef<'a>,
+            die: RawDie<'a>,
+            unit_ref: UnitRef<'a>,
         ) {
             let offset = die.offset().0;
             let padding = std::iter::repeat_n(" ", 2 * walker.current_depth as usize).join("");
@@ -469,8 +471,8 @@ mod test {
     impl<'db> super::DieVisitor<'db> for ModuleFunctionVisitor {
         fn visit_struct<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            entry: crate::loader::RawDie<'a>,
-            unit_ref: crate::unit::UnitRef<'a>,
+            entry: RawDie<'a>,
+            unit_ref: UnitRef<'a>,
         ) {
             let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
                 .unwrap()
@@ -482,8 +484,8 @@ mod test {
 
         fn visit_namespace<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            entry: crate::loader::RawDie<'a>,
-            unit_ref: crate::unit::UnitRef<'a>,
+            entry: RawDie<'a>,
+            unit_ref: UnitRef<'a>,
         ) {
             let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
                 .unwrap()
@@ -495,8 +497,8 @@ mod test {
 
         fn visit_function<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            entry: crate::loader::RawDie<'a>,
-            unit_ref: crate::unit::UnitRef<'a>,
+            entry: RawDie<'a>,
+            unit_ref: UnitRef<'a>,
         ) {
             let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
                 .unwrap()

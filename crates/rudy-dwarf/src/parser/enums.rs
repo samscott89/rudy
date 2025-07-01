@@ -1,16 +1,19 @@
 //! Enum parser implementation using combinators
 
+use crate::Die;
 use crate::DwarfDb;
-use crate::parser::{
-    Parser,
-    children::{for_each_child, parse_children},
-    combinators::all,
-    primitives::{
-        IsMember, attr, entry_type, is_member_tag, member, member_by_tag, offset, optional_attr,
-        resolve_type_shallow,
+use crate::{
+    parser::{
+        children::{for_each_child, parse_children},
+        combinators::all,
+        primitives::{
+            attr, entry_type, is_member_tag, member, member_by_tag, offset, optional_attr,
+            resolve_type_shallow, IsMember,
+        },
+        Parser,
     },
+    types::resolve_entry_type,
 };
-use crate::{Die, resolution::resolve_entry_type};
 use rudy_types::{
     CEnumLayout, CEnumVariant, Discriminant, DiscriminantType, EnumLayout, EnumVariantLayout,
     PrimitiveLayout, TypeLayout,
