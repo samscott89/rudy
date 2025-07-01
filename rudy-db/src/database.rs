@@ -74,12 +74,6 @@ impl DebugDbRef {
     }
 }
 
-// #[salsa::tracked]
-// fn initialize<'db>(db: &'db dyn Db) {
-//     // Generate the index on startup to save time
-//     let _ = index::build_index(db);
-// }
-
 impl Default for DebugDatabaseImpl {
     fn default() -> Self {
         Self::new()

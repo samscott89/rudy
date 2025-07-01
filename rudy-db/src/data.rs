@@ -35,6 +35,11 @@ use rudy_types::{
 ///     fn base_address(&self) -> u64 {
 ///         self.base
 ///     }
+///
+///     fn get_stack_pointer(&self) -> Result<u64> {
+///         todo!()
+///     }
+///
 ///     
 ///     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
 ///         // Read from target process memory
