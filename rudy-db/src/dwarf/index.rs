@@ -168,7 +168,7 @@ fn find_namespace_for_offset(ranges: &[ModuleRange], target_offset: usize) -> Ve
             std::cmp::Ordering::Less
         }
     }) else {
-        tracing::warn!("No namespace found for offset {target_offset:#x}");
+        tracing::debug!("No namespace found for offset {target_offset:#x}");
         return Vec::new();
     };
 
@@ -177,7 +177,7 @@ fn find_namespace_for_offset(ranges: &[ModuleRange], target_offset: usize) -> Ve
         .rev()
         .find(|range| target_offset >= range.start_offset && target_offset < range.end_offset)
     else {
-        tracing::warn!("No namespace found for offset {target_offset:#x}");
+        tracing::debug!("No namespace found for offset {target_offset:#x}");
         return Vec::new();
     };
 

@@ -88,4 +88,21 @@ impl DataResolver for SelfProcessResolver {
         // For testing, we don't need actual register values
         Ok(vec![0; 32])
     }
+
+    #[cfg(target_os = "linux")]
+    fn get_stack_pointer(&self) -> anyhow::Result<u64> {
+        // On Linux, we can read the stack pointer from the current thread's context
+        use std::arch::asm;
+
+        let sp: u64;
+        unsafe {
+            asm!("mov {}, rsp", out(reg) sp);
+        }
+        Ok(sp)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn get_stack_pointer(&self) -> anyhow::Result<u64> {
+        todo!()
+    }
 }

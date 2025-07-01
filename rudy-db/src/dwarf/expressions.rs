@@ -1,6 +1,6 @@
 //! DWARF expression evaluation for location information
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 
 use crate::database::Db;
 use crate::dwarf::{Die, loader::DwarfReader};
@@ -38,8 +38,8 @@ pub fn get_location_expr<'db>(
 fn get_function_frame_base<'db>(
     db: &'db dyn Db,
     function_entry: Die<'db>,
-    _data_resolver: &dyn crate::DataResolver,
-) -> Result<gimli::Register> {
+    data_resolver: &dyn crate::DataResolver,
+) -> Result<u64> {
     let Some(loc_exp) = get_location_expr(db, function_entry, gimli::DW_AT_frame_base) else {
         anyhow::bail!("Failed to get location expression for function");
     };
@@ -55,8 +55,10 @@ fn get_function_frame_base<'db>(
                 break eval.result();
             }
             gimli::EvaluationResult::RequiresCallFrameCfa => {
-                todo!("implement RequiresCallFrameCfa handling");
-                // result = eval.evaluate()?;
+                let sp = data_resolver.get_stack_pointer()?;
+                result = eval.resume_with_call_frame_cfa(sp).with_context(|| {
+                    format!("Failed to resume evaluation with call frame CFA with sp: {sp:#x}")
+                })?;
             }
             r => {
                 todo!("handle incomplete evaluation: {r:?}");
@@ -65,11 +67,24 @@ fn get_function_frame_base<'db>(
     };
 
     debug_assert_eq!(result.len(), 1, "got: {result:#?}");
+
     let result = result[0].clone();
-    let gimli::Location::Register { register } = result.location else {
-        anyhow::bail!("Expected register location, got: {result:?}");
-    };
-    Ok(register)
+
+    match result.location {
+        // We expect the location to be an address
+        gimli::Location::Address { address } => {
+            tracing::debug!("frame base address: {address:#x}");
+            Ok(address)
+        }
+        gimli::Location::Register { register, .. } => {
+            let reg_value = data_resolver.get_register(register.0 as usize)?;
+            tracing::debug!("frame base register value: {reg_value:#x}");
+            Ok(reg_value)
+        }
+        loc => Err(anyhow::anyhow!(
+            "Unexpected location type for frame base: {loc:?}"
+        )),
+    }
 }
 
 /// Resolve data location for a variable using DWARF expressions
@@ -98,10 +113,7 @@ pub fn resolve_data_location<'db>(
             }
             gimli::EvaluationResult::RequiresFrameBase => {
                 // get the frame base from the enclosing function
-                let reg = get_function_frame_base(db, function, data_resolver)?.0;
-                let frame_base = data_resolver.get_register(reg as usize)?;
-                tracing::debug!("register: {reg} = {frame_base:#x}");
-
+                let frame_base = get_function_frame_base(db, function, data_resolver)?;
                 result = eval.resume_with_frame_base(frame_base)?;
             }
             gimli::EvaluationResult::RequiresRegister { register, .. } => {
