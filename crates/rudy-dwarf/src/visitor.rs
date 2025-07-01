@@ -442,7 +442,8 @@ mod test {
 
     #[test]
     fn test_visitor() {
-        crate::test_utils::init_tracing();
+        let _guard = crate::test_utils::init_tracing_and_insta();
+
         let small_file = crate::test_utils::root_artifacts_dir()
             .join("x86_64-unknown-linux-gnu")
             .join("small");
@@ -511,7 +512,7 @@ mod test {
 
     #[test]
     fn methods_and_functions() {
-        crate::test_utils::init_tracing();
+        let _guard = crate::test_utils::init_tracing_and_insta();
 
         let small_file = crate::test_utils::root_artifacts_dir()
             .join("x86_64-unknown-linux-gnu")

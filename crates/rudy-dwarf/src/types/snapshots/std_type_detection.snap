@@ -1,0 +1,22 @@
+---
+source: crates/rudy-dwarf/src/types/resolution.rs
+expression: ty
+snapshot_kind: text
+---
+Std(
+    String(
+        StringLayout(
+            VecLayout {
+                length_offset: 16,
+                data_ptr_offset: 8,
+                inner_type: Primitive(
+                    UnsignedInt(
+                        UnsignedIntLayout {
+                            size: 1,
+                        },
+                    ),
+                ),
+            },
+        ),
+    ),
+)

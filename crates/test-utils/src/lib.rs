@@ -13,6 +13,14 @@ pub fn init_tracing() {
         .try_init();
 }
 
+pub fn init_tracing_and_insta() -> insta::internals::SettingsBindDropGuard {
+    init_tracing();
+    let mut settings = insta::Settings::clone_current();
+    settings.set_prepend_module_to_snapshot(false);
+    add_filters(&mut settings);
+    settings.bind_to_scope()
+}
+
 fn rustup_home() -> String {
     std::env::var("RUSTUP_HOME").unwrap_or_else(|_| {
         // If RUST_HOME is not set, assume it's the default location
