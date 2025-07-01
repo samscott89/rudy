@@ -2,18 +2,18 @@
 
 mod names;
 
+use std::{collections::BTreeMap, path::PathBuf};
+
 use anyhow::{Context, Result};
+use itertools::Itertools;
+pub use names::{RawSymbol, SymbolName, TypeName};
 use object::{Object, ObjectSymbol};
 
-use crate::file::{load, Binary, DebugFile, File};
-use crate::function::FunctionIndex;
-use crate::DwarfDb;
-
-pub use names::{RawSymbol, SymbolName, TypeName};
-use std::collections::BTreeMap;
-use std::path::PathBuf;
-
-use itertools::Itertools;
+use crate::{
+    file::{load, Binary, DebugFile, File},
+    function::FunctionIndex,
+    DwarfDb,
+};
 
 /// Information about a symbol from the symbol table
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]

@@ -3,8 +3,7 @@
 use anyhow::Context as _;
 
 use super::{Parser, Result};
-use crate::Die;
-use crate::DwarfDb;
+use crate::{Die, DwarfDb};
 
 /// Combinator that applies two parsers and combines their results
 pub struct And<P1, P2, T, U> {

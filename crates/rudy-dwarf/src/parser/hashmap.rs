@@ -1,11 +1,13 @@
 //! HashMap parser implementation using combinators
 
-use super::children::parse_children;
-use super::primitives::{attr, entry_type, generic, is_member, is_member_offset, member, offset};
-use super::Parser;
-use crate::Die;
-use crate::DwarfDb;
 use rudy_types::MapVariant;
+
+use super::{
+    children::parse_children,
+    primitives::{attr, entry_type, generic, is_member, is_member_offset, member, offset},
+    Parser,
+};
+use crate::{Die, DwarfDb};
 
 type Result<T> = anyhow::Result<T>;
 

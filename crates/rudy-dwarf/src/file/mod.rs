@@ -1,18 +1,19 @@
-use std::fmt::{self, Debug};
-use std::path::PathBuf;
-use std::sync::Arc;
+use std::{
+    fmt::{self, Debug},
+    path::PathBuf,
+    sync::Arc,
+};
 
 use memmap2::Mmap;
-use object::read::archive::ArchiveFile;
-use object::Object;
+use object::{read::archive::ArchiveFile, Object};
 
 pub(crate) mod index;
 pub(crate) mod loader;
 
-use crate::DwarfDb;
-
 pub use index::index_debug_file_sources;
 pub(crate) use loader::{Dwarf, DwarfReader, RawDie};
+
+use crate::DwarfDb;
 
 pub type Expression = gimli::Expression<DwarfReader>;
 

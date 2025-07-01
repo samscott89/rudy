@@ -8,20 +8,19 @@ pub(crate) mod utils;
 use std::fmt;
 
 use anyhow::Context;
+pub(crate) use cu::CompilationUnitId;
 use gimli::{DebugInfoOffset, UnitOffset, UnitSectionOffset};
+pub(crate) use unit::UnitRef;
+pub(crate) use utils::{file_entry_to_path, get_unit_ref_attr, parse_die_string_attribute};
 
-use crate::DwarfDb;
 use crate::{
     die::utils::pretty_print_die_entry,
     file::{
         loader::{DwarfReader, Offset, RawDie},
         DebugFile, SourceFile, SourceLocation,
     },
+    DwarfDb,
 };
-
-pub(crate) use cu::CompilationUnitId;
-pub(crate) use unit::UnitRef;
-pub(crate) use utils::{file_entry_to_path, get_unit_ref_attr, parse_die_string_attribute};
 
 /// References a specific DWARF debugging information entry
 #[salsa::interned(debug)]

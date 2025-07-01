@@ -1,9 +1,7 @@
 //! Children parsing combinators and implementations
 
 use super::{Parser, Result};
-use crate::parser::combinators::Map;
-use crate::Die;
-use crate::DwarfDb;
+use crate::{parser::combinators::Map, Die, DwarfDb};
 
 /// Unified parser for tuples of parsers applied to children
 pub struct ParseChildren<T> {

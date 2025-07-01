@@ -2,6 +2,9 @@
 
 use std::sync::Arc;
 
+use anyhow::Context;
+use rudy_types::*;
+
 use crate::{
     parser::{
         btreemap::btree_map,
@@ -17,9 +20,6 @@ use crate::{
     types::get_die_typename,
     Die, DwarfDb,
 };
-use rudy_types::*;
-
-use anyhow::Context;
 
 type Result<T> = std::result::Result<T, crate::Error>;
 
@@ -649,8 +649,7 @@ mod test {
     }
 
     fn create_test_binary() -> String {
-        use std::fs;
-        use std::process::Command;
+        use std::{fs, process::Command};
 
         let test_code = r#"
     use std::collections::HashMap;

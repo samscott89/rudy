@@ -1,8 +1,11 @@
 //! Query functions for looking up debug information
 
-use crate::database::Db;
-use crate::index::{self, find_all_by_address};
 use rudy_dwarf::{Binary, SymbolName};
+
+use crate::{
+    database::Db,
+    index::{self, find_all_by_address},
+};
 
 #[salsa::tracked]
 pub fn lookup_position<'db>(

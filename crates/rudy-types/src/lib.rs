@@ -1,7 +1,6 @@
 //! Definition of types in the Rust language.
 
-use std::mem::size_of;
-use std::sync::Arc;
+use std::{mem::size_of, sync::Arc};
 
 use itertools::Itertools;
 use salsa::Update;

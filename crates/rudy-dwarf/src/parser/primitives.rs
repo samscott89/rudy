@@ -1,11 +1,12 @@
 //! DWARF-specific primitive parsers and utilities
 
-use super::{Parser, Result};
-use crate::Die;
-use crate::DwarfDb;
+use std::sync::Arc;
+
 use anyhow::Context as _;
 use rudy_types::*;
-use std::sync::Arc;
+
+use super::{Parser, Result};
+use crate::{Die, DwarfDb};
 
 /// Parser for getting offset values
 pub fn offset() -> Offset {

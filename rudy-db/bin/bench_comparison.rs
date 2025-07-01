@@ -2,10 +2,13 @@
 //!
 //! Run with: cargo bench --bench comparison
 
+use std::{
+    process::Command,
+    time::{Duration, Instant},
+};
+
 use anyhow::Result;
 use rudy_db::{DebugDb, DebugInfo};
-use std::process::Command;
-use std::time::{Duration, Instant};
 
 /// Function names to look up - these match what we generate in test binaries
 const TEST_FUNCTIONS: &[&str] = &[
@@ -327,8 +330,7 @@ fn get_process_memory_mb() -> f64 {
     // Get current process memory usage
     #[cfg(target_os = "macos")]
     {
-        use std::mem;
-        use std::os::raw::c_int;
+        use std::{mem, os::raw::c_int};
 
         #[repr(C)]
         struct RUsage {

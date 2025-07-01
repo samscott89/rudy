@@ -1,7 +1,13 @@
 //! Enum parser implementation using combinators
 
-use crate::Die;
-use crate::DwarfDb;
+use std::sync::Arc;
+
+use anyhow::Result;
+use rudy_types::{
+    CEnumLayout, CEnumVariant, Discriminant, DiscriminantType, EnumLayout, EnumVariantLayout,
+    PrimitiveLayout, TypeLayout,
+};
+
 use crate::{
     parser::{
         children::{for_each_child, parse_children},
@@ -13,14 +19,8 @@ use crate::{
         Parser,
     },
     types::resolve_entry_type,
+    Die, DwarfDb,
 };
-use rudy_types::{
-    CEnumLayout, CEnumVariant, Discriminant, DiscriminantType, EnumLayout, EnumVariantLayout,
-    PrimitiveLayout, TypeLayout,
-};
-use std::sync::Arc;
-
-use anyhow::Result;
 
 /// Parser for discriminant information
 ///

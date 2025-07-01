@@ -2,7 +2,6 @@
 
 use std::collections::BTreeMap;
 
-use crate::database::Db;
 use anyhow::Context;
 use itertools::Itertools;
 use rudy_dwarf::{
@@ -14,6 +13,8 @@ use rudy_dwarf::{
     types::resolve_type_offset,
 };
 use rudy_types::TypeLayout;
+
+use crate::database::Db;
 
 #[salsa::tracked(debug)]
 pub struct Index<'db> {

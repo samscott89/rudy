@@ -2,9 +2,10 @@
 //!
 //! This benchmark measures specific operations to show our strengths
 
+use std::time::{Duration, Instant};
+
 use anyhow::Result;
 use rudy_db::{DebugDb, DebugInfo};
-use std::time::{Duration, Instant};
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<()> {

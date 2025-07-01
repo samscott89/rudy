@@ -26,17 +26,19 @@
 //! - The tree is traversed in-order (left edge, key/value, right edge)
 //! - Zero-sized types need special handling
 
-use super::primitives::entry_type;
-use super::Parser;
-use crate::parser::children::parse_children;
-use crate::parser::option::parse_option_entry;
-use crate::parser::pointers::nonnull;
-use crate::parser::primitives::{is_member, member, offset, resolved_generic};
-use crate::Die;
-use crate::DwarfDb;
+use anyhow::Result;
 use rudy_types::{BTreeNodeLayout, BTreeRootLayout, MapLayout, MapVariant};
 
-use anyhow::Result;
+use super::{primitives::entry_type, Parser};
+use crate::{
+    parser::{
+        children::parse_children,
+        option::parse_option_entry,
+        pointers::nonnull,
+        primitives::{is_member, member, offset, resolved_generic},
+    },
+    Die, DwarfDb,
+};
 
 /// Parser for btree BTreeMap layout
 pub fn btree_map() -> BTreeMapParser {

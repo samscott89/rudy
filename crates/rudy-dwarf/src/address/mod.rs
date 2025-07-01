@@ -2,8 +2,7 @@ mod resolution;
 
 use std::fmt;
 
-pub(crate) use resolution::address_to_location;
-pub(crate) use resolution::location_to_address;
+pub(crate) use resolution::{address_to_location, location_to_address};
 
 use crate::file::DebugFile;
 

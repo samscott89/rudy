@@ -4,8 +4,10 @@ mod index;
 mod variables;
 
 use anyhow::Context as _;
+pub use index::{function_index, FunctionData, FunctionIndex, FunctionIndexEntry};
 use itertools::Itertools;
 use rudy_types::{PrimitiveLayout, ReferenceLayout, TypeLayout, UnitLayout};
+pub use variables::{resolve_function_variables, Variable};
 
 use crate::{
     die::{
@@ -22,9 +24,6 @@ use crate::{
     },
     Die, DwarfDb,
 };
-
-pub use index::{function_index, FunctionData, FunctionIndex, FunctionIndexEntry};
-pub use variables::{resolve_function_variables, Variable};
 
 type Result<T> = std::result::Result<T, super::Error>;
 

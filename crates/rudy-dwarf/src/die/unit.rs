@@ -1,12 +1,12 @@
-use std::hash::Hash;
-use std::path::PathBuf;
+use std::{hash::Hash, path::PathBuf};
 
 use gimli::{Unit, UnitSectionOffset};
 
-use crate::die::utils::get_dwarf;
-use crate::file::DebugFile;
-use crate::file::DwarfReader;
-use crate::DwarfDb;
+use crate::{
+    die::utils::get_dwarf,
+    file::{DebugFile, DwarfReader},
+    DwarfDb,
+};
 
 pub type UnitRef<'a, R = DwarfReader> = gimli::UnitRef<'a, R>;
 

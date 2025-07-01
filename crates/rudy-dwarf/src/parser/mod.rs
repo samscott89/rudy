@@ -4,9 +4,10 @@
 //! and extract type layout information. It aims to replace the brittle
 //! manual field traversal with a more robust and reusable approach.
 
-use crate::parser::combinators::{Filter, MapWithDbAndEntry};
-use crate::Die;
-use crate::DwarfDb;
+use crate::{
+    parser::combinators::{Filter, MapWithDbAndEntry},
+    Die, DwarfDb,
+};
 
 // Module structure
 pub mod btreemap;

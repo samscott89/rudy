@@ -46,9 +46,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use rudy_dwarf::DwarfDb;
-
-use rudy_dwarf::{Binary, DebugFile, file::File};
+use rudy_dwarf::{Binary, DebugFile, DwarfDb, file::File};
 
 #[salsa::db]
 pub trait Db: salsa::Database + DwarfDb {}

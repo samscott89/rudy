@@ -6,10 +6,9 @@ mod definitions;
 mod test_utils;
 
 pub use definitions::*;
-pub use test_utils::*;
-
 use itertools::Itertools as _;
 use rudy_db::DataResolver;
+pub use test_utils::*;
 
 #[macro_export]
 macro_rules! function_name {

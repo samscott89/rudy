@@ -4,12 +4,14 @@
 #[macro_use]
 pub mod common;
 
-use common::*;
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use anyhow::Result;
+use common::*;
 use rudy_db::{DataResolver, DebugDb, DebugInfo, Value};
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
 
 /// Macro that approximates finding a variable in the current process
 /// and reading it from raw memory.

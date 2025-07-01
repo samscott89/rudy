@@ -1,9 +1,12 @@
 //! Vec parser implementation using combinators
 
-use super::children::parse_children;
-use super::primitives::{field_path_offset, is_member_offset, resolved_generic};
-use super::Parser;
 use rudy_types::VecLayout;
+
+use super::{
+    children::parse_children,
+    primitives::{field_path_offset, is_member_offset, resolved_generic},
+    Parser,
+};
 
 /// Parser for Vec<T> type layout
 pub fn vec<'db>() -> impl Parser<'db, VecLayout> {

@@ -68,9 +68,10 @@
 //! Methods requiring system calls, file I/O, network access, or complex
 //! computations should use actual method execution instead.
 
-use crate::{DataResolver, Value};
 use anyhow::{Result, anyhow};
 use rudy_types::{StdLayout, TypeLayout};
+
+use crate::{DataResolver, Value};
 
 /// A synthetic method that can be evaluated without execution
 #[derive(Debug, Clone)]

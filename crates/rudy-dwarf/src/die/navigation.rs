@@ -8,8 +8,10 @@ use super::{
     utils::{file_entry_to_path, get_dwarf, to_range},
     CompilationUnitId,
 };
-use crate::file::SourceFile;
-use crate::{file::DebugFile, DwarfDb};
+use crate::{
+    file::{DebugFile, SourceFile},
+    DwarfDb,
+};
 
 /// Root compilation unit information
 #[salsa::tracked]

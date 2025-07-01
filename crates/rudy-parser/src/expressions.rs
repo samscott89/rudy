@@ -4,9 +4,10 @@
 //! debugger evaluation. Supports field access, array indexing, dereferencing,
 //! and other common expression forms.
 
+use std::fmt;
+
 use anyhow::{Result, anyhow};
 use itertools::Itertools;
-use std::fmt;
 
 /// Represents a parsed expression
 #[derive(Debug, Clone, PartialEq)]

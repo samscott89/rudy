@@ -1,19 +1,16 @@
 //! Data resolver trait for reading variables from memory during debugging.
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use anyhow::{Context, Result};
-
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
-use crate::Value;
-use crate::database::Db;
-use crate::outputs::TypedPointer;
 use rudy_dwarf::Die;
 use rudy_types::{
     ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
     PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
     StrSliceLayout, TypeLayout, VecLayout,
 };
+
+use crate::{Value, database::Db, outputs::TypedPointer};
 
 /// Trait for resolving data from memory during debugging.
 ///

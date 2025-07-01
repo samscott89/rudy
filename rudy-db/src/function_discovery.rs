@@ -1,12 +1,13 @@
-use anyhow::Result;
-use rudy_types::TypeLayout;
 use std::collections::BTreeMap;
 
-use crate::{DiscoveredMethod, TypedPointer, database::Db};
+use anyhow::Result;
 use rudy_dwarf::{
     Binary,
     function::{FunctionSignature, resolve_function_signature},
 };
+use rudy_types::TypeLayout;
+
+use crate::{DiscoveredMethod, TypedPointer, database::Db};
 
 /// Result of analyzing a symbol for method discovery
 #[derive(Debug, Clone)]

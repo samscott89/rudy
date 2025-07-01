@@ -3,7 +3,6 @@
 use std::fmt;
 
 use anyhow::Context;
-
 use rudy_parser as parser;
 use rudy_types::TypeLayout;
 

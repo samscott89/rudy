@@ -1,6 +1,10 @@
-use anyhow::{Context, Result};
-use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
 use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
+
+use anyhow::{Context, Result};
+use rudy_dwarf::{
+    DebugFile, Die, SourceFile, function::resolve_function_variables, types::resolve_type_offset,
+};
+use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
 
 use crate::{
     DiscoveredMethod, ResolvedLocation,
@@ -9,9 +13,6 @@ use crate::{
     index,
     outputs::{ResolvedFunction, TypedPointer},
     query::{lookup_address, lookup_position},
-};
-use rudy_dwarf::{
-    DebugFile, Die, SourceFile, function::resolve_function_variables, types::resolve_type_offset,
 };
 
 /// Main interface for accessing debug information from binary files.

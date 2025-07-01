@@ -2,13 +2,12 @@
 
 use gimli::UnitSectionOffset;
 
+use super::unit::UnitRef;
 use crate::{
     die::utils::{get_lang_attr, pretty_print_die_entry},
     file::{DebugFile, RawDie},
     DwarfDb,
 };
-
-use super::unit::UnitRef;
 
 /// References a specific compilation unit in a DWARF file
 #[salsa::interned(debug)]

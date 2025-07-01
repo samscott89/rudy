@@ -2,9 +2,7 @@
 
 use anyhow::{Context, Result};
 
-use crate::file::Expression;
-use crate::Die;
-use crate::DwarfDb;
+use crate::{file::Expression, Die, DwarfDb};
 
 /// Get location expression from a DIE entry
 #[salsa::tracked]

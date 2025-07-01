@@ -1,9 +1,9 @@
 use super::Die;
-use crate::die::navigation::get_roots;
-use crate::die::UnitRef;
-use crate::file::DebugFile;
-use crate::file::{DwarfReader, RawDie};
-use crate::DwarfDb;
+use crate::{
+    die::{navigation::get_roots, UnitRef},
+    file::{DebugFile, DwarfReader, RawDie},
+    DwarfDb,
+};
 
 /// Walker that drives the visitor through the DIE tree
 pub struct DieWalker<'a, 'db, V> {
@@ -394,10 +394,10 @@ pub trait DieVisitor<'db>: Sized {
 
 #[cfg(test)]
 mod test {
-    use crate::die::utils::get_string_attr;
+    use itertools::Itertools;
 
     use super::*;
-    use itertools::Itertools;
+    use crate::die::utils::get_string_attr;
 
     struct TestVisitor {
         pub visited: Vec<String>,

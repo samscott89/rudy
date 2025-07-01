@@ -2,6 +2,9 @@
 
 use std::sync::Arc;
 
+use anyhow::Result;
+use rudy_types::{Discriminant, OptionLayout};
+
 use super::Parser;
 use crate::{
     parser::{
@@ -12,9 +15,6 @@ use crate::{
     },
     Die, DwarfDb,
 };
-use rudy_types::{Discriminant, OptionLayout};
-
-use anyhow::Result;
 
 pub struct OptionDefParser;
 

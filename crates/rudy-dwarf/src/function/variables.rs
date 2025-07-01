@@ -1,5 +1,7 @@
 //! Variable resolution from DWARF debugging information
 
+use rudy_types::TypeLayout;
+
 use crate::{
     die::{position, UnitRef},
     file::{loader::RawDie, SourceLocation},
@@ -13,8 +15,6 @@ use crate::{
     visitor::{self, DieVisitor},
     Die, DwarfDb,
 };
-
-use rudy_types::TypeLayout;
 
 type Result<T> = std::result::Result<T, crate::Error>;
 

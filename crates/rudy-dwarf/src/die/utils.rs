@@ -6,12 +6,11 @@ use anyhow::{Context, Result};
 use gimli::Reader;
 use itertools::Itertools;
 
+use super::unit::UnitRef;
 use crate::file::{
     loader::{Dwarf, DwarfReader, Offset, RawDie},
     File,
 };
-
-use super::unit::UnitRef;
 
 pub fn get_dwarf(db: &dyn crate::DwarfDb, file: File) -> Option<&Dwarf> {
     let loaded = crate::file::load(db, file).as_ref().ok()?;

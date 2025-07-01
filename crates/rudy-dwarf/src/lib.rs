@@ -21,16 +21,15 @@ pub mod visitor;
 pub mod test_utils;
 
 // Essential re-exports for convenience
-pub use gimli;
+use std::path::{Path, PathBuf};
 
 // Core types that most users will need
 pub use die::Die;
 pub use error::Error;
 pub use file::{Binary, DebugFile, SourceFile};
+pub use gimli;
 pub use symbols::{SymbolName, TypeName};
 pub use types::{find_type_by_name, get_die_typename};
-
-use std::path::{Path, PathBuf};
 
 // Database trait that this crate requires
 #[salsa::db]
