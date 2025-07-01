@@ -43,64 +43,15 @@
 //! in via making the Binary file and all object files inputs -- this way if we recompile the
 //! binary we can recompute which parts of the binary are the same and which are unchanged.
 
-use std::{fmt::Debug, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use rudy_dwarf::DwarfDb;
-use salsa::Accumulator;
 
 use rudy_dwarf::{Binary, DebugFile, File};
 
 #[salsa::db]
-pub trait Db: salsa::Database + DwarfDb {
-    fn report_info(&self, message: String) {
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Info,
-        }
-        .accumulate(self);
-    }
-    fn report_warning(&self, message: String) {
-        tracing::warn!("{message}");
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Warning,
-        }
-        .accumulate(self);
-    }
-    fn report_critical(&self, message: String) {
-        tracing::error!("{message}");
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Critical,
-        }
-        .accumulate(self);
-    }
-    fn report_error(&self, message: String) {
-        tracing::warn!("{message}");
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Error,
-        }
-        .accumulate(self);
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-enum DiagnosticSeverity {
-    /// Errors that we never expect to see
-    /// and imply an internal error.
-    Critical,
-    Error,
-    Warning,
-    Info,
-}
-
-#[salsa::accumulator]
-pub struct Diagnostic {
-    message: String,
-    severity: DiagnosticSeverity,
-}
+pub trait Db: salsa::Database + DwarfDb {}
 
 #[salsa::db]
 #[derive(Clone)]
@@ -121,36 +72,6 @@ impl DebugDbRef {
             source_map: self.source_map,
         }
     }
-}
-
-pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
-    let mut err = None;
-    for d in diagnostics {
-        match d.severity {
-            DiagnosticSeverity::Critical => {
-                if err.is_some() {
-                    tracing::error!("Critical error: {}", d.message);
-                } else {
-                    err = Some(anyhow::anyhow!("Critical error: {}", d.message));
-                }
-            }
-            DiagnosticSeverity::Error => {
-                if err.is_some() {
-                    tracing::error!("Error: {}", d.message);
-                } else {
-                    err = Some(anyhow::anyhow!("Error: {}", d.message));
-                }
-            }
-            DiagnosticSeverity::Warning => {
-                tracing::warn!("Warning: {}", d.message);
-            }
-            DiagnosticSeverity::Info => {
-                tracing::info!("Info: {}", d.message);
-            }
-        }
-    }
-
-    if let Some(e) = err { Err(e) } else { Ok(()) }
 }
 
 // #[salsa::tracked]

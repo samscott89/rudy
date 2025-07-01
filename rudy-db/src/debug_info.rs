@@ -4,14 +4,14 @@ use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
 
 use crate::{
     DiscoveredMethod, ResolvedLocation,
-    database::{Db, Diagnostic, handle_diagnostics},
+    database::Db,
     function_discovery::SymbolAnalysisResult,
     index,
     outputs::{ResolvedFunction, TypedPointer},
     query::{lookup_address, lookup_position},
-    types::{Address, Position},
+    types::Address,
 };
-use rudy_dwarf::{self as dwarf, DebugFile, Die, File, SourceFile, resolve_function_variables};
+use rudy_dwarf::{self as dwarf, DebugFile, Die, SourceFile, resolve_function_variables};
 
 /// Main interface for accessing debug information from binary files.
 ///
@@ -159,9 +159,6 @@ impl<'db> DebugInfo<'db> {
             tracing::debug!("no function found for {function}");
             return Ok(None);
         };
-        let diagnostics: Vec<&Diagnostic> =
-            index::find_closest_function::accumulated(self.db, self.binary, function);
-        handle_diagnostics(&diagnostics)?;
 
         let index = crate::index::debug_index(self.db, self.binary);
         let symbol_index = index.symbol_index(self.db);
@@ -176,9 +173,6 @@ impl<'db> DebugInfo<'db> {
             .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
 
         let params = resolve_function_variables(self.db, fie)?;
-        let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(self.db, fie);
-        handle_diagnostics(&diagnostics)?;
 
         Ok(Some(ResolvedFunction {
             name: name.to_string(),
@@ -331,8 +325,6 @@ impl<'db> DebugInfo<'db> {
         let db = self.db;
         let address = Address::new(db, addr);
         let f = lookup_address(db, self.binary, address);
-        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
-        handle_diagnostics(&diagnostics)?;
 
         let Some((function_name, _loc)) = f else {
             tracing::debug!("no function found for address {:#x}", address.address(db));
@@ -348,8 +340,6 @@ impl<'db> DebugInfo<'db> {
         };
 
         let vars = dwarf::resolve_function_variables(db, fie)?;
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function_variables::accumulated(db, fie);
-        handle_diagnostics(&diagnostics)?;
 
         let base_addr = crate::index::debug_index(db, self.binary)
             .symbol_index(db)
@@ -436,8 +426,6 @@ impl<'db> DebugInfo<'db> {
         let db = self.db;
         let address = Address::new(db, address);
         let f = lookup_address(db, self.binary, address);
-        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
-        handle_diagnostics(&diagnostics)?;
 
         let Some((function_name, loc)) = f else {
             tracing::debug!("no function found for address {:#x}", address.address(db));
@@ -451,8 +439,6 @@ impl<'db> DebugInfo<'db> {
         };
 
         let vars = dwarf::resolve_function_variables(db, fie)?;
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function_variables::accumulated(db, fie);
-        handle_diagnostics(&diagnostics)?;
 
         let base_addr = crate::index::debug_index(db, self.binary)
             .symbol_index(db)

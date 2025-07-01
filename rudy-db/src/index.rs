@@ -96,7 +96,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             )
         })
         .inspect_err(|e| {
-            db.report_critical(format!("Failed to index debug files: {e:?}"));
+            tracing::error!("Failed to index debug files: {e:?}");
         })
     else {
         return Index::new(
