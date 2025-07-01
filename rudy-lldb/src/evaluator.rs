@@ -3,17 +3,19 @@
 //! This module evaluates parsed expressions by looking up debug information
 //! and reading memory through event callbacks.
 
+use std::{cell::RefCell, collections::BTreeMap};
+
 use anyhow::{Context, Result, anyhow};
 use rudy_db::{
     DataResolver, DebugInfo, TypedPointer, Value, evaluate_synthetic_method, get_synthetic_methods,
 };
-use rudy_types::{StdLayout, TypeLayout};
-use std::cell::RefCell;
-use std::collections::BTreeMap;
-
-use crate::protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument};
-use crate::server::ClientConnection;
 use rudy_parser::Expression;
+use rudy_types::{StdLayout, TypeLayout};
+
+use crate::{
+    protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument},
+    server::ClientConnection,
+};
 
 /// Remote client access for synchronous data fetching
 pub struct RemoteDataAccess<'conn> {

@@ -17,6 +17,8 @@ RUN apt-get update && \
 
 # install rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# install cargo-nextest
+RUN curl -LsSf https://get.nexte.st/latest/linux-musl | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 

@@ -1,17 +1,18 @@
-use anyhow::{Context, Result};
-use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
 use std::{collections::BTreeMap, fmt, path::PathBuf, sync::Arc};
+
+use anyhow::{Context, Result};
+use rudy_dwarf::{
+    DebugFile, Die, SourceFile, function::resolve_function_variables, types::resolve_type_offset,
+};
+use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
 
 use crate::{
     DiscoveredMethod, ResolvedLocation,
-    database::{Db, Diagnostic, handle_diagnostics},
-    dwarf::{self, Die, resolve_function_variables},
-    file::DebugFile,
+    database::Db,
     function_discovery::SymbolAnalysisResult,
     index,
     outputs::{ResolvedFunction, TypedPointer},
     query::{lookup_address, lookup_position},
-    types::{Address, Position},
 };
 
 /// Main interface for accessing debug information from binary files.
@@ -23,8 +24,8 @@ use crate::{
 /// binary file and associated debug files.
 #[derive(Clone)]
 pub struct DebugInfo<'db> {
-    pub(crate) binary: crate::file::Binary,
-    debug_files: Vec<crate::file::DebugFile>,
+    pub(crate) binary: rudy_dwarf::Binary,
+    debug_files: Vec<rudy_dwarf::DebugFile>,
     pub(crate) db: &'db crate::database::DebugDatabaseImpl,
 }
 
@@ -107,32 +108,6 @@ impl<'db> DebugInfo<'db> {
         self.resolve_address_to_location(address).unwrap()
     }
 
-    // pub fn resolve_function(&self, name: &str) -> Option<ResolvedAddress> {
-    //     let f = self.lookup_function(name).unwrap()?;
-    //     let address = f.relative_body_address(self.db);
-    //     Some(ResolvedAddress { address })
-    // }
-
-    // pub fn get_source_lines(&self, _address: u64) -> Vec<String> {
-    //     todo!()
-    // }
-
-    // pub fn resolve_variables_at_address(
-    //     &self,
-    //     address: u64,
-    //     data_resolver: &dyn DataResolver,
-    // ) -> (Vec<Variable>, Vec<Variable>, Vec<Variable>) {
-    //     let (locals, params, globals) = self
-    //         .db
-    //         .resolve_variables_at_address(address, data_resolver)
-    //         .unwrap();
-    //     (locals, params, globals)
-    // }
-
-    // pub fn test_get_shape(&self) -> TypeDef<'_> {
-    //     self.db.test_get_shape().unwrap()
-    // }
-
     /// Resolves a function name to its debug information.
     ///
     /// The function name can include module paths using `::` separators.
@@ -160,9 +135,6 @@ impl<'db> DebugInfo<'db> {
             tracing::debug!("no function found for {function}");
             return Ok(None);
         };
-        let diagnostics: Vec<&Diagnostic> =
-            index::find_closest_function::accumulated(self.db, self.binary, function);
-        handle_diagnostics(&diagnostics)?;
 
         let index = crate::index::debug_index(self.db, self.binary);
         let symbol_index = index.symbol_index(self.db);
@@ -177,9 +149,6 @@ impl<'db> DebugInfo<'db> {
             .ok_or_else(|| anyhow::anyhow!("Function not found in index: {name:?}"))?;
 
         let params = resolve_function_variables(self.db, fie)?;
-        let diagnostics: Vec<&Diagnostic> =
-            dwarf::resolve_function_variables::accumulated(self.db, fie);
-        handle_diagnostics(&diagnostics)?;
 
         Ok(Some(ResolvedFunction {
             name: name.to_string(),
@@ -218,10 +187,8 @@ impl<'db> DebugInfo<'db> {
         address: u64,
     ) -> Result<Option<crate::ResolvedLocation>> {
         let db = self.db;
-        let address = Address::new(db, address);
-
         let Some((name, loc)) = lookup_address(db, self.binary, address) else {
-            tracing::debug!("no function found for address {:#x}", address.address(db));
+            tracing::debug!("no function found for address {address:#x}");
             return Ok(None);
         };
 
@@ -263,7 +230,7 @@ impl<'db> DebugInfo<'db> {
         let index = crate::index::debug_index(self.db, self.binary);
 
         let path = PathBuf::from(file.to_string());
-        let source_file = crate::file::SourceFile::new(self.db, path);
+        let source_file = SourceFile::new(self.db, path);
 
         let file = if index.source_to_file(self.db).contains_key(&source_file) {
             // already indexed file, so we can use it directly
@@ -286,7 +253,7 @@ impl<'db> DebugInfo<'db> {
             }
         };
 
-        let query = Position::new(self.db, file, line, column);
+        let query = rudy_dwarf::file::SourceLocation::new(self.db, file, line, column);
         let pos = lookup_position(self.db, self.binary, query);
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }
@@ -315,6 +282,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -325,22 +293,19 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn get_variable_at_pc(
         &self,
-        addr: u64,
+        address: u64,
         name: &str,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<Option<crate::VariableInfo>> {
         let db = self.db;
-        let address = Address::new(db, addr);
         let f = lookup_address(db, self.binary, address);
-        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
-        handle_diagnostics(&diagnostics)?;
 
         let Some((function_name, _loc)) = f else {
-            tracing::debug!("no function found for address {:#x}", address.address(db));
+            tracing::debug!("no function found for address {address:#x}");
             return Ok(None);
         };
 
-        tracing::info!("Address {addr:#08x} found in function {function_name}");
+        tracing::info!("Address {address:#08x} found in function {function_name}");
 
         let index = crate::index::debug_index(db, self.binary);
         let Some((_, fie)) = index.get_function(db, &function_name) else {
@@ -348,9 +313,7 @@ impl<'db> DebugInfo<'db> {
             return Ok(None);
         };
 
-        let vars = dwarf::resolve_function_variables(db, fie)?;
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function_variables::accumulated(db, fie);
-        handle_diagnostics(&diagnostics)?;
+        let vars = resolve_function_variables(db, fie)?;
 
         let base_addr = crate::index::debug_index(db, self.binary)
             .symbol_index(db)
@@ -415,6 +378,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -435,13 +399,10 @@ impl<'db> DebugInfo<'db> {
         Vec<crate::VariableInfo>,
     )> {
         let db = self.db;
-        let address = Address::new(db, address);
         let f = lookup_address(db, self.binary, address);
-        let diagnostics: Vec<&Diagnostic> = lookup_address::accumulated(db, self.binary, address);
-        handle_diagnostics(&diagnostics)?;
 
         let Some((function_name, loc)) = f else {
-            tracing::debug!("no function found for address {:#x}", address.address(db));
+            tracing::debug!("no function found for address {address:#x}");
             return Ok(Default::default());
         };
 
@@ -451,9 +412,7 @@ impl<'db> DebugInfo<'db> {
             return Ok(Default::default());
         };
 
-        let vars = dwarf::resolve_function_variables(db, fie)?;
-        let diagnostics: Vec<&Diagnostic> = dwarf::resolve_function_variables::accumulated(db, fie);
-        handle_diagnostics(&diagnostics)?;
+        let vars = resolve_function_variables(db, fie)?;
 
         let base_addr = crate::index::debug_index(db, self.binary)
             .symbol_index(db)
@@ -507,6 +466,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -561,6 +521,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -786,6 +747,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -934,6 +896,7 @@ impl<'db> DebugInfo<'db> {
     /// #     fn base_address(&self) -> u64 { 0 }
     /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
     /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
+    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
     /// # }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
@@ -1029,11 +992,17 @@ fn variable_info<'db>(
     db: &'db dyn Db,
     function: Die<'db>,
     base_address: u64,
-    var: dwarf::Variable<'db>,
+    var: rudy_dwarf::function::Variable<'db>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::VariableInfo> {
     let die = var.origin(db);
-    let location = dwarf::resolve_data_location(db, function, base_address, die, data_resolver)?;
+    let location = rudy_dwarf::expressions::resolve_data_location(
+        db,
+        function,
+        base_address,
+        die,
+        &crate::data::DataResolverExpressionContext(data_resolver),
+    )?;
 
     tracing::debug!("variable info: {:?} at {:?}", var.name(db), location);
 
@@ -1041,7 +1010,7 @@ fn variable_info<'db>(
         TypeLayout::Alias(unresolved_type) => {
             // For type aliases, resolve the actual type
             let entry = Die::from_unresolved_entry(db, die.file(db), unresolved_type);
-            crate::dwarf::resolve_type_offset(db, entry).context("Failed to resolve type alias")?
+            resolve_type_offset(db, entry).context("Failed to resolve type alias")?
         }
         t => t.clone(),
     };

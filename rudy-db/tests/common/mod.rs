@@ -6,10 +6,9 @@ mod definitions;
 mod test_utils;
 
 pub use definitions::*;
-pub use test_utils::*;
-
 use itertools::Itertools as _;
 use rudy_db::DataResolver;
+pub use test_utils::*;
 
 #[macro_export]
 macro_rules! function_name {
@@ -103,6 +102,6 @@ impl DataResolver for SelfProcessResolver {
 
     #[cfg(not(target_os = "linux"))]
     fn get_stack_pointer(&self) -> anyhow::Result<u64> {
-        todo!()
+        panic!("not supported on this platform");
     }
 }

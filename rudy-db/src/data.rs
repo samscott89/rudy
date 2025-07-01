@@ -1,18 +1,16 @@
 //! Data resolver trait for reading variables from memory during debugging.
 
+use std::{collections::BTreeMap, sync::Arc};
+
 use anyhow::{Context, Result};
-
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
-use crate::database::Db;
-use crate::outputs::TypedPointer;
-use crate::{Value, dwarf::Die};
+use rudy_dwarf::Die;
 use rudy_types::{
     ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
     PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
     StrSliceLayout, TypeLayout, VecLayout,
 };
+
+use crate::{Value, database::Db, outputs::TypedPointer};
 
 /// Trait for resolving data from memory during debugging.
 ///
@@ -34,15 +32,20 @@ use rudy_types::{
 ///     fn base_address(&self) -> u64 {
 ///         self.base
 ///     }
+///
+///     fn get_stack_pointer(&self) -> Result<u64> {
+///         unimplemented!()
+///     }
+///
 ///     
 ///     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
 ///         // Read from target process memory
-///         todo!()
+///         unimplemented!()
 ///     }
 ///     
 ///     fn get_registers(&self) -> Result<Vec<u64>> {
 ///         // Get current register values
-///         todo!()
+///         unimplemented!()
 ///     }
 /// }
 /// ```
@@ -127,12 +130,26 @@ pub trait DataResolver {
     fn get_stack_pointer(&self) -> Result<u64>;
 }
 
+pub(crate) struct DataResolverExpressionContext<'a, T: ?Sized>(pub &'a T);
+
+impl<'a, R: DataResolver + ?Sized> rudy_dwarf::expressions::ExpressionContext
+    for DataResolverExpressionContext<'a, R>
+{
+    fn get_register(&self, register: u16) -> Result<u64> {
+        self.0.get_register(register as usize)
+    }
+
+    fn get_stack_pointer(&self) -> Result<u64> {
+        self.0.get_stack_pointer()
+    }
+}
+
 /// Returns a list of map entries from a memory address.
 pub fn read_map_entries(
     address: u64,
     def: &MapLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &crate::file::DebugFile,
+    debug_file: &rudy_dwarf::DebugFile,
 ) -> Result<Vec<(TypedPointer, TypedPointer)>> {
     tracing::trace!("read_map_entries {address:#x} {}", def.display_name());
 
@@ -261,7 +278,9 @@ pub fn read_map_entries(
             Ok(entries)
         }
         MapVariant::IndexMap => {
-            todo!("read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}")
+            unimplemented!(
+                "read_std_from_memory: MapVariant::IndexMap not implemented yet: {def:#?}"
+            )
         }
     }
 }
@@ -271,7 +290,7 @@ fn read_enum(
     address: u64,
     enum_def: &EnumLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &crate::file::DebugFile,
+    debug_file: &rudy_dwarf::DebugFile,
 ) -> Result<Value> {
     tracing::trace!("read_enum {address:#x} {enum_def:#?}");
 
@@ -469,7 +488,7 @@ pub fn read_from_memory(
     address: u64,
     ty: &TypeLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &crate::file::DebugFile,
+    debug_file: &rudy_dwarf::DebugFile,
 ) -> Result<Value> {
     tracing::trace!("read_from_memory {address:#x} {}", ty.display_name());
     match &ty {
@@ -503,7 +522,7 @@ pub fn read_from_memory(
         TypeLayout::Alias(entry) => {
             // For aliases, we'll resolve the underlying type and read that
             let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-            let underlying_type = crate::dwarf::resolve_type_offset(db, entry)?;
+            let underlying_type = rudy_dwarf::types::resolve_type_offset(db, entry)?;
             // now read the memory itself
             read_from_memory(db, address, &underlying_type, data_resolver, debug_file)
         }
@@ -549,7 +568,7 @@ fn read_primitive_from_memory(
     address: u64,
     def: &PrimitiveLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &crate::file::DebugFile,
+    debug_file: &rudy_dwarf::DebugFile,
 ) -> Result<Value> {
     let value = match def {
         PrimitiveLayout::Bool(_) => {
@@ -580,7 +599,7 @@ fn read_primitive_from_memory(
             let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(crate::dwarf::resolve_type_offset(db, entry)?)
+                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
             } else {
                 element_type.clone()
             };
@@ -629,7 +648,7 @@ fn read_primitive_from_memory(
             let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(crate::dwarf::resolve_type_offset(db, entry)?)
+                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
             } else {
                 element_type.clone()
             };
@@ -748,10 +767,12 @@ fn read_primitive_from_memory(
             }
         }
         PrimitiveLayout::Str(()) => {
-            todo!("read_primitive_from_memory: bare `str` is not supported yet");
+            unimplemented!("read_primitive_from_memory: bare `str` is not supported yet");
         }
         PrimitiveLayout::Tuple(tuple_def) => {
-            todo!("read_primitive_from_memory: TupleDef not implemented yet: {tuple_def:#?}");
+            unimplemented!(
+                "read_primitive_from_memory: TupleDef not implemented yet: {tuple_def:#?}"
+            );
         }
         PrimitiveLayout::Unit(_) => {
             // The Unit type is a zero-sized type, so we return a placeholder value.
@@ -770,7 +791,7 @@ fn read_option_from_memory(
     address: u64,
     opt_def: &OptionLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &crate::file::DebugFile,
+    debug_file: &rudy_dwarf::DebugFile,
 ) -> Result<Value> {
     let OptionLayout {
         discriminant,
@@ -808,7 +829,7 @@ fn read_std_from_memory(
     address: u64,
     def: &StdLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &crate::file::DebugFile,
+    debug_file: &rudy_dwarf::DebugFile,
 ) -> Result<Value> {
     let value = match def {
         StdLayout::Option(enum_def) => {
@@ -828,7 +849,7 @@ fn read_std_from_memory(
             let element_type = if let TypeLayout::Alias(entry) = inner_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(crate::dwarf::resolve_type_offset(db, entry)?)
+                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
             } else {
                 inner_type.clone()
             };
@@ -917,11 +938,11 @@ fn read_std_from_memory(
                     .wrap_type(s.variant.name())
             }
             _ => {
-                todo!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
+                unimplemented!("read_std_from_memory: SmartPtrVariant not implemented yet: {s:#?}")
             }
         },
         StdLayout::Result(result_def) => {
-            todo!("read_std_from_memory: ResultDef not implemented yet: {result_def:#?}")
+            unimplemented!("read_std_from_memory: ResultDef not implemented yet: {result_def:#?}")
         }
     };
 
@@ -937,7 +958,7 @@ fn read_btree_node_entries(
     value_type: &std::sync::Arc<TypeLayout>,
     node_layout: &BTreeNodeLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &crate::file::DebugFile,
+    debug_file: &rudy_dwarf::DebugFile,
     entries: &mut Vec<(TypedPointer, TypedPointer)>,
 ) -> Result<()> {
     tracing::trace!("read_btree_node_entries at {node_ptr:#x}, height: {height}");

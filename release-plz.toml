@@ -2,3 +2,8 @@
 name = "xtask"
 release = false
 publish = false
+
+[[package]]
+name = "test-utils"
+release = false
+publish = false

@@ -1,8 +1,8 @@
 //! Type parsing using unsynn
 
-use itertools::Itertools;
 use std::{fmt, sync::Arc};
 
+use itertools::Itertools;
 use rudy_types::*;
 use unsynn::*;
 
@@ -810,7 +810,6 @@ mod test {
 
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
-
     use rudy_types::*;
 
     use super::*;

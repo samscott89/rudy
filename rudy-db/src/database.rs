@@ -43,85 +43,13 @@
 //! in via making the Binary file and all object files inputs -- this way if we recompile the
 //! binary we can recompute which parts of the binary are the same and which are unchanged.
 
-use std::{fmt::Debug, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
-use salsa::Accumulator;
-
-use crate::file::{Binary, DebugFile, File};
+use rudy_dwarf::{Binary, DebugFile, DwarfDb, file::File};
 
 #[salsa::db]
-pub trait Db: salsa::Database {
-    fn report_info(&self, message: String) {
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Info,
-        }
-        .accumulate(self);
-    }
-    fn report_warning(&self, message: String) {
-        tracing::warn!("{message}");
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Warning,
-        }
-        .accumulate(self);
-    }
-    fn report_critical(&self, message: String) {
-        tracing::error!("{message}");
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Critical,
-        }
-        .accumulate(self);
-    }
-    fn report_error(&self, message: String) {
-        tracing::warn!("{message}");
-        Diagnostic {
-            message,
-            severity: DiagnosticSeverity::Error,
-        }
-        .accumulate(self);
-    }
-
-    fn upcast(&self) -> &dyn Db;
-
-    /// Returns a map from source to destination paths
-    /// for any remapped source/debugging files.
-    fn get_source_map(&self) -> &[(PathBuf, PathBuf)];
-
-    fn remap_path(&self, path: &std::path::Path) -> PathBuf {
-        let mut path = path.to_path_buf();
-        for (source, target) in self.get_source_map() {
-            if let Ok(stripped) = path.strip_prefix(source) {
-                tracing::debug!(
-                    "Remapping {} from {} to {}",
-                    path.display(),
-                    source.display(),
-                    target.display()
-                );
-                path = target.join(stripped);
-            }
-        }
-        path
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-enum DiagnosticSeverity {
-    /// Errors that we never expect to see
-    /// and imply an internal error.
-    Critical,
-    Error,
-    Warning,
-    Info,
-}
-
-#[salsa::accumulator]
-pub struct Diagnostic {
-    message: String,
-    severity: DiagnosticSeverity,
-}
+pub trait Db: salsa::Database + DwarfDb {}
 
 #[salsa::db]
 #[derive(Clone)]
@@ -143,42 +71,6 @@ impl DebugDbRef {
         }
     }
 }
-
-pub fn handle_diagnostics(diagnostics: &[&Diagnostic]) -> Result<()> {
-    let mut err = None;
-    for d in diagnostics {
-        match d.severity {
-            DiagnosticSeverity::Critical => {
-                if err.is_some() {
-                    tracing::error!("Critical error: {}", d.message);
-                } else {
-                    err = Some(anyhow::anyhow!("Critical error: {}", d.message));
-                }
-            }
-            DiagnosticSeverity::Error => {
-                if err.is_some() {
-                    tracing::error!("Error: {}", d.message);
-                } else {
-                    err = Some(anyhow::anyhow!("Error: {}", d.message));
-                }
-            }
-            DiagnosticSeverity::Warning => {
-                tracing::warn!("Warning: {}", d.message);
-            }
-            DiagnosticSeverity::Info => {
-                tracing::info!("Info: {}", d.message);
-            }
-        }
-    }
-
-    if let Some(e) = err { Err(e) } else { Ok(()) }
-}
-
-// #[salsa::tracked]
-// fn initialize<'db>(db: &'db dyn Db) {
-//     // Generate the index on startup to save time
-//     let _ = index::build_index(db);
-// }
 
 impl Default for DebugDatabaseImpl {
     fn default() -> Self {
@@ -237,12 +129,11 @@ impl DebugDatabaseImpl {
 impl salsa::Database for DebugDatabaseImpl {}
 
 #[salsa::db]
-impl Db for DebugDatabaseImpl {
-    fn upcast(&self) -> &dyn Db {
-        self
-    }
-
+impl DwarfDb for DebugDatabaseImpl {
     fn get_source_map(&self) -> &[(PathBuf, PathBuf)] {
         &self.source_map
     }
 }
+
+#[salsa::db]
+impl Db for DebugDatabaseImpl {}

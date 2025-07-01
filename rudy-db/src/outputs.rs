@@ -2,9 +2,8 @@
 
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
+use rudy_dwarf::{file::DebugFile, function::SelfType};
 use rudy_types::TypeLayout;
-
-use crate::{SelfType, file::DebugFile};
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]

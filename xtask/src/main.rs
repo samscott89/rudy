@@ -1,9 +1,7 @@
+use std::{fs, io::Write, path::PathBuf, process::Command};
+
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
-use std::process::Command;
 
 mod benchmarks;
 
@@ -48,6 +46,8 @@ enum Commands {
     },
     /// Run Linux tests using Docker
     TestLinux,
+    /// Applies an unstable/aggressive formatting option that groups imports together
+    MergeImports,
 }
 
 fn main() -> Result<()> {
@@ -59,7 +59,19 @@ fn main() -> Result<()> {
         Commands::CleanDocker { images } => clean_docker(images),
         Commands::PublishArtifacts { force } => publish_artifacts(force),
         Commands::DownloadArtifacts { version, force } => download_artifacts(version, force),
-        Commands::TestLinux => run_in_docker("x86_64-unknown-linux-gnu", "cargo test -p rudy-db"),
+        Commands::TestLinux => run_in_docker("x86_64-unknown-linux-gnu", "cargo nextest run"),
+        Commands::MergeImports => {
+            // run `cargo fmt -- --config group_imports=StdExternalCrate,imports_granularity=Crate`
+            Command::new("cargo")
+                .arg("+nightly")
+                .arg("fmt")
+                .arg("--")
+                .arg("--config")
+                .arg("group_imports=StdExternalCrate,imports_granularity=Crate")
+                .status()
+                .context("Failed to format imports")
+                .map(drop)
+        }
     }
 }
 

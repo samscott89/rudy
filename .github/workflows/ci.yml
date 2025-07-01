@@ -1,7 +1,10 @@
 name: Rust CI checks
 on:
-  push:
   pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
 
 env:
   CARGO_TERM_COLOR: always
