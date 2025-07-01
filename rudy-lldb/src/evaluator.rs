@@ -69,6 +69,10 @@ impl<'conn> DataResolver for RemoteDataAccess<'conn> {
         }
     }
 
+    fn get_stack_pointer(&self) -> Result<u64> {
+        Err(anyhow!("get_stack_pointer() not implemented"))
+    }
+
     fn get_registers(&self) -> Result<Vec<u64>> {
         // This method is supposed to return all available registers
         // For now, we'll return an error since we don't have a way to get all registers
