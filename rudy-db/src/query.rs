@@ -2,7 +2,6 @@
 
 use crate::database::Db;
 use crate::index::{self, find_all_by_address};
-use crate::types::Address;
 use rudy_dwarf::{Binary, SymbolName};
 
 #[salsa::tracked]
@@ -51,15 +50,13 @@ pub fn lookup_position<'db>(
     closest_match
 }
 
-#[tracing::instrument(skip_all, fields(binary=binary.name(db), address=address.address(db)))]
+#[tracing::instrument(skip_all, fields(binary=binary.name(db), address=address))]
 #[salsa::tracked]
 pub fn lookup_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
-    address: Address<'db>,
+    address: u64,
 ) -> Option<(SymbolName, rudy_dwarf::file::SourceLocation<'db>)> {
-    let address = address.address(db);
-
     let mut results = find_all_by_address(db, binary, address);
 
     if results.len() > 1 {

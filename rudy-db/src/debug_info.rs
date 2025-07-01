@@ -9,7 +9,6 @@ use crate::{
     index,
     outputs::{ResolvedFunction, TypedPointer},
     query::{lookup_address, lookup_position},
-    types::Address,
 };
 use rudy_dwarf::{
     DebugFile, Die, SourceFile, function::resolve_function_variables, types::resolve_type_offset,
@@ -187,10 +186,8 @@ impl<'db> DebugInfo<'db> {
         address: u64,
     ) -> Result<Option<crate::ResolvedLocation>> {
         let db = self.db;
-        let address = Address::new(db, address);
-
         let Some((name, loc)) = lookup_address(db, self.binary, address) else {
-            tracing::debug!("no function found for address {:#x}", address.address(db));
+            tracing::debug!("no function found for address {address:#x}");
             return Ok(None);
         };
 
@@ -294,20 +291,19 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn get_variable_at_pc(
         &self,
-        addr: u64,
+        address: u64,
         name: &str,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<Option<crate::VariableInfo>> {
         let db = self.db;
-        let address = Address::new(db, addr);
         let f = lookup_address(db, self.binary, address);
 
         let Some((function_name, _loc)) = f else {
-            tracing::debug!("no function found for address {:#x}", address.address(db));
+            tracing::debug!("no function found for address {address:#x}");
             return Ok(None);
         };
 
-        tracing::info!("Address {addr:#08x} found in function {function_name}");
+        tracing::info!("Address {address:#08x} found in function {function_name}");
 
         let index = crate::index::debug_index(db, self.binary);
         let Some((_, fie)) = index.get_function(db, &function_name) else {
@@ -400,11 +396,10 @@ impl<'db> DebugInfo<'db> {
         Vec<crate::VariableInfo>,
     )> {
         let db = self.db;
-        let address = Address::new(db, address);
         let f = lookup_address(db, self.binary, address);
 
         let Some((function_name, loc)) = f else {
-            tracing::debug!("no function found for address {:#x}", address.address(db));
+            tracing::debug!("no function found for address {address:#x}");
             return Ok(Default::default());
         };
 
@@ -994,8 +989,13 @@ fn variable_info<'db>(
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<crate::VariableInfo> {
     let die = var.origin(db);
-    let location =
-        crate::expressions::resolve_data_location(db, function, base_address, die, data_resolver)?;
+    let location = rudy_dwarf::expressions::resolve_data_location(
+        db,
+        function,
+        base_address,
+        die,
+        &crate::data::DataResolverExpressionContext(data_resolver),
+    )?;
 
     tracing::debug!("variable info: {:?} at {:?}", var.name(db), location);
 

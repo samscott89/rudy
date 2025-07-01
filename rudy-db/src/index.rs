@@ -9,7 +9,6 @@ use rudy_dwarf::types::resolve_type_offset;
 use rudy_types::TypeLayout;
 
 use crate::database::Db;
-use rudy_dwarf::address::FunctionAddressInfo;
 use rudy_dwarf::symbols::{DebugFiles, SymbolIndex};
 use rudy_dwarf::{self, SymbolName, TypeName};
 use rudy_dwarf::{Binary, DebugFile, SourceFile};

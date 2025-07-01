@@ -133,6 +133,20 @@ pub trait DataResolver {
     fn get_stack_pointer(&self) -> Result<u64>;
 }
 
+pub(crate) struct DataResolverExpressionContext<'a, T: ?Sized>(pub &'a T);
+
+impl<'a, R: DataResolver + ?Sized> rudy_dwarf::expressions::ExpressionContext
+    for DataResolverExpressionContext<'a, R>
+{
+    fn get_register(&self, register: u16) -> Result<u64> {
+        self.0.get_register(register as usize)
+    }
+
+    fn get_stack_pointer(&self) -> Result<u64> {
+        self.0.get_stack_pointer()
+    }
+}
+
 /// Returns a list of map entries from a memory address.
 pub fn read_map_entries(
     address: u64,

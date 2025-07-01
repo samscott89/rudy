@@ -7,6 +7,7 @@
 pub mod address;
 pub mod die;
 pub mod error;
+pub mod expressions;
 pub mod file;
 pub mod function;
 pub mod index;

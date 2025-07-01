@@ -59,7 +59,7 @@ fn main() -> Result<()> {
         Commands::CleanDocker { images } => clean_docker(images),
         Commands::PublishArtifacts { force } => publish_artifacts(force),
         Commands::DownloadArtifacts { version, force } => download_artifacts(version, force),
-        Commands::TestLinux => run_in_docker("x86_64-unknown-linux-gnu", "cargo nextest"),
+        Commands::TestLinux => run_in_docker("x86_64-unknown-linux-gnu", "cargo nextest run"),
     }
 }
 

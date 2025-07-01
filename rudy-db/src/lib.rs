@@ -30,7 +30,6 @@
 mod data;
 mod database;
 mod debug_info;
-mod expressions;
 mod function_discovery;
 mod index;
 mod outputs;
@@ -38,7 +37,6 @@ mod query;
 mod synthetic_methods;
 #[cfg(test)]
 pub mod test_utils;
-mod types;
 
 // re-exports
 pub use data::DataResolver;
