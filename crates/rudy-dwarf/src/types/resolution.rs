@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use crate::{
-    index::get_die_typename,
     parser::{
         btreemap::btree_map,
         children::parse_children,
@@ -15,6 +14,7 @@ use crate::{
         vec::vec,
         Parser,
     },
+    types::get_die_typename,
     Die, DwarfDb,
 };
 use rudy_types::*;

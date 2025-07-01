@@ -1,8 +1,8 @@
 //! Vec parser implementation using combinators
 
-use super::Parser;
 use super::children::parse_children;
 use super::primitives::{field_path_offset, is_member_offset, resolved_generic};
+use super::Parser;
 use rudy_types::VecLayout;
 
 /// Parser for Vec<T> type layout

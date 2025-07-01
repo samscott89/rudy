@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use object::{Object, ObjectSymbol};
 
 use crate::file::{load, Binary, DebugFile, File};
-use crate::index::FunctionIndex;
+use crate::function::FunctionIndex;
 use crate::DwarfDb;
 
 pub use names::{RawSymbol, SymbolName, TypeName};
@@ -163,7 +163,7 @@ impl SymbolIndex {
         db: &'db dyn DwarfDb,
         debug_file: DebugFile,
     ) -> Option<&'db FunctionIndex<'db>> {
-        Some(crate::index::function_index(
+        Some(crate::function::function_index(
             db,
             debug_file,
             self.symbols_by_file.get(&debug_file)?,

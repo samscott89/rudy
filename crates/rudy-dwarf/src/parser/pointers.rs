@@ -2,8 +2,8 @@
 
 use super::Parser;
 use crate::{
-    Die,
     parser::primitives::{entry_type, is_member_tag, member, offset},
+    Die,
 };
 
 /// Parser for NonNull

@@ -1,5 +1,6 @@
 //! Function resolution and metadata extraction
 
+mod index;
 mod variables;
 
 use anyhow::Context as _;
@@ -13,7 +14,6 @@ use crate::{
     },
     file::RawDie,
     function::variables::variable,
-    index::{FunctionData, FunctionIndexEntry},
     parser::{
         children::{for_each_child, try_for_each_child},
         combinators::all,
@@ -23,6 +23,7 @@ use crate::{
     Die, DwarfDb,
 };
 
+pub use index::{function_index, FunctionData, FunctionIndex, FunctionIndexEntry};
 pub use variables::{resolve_function_variables, Variable};
 
 type Result<T> = std::result::Result<T, super::Error>;

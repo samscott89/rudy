@@ -6,10 +6,12 @@ use memmap2::Mmap;
 use object::read::archive::ArchiveFile;
 use object::Object;
 
+pub(crate) mod index;
 pub(crate) mod loader;
 
 use crate::DwarfDb;
 
+pub use index::index_debug_file_sources;
 pub(crate) use loader::{Dwarf, DwarfReader, RawDie};
 
 pub type Expression = gimli::Expression<DwarfReader>;

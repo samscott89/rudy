@@ -3,7 +3,7 @@
 use crate::{
     die::{position, UnitRef},
     file::{loader::RawDie, SourceLocation},
-    index::FunctionIndexEntry,
+    function::FunctionIndexEntry,
     parser::{
         combinators::all,
         from_fn,

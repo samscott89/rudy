@@ -1,9 +1,9 @@
 //! Children parsing combinators and implementations
 
 use super::{Parser, Result};
-use crate::DwarfDb;
-use crate::Die;
 use crate::parser::combinators::Map;
+use crate::Die;
+use crate::DwarfDb;
 
 /// Unified parser for tuples of parsers applied to children
 pub struct ParseChildren<T> {
@@ -149,9 +149,7 @@ impl_parse_children_for_tuples!(P0, T0, 0, P1, T1, 1);
 impl_parse_children_for_tuples!(P0, T0, 0, P1, T1, 1, P2, T2, 2);
 impl_parse_children_for_tuples!(P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3);
 impl_parse_children_for_tuples!(P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4);
-impl_parse_children_for_tuples!(
-    P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4, P5, T5, 5
-);
+impl_parse_children_for_tuples!(P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4, P5, T5, 5);
 impl_parse_children_for_tuples!(
     P0, T0, 0, P1, T1, 1, P2, T2, 2, P3, T3, 3, P4, T4, 4, P5, T5, 5, P6, T6, 6
 );

@@ -7,11 +7,6 @@ pub(crate) use resolution::location_to_address;
 
 use crate::file::DebugFile;
 
-#[salsa::interned(debug)]
-pub struct Address<'db> {
-    pub address: u64,
-}
-
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct FunctionAddressInfo {
     /// The start address of the function

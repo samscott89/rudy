@@ -10,7 +10,7 @@ pub mod error;
 pub mod expressions;
 pub mod file;
 pub mod function;
-pub mod index;
+pub mod modules;
 pub mod parser;
 pub mod symbols;
 pub mod types;
@@ -28,6 +28,7 @@ pub use die::Die;
 pub use error::Error;
 pub use file::{Binary, DebugFile, SourceFile};
 pub use symbols::{SymbolName, TypeName};
+pub use types::{find_type_by_name, get_die_typename};
 
 use std::path::{Path, PathBuf};
 

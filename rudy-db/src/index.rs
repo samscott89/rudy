@@ -2,16 +2,18 @@
 
 use std::collections::BTreeMap;
 
+use crate::database::Db;
 use anyhow::Context;
 use itertools::Itertools;
-use rudy_dwarf::index::{FunctionIndexEntry, find_type_by_name, index_debug_file_sources};
-use rudy_dwarf::types::resolve_type_offset;
+use rudy_dwarf::{
+    self, Binary, DebugFile, SourceFile, SymbolName, TypeName,
+    file::index_debug_file_sources,
+    find_type_by_name,
+    function::FunctionIndexEntry,
+    symbols::{DebugFiles, SymbolIndex},
+    types::resolve_type_offset,
+};
 use rudy_types::TypeLayout;
-
-use crate::database::Db;
-use rudy_dwarf::symbols::{DebugFiles, SymbolIndex};
-use rudy_dwarf::{self, SymbolName, TypeName};
-use rudy_dwarf::{Binary, DebugFile, SourceFile};
 
 #[salsa::tracked(debug)]
 pub struct Index<'db> {

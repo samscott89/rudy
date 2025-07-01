@@ -2,11 +2,12 @@
 
 use itertools::Itertools;
 
-use crate::die::file_entry_to_path;
-use crate::die::navigation::parse_roots;
-use crate::file::{DebugFile, SourceFile, SourceLocation};
-use crate::index::{FunctionData, FunctionIndex};
-use crate::DwarfDb;
+use crate::{
+    die::{file_entry_to_path, navigation::parse_roots},
+    file::{DebugFile, SourceFile, SourceLocation},
+    function::{FunctionData, FunctionIndex},
+    DwarfDb,
+};
 
 /// Convert an address to source location within a compilation unit
 ///
