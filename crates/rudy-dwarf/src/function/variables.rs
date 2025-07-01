@@ -3,8 +3,8 @@
 use rudy_types::TypeLayout;
 
 use crate::{
-    die::{position, UnitRef},
-    file::{loader::RawDie, SourceLocation},
+    die::position,
+    file::SourceLocation,
     function::FunctionIndexEntry,
     parser::{
         combinators::all,
@@ -45,10 +45,9 @@ struct VariableVisitor<'db> {
 impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
     fn visit_variable<'a>(
         walker: &mut crate::visitor::DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        let entry = walker.get_die(entry);
+        node: crate::visitor::VisitorNode<'a>,
+    ) -> anyhow::Result<()> {
+        let entry = walker.get_die(node.die);
         let db = walker.db;
         tracing::debug!("variable: {}", entry.print(db));
 
@@ -60,14 +59,14 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
                 tracing::warn!("Failed to resolve variable: {e} in {}", entry.location(db));
             }
         }
+        Ok(())
     }
 
     fn visit_parameter<'a>(
         walker: &mut crate::visitor::DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        let entry = walker.get_die(entry);
+        node: crate::visitor::VisitorNode<'a>,
+    ) -> anyhow::Result<()> {
+        let entry = walker.get_die(node.die);
         let db = walker.db;
         tracing::debug!("param: {}", entry.print(db));
         match variable().parse(db, entry) {
@@ -78,6 +77,7 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
                 tracing::warn!("Failed to resolve parameter: {e} in {}", entry.location(db));
             }
         }
+        Ok(())
     }
 }
 

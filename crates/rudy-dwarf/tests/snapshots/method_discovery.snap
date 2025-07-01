@@ -1,0 +1,67 @@
+---
+source: crates/rudy-dwarf/tests/example_visitor.rs
+expression: all_structure
+snapshot_kind: text
+---
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-88889d3634685904.1ejvfiybulk2iv5p6zjkev6hu.0o4j240.rcgu.o ===
+0x000003b2:  namespace 'method_discovery' @  (method_discovery)
+0x000003b7:    structure_type 'Session' @  (method_discovery)
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-88889d3634685904.23bimu0l8u5o8lmb0bbi74nsg.0o4j240.rcgu.o ===
+0x00000480:  namespace 'method_discovery' @  (method_discovery)
+0x00000485:    structure_type 'Session' @  (method_discovery)
+0x000004a6:    structure_type 'Container<method_discovery::Session>' @  (method_discovery)
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-88889d3634685904.b4tlc6v7tbix3znu7ikkf558r.0o4j240.rcgu.o ===
+0x0000002a:  namespace 'method_discovery' @  (method_discovery)
+0x0000002f:    structure_type 'Session' @  (method_discovery)
+0x0000004f:      subprogram 'new' @  (method_discovery)
+0x0000005e:        formal_parameter @  (method_discovery)
+0x00000063:        formal_parameter @  (method_discovery)
+0x00000069:      subprogram 'get_id' @  (method_discovery)
+0x00000078:        formal_parameter @  (method_discovery)
+0x0000007e:      subprogram 'set_name' @  (method_discovery)
+0x00000089:        formal_parameter @  (method_discovery)
+0x0000008e:        formal_parameter @  (method_discovery)
+0x00000095:    namespace '{impl#1}' @  (method_discovery::{impl#1})
+0x0000009a:      subprogram 'describe' @  (method_discovery::{impl#1})
+0x000000b7:        formal_parameter 'self' @  (method_discovery::{impl#1})
+0x000000e3:      subprogram 'description_length' @  (method_discovery::{impl#1})
+0x00000100:        formal_parameter 'self' @  (method_discovery::{impl#1})
+0x00000110:    namespace '{impl#2}' @  (method_discovery::{impl#2})
+0x00000115:      subprogram 'identifier' @  (method_discovery::{impl#2})
+0x00000132:        formal_parameter 'self' @  (method_discovery::{impl#2})
+0x0000015f:    namespace '{impl#3}' @  (method_discovery::{impl#3})
+0x00000164:      subprogram 'fmt' @  (method_discovery::{impl#3})
+0x00000181:        formal_parameter 'self' @  (method_discovery::{impl#3})
+0x0000018f:        formal_parameter 'f' @  (method_discovery::{impl#3})
+0x0000019f:    structure_type 'Container<method_discovery::Session>' @  (method_discovery)
+0x000001bc:      subprogram 'get_session_id' @  (method_discovery)
+0x000001cb:        formal_parameter @  (method_discovery)
+0x000001d2:    subprogram 'process_session' @  (method_discovery)
+0x000001ef:      formal_parameter 'session' @  (method_discovery)
+0x0000021b:    subprogram 'modify_session' @  (method_discovery)
+0x00000234:      formal_parameter 'session' @  (method_discovery)
+0x00000242:      formal_parameter 'new_name' @  (method_discovery)
+0x00000252:    subprogram 'test_all_methods' @  (method_discovery)
+0x00000270:      variable 'session' @  (method_discovery)
+0x000002a2:      variable 'container' @  (method_discovery)
+0x000002b5:    subprogram 'main' @  (method_discovery)
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-88889d3634685904.chtwdl0ogssp28irs1h04w5mu.0o4j240.rcgu.o ===
+0x0000002a:  namespace 'method_discovery' @  (method_discovery)
+0x0000002f:    structure_type 'Container<method_discovery::Session>' @  (method_discovery)
+0x0000004c:      subprogram 'new<method_discovery::Session>' @  (method_discovery)
+0x00000064:        formal_parameter @  (method_discovery)
+0x0000006a:      subprogram 'get<method_discovery::Session>' @  (method_discovery)
+0x00000082:        formal_parameter @  (method_discovery)
+0x00000089:    structure_type 'Session' @  (method_discovery)
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-88889d3634685904.eu376hnvexz98az4caofpbn92.0o4j240.rcgu.o ===
+0x0000002a:  namespace 'method_discovery' @  (method_discovery)
+0x0000002f:    namespace 'utils' @  (method_discovery::utils)
+0x00000034:      subprogram 'validate_session' @  (method_discovery::utils)
+0x00000051:        formal_parameter 'session' @  (method_discovery::utils)
+0x00000060:      subprogram 'format_session' @  (method_discovery::utils)
+0x0000007d:        formal_parameter 'session' @  (method_discovery::utils)
+0x000000aa:    structure_type 'Session' @  (method_discovery)

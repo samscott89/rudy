@@ -1,15 +1,19 @@
 //! Tests for examining DWARF structure to understand method organization
 
-use std::path::PathBuf;
-
 use rudy_dwarf::{
-    test_utils::load_binary,
-    visitor::{walk_file, DieVisitor, DieWalker},
+    parser::{
+        combinators::all,
+        primitives::{die_offset, name, tag},
+        Parser,
+    },
+    visitor::{walk_file, DieVisitor, DieWalker, VisitorNode},
 };
 
 pub mod common;
 
-use common::test_db;
+use common::{load_binary, test_db};
+
+use anyhow::Result;
 
 /// A test visitor for examining DWARF structure in a human-readable format
 /// Useful for understanding how different Rust constructs are represented in DWARF
@@ -53,15 +57,11 @@ impl TestVisitor {
     }
 
     /// Add an entry to the structure
-    fn add_entry(&mut self, tag: gimli::DwTag, name: Option<String>, offset: gimli::UnitOffset) {
+    fn add_entry(&mut self, mut entry: StructureEntry) {
         if self.should_visit() {
-            self.structure.push(StructureEntry {
-                depth: self.depth,
-                tag: format!("{:?}", tag),
-                name,
-                module_path: self.current_path.clone(),
-                offset: format!("{:#x}", offset.0),
-            });
+            entry.depth = self.depth;
+            entry.module_path = self.current_path.clone();
+            self.structure.push(entry);
         }
     }
 
@@ -72,28 +72,30 @@ impl TestVisitor {
         if self.structure.is_empty() {
             output.push_str("No structure found");
             if let Some(target) = &self.target_module {
-                output.push_str(&format!(" for module '{}'", target));
+                output.push_str(&format!(" for module '{target}'",));
             }
             output.push('\n');
             return output;
         }
 
         for entry in &self.structure {
-            let indent = "  ".repeat(entry.depth);
-            let name_part = entry
-                .name
-                .as_ref()
-                .map(|n| format!(" '{}'", n))
-                .unwrap_or_default();
-            let module_part = if entry.module_path.is_empty() {
+            let StructureEntry {
+                depth,
+                tag,
+                name,
+                module_path,
+                offset,
+            } = entry;
+            let indent = "  ".repeat(*depth);
+            let name_part = name.as_ref().map(|n| format!(" '{n}'")).unwrap_or_default();
+            let module_part = if module_path.is_empty() {
                 String::new()
             } else {
-                format!(" ({})", entry.module_path.join("::"))
+                format!(" ({})", module_path.join("::"))
             };
 
             output.push_str(&format!(
-                "{}{}{}{} @ {}\n",
-                indent, entry.tag, name_part, module_part, entry.offset
+                "{offset}:  {indent}{tag}{name_part} @ {module_part}\n",
             ));
         }
 
@@ -101,149 +103,92 @@ impl TestVisitor {
     }
 }
 
-impl<'db> DieVisitor<'db> for TestVisitor {
-    fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
-        // Only visit Rust compilation units
-        if is_rust_cu(walker.db, &die, &unit_ref) {
-            walker.visitor.add_entry(die.tag(), None, die.offset());
-            walker.walk_cu();
-        }
-    }
+fn entry_parser<'db>() -> impl Parser<'db, StructureEntry> {
+    all((tag(), name(), die_offset())).map(|(tag, name, offset)| StructureEntry {
+        depth: 0, // Depth will be set during walking
+        tag: tag.to_string().replace("DW_TAG_", ""),
+        name,
+        module_path: Vec::new(), // Will be filled during walking
+        offset: format!("{offset:#010x}"),
+    })
+}
 
+impl<'db> DieVisitor<'db> for TestVisitor {
     fn visit_namespace<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        if let Ok(Some(namespace_name)) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref) {
+        node: VisitorNode<'a>,
+    ) -> Result<()> {
+        if let Ok(Some(namespace_name)) = node.name() {
             walker.visitor.current_path.push(namespace_name.clone());
-            walker
-                .visitor
-                .add_entry(entry.tag(), Some(namespace_name), entry.offset());
+
+            let entry = walker.parse(node, entry_parser())?;
+
+            walker.visitor.add_entry(entry);
 
             walker.visitor.depth += 1;
-            walker.walk_namespace();
+            walker.walk_namespace()?;
             walker.visitor.depth -= 1;
 
             walker.visitor.current_path.pop();
         }
+        Ok(())
     }
 
     fn visit_struct<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        if let Ok(Some(struct_name)) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref) {
-            walker
-                .visitor
-                .add_entry(entry.tag(), Some(struct_name), entry.offset());
+        node: VisitorNode<'a>,
+    ) -> Result<()> {
+        let entry = walker.parse(node, entry_parser())?;
 
-            walker.visitor.depth += 1;
-            walker.walk_children();
-            walker.visitor.depth -= 1;
-        }
+        walker.visitor.add_entry(entry);
+
+        walker.visitor.depth += 1;
+        walker.walk_children()?;
+        walker.visitor.depth -= 1;
+        Ok(())
     }
 
     fn visit_function<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
-            .ok()
-            .flatten()
-            .or_else(|| {
-                // Try linkage name if regular name is not available
-                get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref)
-                    .ok()
-                    .flatten()
-            });
+        entry: VisitorNode<'a>,
+    ) -> Result<()> {
+        let entry = walker.parse(entry, entry_parser())?;
 
-        walker.visitor.add_entry(entry.tag(), name, entry.offset());
+        walker.visitor.add_entry(entry);
 
         walker.visitor.depth += 1;
-        walker.walk_children();
+        walker.walk_children()?;
         walker.visitor.depth -= 1;
+        Ok(())
     }
 
-    fn visit_enum<'a>(
-        walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        if let Ok(Some(enum_name)) = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref) {
-            walker
-                .visitor
-                .add_entry(entry.tag(), Some(enum_name), entry.offset());
+    fn visit_enum<'a>(walker: &mut DieWalker<'a, 'db, Self>, node: VisitorNode<'a>) -> Result<()> {
+        let entry = walker.parse(node, entry_parser())?;
+        walker.visitor.add_entry(entry);
 
-            walker.visitor.depth += 1;
-            walker.walk_children();
-            walker.visitor.depth -= 1;
-        }
+        walker.visitor.depth += 1;
+        walker.walk_children()?;
+        walker.visitor.depth -= 1;
+        Ok(())
     }
 
     fn visit_variable<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        let var_name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
-            .ok()
-            .flatten();
-        walker
-            .visitor
-            .add_entry(entry.tag(), var_name, entry.offset());
+        node: VisitorNode<'a>,
+    ) -> Result<()> {
+        let entry = walker.parse(node, entry_parser())?;
+        walker.visitor.add_entry(entry);
+        Ok(())
     }
 
     fn visit_parameter<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        let param_name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
-            .ok()
-            .flatten();
-        walker
-            .visitor
-            .add_entry(entry.tag(), param_name, entry.offset());
+        node: VisitorNode<'a>,
+    ) -> Result<()> {
+        let entry = walker.parse(node, entry_parser())?;
+        walker.visitor.add_entry(entry);
+        Ok(())
     }
-}
-
-fn walk_debug_files(path: PathBuf) {
-    let db = test_db(None);
-    let db = &db;
-    let binary = load_binary(db, path);
-    let (debug_files, _) =
-        rudy_dwarf::symbols::index_symbol_map(db, binary).expect("Failed to index debug files");
-
-    // Get debug files to examine
-    let mut all_structure = String::new();
-
-    for debug_file in debug_files.values() {
-        let file_name = debug_file.name(db);
-
-        // Only examine files that likely contain our method_discovery code
-        if file_name.contains("method_discovery") {
-            tracing::info!("Examining DWARF structure for: {}", file_name);
-
-            let mut visitor = TestVisitor::new_for_module("method_discovery");
-            walk_file(db, *debug_file, &mut visitor);
-
-            let structure = visitor.format_structure();
-            if !structure.trim().is_empty() && !structure.contains("No structure found") {
-                all_structure.push_str(&format!("\n=== {} ===\n", file_name));
-                all_structure.push_str(&structure);
-            }
-        }
-    }
-
-    // Create snapshot of the structure
-    let name = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("unknown_file");
-    insta::assert_snapshot!(name, all_structure);
 }
 
 #[test]
@@ -253,14 +198,48 @@ fn dwarf_outline_examples() {
     // Build the method_discovery example first
     let artifact_dir = test_utils::artifacts_dir(None);
 
+    let db = test_db(None);
+    let db = &db;
+
     for name in ["method_discovery", "simple_test", "lldb_demo"] {
-        let path = artifact_dir.join(name).join("method_discovery");
+        let path = artifact_dir.join(name);
         if !path.exists() {
             panic!(
                 "Example binary not found at: {}. Please run `cargo xtask build-examples` first.",
                 path.display()
             );
         }
-        walk_debug_files(path);
+
+        tracing::info!("Examining DWARF structure for: {name}");
+
+        let binary = load_binary(db, &path);
+        let (debug_files, _) =
+            rudy_dwarf::symbols::index_symbol_map(db, binary).expect("Failed to index debug files");
+
+        // Get debug files to examine
+        let mut all_structure = String::new();
+
+        for debug_file in debug_files.values() {
+            let file_name = debug_file.name(db);
+
+            // Only examine files that likely contain our method_discovery code
+            tracing::info!("Examining DWARF structure for: {file_name}",);
+
+            let mut visitor = TestVisitor::new_for_module(name);
+            walk_file(db, *debug_file, &mut visitor).unwrap();
+
+            let structure = visitor.format_structure();
+            if !structure.trim().is_empty() && !structure.contains("No structure found") {
+                all_structure.push_str(&format!("\n=== {file_name} ===\n",));
+                all_structure.push_str(&structure);
+            }
+        }
+
+        // Create snapshot of the structure
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("unknown_file");
+        insta::assert_snapshot!(name, all_structure);
     }
 }

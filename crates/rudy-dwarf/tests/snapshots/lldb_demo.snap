@@ -1,0 +1,49 @@
+---
+source: crates/rudy-dwarf/tests/example_visitor.rs
+expression: all_structure
+snapshot_kind: text
+---
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-66e72d8169a6c78c.1x1gw6zlymkfuo42507z2xh5i.1uh67mq.rcgu.o ===
+0x00000d9d:  namespace 'lldb_demo' @  (lldb_demo)
+0x00000da2:    structure_type 'User' @  (lldb_demo)
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-66e72d8169a6c78c.5sw51gngff1ij6frl7037gb07.1uh67mq.rcgu.o ===
+0x0000063a:  namespace 'lldb_demo' @  (lldb_demo)
+0x0000063f:    structure_type 'User' @  (lldb_demo)
+0x00000677:      subprogram 'new' @  (lldb_demo)
+0x00000686:        formal_parameter @  (lldb_demo)
+0x0000068b:        formal_parameter @  (lldb_demo)
+0x00000690:        formal_parameter @  (lldb_demo)
+0x00000697:    structure_type 'Session' @  (lldb_demo)
+0x000006c3:      subprogram 'is_expired' @  (lldb_demo)
+0x000006d2:        formal_parameter @  (lldb_demo)
+0x000006d9:    subprogram 'create_session' @  (lldb_demo)
+0x000006f6:      formal_parameter 'user' @  (lldb_demo)
+0x00000706:    subprogram 'main' @  (lldb_demo)
+0x00000724:      variable 'user' @  (lldb_demo)
+0x00000739:      variable 'session' @  (lldb_demo)
+0x0000074e:      variable 'users' @  (lldb_demo)
+0x00000763:      variable 'iter' @  (lldb_demo)
+0x00000778:      variable 'i' @  (lldb_demo)
+0x000007ca:    namespace '{impl#2}' @  (lldb_demo::{impl#2})
+0x000007cf:      subprogram 'fmt' @  (lldb_demo::{impl#2})
+0x000007ec:        formal_parameter 'self' @  (lldb_demo::{impl#2})
+0x000007fa:        formal_parameter 'f' @  (lldb_demo::{impl#2})
+0x0000080a:    namespace '{impl#3}' @  (lldb_demo::{impl#3})
+0x0000080f:      subprogram 'fmt' @  (lldb_demo::{impl#3})
+0x0000082c:        formal_parameter 'self' @  (lldb_demo::{impl#3})
+0x0000083a:        formal_parameter 'f' @  (lldb_demo::{impl#3})
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-66e72d8169a6c78c.8r2jdqn3if0w3sue17ifmszmc.1uh67mq.rcgu.o ===
+0x00000ce8:  namespace 'lldb_demo' @  (lldb_demo)
+0x00000ced:    structure_type 'User' @  (lldb_demo)
+0x00000d26:    structure_type 'Session' @  (lldb_demo)
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-66e72d8169a6c78c.c68vo9ea9tzo9872wiqd7hhq6.1uh67mq.rcgu.o ===
+0x00000768:  namespace 'lldb_demo' @  (lldb_demo)
+0x0000076d:    structure_type 'User' @  (lldb_demo)
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-66e72d8169a6c78c.ezxrzdjg41eg4md8x4ymld7b5.1uh67mq.rcgu.o ===
+0x000003fc:  namespace 'lldb_demo' @  (lldb_demo)
+0x00000401:    structure_type 'Session' @  (lldb_demo)
+0x0000042e:    structure_type 'User' @  (lldb_demo)

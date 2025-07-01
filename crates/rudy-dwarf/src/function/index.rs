@@ -6,14 +6,10 @@ use itertools::Itertools;
 
 use crate::{
     address::{address_to_location, location_to_address, AddressTree, FunctionAddressInfo},
-    die::{
-        cu::is_rust_cu,
-        utils::{get_string_attr, pretty_print_die_entry, to_range},
-        UnitRef,
-    },
-    file::{RawDie, SourceLocation},
+    die::utils::{get_string_attr, pretty_print_die_entry, to_range},
+    file::SourceLocation,
     symbols::{RawSymbol, Symbol},
-    visitor::{walk_file, DieVisitor, DieWalker},
+    visitor::{walk_file, DieVisitor, DieWalker, VisitorNode},
     DebugFile, Die, DwarfDb, SymbolName,
 };
 
@@ -98,50 +94,46 @@ impl<'db> FunctionIndexBuilder<'db> {
 }
 
 impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
-    fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
-        if is_rust_cu(&die, &unit_ref) {
-            walker.walk_cu();
-        }
-    }
-
     fn visit_die<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        die: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        match die.tag() {
+        node: VisitorNode<'a>,
+    ) -> anyhow::Result<()> {
+        match node.die.tag() {
             gimli::DW_TAG_subprogram => {
-                Self::visit_function(walker, die, unit_ref);
+                Self::visit_function(walker, node)?;
             }
             gimli::DW_TAG_namespace | gimli::DW_TAG_structure_type => {
-                walker.walk_children();
+                walker.walk_children()?;
             }
             _ => {}
         }
+        Ok(())
     }
 
     fn visit_function<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        let mut linkage_name = match get_string_attr(&entry, gimli::DW_AT_linkage_name, &unit_ref) {
-            Ok(Some(linkage_name)) => linkage_name,
-            Ok(None) => {
-                tracing::trace!(
-                    "Skipping function with no linkage name: {}",
-                    pretty_print_die_entry(&entry, &unit_ref)
-                );
-                return;
-            }
-            Err(e) => {
-                tracing::error!(
-                    "Failed to get linkage name for function: {e}: \n{}",
-                    pretty_print_die_entry(&entry, &unit_ref)
-                );
-                return;
-            }
-        };
+        node: VisitorNode<'a>,
+    ) -> anyhow::Result<()> {
+        // TODO: Replace all of this with a parser
+
+        let mut linkage_name =
+            match get_string_attr(&node.die, gimli::DW_AT_linkage_name, &node.unit_ref) {
+                Ok(Some(linkage_name)) => linkage_name,
+                Ok(None) => {
+                    tracing::trace!(
+                        "Skipping function with no linkage name: {}",
+                        pretty_print_die_entry(&node.die, &node.unit_ref)
+                    );
+                    return Ok(());
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to get linkage name for function: {e}: \n{}",
+                        pretty_print_die_entry(&node.die, &node.unit_ref)
+                    );
+                    return Err(e);
+                }
+            };
 
         if walker.file.relocatable(walker.db) {
             linkage_name.insert(0, '_'); // Ensure linkage name starts with underscore for relocatable files
@@ -153,13 +145,14 @@ impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
             .symbol_map
             .get(&RawSymbol::new(linkage_name.as_bytes().to_vec()))
         {
-            let address_range = unit_ref
-                .die_ranges(&entry)
+            let address_range = node
+                .unit_ref
+                .die_ranges(&node.die)
                 .map_err(anyhow::Error::from)
                 .and_then(to_range)
                 .unwrap_or(None);
 
-            let die = walker.get_die(entry);
+            let die = walker.get_die(node.die);
 
             let function_data = FunctionData {
                 declaration_die: die,
@@ -200,6 +193,8 @@ impl<'db> DieVisitor<'db> for FunctionIndexBuilder<'db> {
                     .join("\n")
             );
         }
+
+        Ok(())
     }
 }
 
@@ -212,7 +207,9 @@ pub fn function_index<'db>(
 ) -> FunctionIndex<'db> {
     let start = std::time::Instant::now();
     let mut builder = FunctionIndexBuilder::new(symbol_map);
-    walk_file(db, debug_file, &mut builder);
+    if let Err(e) = walk_file(db, debug_file, &mut builder) {
+        tracing::error!("Failed to walk debug file: {e}");
+    }
 
     let elapsed = start.elapsed();
     if elapsed.as_secs() > 1 {
