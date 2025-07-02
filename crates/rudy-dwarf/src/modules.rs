@@ -1,9 +1,8 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    die::{cu::is_rust_cu, utils::get_string_attr, UnitRef},
-    file::RawDie,
-    visitor::{walk_file, DieVisitor, DieWalker},
+    die::{cu::is_rust_cu, utils::get_string_attr},
+    visitor::{walk_file, DieVisitor, DieWalker, VisitorNode},
     DebugFile, Die, DwarfDb,
 };
 
@@ -40,34 +39,37 @@ struct ModuleRangeBuilder<'db> {
 }
 
 impl<'db> DieVisitor<'db> for ModuleRangeBuilder<'db> {
-    fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, die: RawDie<'a>, unit_ref: UnitRef<'a>) {
-        if is_rust_cu(&die, &unit_ref) {
-            walker.walk_cu();
+    fn visit_cu<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        node: VisitorNode<'a>,
+    ) -> anyhow::Result<()> {
+        if is_rust_cu(&node.die, &node.unit_ref) {
+            walker.walk_cu()?;
         }
+        Ok(())
     }
 
     fn visit_die<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        die: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        if die.tag() == gimli::DW_TAG_namespace {
+        node: VisitorNode<'a>,
+    ) -> anyhow::Result<()> {
+        if node.die.tag() == gimli::DW_TAG_namespace {
             // Only visit namespaces, skip other DIEs
-            Self::visit_namespace(walker, die, unit_ref);
+            Self::visit_namespace(walker, node)?;
         }
+        Ok(())
     }
 
     fn visit_namespace<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        entry: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        let module_name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
+        node: VisitorNode<'a>,
+    ) -> anyhow::Result<()> {
+        let module_name = get_string_attr(&node.die, gimli::DW_AT_name, &node.unit_ref)
             .unwrap()
             .unwrap();
 
-        let start_offset = entry.offset().0;
-        let die = walker.get_die(entry);
+        let start_offset = node.die.offset().0;
+        let die = walker.get_die(node.die);
 
         let mut module_entry = &mut walker.visitor.modules;
         // Traverse or create the module path
@@ -89,7 +91,7 @@ impl<'db> DieVisitor<'db> for ModuleRangeBuilder<'db> {
             .namespace_stack
             .push((walker.visitor.current_path.clone(), start_offset));
 
-        walker.walk_namespace();
+        walker.walk_namespace()?;
 
         // When we're done walking this namespace, record its range
         if let Some((path, start)) = walker.visitor.namespace_stack.pop() {
@@ -104,6 +106,7 @@ impl<'db> DieVisitor<'db> for ModuleRangeBuilder<'db> {
         }
 
         walker.visitor.current_path.pop();
+        Ok(())
     }
 }
 
@@ -112,7 +115,9 @@ impl<'db> DieVisitor<'db> for ModuleRangeBuilder<'db> {
 #[salsa::tracked(returns(ref))]
 pub fn module_index<'db>(db: &'db dyn DwarfDb, debug_file: DebugFile) -> ModuleIndex<'db> {
     let mut builder = ModuleRangeBuilder::default();
-    walk_file(db, debug_file, &mut builder);
+    if let Err(e) = walk_file(db, debug_file, &mut builder) {
+        tracing::error!("Failed to walk file: {e}");
+    }
 
     // Sort ranges by start offset and fix overlapping ranges
     let mut ranges = builder.module_ranges;

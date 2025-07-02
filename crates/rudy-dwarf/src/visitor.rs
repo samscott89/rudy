@@ -1,20 +1,23 @@
 use super::Die;
 use crate::{
-    die::{navigation::get_roots, UnitRef},
+    die::{navigation::get_roots, utils::get_string_attr, UnitRef},
     file::{DebugFile, DwarfReader, RawDie},
+    parser::primitives::rust_cu,
     DwarfDb,
 };
 
+use anyhow::Result;
+
 /// Walker that drives the visitor through the DIE tree
 pub struct DieWalker<'a, 'db, V> {
-    pub db: &'db dyn DwarfDb,
     pub visitor: &'a mut V,
+    pub db: &'db dyn DwarfDb,
 
     /// The file being walked
-    pub file: DebugFile,
+    pub(crate) file: DebugFile,
     /// The compilation unit being walked
     unit_offset: gimli::UnitSectionOffset<usize>,
-    pub unit_ref: &'a UnitRef<'a>,
+    pub(crate) unit_ref: &'a UnitRef<'a>,
     /// The entries cursor for the current unit
     // unit_ref: &'a UnitRef<'a>,
     cursor: gimli::EntriesCursor<'a, 'a, DwarfReader>,
@@ -27,11 +30,26 @@ pub struct DieWalker<'a, 'db, V> {
     depth: isize,
 }
 
+pub struct VisitorNode<'a> {
+    pub(crate) die: RawDie<'a>,
+    pub(crate) unit_ref: UnitRef<'a>,
+}
+
+impl<'a> VisitorNode<'a> {
+    pub fn name(&self) -> Result<Option<String>> {
+        get_string_attr(&self.die, gimli::DW_AT_name, &self.unit_ref)
+    }
+
+    pub fn tag(&self) -> gimli::DwTag {
+        self.die.tag()
+    }
+}
+
 pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
     db: &'db dyn DwarfDb,
     file: DebugFile,
     visitor: &'a mut V,
-) {
+) -> Result<()> {
     tracing::trace!("Walking DWARF for file: {}", file.name(db));
     // Get the root compilation units for this file
     let roots = get_roots(db, file);
@@ -55,8 +73,9 @@ pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
             "Walking CU: {:#x}",
             unit_offset.as_debug_info_offset().unwrap().0
         );
-        walker.walk_unit();
+        walker.walk_unit()?;
     }
+    Ok(())
 }
 
 pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
@@ -83,18 +102,30 @@ pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
             tracing::error!("No entries found in DIE: {}", die.print(db));
             return Ok(());
         };
-        V::visit_die(&mut walker, die, *unit_ref);
-        Ok(())
+        let node = VisitorNode {
+            die,
+            unit_ref: *unit_ref,
+        };
+        V::visit_die(&mut walker, node)
     })?
 }
 
 impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
-    pub fn get_die(&self, raw: RawDie<'a>) -> Die<'db> {
+    pub(crate) fn get_die(&self, raw: RawDie<'a>) -> Die<'db> {
         Die::new(self.db, self.file, self.unit_offset, raw.offset())
     }
 
-    pub fn peek_next_offset(&mut self) -> Option<usize> {
+    pub(crate) fn peek_next_offset(&mut self) -> Option<usize> {
         Some(self.peek()?.1.offset().0)
+    }
+
+    pub fn parse<T>(
+        &self,
+        node: VisitorNode<'a>,
+        parser: impl crate::parser::Parser<'db, T>,
+    ) -> Result<T> {
+        let die = self.get_die(node.die);
+        parser.parse(self.db, die)
     }
 
     fn peek(&mut self) -> Option<(isize, RawDie<'a>)> {
@@ -191,30 +222,36 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         }
     }
 
-    pub fn walk_unit(&mut self) {
+    pub fn walk_unit(&mut self) -> Result<()> {
         let Some(root) = self.next() else {
             // empty tree -- nothing to walk
             tracing::info!("No entries found in DWARF tree");
-            return;
+            return Ok(());
         };
 
         // first entry _should_ be the root DIE -- the compilation unit
         let tag = root.tag();
         if tag != gimli::DW_TAG_compile_unit {
             tracing::error!("Expected root DIE to be a compilation unit, found: {tag}");
-            return;
+            return Err(anyhow::anyhow!(
+                "Expected root DIE to be a compilation unit, found: {tag}"
+            ));
         }
 
         let unit_ref = *self.unit_ref;
         tracing::trace!("Visiting CU: {:#x}", root.offset().0);
-        V::visit_cu(self, root, unit_ref);
+        let node = VisitorNode {
+            die: root,
+            unit_ref,
+        };
+        V::visit_cu(self, node)
     }
 
-    pub fn walk_children(&mut self) {
+    pub fn walk_children(&mut self) -> Result<()> {
         let current_offset = self.cursor.current().map_or(0, |c| c.offset().0);
 
         if !self.has_children() {
-            return;
+            return Ok(());
         }
 
         self.current_depth += 1;
@@ -226,55 +263,54 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
         // walk the siblings at this depth
         while let Some(next) = self.next_sibling() {
             // continue walking siblings
-            V::visit_die(self, next, *self.unit_ref);
+            let node = VisitorNode {
+                die: next,
+                unit_ref: *self.unit_ref,
+            };
+            V::visit_die(self, node)?;
         }
         tracing::trace!("Finished walking children of entry: {current_offset:#x}");
         self.current_depth -= 1;
+        Ok(())
     }
 
-    pub fn walk_cu(&mut self) {
-        self.walk_children();
+    pub fn walk_cu(&mut self) -> Result<()> {
+        self.walk_children()
     }
 
-    pub fn walk_namespace(&mut self) {
-        self.walk_children();
+    pub fn walk_namespace(&mut self) -> Result<()> {
+        self.walk_children()
     }
 }
 
 /// Visitor trait for walking DWARF DIE trees
 pub trait DieVisitor<'db>: Sized {
-    fn visit_cu<'a>(
-        walker: &mut DieWalker<'a, 'db, Self>,
-        _die: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_cu();
+    fn visit_cu<'a>(walker: &mut DieWalker<'a, 'db, Self>, node: VisitorNode<'a>) -> Result<()> {
+        if walker.parse(node, rust_cu())? {
+            walker.walk_cu()?;
+        }
+        Ok(())
     }
 
     /// Called for each DIE entry
-    fn visit_die<'a>(
-        walker: &mut DieWalker<'a, 'db, Self>,
-        die: RawDie<'a>,
-        unit_ref: UnitRef<'a>,
-    ) {
-        tracing::trace!("Visiting DIE: {:#010x}", die.offset().0,);
+    fn visit_die<'a>(walker: &mut DieWalker<'a, 'db, Self>, node: VisitorNode<'a>) -> Result<()> {
+        tracing::trace!("Visiting DIE: {:#010x}", node.die.offset().0);
         // Default: dispatch to specific visit methods based on tag
-        match die.tag() {
-            gimli::DW_TAG_namespace => Self::visit_namespace(walker, die, unit_ref),
-            gimli::DW_TAG_subprogram => Self::visit_function(walker, die, unit_ref),
-            gimli::DW_TAG_structure_type => Self::visit_struct(walker, die, unit_ref),
-            gimli::DW_TAG_enumeration_type => Self::visit_enum(walker, die, unit_ref),
-            gimli::DW_TAG_variable => Self::visit_variable(walker, die, unit_ref),
-            gimli::DW_TAG_formal_parameter => Self::visit_parameter(walker, die, unit_ref),
-            gimli::DW_TAG_base_type => Self::visit_base_type(walker, die, unit_ref),
-            gimli::DW_TAG_pointer_type => Self::visit_pointer_type(walker, die, unit_ref),
-            gimli::DW_TAG_array_type => Self::visit_array_type(walker, die, unit_ref),
-            gimli::DW_TAG_lexical_block => Self::visit_lexical_block(walker, die, unit_ref),
-            gimli::DW_TAG_union_type => {
-                Self::visit_union_type(walker, die, unit_ref);
-            }
+        match node.die.tag() {
+            gimli::DW_TAG_namespace => Self::visit_namespace(walker, node),
+            gimli::DW_TAG_subprogram => Self::visit_function(walker, node),
+            gimli::DW_TAG_structure_type => Self::visit_struct(walker, node),
+            gimli::DW_TAG_enumeration_type => Self::visit_enum(walker, node),
+            gimli::DW_TAG_variable => Self::visit_variable(walker, node),
+            gimli::DW_TAG_formal_parameter => Self::visit_parameter(walker, node),
+            gimli::DW_TAG_base_type => Self::visit_base_type(walker, node),
+            gimli::DW_TAG_pointer_type => Self::visit_pointer_type(walker, node),
+            gimli::DW_TAG_array_type => Self::visit_array_type(walker, node),
+            gimli::DW_TAG_lexical_block => Self::visit_lexical_block(walker, node),
+            gimli::DW_TAG_union_type => Self::visit_union_type(walker, node),
             gimli::DW_TAG_subroutine_type => {
                 // these don't seem to contain much, so we'll skip
+                Ok(())
             }
             gimli::DW_TAG_member
             | gimli::DW_TAG_template_type_parameter
@@ -284,13 +320,15 @@ pub trait DieVisitor<'db>: Sized {
             | gimli::DW_TAG_inlined_subroutine => {
                 // these should typically be visited explicitly
                 // as part of visiting the parent
+                Ok(())
             }
             _ => {
                 tracing::debug!(
                     "Unhandled DIE tag: {} {}",
-                    die.tag(),
-                    walker.get_die(die).format_with_location(walker.db, "")
+                    node.die.tag(),
+                    walker.get_die(node.die).location(walker.db)
                 );
+                Ok(())
             }
         }
     }
@@ -298,97 +336,83 @@ pub trait DieVisitor<'db>: Sized {
     /// Visit a namespace
     fn visit_namespace<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_namespace();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_namespace()
     }
 
     /// Visit a function/subprogram
     fn visit_function<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 
     /// Visit a struct type
     fn visit_struct<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 
     /// Visit an enum type
-    fn visit_enum<'a>(
-        walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+    fn visit_enum<'a>(walker: &mut DieWalker<'a, 'db, Self>, _node: VisitorNode<'a>) -> Result<()> {
+        walker.walk_children()
     }
 
     /// Visit a variable
     fn visit_variable<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 
     /// Visit a variable
     fn visit_parameter<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 
     /// Visit a base type
     fn visit_base_type<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 
     /// Visit a pointer type
     fn visit_pointer_type<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 
     /// Visit a array type
     fn visit_array_type<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
     fn visit_union_type<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 
     fn visit_lexical_block<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
-        _entry: RawDie<'a>,
-        _unit_ref: UnitRef<'a>,
-    ) {
-        walker.walk_children();
+        _node: VisitorNode<'a>,
+    ) -> Result<()> {
+        walker.walk_children()
     }
 }
 
@@ -397,7 +421,8 @@ mod test {
     use itertools::Itertools;
 
     use super::*;
-    use crate::die::utils::get_string_attr;
+
+    use anyhow::Result;
 
     struct TestVisitor {
         pub visited: Vec<String>,
@@ -406,37 +431,35 @@ mod test {
     impl<'db> super::DieVisitor<'db> for TestVisitor {
         fn visit_cu<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            die: RawDie<'a>,
-            unit_ref: UnitRef<'a>,
-        ) {
-            Self::visit_die(walker, die, unit_ref);
+            node: VisitorNode<'a>,
+        ) -> Result<()> {
+            Self::visit_die(walker, node)
         }
 
         fn visit_die<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            die: RawDie<'a>,
-            unit_ref: UnitRef<'a>,
-        ) {
-            let offset = die.offset().0;
+            node: VisitorNode<'a>,
+        ) -> Result<()> {
+            let offset = node.die.offset().0;
             let padding = std::iter::repeat_n(" ", 2 * walker.current_depth as usize).join("");
 
-            let tag = die.tag();
+            let tag = node.die.tag();
             walker
                 .visitor
                 .visited
                 .push(format!("{offset:#010x}: {padding}{tag}"));
             // Default: dispatch to specific visit methods based on tag
-            match die.tag() {
-                gimli::DW_TAG_namespace => Self::visit_namespace(walker, die, unit_ref),
-                gimli::DW_TAG_subprogram => Self::visit_function(walker, die, unit_ref),
-                gimli::DW_TAG_structure_type => Self::visit_struct(walker, die, unit_ref),
-                gimli::DW_TAG_enumeration_type => Self::visit_enum(walker, die, unit_ref),
-                gimli::DW_TAG_variable => Self::visit_variable(walker, die, unit_ref),
-                gimli::DW_TAG_base_type => Self::visit_base_type(walker, die, unit_ref),
+            match tag {
+                gimli::DW_TAG_namespace => Self::visit_namespace(walker, node)?,
+                gimli::DW_TAG_subprogram => Self::visit_function(walker, node)?,
+                gimli::DW_TAG_structure_type => Self::visit_struct(walker, node)?,
+                gimli::DW_TAG_enumeration_type => Self::visit_enum(walker, node)?,
+                gimli::DW_TAG_variable => Self::visit_variable(walker, node)?,
+                gimli::DW_TAG_base_type => Self::visit_base_type(walker, node)?,
                 gimli::DW_TAG_compile_unit => {}
                 _ => {}
             }
-            walker.walk_children();
+            walker.walk_children()
         }
     }
 
@@ -456,7 +479,7 @@ mod test {
 
         let debug_file = crate::file::DebugFile::new(db, binary.file(db), false);
 
-        super::walk_file(db, debug_file, &mut visitor);
+        super::walk_file(db, debug_file, &mut visitor).unwrap();
 
         // Check that we visited the expected entries
         assert!(!visitor.visited.is_empty(), "No entries were visited");
@@ -472,41 +495,44 @@ mod test {
     impl<'db> super::DieVisitor<'db> for ModuleFunctionVisitor {
         fn visit_struct<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            entry: RawDie<'a>,
-            unit_ref: UnitRef<'a>,
-        ) {
-            let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
+            node: VisitorNode<'a>,
+        ) -> Result<()> {
+            let name = node
+                .name()
                 .unwrap()
-                .unwrap_or_else(|| "<unnamed>".to_string());
+                .unwrap_or_else(|| "<default>".to_string());
             walker.visitor.path.push(name);
-            walker.walk_children();
+            walker.walk_children()?;
             walker.visitor.path.pop();
+            Ok(())
         }
 
         fn visit_namespace<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            entry: RawDie<'a>,
-            unit_ref: UnitRef<'a>,
-        ) {
-            let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
+            node: VisitorNode<'a>,
+        ) -> Result<()> {
+            let name = node
+                .name()
                 .unwrap()
                 .unwrap_or_else(|| "<unnamed>".to_string());
             walker.visitor.path.push(name);
-            walker.walk_namespace();
+            walker.walk_namespace()?;
             walker.visitor.path.pop();
+            Ok(())
         }
 
         fn visit_function<'a>(
             walker: &mut super::DieWalker<'a, 'db, Self>,
-            entry: RawDie<'a>,
-            unit_ref: UnitRef<'a>,
-        ) {
-            let name = get_string_attr(&entry, gimli::DW_AT_name, &unit_ref)
+            node: VisitorNode<'a>,
+        ) -> Result<()> {
+            let name = node
+                .name()
                 .unwrap()
                 .unwrap_or_else(|| "<unnamed>".to_string());
             let mut path = walker.visitor.path.clone();
             path.push(name);
             walker.visitor.functions.push(path.join("::"));
+            Ok(())
         }
     }
 
@@ -529,7 +555,7 @@ mod test {
 
         let mut visitor = ModuleFunctionVisitor::default();
         for (_, file) in debug_files {
-            super::walk_file(db, file, &mut visitor);
+            super::walk_file(db, file, &mut visitor).unwrap();
         }
 
         visitor.functions.retain(|f| f != "<unnamed>");

@@ -1,0 +1,41 @@
+---
+source: crates/rudy-dwarf/tests/example_visitor.rs
+expression: all_structure
+snapshot_kind: text
+---
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/lldb_demo ===
+0x00000ce8:  namespace 'lldb_demo'
+0x00000ced:    structure_type 'User'
+0x00000d26:    structure_type 'Session'
+0x00000da2:  namespace 'lldb_demo'
+0x00000da7:    structure_type 'User'
+0x00000768:  namespace 'lldb_demo'
+0x0000076d:    structure_type 'User'
+0x0000063a:  namespace 'lldb_demo'
+0x0000063f:    structure_type 'User'
+0x00000677:      subprogram 'new'
+0x00000686:        formal_parameter
+0x0000068b:        formal_parameter
+0x00000690:        formal_parameter
+0x00000697:    structure_type 'Session'
+0x000006c3:      subprogram 'is_expired'
+0x000006d2:        formal_parameter
+0x000006d9:    subprogram 'create_session'
+0x000006f6:      formal_parameter 'user'
+0x00000706:    subprogram 'main'
+0x00000724:      variable 'user'
+0x00000739:      variable 'session'
+0x0000074e:      variable 'users'
+0x00000763:      variable 'iter'
+0x00000778:      variable 'i'
+0x000007ca:    namespace '{impl#2}'
+0x000007cf:      subprogram 'fmt'
+0x000007ec:        formal_parameter 'self'
+0x000007fa:        formal_parameter 'f'
+0x0000080a:    namespace '{impl#3}'
+0x0000080f:      subprogram 'fmt'
+0x0000082c:        formal_parameter 'self'
+0x0000083a:        formal_parameter 'f'
+0x000003fc:  namespace 'lldb_demo'
+0x00000401:    structure_type 'Session'
+0x0000042e:    structure_type 'User'

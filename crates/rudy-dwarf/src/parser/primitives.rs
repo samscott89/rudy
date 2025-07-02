@@ -1,12 +1,12 @@
 //! DWARF-specific primitive parsers and utilities
 
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
 
 use anyhow::Context as _;
 use rudy_types::*;
 
 use super::{Parser, Result};
-use crate::{Die, DwarfDb};
+use crate::{die::utils::get_string_attr, file::DwarfReader, Die, DwarfDb};
 
 /// Parser for getting offset values
 pub fn offset() -> Offset {
@@ -110,6 +110,40 @@ impl<'db> Parser<'db, i128> for Attr<i128> {
 impl<'db> Parser<'db, String> for Attr<String> {
     fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<String> {
         Ok(entry.string_attr(db, self.attr)?)
+    }
+}
+
+impl<'db> Parser<'db, Option<String>> for Attr<Option<String>> {
+    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Option<String>> {
+        entry.with_entry_and_unit(db, |entry, unit_ref| {
+            get_string_attr(entry, self.attr, unit_ref)
+        })?
+    }
+}
+
+impl<'db> Parser<'db, gimli::AttributeValue<DwarfReader>>
+    for Attr<gimli::AttributeValue<DwarfReader>>
+{
+    fn parse(
+        &self,
+        db: &'db dyn DwarfDb,
+        entry: Die<'db>,
+    ) -> Result<gimli::AttributeValue<DwarfReader>> {
+        Ok(entry.get_attr(db, self.attr)?)
+    }
+}
+
+impl<'db> Parser<'db, gimli::DwLang> for Attr<gimli::DwLang> {
+    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<gimli::DwLang> {
+        let value = entry.get_attr(db, self.attr)?;
+        if let gimli::AttributeValue::Language(lang) = value {
+            Ok(lang)
+        } else {
+            Err(anyhow::anyhow!(
+                "Expected {} to be a language attribute, found: {value:?}",
+                self.attr,
+            ))
+        }
     }
 }
 
@@ -383,4 +417,20 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
 /// Parse a field path and return the final offset
 pub fn field_path_offset<'db>(path: Vec<&str>) -> impl Parser<'db, usize> {
     FieldPath::new(path.into_iter().map(|s| s.to_string()).collect()).map(|(_, offset)| offset)
+}
+
+pub fn rust_cu<'db>() -> impl Parser<'db, bool> {
+    attr(gimli::DW_AT_language).map(|lang| matches!(lang, gimli::DW_LANG_Rust))
+}
+
+pub fn name<'db>() -> impl Parser<'db, Option<String>> {
+    attr(gimli::DW_AT_name)
+}
+
+pub fn tag<'db>() -> impl Parser<'db, gimli::DwTag> {
+    super::from_fn(|db, entry: Die<'_>| Ok::<_, Infallible>(entry.tag(db)))
+}
+
+pub fn die_offset<'db>() -> impl Parser<'db, usize> {
+    super::from_fn(|db, entry: Die<'_>| Ok::<_, Infallible>(entry.die_offset(db).0))
 }
