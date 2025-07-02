@@ -1,7 +1,5 @@
 //! Type resolution from DWARF debugging information
 
-use std::sync::Arc;
-
 use anyhow::Context;
 use rudy_types::*;
 
@@ -17,14 +15,17 @@ use crate::{
         vec::vec,
         Parser,
     },
-    types::get_die_typename,
+    types::{get_die_typename, DieTypeDefinition},
     Die, DwarfDb,
 };
 
 type Result<T> = std::result::Result<T, crate::Error>;
 
 /// Resolve the full type for a DIE entry
-pub fn resolve_entry_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<TypeLayout> {
+pub fn resolve_entry_type<'db>(
+    db: &'db dyn DwarfDb,
+    entry: Die<'db>,
+) -> Result<DieTypeDefinition<'db>> {
     let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
     resolve_type_offset(db, type_entry)
 }
@@ -33,13 +34,16 @@ pub fn resolve_entry_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<
 pub fn resolve_entry_type_shallow<'db>(
     db: &'db dyn DwarfDb,
     entry: Die<'db>,
-) -> Result<TypeLayout> {
+) -> Result<DieTypeDefinition<'db>> {
     let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
     shallow_resolve_type(db, type_entry)
 }
 
 /// Resolve String type layout from DWARF
-fn resolve_string_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<StringLayout> {
+fn resolve_string_type<'db>(
+    db: &'db dyn DwarfDb,
+    entry: Die<'db>,
+) -> Result<StringLayout<Die<'db>>> {
     // Get the vec field type and parse it as a Vec
     Ok(member("vec")
         .then(entry_type())
@@ -53,7 +57,7 @@ fn resolve_map_type<'db>(
     db: &'db dyn DwarfDb,
     entry: Die<'db>,
     variant: MapVariant,
-) -> Result<MapLayout> {
+) -> Result<MapLayout<Die<'db>>> {
     let (key_type, value_type) =
         parse_children((resolved_generic("K"), resolved_generic("V"))).parse(db, entry)?;
 
@@ -95,7 +99,7 @@ fn resolve_smart_ptr_type<'db>(
     db: &'db dyn DwarfDb,
     entry: Die<'db>,
     variant: SmartPtrVariant,
-) -> Result<SmartPtrLayout> {
+) -> Result<SmartPtrLayout<Die<'db>>> {
     let inner_type = match variant {
         // `Box` is output as a pointer_type and has the type in the entry itself
         SmartPtrVariant::Box => resolve_entry_type_shallow(db, entry)
@@ -212,13 +216,13 @@ fn resolve_smart_ptr_type<'db>(
 
     Ok(SmartPtrLayout {
         variant,
-        inner_type: Arc::new(inner_type),
+        inner_type,
         inner_ptr_offset,
         data_ptr_offset,
     })
 }
 
-fn resolve_tuple_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<TupleLayout> {
+fn resolve_tuple_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<TupleLayout<Die<'db>>> {
     let mut elements = Vec::new();
     let size = entry
         .udata_attr(db, gimli::DW_AT_byte_size)
@@ -229,27 +233,28 @@ fn resolve_tuple_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Tupl
             .udata_attr(db, gimli::DW_AT_data_member_location)
             .context("could not get data member location for tuple element")?;
         let ty = resolve_entry_type(db, child)?;
-        elements.push((offset, Arc::new(ty)));
+        elements.push((offset, ty));
     }
 
     Ok(TupleLayout { elements, size })
 }
 
-fn resolve_primitive_type<'db>(
+fn resolve_primitive_type<'db, L: Location + Clone>(
     db: &'db dyn DwarfDb,
     entry: Die<'db>,
-    def: &PrimitiveLayout,
-) -> Result<PrimitiveLayout> {
-    let def = match def {
+    def: &PrimitiveLayout<L>,
+) -> Result<PrimitiveLayout<Die<'db>>> {
+    let layout = match def {
         // these "scalar" types are already fully resolved
-        PrimitiveLayout::Int(_)
-        | PrimitiveLayout::Bool(_)
-        | PrimitiveLayout::Char(_)
-        | PrimitiveLayout::Float(_)
-        | PrimitiveLayout::Never(_)
-        | PrimitiveLayout::Str(_)
-        | PrimitiveLayout::UnsignedInt(_)
-        | PrimitiveLayout::Unit(_) => def.clone(),
+        // and have no dependency on the location info
+        PrimitiveLayout::Int(i) => PrimitiveLayout::Int(*i),
+        PrimitiveLayout::Bool(_) => PrimitiveLayout::Bool(()),
+        PrimitiveLayout::Char(_) => PrimitiveLayout::Char(()),
+        PrimitiveLayout::Float(f) => PrimitiveLayout::Float(*f),
+        PrimitiveLayout::Never(_) => PrimitiveLayout::Never(()),
+        PrimitiveLayout::Str(_) => PrimitiveLayout::Str(()),
+        PrimitiveLayout::UnsignedInt(u) => PrimitiveLayout::UnsignedInt(*u),
+        PrimitiveLayout::Unit(_) => PrimitiveLayout::Unit(UnitLayout),
 
         // these types need to be resolved further
         PrimitiveLayout::StrSlice(_) => {
@@ -290,26 +295,36 @@ fn resolve_primitive_type<'db>(
                 .context("could not find length for slice")?;
 
             PrimitiveLayout::Slice(SliceLayout {
-                element_type: Arc::new(element_type),
+                element_type,
                 data_ptr_offset,
                 length_offset,
             })
         }
         PrimitiveLayout::Array(array_def) => {
-            let inner = resolve_entry_type(db, entry)?;
+            let element_type = resolve_entry_type(db, entry)?;
             PrimitiveLayout::Array(ArrayLayout {
-                element_type: Arc::new(inner),
+                element_type,
                 length: array_def.length,
             })
         }
-        PrimitiveLayout::Function(_) => {
+        PrimitiveLayout::Function(f) => {
             // to resolve a function, type, we need to get the return type and argument types
-            let return_type = Arc::new(resolve_entry_type(db, entry)?);
+            let return_type = resolve_entry_type(db, entry)?;
+            let return_type = if f.return_type.is_none()
+                && matches!(
+                    return_type.layout.as_ref(),
+                    Layout::Primitive(PrimitiveLayout::Unit(_))
+                ) {
+                // if the return type is Unit, we can just use None
+                None
+            } else {
+                Some(return_type)
+            };
             let arg_types = entry
                 .children(db)?
                 .into_iter()
                 .filter(|c| c.tag(db) == gimli::DW_TAG_formal_parameter)
-                .map(|c| resolve_entry_type(db, c).map(Arc::new))
+                .map(|c| resolve_entry_type(db, c))
                 .collect::<Result<Vec<_>>>()?;
 
             PrimitiveLayout::Function(FunctionLayout {
@@ -318,24 +333,24 @@ fn resolve_primitive_type<'db>(
             })
         }
         PrimitiveLayout::Pointer(pointer_def) => {
-            let inner = resolve_entry_type(db, entry)?;
+            let pointed_type = resolve_entry_type(db, entry)?;
             PrimitiveLayout::Pointer(PointerLayout {
                 mutable: pointer_def.mutable,
-                pointed_type: Arc::new(inner),
+                pointed_type,
             })
         }
         PrimitiveLayout::Reference(reference_def) => {
-            let inner = resolve_entry_type(db, entry)?;
+            let pointed_type = resolve_entry_type(db, entry)?;
             PrimitiveLayout::Reference(ReferenceLayout {
                 mutable: reference_def.mutable,
-                pointed_type: Arc::new(inner),
+                pointed_type,
             })
         }
 
         PrimitiveLayout::Tuple(_) => PrimitiveLayout::Tuple(resolve_tuple_type(db, entry)?),
     };
 
-    Ok(def)
+    Ok(layout)
 }
 
 /// Resolves a type entry to a `Def` _if_ the target entry is one of the
@@ -344,7 +359,7 @@ fn resolve_primitive_type<'db>(
 fn resolve_as_builtin_type<'db>(
     db: &'db dyn DwarfDb,
     entry: Die<'db>,
-) -> Result<Option<TypeLayout>> {
+) -> Result<Option<DieTypeDefinition<'db>>> {
     // when detecting builtin types, we look up the typename, which contains
     // our best effort at parsing the type definition based on the name
     // e.g. we detect `alloc::vec::Vec<u8>` as `VecDef` with
@@ -368,77 +383,77 @@ fn resolve_as_builtin_type<'db>(
         entry.location(db)
     );
 
-    match &typename.typedef {
-        TypeLayout::Primitive(primitive_def) => {
-            resolve_primitive_type(db, entry, primitive_def).map(|p| Some(TypeLayout::Primitive(p)))
+    let layout = match &typename.typedef {
+        Layout::Primitive(primitive_def) => {
+            resolve_primitive_type(db, entry, primitive_def).map(|p| Some(Layout::Primitive(p)))
         }
-        TypeLayout::Std(std_def) => {
+        Layout::Std(std_def) => {
             // For std types, we need to do additional resolution based on DWARF
             // to get layout information, but we can use the parsed generic types
             match std_def {
                 StdLayout::Option(_) => {
                     // Use the parsed Option type but resolve the actual layout
                     let option_def = resolve_option_type(db, entry)?;
-                    Ok(Some(TypeLayout::Std(StdLayout::Option(option_def))))
+                    Ok(Some(Layout::Std(StdLayout::Option(option_def))))
                 }
                 StdLayout::Vec(_) => {
                     // For Vec, we need to resolve the actual layout from DWARF
                     Ok(vec()
                         .parse(db, entry)
-                        .map(|v| Some(TypeLayout::Std(StdLayout::Vec(v))))?)
+                        .map(|v| Some(Layout::Std(StdLayout::Vec(v))))?)
                 }
                 StdLayout::String(_) => {
                     // String has a known layout similar to Vec
-                    resolve_string_type(db, entry)
-                        .map(|s| Some(TypeLayout::Std(StdLayout::String(s))))
+                    resolve_string_type(db, entry).map(|s| Some(Layout::Std(StdLayout::String(s))))
                 }
                 StdLayout::Map(map) => {
                     // HashMap/BTreeMap need layout resolution
                     resolve_map_type(db, entry, map.variant.clone())
-                        .map(|m| Some(TypeLayout::Std(StdLayout::Map(m))))
+                        .map(|m| Some(Layout::Std(StdLayout::Map(m))))
                 }
                 StdLayout::Result(_) => {
                     // Result types need layout resolution
-                    Ok(Some(TypeLayout::Std(StdLayout::Result(
-                        resolve_result_type(db, entry)?,
-                    ))))
+                    Ok(Some(Layout::Std(StdLayout::Result(resolve_result_type(
+                        db, entry,
+                    )?))))
                 }
                 StdLayout::SmartPtr(s) => {
                     // Smart pointers like Box, Rc, Arc need layout resolution
                     resolve_smart_ptr_type(db, entry, s.variant)
-                        .map(|s| Some(TypeLayout::Std(StdLayout::SmartPtr(s))))
+                        .map(|s| Some(Layout::Std(StdLayout::SmartPtr(s))))
                 }
             }
         }
-        TypeLayout::Struct(_) => {
+        Layout::Struct(_) => {
             // For custom structs, we don't handle them as builtins
             // They'll be resolved through the normal struct resolution path
             Ok(None)
         }
-        TypeLayout::Enum(_) => {
+        Layout::Enum(_) => {
             // For custom enums, we don't handle them as builtins
             Ok(None)
         }
-        TypeLayout::CEnum(_) => {
+        Layout::CEnum(_) => {
             // C enums are handled as custom enums, not builtins
             Ok(None)
         }
-        TypeLayout::Alias(_) => {
+        Layout::Alias { name: _ } => {
             // Aliases should be resolved through normal resolution
             Ok(None)
         }
-        TypeLayout::Other { name: _ } => {
-            // Unknown types are not builtins
-            Ok(None)
-        }
-    }
+    }?;
+
+    Ok(layout.map(|l| TypeDefinition::new(entry, l)))
 }
 
 /// "Shallow" resolve a type -- if it's a primitive value, then
 /// we'll return that directly. Otherwise, return an alias to some other
 /// type entry (if we can find it).
 // #[salsa::tracked]
-pub fn shallow_resolve_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<TypeLayout> {
+pub fn shallow_resolve_type<'db>(
+    db: &'db dyn DwarfDb,
+    entry: Die<'db>,
+) -> Result<DieTypeDefinition<'db>> {
     Ok(
         if let Some(builtin_ty) = resolve_as_builtin_type(db, entry)? {
             // we have a builtin type -- use it
@@ -446,31 +461,38 @@ pub fn shallow_resolve_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Resul
             builtin_ty
         } else {
             tracing::debug!("not a builtin type: {}", entry.print(db));
-            TypeLayout::Alias(UnresolvedType {
-                name: entry.name(db).unwrap_or_else(|_| "unknown".to_string()),
-                cu_offset: entry
-                    .cu_offset(db)
-                    .as_debug_info_offset()
-                    .map_or(0, |o| o.0),
-                die_offset: entry.die_offset(db).0,
-            })
+            TypeDefinition::new(
+                entry,
+                Layout::Alias {
+                    name: entry.name(db).unwrap_or_else(|_| "unknown".to_string()),
+                },
+            )
         },
     )
 }
 
-fn resolve_enum_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<EnumLayout> {
+fn resolve_enum_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<EnumLayout<Die<'db>>> {
     Ok(enum_def().parse(db, entry)?)
 }
 
-fn resolve_option_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<OptionLayout> {
+fn resolve_option_type<'db>(
+    db: &'db dyn DwarfDb,
+    entry: Die<'db>,
+) -> Result<OptionLayout<Die<'db>>> {
     Ok(option_def().parse(db, entry)?)
 }
 
-fn resolve_result_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<ResultLayout> {
+fn resolve_result_type<'db>(
+    db: &'db dyn DwarfDb,
+    entry: Die<'db>,
+) -> Result<ResultLayout<Die<'db>>> {
     Ok(result_def().parse(db, entry)?)
 }
 
-fn resolve_struct_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<StructLayout> {
+fn resolve_struct_type<'db>(
+    db: &'db dyn DwarfDb,
+    entry: Die<'db>,
+) -> Result<StructLayout<Die<'db>>> {
     // let index = crate::index::build_index(db);
     // let type_name = index.data(db).die_to_type_name.get(&entry).copied();
     // get some basic info
@@ -494,7 +516,7 @@ fn resolve_struct_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Str
         fields.push(StructField {
             name: field_name,
             offset,
-            ty: Arc::new(ty),
+            ty,
         });
     }
     Ok(StructLayout {
@@ -507,12 +529,15 @@ fn resolve_struct_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Str
 
 /// Fully resolve a type from a DWARF DIE entry
 #[salsa::tracked]
-pub fn resolve_type_offset<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<TypeLayout> {
+pub fn resolve_type_offset<'db>(
+    db: &'db dyn DwarfDb,
+    entry: Die<'db>,
+) -> Result<DieTypeDefinition<'db>> {
     if let Some(def) = resolve_as_builtin_type(db, entry)? {
         return Ok(def);
     }
 
-    Ok(match entry.tag(db) {
+    let layout = match entry.tag(db) {
         gimli::DW_TAG_base_type => {
             // unhandled primitive type
             tracing::debug!("unhandled primitive type: {}", entry.print(db));
@@ -521,7 +546,7 @@ pub fn resolve_type_offset<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result
                 .into());
         }
         gimli::DW_TAG_array_type => {
-            let array_type = resolve_entry_type(db, entry)?;
+            let element_type = resolve_entry_type(db, entry)?;
             let children = entry.children(db)?;
             let subrange = children
                 .iter()
@@ -530,8 +555,8 @@ pub fn resolve_type_offset<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result
                     entry.format_with_location(db, "array type missing subrange information")
                 })?;
             let count = subrange.udata_attr(db, gimli::DW_AT_count)?;
-            TypeLayout::Primitive(PrimitiveLayout::Array(ArrayLayout {
-                element_type: Arc::new(array_type),
+            Layout::Primitive(PrimitiveLayout::Array(ArrayLayout {
+                element_type,
                 length: count,
             }))
         }
@@ -544,50 +569,46 @@ pub fn resolve_type_offset<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result
                 .any(|c| c.tag(db) == gimli::DW_TAG_variant_part);
 
             if is_enum {
-                TypeLayout::Enum(resolve_enum_type(db, entry)?)
+                Layout::Enum(resolve_enum_type(db, entry)?)
             } else {
                 // we have a struct type and it's _not_ a builtin -- we'll handle it now
-                TypeLayout::Struct(resolve_struct_type(db, entry)?)
+                Layout::Struct(resolve_struct_type(db, entry)?)
             }
         }
         gimli::DW_TAG_subroutine_type => {
             let return_type = entry
                 .get_referenced_entry(db, gimli::DW_AT_type)
-                .map_or_else(
-                    |_| {
-                        // we'll ignore errors -- subroutines with no type field
-                        // have no return type
-                        Ok(Arc::new(TypeLayout::Primitive(PrimitiveLayout::Unit(
-                            UnitLayout,
-                        ))))
-                    },
-                    |ty| resolve_entry_type(db, ty).map(Arc::new),
-                )?;
+                .ok()
+                .map(|ty| resolve_entry_type(db, ty))
+                .transpose()?;
 
             let arg_types = entry
                 .children(db)?
                 .into_iter()
                 .filter(|c| c.tag(db) == gimli::DW_TAG_formal_parameter)
-                .map(|c| resolve_entry_type(db, c).map(Arc::new))
+                .map(|c| resolve_entry_type(db, c))
                 .collect::<Result<Vec<_>>>()?;
 
-            TypeLayout::Primitive(PrimitiveLayout::Function(FunctionLayout {
+            Layout::Primitive(PrimitiveLayout::Function(FunctionLayout {
                 return_type,
                 arg_types,
             }))
         }
-        gimli::DW_TAG_enumeration_type => TypeLayout::CEnum(c_enum_def().parse(db, entry)?),
+        gimli::DW_TAG_enumeration_type => Layout::CEnum(c_enum_def().parse(db, entry)?),
         t => {
             return Err(entry
                 .format_with_location(db, format!("unsupported type: {t}"))
                 .into());
         }
-    })
+    };
+    Ok(TypeDefinition::new(entry, layout))
 }
 
 #[cfg(test)]
 mod test {
-    use crate::function::resolve_function_variables;
+    use rudy_types::StdLayout;
+
+    use crate::{function::resolve_function_variables, types::DieLayout};
 
     #[test]
     fn test_std_type_detection() {
@@ -635,13 +656,30 @@ mod test {
         settings.set_prepend_module_to_snapshot(false);
         crate::test_utils::add_filters(&mut settings);
         // Check if we can resolve the types of the parameters
-        for param in params.params(db) {
-            let ty = param.ty(db);
+        let params = params.params(db);
+        assert_eq!(params.len(), 3, "Expected 3 parameters in test_fn");
 
-            settings.bind(|| {
-                salsa::attach(db, || insta::assert_debug_snapshot!(ty));
-            });
-        }
+        let string_param = params[0];
+        let vec_param = params[1];
+        let map_param = params[2];
+
+        let string_type = string_param.ty(db).layout.as_ref();
+        assert!(
+            matches!(string_type, DieLayout::Std(StdLayout::<_>::String(_))),
+            "Expected first parameter to be a String, got: {string_type:?}"
+        );
+
+        let vec_type = vec_param.ty(db).layout.as_ref();
+        assert!(
+            matches!(vec_type, DieLayout::Std(StdLayout::<_>::Vec(_))),
+            "Expected second parameter to be a Vec, got: {vec_type:?}"
+        );
+
+        let map_type = map_param.ty(db).layout.as_ref();
+        assert!(
+            matches!(map_type, DieLayout::Std(StdLayout::<_>::Map(_))),
+            "Expected third parameter to be a Map, got: {map_type:?}"
+        );
 
         // Test resolving variables if we can find any
         // This is a basic smoke test to make sure the new get_die_name function works

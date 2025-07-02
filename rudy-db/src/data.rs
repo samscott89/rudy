@@ -1,13 +1,13 @@
 //! Data resolver trait for reading variables from memory during debugging.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
-use rudy_dwarf::Die;
+use rudy_dwarf::{Die, types::DieTypeDefinition};
 use rudy_types::{
-    ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
-    PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
-    StrSliceLayout, TypeLayout, VecLayout,
+    ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, Layout, MapLayout, MapVariant,
+    OptionLayout, PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant,
+    StdLayout, StrSliceLayout, VecLayout,
 };
 
 use crate::{Value, database::Db, outputs::TypedPointer};
@@ -145,12 +145,11 @@ impl<'a, R: DataResolver + ?Sized> rudy_dwarf::expressions::ExpressionContext
 }
 
 /// Returns a list of map entries from a memory address.
-pub fn read_map_entries(
+pub fn read_map_entries<'db>(
     address: u64,
-    def: &MapLayout,
+    def: &MapLayout<Die<'db>>,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &rudy_dwarf::DebugFile,
-) -> Result<Vec<(TypedPointer, TypedPointer)>> {
+) -> Result<Vec<(TypedPointer<'db>, TypedPointer<'db>)>> {
     tracing::trace!("read_map_entries {address:#x} {}", def.display_name());
 
     match def.variant.clone() {
@@ -203,12 +202,10 @@ pub fn read_map_entries(
                     let key = TypedPointer {
                         address: slot_addr + key_offset as u64,
                         type_def: def.key_type.clone(),
-                        debug_file: *debug_file,
                     };
                     let value = TypedPointer {
                         address: slot_addr + value_offset as u64,
                         type_def: def.value_type.clone(),
-                        debug_file: *debug_file,
                     };
 
                     entries.push((key, value));
@@ -271,7 +268,6 @@ pub fn read_map_entries(
                 &def.value_type,
                 &node_layout,
                 data_resolver,
-                debug_file,
                 &mut entries,
             )?;
 
@@ -285,13 +281,12 @@ pub fn read_map_entries(
     }
 }
 
-fn read_enum(
-    db: &dyn Db,
+fn read_enum<'db>(
+    db: &'db dyn Db,
     address: u64,
-    enum_def: &EnumLayout,
+    enum_def: &EnumLayout<Die<'db>>,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &rudy_dwarf::DebugFile,
-) -> Result<Value> {
+) -> Result<Value<'db>> {
     tracing::trace!("read_enum {address:#x} {enum_def:#?}");
 
     let EnumLayout {
@@ -379,13 +374,7 @@ fn read_enum(
     tracing::trace!("found matching variant: {matching_variant:#?}");
 
     // read the inner value
-    let inner = read_from_memory(
-        db,
-        address,
-        &matching_variant.layout,
-        data_resolver,
-        debug_file,
-    )?;
+    let inner = read_from_memory(db, address, &matching_variant.layout, data_resolver)?;
 
     // re-format the value based on what we get back
     Ok(match inner {
@@ -419,11 +408,11 @@ fn read_enum(
     })
 }
 
-fn read_c_enum(
+fn read_c_enum<'db>(
     address: u64,
     c_enum_def: &CEnumLayout,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Value> {
+) -> Result<Value<'db>> {
     let CEnumLayout {
         name,
         discriminant_type,
@@ -483,19 +472,18 @@ fn read_c_enum(
     })
 }
 
-pub fn read_from_memory(
-    db: &dyn Db,
+pub fn read_from_memory<'db>(
+    db: &'db dyn Db,
     address: u64,
-    ty: &TypeLayout,
+    ty: &DieTypeDefinition<'db>,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &rudy_dwarf::DebugFile,
-) -> Result<Value> {
+) -> Result<Value<'db>> {
     tracing::trace!("read_from_memory {address:#x} {}", ty.display_name());
-    match &ty {
-        TypeLayout::Primitive(primitive_def) => {
-            read_primitive_from_memory(db, address, primitive_def, data_resolver, debug_file)
+    match ty.layout.as_ref() {
+        Layout::Primitive(primitive_def) => {
+            read_primitive_from_memory(db, address, primitive_def, data_resolver)
         }
-        TypeLayout::Struct(struct_def) => {
+        Layout::Struct(struct_def) => {
             let mut fields = BTreeMap::new();
             for field in &struct_def.fields {
                 let field_name = &field.name;
@@ -505,7 +493,6 @@ pub fn read_from_memory(
                 let field_value = Value::Pointer(TypedPointer {
                     address: field_address,
                     type_def: field_ty.clone(),
-                    debug_file: *debug_file,
                 });
                 fields.insert(field_name.to_string(), field_value);
             }
@@ -514,21 +501,14 @@ pub fn read_from_memory(
                 fields,
             })
         }
-        TypeLayout::Std(std_def) => {
-            read_std_from_memory(db, address, std_def, data_resolver, debug_file)
-        }
-        TypeLayout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver, debug_file),
-        TypeLayout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
-        TypeLayout::Alias(entry) => {
+        Layout::Std(std_def) => read_std_from_memory(db, address, std_def, data_resolver),
+        Layout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver),
+        Layout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
+        Layout::Alias { .. } => {
             // For aliases, we'll resolve the underlying type and read that
-            let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-            let underlying_type = rudy_dwarf::types::resolve_type_offset(db, entry)?;
+            let underlying_type = rudy_dwarf::types::resolve_type_offset(db, ty.location)?;
             // now read the memory itself
-            read_from_memory(db, address, &underlying_type, data_resolver, debug_file)
-        }
-        TypeLayout::Other { name } => {
-            tracing::warn!("read_from_memory: unsupported type {name}");
-            Err(anyhow::anyhow!("Unsupported type: {name}"))
+            read_from_memory(db, address, &underlying_type, data_resolver)
         }
     }
 }
@@ -536,7 +516,7 @@ pub fn read_from_memory(
 /// Extract pointer, length, and capacity from a Vec Value
 pub fn extract_vec_info(
     base_address: u64,
-    def: &VecLayout,
+    def: &VecLayout<Die<'_>>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<(u64, usize)> {
     let VecLayout {
@@ -563,13 +543,12 @@ pub fn extract_vec_info(
     Ok((address, length))
 }
 
-fn read_primitive_from_memory(
-    db: &dyn Db,
+fn read_primitive_from_memory<'db>(
+    db: &'db dyn Db,
     address: u64,
-    def: &PrimitiveLayout,
+    def: &PrimitiveLayout<Die<'db>>,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &rudy_dwarf::DebugFile,
-) -> Result<Value> {
+) -> Result<Value<'db>> {
     let value = match def {
         PrimitiveLayout::Bool(_) => {
             let memory = data_resolver.read_memory(address, 1)?;
@@ -596,13 +575,7 @@ fn read_primitive_from_memory(
             element_type,
             length,
         }) => {
-            let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
-                // Resolve the alias to get the actual type
-                let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
-            } else {
-                element_type.clone()
-            };
+            let element_type = resolve_alias(db, element_type)?;
             let element_size = element_type.size().with_context(|| {
                 format!(
                     "inner type: {} has unknown size",
@@ -617,7 +590,6 @@ fn read_primitive_from_memory(
                 let value = Value::Pointer(TypedPointer {
                     address,
                     type_def: element_type.clone(),
-                    debug_file: *debug_file,
                 });
                 values.push(value);
                 address += element_size;
@@ -629,11 +601,11 @@ fn read_primitive_from_memory(
         }
         PrimitiveLayout::Pointer(PointerLayout { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
-            read_from_memory(db, address, pointed_type, data_resolver, debug_file)?.prefix_type("*")
+            read_from_memory(db, address, pointed_type, data_resolver)?.prefix_type("*")
         }
         PrimitiveLayout::Reference(ReferenceLayout { pointed_type, .. }) => {
             let address = data_resolver.read_address(address)?;
-            read_from_memory(db, address, pointed_type, data_resolver, debug_file)?.prefix_type("&")
+            read_from_memory(db, address, pointed_type, data_resolver)?.prefix_type("&")
         }
         PrimitiveLayout::Slice(SliceLayout {
             element_type,
@@ -645,13 +617,7 @@ fn read_primitive_from_memory(
             let length = u64::from_le_bytes(length_bytes.try_into().unwrap());
             tracing::trace!("length: {length}");
 
-            let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
-                // Resolve the alias to get the actual type
-                let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
-            } else {
-                element_type.clone()
-            };
+            let element_type = resolve_alias(db, element_type)?;
 
             let element_size = element_type.size().with_context(|| {
                 format!(
@@ -667,7 +633,6 @@ fn read_primitive_from_memory(
                 let value = Value::Pointer(TypedPointer {
                     address: current_addr,
                     type_def: element_type.clone(),
-                    debug_file: *debug_file,
                 });
                 values.push(value);
                 current_addr += element_size;
@@ -786,13 +751,24 @@ fn read_primitive_from_memory(
     Ok(value)
 }
 
-fn read_option_from_memory(
-    db: &dyn Db,
+fn resolve_alias<'db>(
+    db: &'db dyn Db,
+    def: &DieTypeDefinition<'db>,
+) -> Result<DieTypeDefinition<'db>> {
+    if let Layout::Alias { name } = def.layout.as_ref() {
+        rudy_dwarf::types::resolve_type_offset(db, def.location)
+            .with_context(|| format!("Failed to resolve alias for {name}"))
+    } else {
+        Ok(def.clone())
+    }
+}
+
+fn read_option_from_memory<'db>(
+    db: &'db dyn Db,
     address: u64,
-    opt_def: &OptionLayout,
+    opt_def: &OptionLayout<Die<'db>>,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &rudy_dwarf::DebugFile,
-) -> Result<Value> {
+) -> Result<Value<'db>> {
     let OptionLayout {
         discriminant,
         some_offset,
@@ -813,28 +789,21 @@ fn read_option_from_memory(
         tracing::debug!("Found Some variant at {address:#x}: {some_type:#?}");
         // we have a `Some` variant
         // we should get the address of the inner value
-        read_from_memory(
-            db,
-            address + *some_offset as u64,
-            some_type,
-            data_resolver,
-            debug_file,
-        )?
+        read_from_memory(db, address + *some_offset as u64, some_type, data_resolver)?
     }
     .wrap_type("Option"))
 }
 
-fn read_std_from_memory(
-    db: &dyn Db,
+fn read_std_from_memory<'db>(
+    db: &'db dyn Db,
     address: u64,
-    def: &StdLayout,
+    def: &StdLayout<Die<'db>>,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &rudy_dwarf::DebugFile,
-) -> Result<Value> {
+) -> Result<Value<'db>> {
     let value = match def {
         StdLayout::Option(enum_def) => {
             tracing::trace!("reading Option at {address:#x}");
-            read_option_from_memory(db, address, enum_def, data_resolver, debug_file)?
+            read_option_from_memory(db, address, enum_def, data_resolver)?
         }
         StdLayout::Vec(
             v @ VecLayout {
@@ -846,13 +815,7 @@ fn read_std_from_memory(
             tracing::trace!(
                 "reading Vec at {address:#x}, length_offset: {length_offset:#x}, data_ptr_offset: {data_ptr_offset:#x}",
             );
-            let element_type = if let TypeLayout::Alias(entry) = inner_type.as_ref() {
-                // Resolve the alias to get the actual type
-                let entry = Die::from_unresolved_entry(db, *debug_file, entry);
-                Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
-            } else {
-                inner_type.clone()
-            };
+            let element_type = resolve_alias(db, inner_type)?;
 
             let element_size = element_type.size().with_context(|| {
                 format!(
@@ -869,7 +832,6 @@ fn read_std_from_memory(
                 let value = Value::Pointer(TypedPointer {
                     address,
                     type_def: element_type.clone(),
-                    debug_file: *debug_file,
                 });
                 values.push(value);
                 address += element_size;
@@ -907,7 +869,7 @@ fn read_std_from_memory(
             }
         }
         StdLayout::Map(def) => {
-            let entries = read_map_entries(address, def, data_resolver, debug_file)?
+            let entries = read_map_entries(address, def, data_resolver)?
                 .into_iter()
                 .map(|(key, value)| Ok((Value::Pointer(key), Value::Pointer(value))))
                 .collect::<Result<Vec<_>>>()?;
@@ -920,13 +882,13 @@ fn read_std_from_memory(
             SmartPtrVariant::Mutex | SmartPtrVariant::RefCell => {
                 let inner_type = s.inner_type.clone();
                 let address = address + s.inner_ptr_offset as u64;
-                read_from_memory(db, address, &inner_type, data_resolver, debug_file)?
+                read_from_memory(db, address, &inner_type, data_resolver)?
                     .wrap_type(s.variant.name())
             }
             SmartPtrVariant::Box => {
                 let inner_type = s.inner_type.clone();
                 let address = data_resolver.read_address(address)?;
-                read_from_memory(db, address, &inner_type, data_resolver, debug_file)?
+                read_from_memory(db, address, &inner_type, data_resolver)?
                     .wrap_type(s.variant.name())
             }
             SmartPtrVariant::Rc | SmartPtrVariant::Arc => {
@@ -934,7 +896,7 @@ fn read_std_from_memory(
                 let inner_address =
                     data_resolver.read_address(address + s.inner_ptr_offset as u64)?;
                 let data_address = inner_address + s.data_ptr_offset as u64;
-                read_from_memory(db, data_address, &inner_type, data_resolver, debug_file)?
+                read_from_memory(db, data_address, &inner_type, data_resolver)?
                     .wrap_type(s.variant.name())
             }
             _ => {
@@ -951,15 +913,14 @@ fn read_std_from_memory(
 
 /// Recursively read entries from a BTree node following the algorithm from the Python code
 #[allow(clippy::too_many_arguments)]
-fn read_btree_node_entries(
+fn read_btree_node_entries<'db>(
     node_ptr: u64,
     height: usize,
-    key_type: &std::sync::Arc<TypeLayout>,
-    value_type: &std::sync::Arc<TypeLayout>,
+    key_type: &DieTypeDefinition<'db>,
+    value_type: &DieTypeDefinition<'db>,
     node_layout: &BTreeNodeLayout,
     data_resolver: &dyn crate::DataResolver,
-    debug_file: &rudy_dwarf::DebugFile,
-    entries: &mut Vec<(TypedPointer, TypedPointer)>,
+    entries: &mut Vec<(TypedPointer<'db>, TypedPointer<'db>)>,
 ) -> Result<()> {
     tracing::trace!("read_btree_node_entries at {node_ptr:#x}, height: {height}");
 
@@ -1008,7 +969,6 @@ fn read_btree_node_entries(
                         value_type,
                         node_layout,
                         data_resolver,
-                        debug_file,
                         entries,
                     )?;
                 }
@@ -1026,13 +986,11 @@ fn read_btree_node_entries(
                 let key_ptr = TypedPointer {
                     address: key_addr,
                     type_def: key_type.clone(),
-                    debug_file: *debug_file,
                 };
 
                 let value_ptr = TypedPointer {
                     address: value_addr,
                     type_def: value_type.clone(),
-                    debug_file: *debug_file,
                 };
 
                 entries.push((key_ptr, value_ptr));

@@ -1,7 +1,5 @@
 //! Option parser implementation using combinators
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use rudy_types::ResultLayout;
 
@@ -25,8 +23,8 @@ pub fn result_def() -> ResultDefParser {
     ResultDefParser
 }
 
-impl<'db> Parser<'db, ResultLayout> for ResultDefParser {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<ResultLayout> {
+impl<'db> Parser<'db, ResultLayout<Die<'db>>> for ResultDefParser {
+    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<ResultLayout<Die<'db>>> {
         tracing::debug!("resolving result type: {}", entry.print(db));
 
         // Get the variant part
@@ -50,14 +48,14 @@ impl<'db> Parser<'db, ResultLayout> for ResultDefParser {
         ))
         .parse(db, entry)?;
 
-        let (_, (ok_offset, ok_layout)) = ok;
-        let (_, (err_offset, err_layout)) = err;
+        let (_, (ok_offset, ok_type)) = ok;
+        let (_, (err_offset, err_type)) = err;
 
         Ok(ResultLayout {
             name,
-            ok_type: Arc::new(ok_layout),
+            ok_type,
             ok_offset,
-            err_type: Arc::new(err_layout),
+            err_type,
             err_offset,
             size,
             discriminant,

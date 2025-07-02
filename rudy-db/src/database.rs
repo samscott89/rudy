@@ -46,7 +46,7 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use rudy_dwarf::{Binary, DebugFile, DwarfDb, file::File};
+use rudy_dwarf::{Binary, DwarfDb, file::File};
 
 #[salsa::db]
 pub trait Db: salsa::Database + DwarfDb {}
@@ -102,19 +102,9 @@ impl DebugDatabaseImpl {
         self
     }
 
-    pub(crate) fn analyze_file(&self, binary_file: PathBuf) -> Result<(Binary, Vec<DebugFile>)> {
-        // TODO: we should do some deduplication here to see if we've already loaded
-        // this file. We can do thy by checking file path, size, mtime, etc.
+    pub(crate) fn load_binary(&self, binary_file: PathBuf) -> Result<Binary> {
         let file = File::build(self, binary_file, None)?;
-        let bin = Binary::new(self, file);
-
-        let index = crate::index::debug_index(self, bin);
-        tracing::debug!("Index built: {index:#?}");
-
-        // get a list of all debug files so that we can track them in case they change
-        let debug_files = index.debug_files(self).values().copied().collect();
-
-        Ok((bin, debug_files))
+        Ok(Binary::new(self, file))
     }
 
     pub fn get_sync_ref(&self) -> DebugDbRef {

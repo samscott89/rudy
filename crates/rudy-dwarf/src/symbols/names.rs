@@ -4,7 +4,7 @@ use std::fmt;
 
 use anyhow::Context;
 use rudy_parser as parser;
-use rudy_types::TypeLayout;
+use rudy_types::Layout;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ModuleName {
@@ -21,7 +21,7 @@ pub struct TypeName {
     /// The full name of the type, including module path
     /// e.g. `alloc::string::String`
     pub full_name: String,
-    pub typedef: TypeLayout,
+    pub typedef: Layout,
 }
 
 impl fmt::Debug for TypeName {
@@ -86,7 +86,7 @@ impl TypeName {
         })?;
 
         // let type_name = parsed_type.to_string();
-        let typedef = parsed_type.as_typedef();
+        let typedef = parsed_type.as_layout();
 
         tracing::trace!("TypeName::parse - name: {name}, typedef: {typedef:?}",);
 

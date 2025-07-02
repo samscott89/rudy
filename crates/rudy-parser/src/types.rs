@@ -1,6 +1,6 @@
 //! Type parsing using unsynn
 
-use std::{fmt, sync::Arc};
+use std::fmt;
 
 use itertools::Itertools;
 use rudy_types::*;
@@ -454,43 +454,43 @@ pub fn parse_type(s: &str) -> unsynn::Result<Type> {
 }
 
 impl Type {
-    pub fn as_typedef(&self) -> TypeLayout {
+    pub fn as_layout(&self) -> Layout {
         match self {
             Type::Path(path) => {
                 // Convert path to typedef
                 path.as_typedef()
             }
             Type::Slice(slice) => {
-                let inner = slice.inner.content.clone().as_typedef();
-                TypeLayout::Primitive(PrimitiveLayout::Slice(SliceLayout {
-                    element_type: Arc::new(inner),
+                let inner = slice.inner.content.clone().as_layout();
+                Layout::Primitive(PrimitiveLayout::Slice(SliceLayout {
+                    element_type: TypeDefinition::new((), inner),
                     data_ptr_offset: 0,
                     length_offset: 0,
                 }))
             }
             Type::StrSlice(_) => {
                 // For str slices, we can just return a Str type
-                TypeLayout::Primitive(PrimitiveLayout::StrSlice(StrSliceLayout {
+                Layout::Primitive(PrimitiveLayout::StrSlice(StrSliceLayout {
                     data_ptr_offset: 0,
                     length_offset: 0,
                 }))
             }
             Type::Ref(ref_type) => {
-                let inner = ref_type.inner.as_typedef();
-                TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
+                let inner = ref_type.inner.as_layout();
+                Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
                     mutable: ref_type.is_mutable(),
-                    pointed_type: Arc::new(inner),
+                    pointed_type: TypeDefinition::new((), inner),
                 }))
             }
             Type::Ptr(ptr_type) => {
-                let inner = ptr_type.inner.as_typedef();
-                TypeLayout::Primitive(PrimitiveLayout::Pointer(PointerLayout {
+                let inner = ptr_type.inner.as_layout();
+                Layout::Primitive(PrimitiveLayout::Pointer(PointerLayout {
                     mutable: ptr_type.is_mutable(),
-                    pointed_type: Arc::new(inner),
+                    pointed_type: TypeDefinition::new((), inner),
                 }))
             }
             Type::Array(array) => {
-                let inner = array.inner().clone().as_typedef();
+                let inner = array.inner().clone().as_layout();
                 let length = if let Some(size_type) = array.concrete_size() {
                     // Try to extract numeric literal from the size
                     // For now, we'll default to 0 if we can't parse it
@@ -499,8 +499,8 @@ impl Type {
                     0 // Unknown size
                 };
 
-                TypeLayout::Primitive(PrimitiveLayout::Array(ArrayLayout {
-                    element_type: Arc::new(inner),
+                Layout::Primitive(PrimitiveLayout::Array(ArrayLayout {
+                    element_type: TypeDefinition::new((), inner),
                     length,
                 }))
             }
@@ -508,14 +508,14 @@ impl Type {
                 let elements: Vec<_> = tuple
                     .inner()
                     .iter()
-                    .map(|t| (0, Arc::new(t.as_typedef())))
+                    .map(|t| (0, TypeDefinition::new((), t.as_layout())))
                     .collect();
 
                 // 0-arity tuple is a unit
                 if elements.is_empty() {
-                    TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))
+                    Layout::Primitive(PrimitiveLayout::Unit(UnitLayout))
                 } else {
-                    TypeLayout::Primitive(PrimitiveLayout::Tuple(TupleLayout {
+                    Layout::Primitive(PrimitiveLayout::Tuple(TupleLayout {
                         elements,
                         size: 0, // Would need to calculate from DWARF
                     }))
@@ -523,38 +523,36 @@ impl Type {
             }
             Type::DynTrait(_dyn_trait) => {
                 // For trait objects, we'll use Other for now
-                TypeLayout::Other {
+                Layout::Alias {
                     name: self.to_string(),
                 }
             }
             Type::Function(fn_type) => {
-                TypeLayout::Primitive(PrimitiveLayout::Function(FunctionLayout {
-                    return_type: Arc::new(
-                        fn_type
-                            .ret()
-                            .map_or(PrimitiveLayout::Unit(UnitLayout).into(), |r| r.as_typedef()),
-                    ),
+                Layout::Primitive(PrimitiveLayout::Function(FunctionLayout {
+                    return_type: fn_type
+                        .ret()
+                        .map(|l| TypeDefinition::new((), l.as_layout())),
                     arg_types: fn_type
                         .args()
                         .iter()
-                        .map(|a| Arc::new(a.as_typedef()))
+                        .map(|a| TypeDefinition::new((), a.as_layout()))
                         .collect(),
                 }))
             }
             Type::Never(_) => {
                 // For the never type, we can just return a unit type
-                TypeLayout::Primitive(PrimitiveLayout::Never(()))
+                Layout::Primitive(PrimitiveLayout::Never(()))
             }
         }
     }
 }
 
 impl Path {
-    fn as_typedef(&self) -> TypeLayout {
+    fn as_typedef(&self) -> Layout {
         // First, let's extract the segments
         let segments = self.segments();
         if segments.is_empty() {
-            return TypeLayout::Other {
+            return Layout::Alias {
                 name: String::new(),
             };
         }
@@ -599,10 +597,10 @@ impl Path {
                 }
                 "f32" => return FloatLayout { size: 4 }.into(),
                 "f64" => return FloatLayout { size: 8 }.into(),
-                "bool" => return TypeLayout::Primitive(PrimitiveLayout::Bool(())),
-                "char" => return TypeLayout::Primitive(PrimitiveLayout::Char(())),
-                "str" => return TypeLayout::Primitive(PrimitiveLayout::Str(())),
-                "()" => return TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout)),
+                "bool" => return Layout::Primitive(PrimitiveLayout::Bool(())),
+                "char" => return Layout::Primitive(PrimitiveLayout::Char(())),
+                "str" => return Layout::Primitive(PrimitiveLayout::Str(())),
+                "()" => return Layout::Primitive(PrimitiveLayout::Unit(UnitLayout)),
                 _ => {}
             }
         }
@@ -638,24 +636,30 @@ impl Path {
                     match type_name.as_str() {
                         "String" => {
                             tracing::trace!("Matched String type!");
-                            return TypeLayout::Std(StdLayout::String(StringLayout(VecLayout {
+                            return Layout::Std(StdLayout::String(StringLayout(VecLayout {
                                 length_offset: 0,
                                 data_ptr_offset: 0,
-                                inner_type: Arc::new(TypeLayout::Primitive(
-                                    PrimitiveLayout::UnsignedInt(UnsignedIntLayout { size: 1 }),
-                                )),
+                                inner_type: TypeDefinition::new(
+                                    (),
+                                    Layout::Primitive(PrimitiveLayout::UnsignedInt(
+                                        UnsignedIntLayout { size: 1 },
+                                    )),
+                                ),
                             })));
                         }
                         "Vec" => {
                             let inner = get_generics()
                                 .first()
-                                .map(|t| Arc::new(t.as_typedef()))
+                                .map(|t| TypeDefinition::new((), t.as_layout()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeLayout::Other {
-                                        name: "Unknown".to_string(),
-                                    })
+                                    TypeDefinition::new(
+                                        (),
+                                        Layout::Alias {
+                                            name: "Unknown".to_string(),
+                                        },
+                                    )
                                 });
-                            return TypeLayout::Std(StdLayout::Vec(VecLayout {
+                            return Layout::Std(StdLayout::Vec(VecLayout {
                                 inner_type: inner,
                                 length_offset: 0,
                                 data_ptr_offset: 0,
@@ -664,13 +668,16 @@ impl Path {
                         "Option" => {
                             let inner = get_generics()
                                 .first()
-                                .map(|t| Arc::new(t.as_typedef()))
+                                .map(|t| TypeDefinition::new((), t.as_layout()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeLayout::Other {
-                                        name: "Unknown".to_string(),
-                                    })
+                                    TypeDefinition::new(
+                                        (),
+                                        Layout::Alias {
+                                            name: "Unknown".to_string(),
+                                        },
+                                    )
                                 });
-                            return TypeLayout::Std(StdLayout::Option(OptionLayout {
+                            return Layout::Std(StdLayout::Option(OptionLayout {
                                 name: "Option".to_string(),
                                 discriminant: Discriminant {
                                     offset: 0,
@@ -685,21 +692,27 @@ impl Path {
                             let mut generics_iter = get_generics().into_iter();
                             let ok_type = generics_iter
                                 .next()
-                                .map(|t| Arc::new(t.as_typedef()))
+                                .map(|t| TypeDefinition::new((), t.as_layout()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeLayout::Other {
-                                        name: "Unknown".to_string(),
-                                    })
+                                    TypeDefinition::new(
+                                        (),
+                                        Layout::Alias {
+                                            name: "Unknown".to_string(),
+                                        },
+                                    )
                                 });
                             let err_type = generics_iter
                                 .next()
-                                .map(|t| Arc::new(t.as_typedef()))
+                                .map(|t| TypeDefinition::new((), t.as_layout()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeLayout::Other {
-                                        name: "Unknown".to_string(),
-                                    })
+                                    TypeDefinition::new(
+                                        (),
+                                        Layout::Alias {
+                                            name: "Unknown".to_string(),
+                                        },
+                                    )
                                 });
-                            return TypeLayout::Std(StdLayout::Result(ResultLayout {
+                            return Layout::Std(StdLayout::Result(ResultLayout {
                                 name: "Result".to_string(),
                                 discriminant: Discriminant {
                                     offset: 0,
@@ -716,19 +729,25 @@ impl Path {
                             let mut generics_iter = get_generics().into_iter();
                             let key_type = generics_iter
                                 .next()
-                                .map(|t| Arc::new(t.as_typedef()))
+                                .map(|t| TypeDefinition::new((), t.as_layout()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeLayout::Other {
-                                        name: "Unknown".to_string(),
-                                    })
+                                    TypeDefinition::new(
+                                        (),
+                                        Layout::Alias {
+                                            name: "Unknown".to_string(),
+                                        },
+                                    )
                                 });
                             let value_type = generics_iter
                                 .next()
-                                .map(|t| Arc::new(t.as_typedef()))
+                                .map(|t| TypeDefinition::new((), t.as_layout()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeLayout::Other {
-                                        name: "Unknown".to_string(),
-                                    })
+                                    TypeDefinition::new(
+                                        (),
+                                        Layout::Alias {
+                                            name: "Unknown".to_string(),
+                                        },
+                                    )
                                 });
                             let variant = match type_name.as_str() {
                                 "HashMap" => MapVariant::HashMap {
@@ -756,7 +775,7 @@ impl Path {
                                 _ => unreachable!(),
                             };
                             tracing::trace!("Matched Map type: '{type_name}'");
-                            return TypeLayout::Std(StdLayout::Map(MapLayout {
+                            return Layout::Std(StdLayout::Map(MapLayout {
                                 key_type,
                                 value_type,
                                 variant,
@@ -767,11 +786,14 @@ impl Path {
                             let inner = get_generics()
                                 .into_iter()
                                 .next()
-                                .map(|t| Arc::new(t.as_typedef()))
+                                .map(|t| TypeDefinition::new((), t.as_layout()))
                                 .unwrap_or_else(|| {
-                                    Arc::new(TypeLayout::Other {
-                                        name: "Unknown".to_string(),
-                                    })
+                                    TypeDefinition::new(
+                                        (),
+                                        Layout::Alias {
+                                            name: "Unknown".to_string(),
+                                        },
+                                    )
                                 });
                             let variant = match type_name.as_str() {
                                 "Box" => SmartPtrVariant::Box,
@@ -784,7 +806,7 @@ impl Path {
                                 "RwLock" => SmartPtrVariant::RwLock,
                                 _ => unreachable!(),
                             };
-                            return TypeLayout::Std(StdLayout::SmartPtr(SmartPtrLayout {
+                            return Layout::Std(StdLayout::SmartPtr(SmartPtrLayout {
                                 inner_type: inner,
                                 inner_ptr_offset: 0,
                                 data_ptr_offset: 0,
@@ -798,7 +820,7 @@ impl Path {
         }
 
         // Default case: treat as a custom type (struct/enum) or alias
-        TypeLayout::Other {
+        Layout::Alias {
             name: last_segment.clone(),
         }
     }
@@ -806,8 +828,6 @@ impl Path {
 
 #[cfg(test)]
 mod test {
-    use std::sync::Arc;
-
     use itertools::Itertools;
     use pretty_assertions::assert_eq;
     use rudy_types::*;
@@ -942,19 +962,23 @@ mod test {
     }
 
     #[track_caller]
-    fn infer<T: Into<TypeLayout> + fmt::Debug>(s: &str, expected: T) {
-        let ty = parse_type(s).as_typedef();
+    fn infer<T: Into<Layout> + fmt::Debug>(s: &str, expected: T) {
+        let ty = parse_type(s).as_layout();
         assert_eq!(ty, expected.into(), "Failed to parse type `{s}`");
     }
 
-    fn string_def() -> TypeLayout {
-        TypeLayout::Std(StdLayout::String(StringLayout(VecLayout {
-            length_offset: 0,
-            data_ptr_offset: 0,
-            inner_type: Arc::new(TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(
-                UnsignedIntLayout { size: 1 },
-            ))),
-        })))
+    fn string_def() -> TypeDefinition {
+        TypeDefinition::new(
+            (),
+            Layout::Std(StdLayout::String(StringLayout(VecLayout {
+                length_offset: 0,
+                data_ptr_offset: 0,
+                inner_type: TypeDefinition::new(
+                    (),
+                    Layout::Primitive(PrimitiveLayout::UnsignedInt(UnsignedIntLayout { size: 1 })),
+                ),
+            }))),
+        )
     }
 
     #[test]
@@ -969,7 +993,7 @@ mod test {
         infer(
             "(u8,)",
             PrimitiveLayout::Tuple(TupleLayout {
-                elements: vec![(0, Arc::new(UnsignedIntLayout::u8().into()))],
+                elements: vec![(0, TypeDefinition::new((), UnsignedIntLayout::u8().into()))],
                 size: 0, // Would need to calculate from DWARF
             }),
         );
@@ -977,8 +1001,8 @@ mod test {
             "(u8,u64)",
             PrimitiveLayout::Tuple(TupleLayout {
                 elements: vec![
-                    (0, Arc::new(UnsignedIntLayout::u8().into())),
-                    (0, Arc::new(UnsignedIntLayout::u64().into())),
+                    (0, TypeDefinition::new((), UnsignedIntLayout::u8().into())),
+                    (0, TypeDefinition::new((), UnsignedIntLayout::u64().into())),
                 ],
                 size: 0, // Would need to calculate from DWARF
             }),
@@ -993,7 +1017,7 @@ mod test {
         );
         infer(
             "dyn core::fmt::Debug",
-            TypeLayout::Other {
+            Layout::Alias {
                 name: "dyn core::fmt::Debug".to_string(),
             },
         );
@@ -1018,25 +1042,28 @@ mod test {
                     ty: DiscriminantType::Implicit,
                 },
                 some_offset: 0,
-                some_type: Arc::new(IntLayout::i32().into()),
+                some_type: TypeDefinition::new((), IntLayout::i32().into()),
                 size: 0,
             }),
         );
         infer(
             "alloc::boxed::Box<i32>",
             SmartPtrLayout {
-                inner_type: Arc::new(IntLayout::i32().into()),
+                inner_type: TypeDefinition::new((), IntLayout::i32().into()),
                 variant: SmartPtrVariant::Box,
                 inner_ptr_offset: 0,
                 data_ptr_offset: 0,
             },
         );
-        infer("alloc::String::String", string_def());
+        infer(
+            "alloc::String::String",
+            string_def().layout.as_ref().clone(),
+        );
         infer(
             "std::collections::hash::map::HashMap<alloc::string::String, alloc::string::String>",
             MapLayout {
-                key_type: Arc::new(string_def()),
-                value_type: Arc::new(string_def()),
+                key_type: string_def(),
+                value_type: string_def(),
                 variant: MapVariant::HashMap {
                     bucket_mask_offset: 0,
                     ctrl_offset: 0,
@@ -1050,53 +1077,64 @@ mod test {
 
         infer(
             "core::num::nonzero::NonZero<u8>",
-            TypeLayout::Other {
+            Layout::Alias {
                 name: "NonZero<u8>".to_string(),
             },
         );
 
         infer(
             "fn(&u64, &mut core::fmt::Formatter) -> core::result::Result<(), core::fmt::Error>",
-            TypeLayout::Primitive(PrimitiveLayout::Function(FunctionLayout {
+            Layout::Primitive(PrimitiveLayout::Function(FunctionLayout {
                 arg_types: vec![
-                    Arc::new(ReferenceLayout::new_immutable(UnsignedIntLayout::u64()).into()),
-                    Arc::new(
-                        ReferenceLayout::new_mutable(TypeLayout::Other {
+                    TypeDefinition::new(
+                        (),
+                        ReferenceLayout::new_immutable(UnsignedIntLayout::u64()).into(),
+                    ),
+                    TypeDefinition::new(
+                        (),
+                        ReferenceLayout::new_mutable(Layout::Alias {
                             name: "Formatter".to_string(),
                         })
                         .into(),
                     ),
                 ],
-                return_type: Arc::new(
+                return_type: Some(TypeDefinition::new(
+                    (),
                     StdLayout::Result(ResultLayout {
                         name: "Result".to_string(),
                         discriminant: Discriminant {
                             offset: 0,
                             ty: DiscriminantType::Implicit,
                         },
-                        ok_type: Arc::new(TypeLayout::Primitive(PrimitiveLayout::Unit(UnitLayout))),
+                        ok_type: TypeDefinition::new(
+                            (),
+                            Layout::Primitive(PrimitiveLayout::Unit(UnitLayout)),
+                        ),
                         ok_offset: 0,
-                        err_type: Arc::new(TypeLayout::Other {
-                            name: "Error".to_string(),
-                        }),
+                        err_type: TypeDefinition::new(
+                            (),
+                            Layout::Alias {
+                                name: "Error".to_string(),
+                            },
+                        ),
                         err_offset: 0,
                         size: 0,
                     })
                     .into(),
-                ),
+                )),
             })),
         );
         infer(
             "&[u8]",
-            TypeLayout::Primitive(PrimitiveLayout::Slice(SliceLayout {
-                element_type: Arc::new(UnsignedIntLayout::u8().into()),
+            Layout::Primitive(PrimitiveLayout::Slice(SliceLayout {
+                element_type: TypeDefinition::new((), UnsignedIntLayout::u8().into()),
                 data_ptr_offset: 0,
                 length_offset: 0,
             })),
         );
         infer(
             "&str",
-            TypeLayout::Primitive(PrimitiveLayout::StrSlice(StrSliceLayout {
+            Layout::Primitive(PrimitiveLayout::StrSlice(StrSliceLayout {
                 data_ptr_offset: 0,
                 length_offset: 0,
             })),

@@ -1,7 +1,5 @@
 //! Option parser implementation using combinators
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use rudy_types::{Discriminant, OptionLayout};
 
@@ -50,8 +48,8 @@ pub(super) fn parse_option_entry<'db>(
     .map(|(name, size, (discriminant, some_variant))| (name, size, discriminant, some_variant))
 }
 
-impl<'db> Parser<'db, OptionLayout> for OptionDefParser {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<OptionLayout> {
+impl<'db> Parser<'db, OptionLayout<Die<'db>>> for OptionDefParser {
+    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<OptionLayout<Die<'db>>> {
         tracing::debug!("resolving option type: {}", entry.print(db));
         let (name, size, discriminant, some_variant) = parse_option_entry().parse(db, entry)?;
 
@@ -60,7 +58,7 @@ impl<'db> Parser<'db, OptionLayout> for OptionDefParser {
 
         Ok(OptionLayout {
             name,
-            some_type: Arc::new(some_type),
+            some_type,
             some_offset: some_variant.offset,
             size,
             discriminant,

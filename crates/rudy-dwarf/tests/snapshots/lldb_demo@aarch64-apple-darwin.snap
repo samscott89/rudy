@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-47af1fd900684c27.464y1fppipi6oeoc5m859wpeb.009i9j0.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.2mu4g3uig2ehggx0o8wj40i96.0eho9zw.rcgu.o ===
 0x0000063a:  namespace 'lldb_demo'
 0x0000063f:    structure_type 'User'
 0x00000677:      subprogram 'new'
@@ -30,20 +30,20 @@ snapshot_kind: text
 0x0000082c:        formal_parameter 'self'
 0x0000083a:        formal_parameter 'f'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-47af1fd900684c27.7u8wt2z9hhxcga4qi1q56lz1h.009i9j0.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.2zbpl5wcnwxpen1v5w7wjjnwx.0eho9zw.rcgu.o ===
 0x00000ce8:  namespace 'lldb_demo'
 0x00000ced:    structure_type 'User'
 0x00000d26:    structure_type 'Session'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-47af1fd900684c27.benhzwu8pyffsm6kcyyn8bn81.009i9j0.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.a2rcwfsf0i8j42qszc8f5l60x.0eho9zw.rcgu.o ===
+0x00000d9d:  namespace 'lldb_demo'
+0x00000da2:    structure_type 'User'
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.c2iolettt1sb9jyhbx9twpna3.0eho9zw.rcgu.o ===
 0x000003fc:  namespace 'lldb_demo'
 0x00000401:    structure_type 'Session'
 0x0000042e:    structure_type 'User'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-47af1fd900684c27.d6o709lucuyek8zys8h5meuq0.009i9j0.rcgu.o ===
-0x00000d9d:  namespace 'lldb_demo'
-0x00000da2:    structure_type 'User'
-
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-47af1fd900684c27.f5bjjidlrv9196kgsnq842f62.009i9j0.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.cvrtzgxf9kyoui34ytywtahe3.0eho9zw.rcgu.o ===
 0x00000768:  namespace 'lldb_demo'
 0x0000076d:    structure_type 'User'

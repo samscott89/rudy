@@ -2,6 +2,8 @@
 
 use rudy_types::VecLayout;
 
+use crate::Die;
+
 use super::{
     children::parse_children,
     primitives::{field_path_offset, is_member_offset, resolved_generic},
@@ -9,7 +11,7 @@ use super::{
 };
 
 /// Parser for Vec<T> type layout
-pub fn vec<'db>() -> impl Parser<'db, VecLayout> {
+pub fn vec<'db>() -> impl Parser<'db, VecLayout<Die<'db>>> {
     parse_children((
         field_path_offset(vec!["buf", "inner", "ptr"]),
         is_member_offset("len"),

@@ -1,7 +1,5 @@
 //! Variable resolution from DWARF debugging information
 
-use rudy_types::TypeLayout;
-
 use crate::{
     die::position,
     file::SourceLocation,
@@ -12,6 +10,7 @@ use crate::{
         primitives::{entry_type, optional_attr, resolve_type_shallow},
         Parser,
     },
+    types::DieTypeDefinition,
     visitor::{self, DieVisitor},
     Die, DwarfDb,
 };
@@ -24,7 +23,7 @@ pub struct Variable<'db> {
     #[returns(ref)]
     pub name: Option<String>,
     #[returns(ref)]
-    pub ty: TypeLayout,
+    pub ty: DieTypeDefinition<'db>,
     pub location: Option<SourceLocation<'db>>,
     /// The DIE that this variable was parsed from
     pub origin: Die<'db>,

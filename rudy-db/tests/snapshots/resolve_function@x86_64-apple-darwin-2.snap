@@ -6,16 +6,24 @@ snapshot_kind: text
 Some(
     ResolvedFunction {
         name: "simple_test::function_call",
-        address: "0x100000980",
+        address: "0x100000820",
+        size: "0x49",
         params: [
             Variable {
                 name: "x",
                 value: None,
-                ty: Some(
-                    Type {
-                        name: "i32",
-                    },
-                ),
+                ty: TypeDefinition {
+                    layout: Primitive(
+                        Int(
+                            IntLayout {
+                                size: 4,
+                            },
+                        ),
+                    ),
+                    location: Die(
+                        Id(2004),
+                    ),
+                },
             },
         ],
     },

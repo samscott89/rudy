@@ -6,7 +6,8 @@ snapshot_kind: text
 Some(
     ResolvedFunction {
         name: "simple_test::main",
-        address: "0x6550",
+        address: "0x64d8",
+        size: "0xa4",
         params: [],
     },
 )

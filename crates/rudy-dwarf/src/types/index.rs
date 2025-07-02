@@ -128,12 +128,27 @@ pub fn find_type_by_name<'db>(
         );
         // find the type name in the module
         for entry in module.children(db).unwrap_or_default() {
+            if !matches!(
+                entry.tag(db),
+                gimli::DW_TAG_structure_type
+                    | gimli::DW_TAG_enumeration_type
+                    | gimli::DW_TAG_array_type
+                    | gimli::DW_TAG_pointer_type
+                    | gimli::DW_TAG_base_type
+            ) {
+                // Skip namespace entries
+                continue;
+            }
             if let Ok(name) = entry.name(db) {
                 let Ok(parsed) = TypeName::parse(&type_name.module.segments, &name) else {
                     tracing::warn!("Failed to parse type name `{name}` in module {module:?}");
                     continue;
                 };
-                tracing::info!("Checking type name: {name} vs {}", type_name.name);
+                tracing::info!(
+                    "Checking parsed types:\n{:?}\n  vs\n{:?}",
+                    parsed.typedef,
+                    type_name.typedef
+                );
                 if parsed.typedef.matching_type(&type_name.typedef) {
                     tracing::info!("Found type {type_name:#?}  {}", entry.location(db));
                     return Some(entry);

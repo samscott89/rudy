@@ -1,11 +1,9 @@
 //! Enum parser implementation using combinators
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use rudy_types::{
     CEnumLayout, CEnumVariant, Discriminant, DiscriminantType, EnumLayout, EnumVariantLayout,
-    PrimitiveLayout, TypeLayout,
+    Layout, PrimitiveLayout,
 };
 
 use crate::{
@@ -37,13 +35,13 @@ pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
             if let Some(discr) = discr_die {
                 // We have an explicit discriminant - resolve its type
                 let discriminant_type = resolve_entry_type(db, discr)?;
-                let ty = match discriminant_type {
-                    rudy_types::TypeLayout::Primitive(rudy_types::PrimitiveLayout::Int(i)) => {
-                        DiscriminantType::Int(i)
+                let ty = match discriminant_type.layout.as_ref() {
+                    rudy_types::Layout::Primitive(rudy_types::PrimitiveLayout::Int(i)) => {
+                        DiscriminantType::Int(*i)
                     }
-                    rudy_types::TypeLayout::Primitive(
-                        rudy_types::PrimitiveLayout::UnsignedInt(u),
-                    ) => DiscriminantType::UnsignedInt(u),
+                    rudy_types::Layout::Primitive(rudy_types::PrimitiveLayout::UnsignedInt(u)) => {
+                        DiscriminantType::UnsignedInt(*u)
+                    }
                     _ => {
                         tracing::warn!(
                             "discriminant type is not an integer: {discriminant_type:?} {}",
@@ -70,7 +68,7 @@ pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
 }
 
 /// Parser for enum variants
-pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariantLayout> {
+pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariantLayout<Die<'db>>> {
     // 0x000002f5:           DW_TAG_variant
     //                         DW_AT_discr_value       (0x00)
 
@@ -91,7 +89,7 @@ pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariantLayout> {
                     all((
                         attr::<String>(gimli::DW_AT_name),
                         offset(),
-                        entry_type().then(resolve_type_shallow()).map(Arc::new),
+                        entry_type().then(resolve_type_shallow()),
                     )),
                 ),
             ),
@@ -254,14 +252,14 @@ impl_parse_enum_named_tuple_variant_for_tuples!(
 /// Parser for enum types
 ///
 /// Reference: https://github.com/rust-lang/rust/blob/3b97f1308ff72016a4aaa93fbe6d09d4d6427815/compiler/rustc_codegen_llvm/src/debuginfo/metadata/enums/native.rs
-pub fn enum_def<'db>() -> impl Parser<'db, EnumLayout> {
+pub fn enum_def<'db>() -> impl Parser<'db, EnumLayout<Die<'db>>> {
     EnumParser
 }
 
 pub struct EnumParser;
 
-impl<'db> Parser<'db, EnumLayout> for EnumParser {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<EnumLayout> {
+impl<'db> Parser<'db, EnumLayout<Die<'db>>> for EnumParser {
+    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<EnumLayout<Die<'db>>> {
         tracing::debug!("resolving enum type: {}", entry.print(db));
 
         // Get the variant part
@@ -310,12 +308,10 @@ pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumLayout> {
                 attr::<usize>(gimli::DW_AT_byte_size),
                 entry_type()
                     .then(resolve_type_shallow())
-                    .map_res(|ty| match ty {
-                        TypeLayout::Primitive(PrimitiveLayout::Int(i)) => {
-                            Ok(DiscriminantType::Int(i))
-                        }
-                        TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(u)) => {
-                            Ok(DiscriminantType::UnsignedInt(u))
+                    .map_res(|ty| match ty.layout.as_ref() {
+                        Layout::Primitive(PrimitiveLayout::Int(i)) => Ok(DiscriminantType::Int(*i)),
+                        Layout::Primitive(PrimitiveLayout::UnsignedInt(u)) => {
+                            Ok(DiscriminantType::UnsignedInt(*u))
                         }
                         _ => Err(anyhow::anyhow!(
                             "C enum underlying type must be integer, got: {:?}",

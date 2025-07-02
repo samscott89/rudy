@@ -56,11 +56,11 @@ macro_rules! variable_pointer {
     }};
 }
 
-fn read_value_recursively(
-    debug_info: &DebugInfo,
-    value: Value,
+fn read_value_recursively<'db>(
+    debug_info: &DebugInfo<'db>,
+    value: Value<'db>,
     resolver: &dyn DataResolver,
-) -> Result<Value> {
+) -> Result<Value<'db>> {
     match value {
         Value::Pointer(typed_pointer) => {
             let value = debug_info.read_pointer(&typed_pointer, resolver)?;
@@ -133,7 +133,7 @@ fn test_simple_resolve_debug() -> Result<()> {
 
     // Try to resolve a simple type
     match debug_info.resolve_type("u32") {
-        Ok(Some((typedef, _))) => {
+        Ok(Some(typedef)) => {
             println!(
                 "Found u32 type in {:?}: {}",
                 start.elapsed(),
@@ -402,9 +402,6 @@ fn test_introspect_enums() {
     );
 }
 
-// TODO: this seems like it probably works ok on linux but it's _slow_ to parse all
-// the symbols in the binary, so we should probably optimize this
-#[cfg(target_os = "macos")]
 #[test]
 fn test_real_method_execution() -> Result<()> {
     let (_guards, debug_info) = setup_db!();

@@ -38,7 +38,11 @@ mod synthetic_methods;
 #[cfg(test)]
 pub mod test_utils;
 
-// re-exports
+// crate re-exports
+pub use rudy_dwarf;
+pub use rudy_types;
+
+// common type re-exports
 pub use data::DataResolver;
 pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
@@ -46,6 +50,4 @@ pub use outputs::{
     DiscoveredMethod, ResolvedAddress, ResolvedLocation, Type, TypedPointer, Value, Variable,
     VariableInfo,
 };
-pub use rudy_dwarf::symbols::Symbol;
-pub use rudy_types::TypeLayout;
 pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};

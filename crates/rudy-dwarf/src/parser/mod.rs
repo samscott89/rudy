@@ -14,6 +14,7 @@ pub mod btreemap;
 pub mod children;
 pub mod combinators;
 pub mod enums;
+pub mod functions;
 pub mod hashmap;
 pub mod option;
 pub mod pointers;

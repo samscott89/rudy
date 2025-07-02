@@ -10,7 +10,7 @@ use rudy_db::{
     DataResolver, DebugInfo, TypedPointer, Value, evaluate_synthetic_method, get_synthetic_methods,
 };
 use rudy_parser::Expression;
-use rudy_types::{StdLayout, TypeLayout};
+use rudy_types::{Layout, Location, StdLayout};
 
 use crate::{
     protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument},
@@ -144,8 +144,8 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Convert a TypedPointer to a final EvalResult by reading and formatting the value
-    fn pointer_to_result(&mut self, pointer: &TypedPointer) -> Result<EvalResult> {
+    /// Convert a TypedPointer<'a> to a final EvalResult by reading and formatting the value
+    fn pointer_to_result(&mut self, pointer: &TypedPointer<'a>) -> Result<EvalResult> {
         let mut value = self.debug_info.read_pointer(pointer, &self.conn)?;
 
         value = self.read_pointer_recursive(&value, 8)?;
@@ -156,7 +156,7 @@ impl<'a> EvalContext<'a> {
         })
     }
 
-    fn read_pointer_recursive(&mut self, value: &Value, max_depth: usize) -> Result<Value> {
+    fn read_pointer_recursive(&mut self, value: &Value<'a>, max_depth: usize) -> Result<Value<'a>> {
         if max_depth == 0 {
             return Ok(value.clone()); // Stop recursion at max depth
         }
@@ -262,7 +262,7 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Evaluates an expression to a TypedPointer (for intermediate computation)
-    pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer> {
+    pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer<'a>> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable_to_ref(name),
             Expression::FieldAccess { base, field } => {
@@ -285,12 +285,12 @@ impl<'a> EvalContext<'a> {
     }
 
     fn evaluate_variable(&mut self, name: &str) -> Result<EvalResult> {
-        // Try to get a TypedPointer, then convert to result
+        // Try to get a TypedPointer<'a>, then convert to result
         let value_ref = self.evaluate_variable_to_ref(name)?;
         self.pointer_to_result(&value_ref)
     }
 
-    fn evaluate_variable_to_ref(&mut self, name: &str) -> Result<TypedPointer> {
+    fn evaluate_variable_to_ref(&mut self, name: &str) -> Result<TypedPointer<'a>> {
         let pc = self.get_pc()?;
 
         let var_info = self
@@ -303,7 +303,7 @@ impl<'a> EvalContext<'a> {
     }
 
     fn evaluate_field_access(&mut self, base: &Expression, field: &str) -> Result<EvalResult> {
-        // Get the field as a TypedPointer, then convert to result
+        // Get the field as a TypedPointer<'a>, then convert to result
         let field_ref = self.evaluate_field_access_to_ref(base, field)?;
         self.pointer_to_result(&field_ref)
     }
@@ -312,8 +312,8 @@ impl<'a> EvalContext<'a> {
         &mut self,
         base: &Expression,
         field: &str,
-    ) -> Result<TypedPointer> {
-        // First evaluate the base expression to a TypedPointer
+    ) -> Result<TypedPointer<'a>> {
+        // First evaluate the base expression to a TypedPointer<'a>
         let base_ref = self.evaluate_to_ref(base)?;
 
         self.debug_info
@@ -324,11 +324,11 @@ impl<'a> EvalContext<'a> {
         &mut self,
         base: &Expression,
         index: &Expression,
-    ) -> Result<TypedPointer> {
+    ) -> Result<TypedPointer<'a>> {
         let base_ref = self.evaluate_to_ref(base)?;
 
         // Check if the base type supports string indexing (HashMap, etc.)
-        if self.supports_string_indexing(&base_ref.type_def) {
+        if self.supports_string_indexing(base_ref.type_def.layout.as_ref()) {
             let key_string = self.evaluate_to_string(index)?;
             // Use get_index_by_value with string key
             let key_value = Value::Scalar {
@@ -395,17 +395,17 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Check if a type supports string-based indexing (HashMap, etc.)
-    fn supports_string_indexing(&self, type_def: &TypeLayout) -> bool {
+    fn supports_string_indexing(&self, type_def: &Layout<impl Location>) -> bool {
         match type_def {
-            TypeLayout::Std(std_def) => {
+            Layout::Std(std_def) => {
                 matches!(std_def, StdLayout::Map(_))
             }
             _ => false,
         }
     }
 
-    /// Read an integer value from memory using a TypedPointer
-    fn read_integer_from_memory(&self, pointer: &TypedPointer) -> Result<u64> {
+    /// Read an integer value from memory using a TypedPointer<'a>
+    fn read_integer_from_memory(&self, pointer: &TypedPointer<'a>) -> Result<u64> {
         let value = self.debug_info.read_pointer(pointer, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
@@ -424,8 +424,8 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Read a string value from memory using a TypedPointer
-    fn read_string_from_memory(&self, pointer: &TypedPointer) -> Result<String> {
+    /// Read a string value from memory using a TypedPointer<'a>
+    fn read_string_from_memory(&self, pointer: &TypedPointer<'a>) -> Result<String> {
         let value = self.debug_info.read_pointer(pointer, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
@@ -443,7 +443,7 @@ impl<'a> EvalContext<'a> {
         let pointer = self.evaluate_to_ref(base)?;
 
         // Check if the base type supports string indexing (HashMap, etc.)
-        if self.supports_string_indexing(&pointer.type_def) {
+        if self.supports_string_indexing(pointer.type_def.layout.as_ref()) {
             let key_string = self.evaluate_to_string(index)?;
             tracing::debug!(
                 "Evaluating index with string key: {} for base type: {}",
@@ -486,7 +486,7 @@ impl<'a> EvalContext<'a> {
         let base_type = &base_ref.type_def;
 
         // Check if this is a synthetic method we can evaluate
-        let synthetic_methods = get_synthetic_methods(base_type);
+        let synthetic_methods = get_synthetic_methods(base_type.layout.as_ref());
         let is_synthetic = synthetic_methods.iter().any(|m| m.name == method);
 
         if is_synthetic {
@@ -528,7 +528,7 @@ impl<'a> EvalContext<'a> {
     /// Execute a real method by calling it via LLDB
     fn execute_real_method(
         &mut self,
-        pointer: TypedPointer,
+        pointer: TypedPointer<'a>,
         method: &str,
         args: &[Expression],
     ) -> Result<EvalResult> {

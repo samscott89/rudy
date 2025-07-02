@@ -5,18 +5,12 @@ use std::{mem::size_of, sync::Arc};
 use itertools::Itertools;
 use salsa::Update;
 
-/// Reference to a type in DWARF debug information
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct UnresolvedType {
-    pub name: String,
-    pub cu_offset: usize,
-    pub die_offset: usize,
-}
+impl Location for () {}
 
-impl TypeLayout {
+impl<L: Location> Layout<L> {
     pub fn display_name(&self) -> String {
         match &self {
-            TypeLayout::Primitive(primitive_def) => match primitive_def {
+            Layout::Primitive(primitive_def) => match primitive_def {
                 PrimitiveLayout::Array(array_def) => format!(
                     "[{}; {}]",
                     array_def.element_type.display_name(),
@@ -53,7 +47,7 @@ impl TypeLayout {
                 PrimitiveLayout::Unit(_) => "()".to_string(),
                 PrimitiveLayout::UnsignedInt(unsigned_int_def) => unsigned_int_def.display_name(),
             },
-            TypeLayout::Std(std_def) => match std_def {
+            Layout::Std(std_def) => match std_def {
                 StdLayout::SmartPtr(smart_ptr_def) => {
                     let inner = smart_ptr_def.inner_type.display_name();
                     match smart_ptr_def.variant {
@@ -77,69 +71,60 @@ impl TypeLayout {
                     format!("Vec<{inner_type}>")
                 }
             },
-            TypeLayout::Struct(struct_def) => struct_def.name.clone(),
-            TypeLayout::Enum(enum_def) => enum_def.name.clone(),
-            TypeLayout::CEnum(c_enum_def) => c_enum_def.name.clone(),
-            TypeLayout::Alias(type_ref) => {
-                // For now, just return a placeholder name
-                // In a real implementation, you'd resolve this using the TypeRef
-                type_ref.name.to_string()
-            }
-            TypeLayout::Other { name } => name.to_string(),
+            Layout::Struct(struct_def) => struct_def.name.clone(),
+            Layout::Enum(enum_def) => enum_def.name.clone(),
+            Layout::CEnum(c_enum_def) => c_enum_def.name.clone(),
+            Layout::Alias { name } => name.to_string(),
         }
     }
 
     pub fn size(&self) -> Option<usize> {
         match &self {
-            TypeLayout::Primitive(primitive_def) => primitive_def.size(),
-            TypeLayout::Std(std_def) => std_def.size(),
-            TypeLayout::Struct(struct_def) => Some(struct_def.size),
-            TypeLayout::Enum(enum_def) => Some(enum_def.size),
-            TypeLayout::CEnum(c_enum_def) => Some(c_enum_def.size),
-            TypeLayout::Alias(_type_ref) => {
-                // Type resolution would need to happen at a higher level
-                None
-            }
-            TypeLayout::Other { name: _ } => None,
+            Layout::Primitive(primitive_def) => primitive_def.size(),
+            Layout::Std(std_def) => std_def.size(),
+            Layout::Struct(struct_def) => Some(struct_def.size),
+            Layout::Enum(enum_def) => Some(enum_def.size),
+            Layout::CEnum(c_enum_def) => Some(c_enum_def.size),
+            Layout::Alias { name: _ } => None,
         }
     }
 
-    pub fn matching_type(&self, other: &TypeLayout) -> bool {
+    pub fn matching_type(&self, other: &Layout<L>) -> bool {
         match (self, other) {
-            (TypeLayout::Primitive(p1), TypeLayout::Primitive(p2)) => p1.matching_type(p2),
-            (TypeLayout::Std(s1), TypeLayout::Std(s2)) => s1.matching_type(s2),
-            // TODO: Sam: handle this more robustly
-            (TypeLayout::Struct(s1), TypeLayout::Struct(s2)) => s1.name == s2.name,
-            (TypeLayout::Struct(s1), TypeLayout::Other { name }) => &s1.name == name,
-            (TypeLayout::Other { name: left }, TypeLayout::Other { name: right }) => {
+            (Layout::Primitive(p1), Layout::Primitive(p2)) => p1.matching_type(p2),
+            (Layout::Std(s1), Layout::Std(s2)) => s1.matching_type(s2),
+            (Layout::Struct(s1), Layout::Struct(s2)) => s1.name == s2.name,
+            (Layout::Struct(s1), Layout::Alias { name }) => &s1.name == name,
+            (Layout::Alias { name: left }, Layout::Alias { name: right }) => {
                 left.ends_with(right) || right.ends_with(left)
             }
-            // TODO: Sam: handle this more robustly
-            (TypeLayout::Enum(e1), TypeLayout::Enum(e2)) => e1.name == e2.name,
-            (TypeLayout::Enum(e1), TypeLayout::Other { name }) => &e1.name == name,
-            (TypeLayout::CEnum(e1), TypeLayout::CEnum(e2)) => e1.name == e2.name,
-            (TypeLayout::CEnum(e1), TypeLayout::Other { name }) => &e1.name == name,
-            (TypeLayout::Alias(alias), x) | (x, TypeLayout::Alias(alias)) => {
-                x.display_name().contains(&alias.name)
+            (Layout::Alias { name }, x) | (x, Layout::Alias { name }) => {
+                let other_name = x.display_name();
+                other_name.contains(name) || name.contains(&other_name)
             }
+            (Layout::Enum(e1), Layout::Enum(e2)) => e1.name == e2.name,
+            (Layout::CEnum(e1), Layout::CEnum(e2)) => e1.name == e2.name,
             _ => false,
         }
     }
 
-    pub fn as_reference(&self) -> TypeLayout {
-        TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
+    pub fn as_reference(&self, location: L) -> Layout<L>
+    where
+        Self: Clone,
+    {
+        Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
             mutable: false,
-            pointed_type: Arc::new(self.clone()),
+            pointed_type: TypeDefinition::new(location, self.clone()),
         }))
     }
 
-    pub fn dereferenced(&self) -> &TypeLayout {
+    pub fn dereferenced(&self) -> &Layout<L> {
         match self {
-            TypeLayout::Primitive(PrimitiveLayout::Pointer(pointer_def)) => {
-                pointer_def.pointed_type.dereferenced()
+            Layout::Primitive(PrimitiveLayout::Pointer(pointer_def)) => {
+                pointer_def.pointed_type.layout.dereferenced()
             }
-            TypeLayout::Primitive(PrimitiveLayout::Reference(reference_def)) => {
-                reference_def.pointed_type.dereferenced()
+            Layout::Primitive(PrimitiveLayout::Reference(reference_def)) => {
+                reference_def.pointed_type.layout.dereferenced()
             }
             _ => {
                 // If it's not a pointer or reference, return self
@@ -150,231 +135,267 @@ impl TypeLayout {
 }
 
 // Conversion helpers for cleaner test code
-impl From<PrimitiveLayout> for TypeLayout {
-    fn from(primitive: PrimitiveLayout) -> Self {
-        TypeLayout::Primitive(primitive)
+impl<L: Location> From<PrimitiveLayout<L>> for Layout<L> {
+    fn from(primitive: PrimitiveLayout<L>) -> Self {
+        Layout::Primitive(primitive)
     }
 }
 
-impl From<StdLayout> for TypeLayout {
-    fn from(std_def: StdLayout) -> Self {
-        TypeLayout::Std(std_def)
+impl<L: Location> From<StdLayout<L>> for Layout<L> {
+    fn from(std_def: StdLayout<L>) -> Self {
+        Layout::Std(std_def)
     }
 }
 
-impl From<StructLayout> for TypeLayout {
-    fn from(struct_def: StructLayout) -> Self {
-        TypeLayout::Struct(struct_def)
+impl<L: Location> From<StructLayout<L>> for Layout<L> {
+    fn from(struct_def: StructLayout<L>) -> Self {
+        Layout::Struct(struct_def)
     }
 }
 
-impl From<EnumLayout> for TypeLayout {
-    fn from(enum_def: EnumLayout) -> Self {
-        TypeLayout::Enum(enum_def)
-    }
-}
-
-impl From<UnresolvedType> for TypeLayout {
-    fn from(type_ref: UnresolvedType) -> Self {
-        TypeLayout::Alias(type_ref)
+impl<L: Location> From<EnumLayout<L>> for Layout<L> {
+    fn from(enum_def: EnumLayout<L>) -> Self {
+        Layout::Enum(enum_def)
     }
 }
 
 // PrimitiveDef conversions
-impl From<ArrayLayout> for PrimitiveLayout {
-    fn from(array: ArrayLayout) -> Self {
+impl<L: Location> From<ArrayLayout<L>> for PrimitiveLayout<L> {
+    fn from(array: ArrayLayout<L>) -> Self {
         PrimitiveLayout::Array(array)
     }
 }
 
-impl From<FloatLayout> for PrimitiveLayout {
+impl<L: Location> From<FloatLayout> for PrimitiveLayout<L> {
     fn from(float: FloatLayout) -> Self {
         PrimitiveLayout::Float(float)
     }
 }
 
-impl From<FunctionLayout> for PrimitiveLayout {
-    fn from(function: FunctionLayout) -> Self {
+impl<L: Location> From<FunctionLayout<L>> for PrimitiveLayout<L> {
+    fn from(function: FunctionLayout<L>) -> Self {
         PrimitiveLayout::Function(function)
     }
 }
 
-impl From<IntLayout> for PrimitiveLayout {
+impl<L: Location> From<IntLayout> for PrimitiveLayout<L> {
     fn from(int: IntLayout) -> Self {
         PrimitiveLayout::Int(int)
     }
 }
 
-impl From<PointerLayout> for PrimitiveLayout {
-    fn from(pointer: PointerLayout) -> Self {
+impl<L: Location> From<PointerLayout<L>> for PrimitiveLayout<L> {
+    fn from(pointer: PointerLayout<L>) -> Self {
         PrimitiveLayout::Pointer(pointer)
     }
 }
 
-impl From<ReferenceLayout> for PrimitiveLayout {
-    fn from(reference: ReferenceLayout) -> Self {
+impl<L: Location> From<ReferenceLayout<L>> for PrimitiveLayout<L> {
+    fn from(reference: ReferenceLayout<L>) -> Self {
         PrimitiveLayout::Reference(reference)
     }
 }
 
-impl From<SliceLayout> for PrimitiveLayout {
-    fn from(slice: SliceLayout) -> Self {
+impl<L: Location> From<SliceLayout<L>> for PrimitiveLayout<L> {
+    fn from(slice: SliceLayout<L>) -> Self {
         PrimitiveLayout::Slice(slice)
     }
 }
 
-impl From<StrSliceLayout> for PrimitiveLayout {
+impl<L: Location> From<StrSliceLayout> for PrimitiveLayout<L> {
     fn from(str_slice: StrSliceLayout) -> Self {
         PrimitiveLayout::StrSlice(str_slice)
     }
 }
 
-impl From<TupleLayout> for PrimitiveLayout {
-    fn from(tuple: TupleLayout) -> Self {
+impl<L: Location> From<TupleLayout<L>> for PrimitiveLayout<L> {
+    fn from(tuple: TupleLayout<L>) -> Self {
         PrimitiveLayout::Tuple(tuple)
     }
 }
 
-impl From<UnitLayout> for PrimitiveLayout {
+impl<L: Location> From<UnitLayout> for PrimitiveLayout<L> {
     fn from(unit: UnitLayout) -> Self {
         PrimitiveLayout::Unit(unit)
     }
 }
 
-impl From<UnsignedIntLayout> for PrimitiveLayout {
+impl<L: Location> From<UnsignedIntLayout> for PrimitiveLayout<L> {
     fn from(uint: UnsignedIntLayout) -> Self {
         PrimitiveLayout::UnsignedInt(uint)
     }
 }
 
 // StdDef conversions
-impl From<SmartPtrLayout> for StdLayout {
-    fn from(smart_ptr: SmartPtrLayout) -> Self {
+impl<L: Location> From<SmartPtrLayout<L>> for StdLayout<L> {
+    fn from(smart_ptr: SmartPtrLayout<L>) -> Self {
         StdLayout::SmartPtr(smart_ptr)
     }
 }
 
-impl From<MapLayout> for StdLayout {
-    fn from(map: MapLayout) -> Self {
+impl<L: Location> From<MapLayout<L>> for StdLayout<L> {
+    fn from(map: MapLayout<L>) -> Self {
         StdLayout::Map(map)
     }
 }
 
-impl From<StringLayout> for StdLayout {
-    fn from(string: StringLayout) -> Self {
+impl<L: Location> From<StringLayout<L>> for StdLayout<L> {
+    fn from(string: StringLayout<L>) -> Self {
         StdLayout::String(string)
     }
 }
 
-impl From<VecLayout> for StdLayout {
-    fn from(vec: VecLayout) -> Self {
+impl<L: Location> From<VecLayout<L>> for StdLayout<L> {
+    fn from(vec: VecLayout<L>) -> Self {
         StdLayout::Vec(vec)
     }
 }
 
 // Convenience constructors for primitives with unit values
-impl From<()> for PrimitiveLayout {
+impl<L: Location> From<()> for PrimitiveLayout<L> {
     fn from(_: ()) -> Self {
         PrimitiveLayout::Bool(())
     }
 }
 
 // Chain conversions for common patterns
-impl From<UnsignedIntLayout> for TypeLayout {
+impl<L: Location> From<UnsignedIntLayout> for Layout<L> {
     fn from(uint: UnsignedIntLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(uint))
+        Layout::Primitive(PrimitiveLayout::UnsignedInt(uint))
     }
 }
 
-impl From<IntLayout> for TypeLayout {
+impl<L: Location> From<IntLayout> for Layout<L> {
     fn from(int: IntLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::Int(int))
+        Layout::Primitive(PrimitiveLayout::Int(int))
     }
 }
 
-impl From<FloatLayout> for TypeLayout {
+impl<L: Location> From<FloatLayout> for Layout<L> {
     fn from(float: FloatLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::Float(float))
+        Layout::Primitive(PrimitiveLayout::Float(float))
     }
 }
 
-impl From<ReferenceLayout> for TypeLayout {
-    fn from(reference: ReferenceLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::Reference(reference))
+impl<L: Location> From<ReferenceLayout<L>> for Layout<L> {
+    fn from(reference: ReferenceLayout<L>) -> Self {
+        Layout::Primitive(PrimitiveLayout::Reference(reference))
     }
 }
 
-impl From<StringLayout> for TypeLayout {
-    fn from(string: StringLayout) -> Self {
-        TypeLayout::Std(StdLayout::String(string))
+impl<L: Location> From<StringLayout<L>> for Layout<L> {
+    fn from(string: StringLayout<L>) -> Self {
+        Layout::Std(StdLayout::String(string))
     }
 }
 
-impl From<VecLayout> for TypeLayout {
-    fn from(vec: VecLayout) -> Self {
-        TypeLayout::Std(StdLayout::Vec(vec))
+impl<L: Location> From<VecLayout<L>> for Layout<L> {
+    fn from(vec: VecLayout<L>) -> Self {
+        Layout::Std(StdLayout::Vec(vec))
     }
 }
 
-impl From<MapLayout> for TypeLayout {
-    fn from(map: MapLayout) -> Self {
-        TypeLayout::Std(StdLayout::Map(map))
+impl<L: Location> From<MapLayout<L>> for Layout<L> {
+    fn from(map: MapLayout<L>) -> Self {
+        Layout::Std(StdLayout::Map(map))
     }
 }
 
-impl From<SmartPtrLayout> for TypeLayout {
-    fn from(smart_ptr: SmartPtrLayout) -> Self {
-        TypeLayout::Std(StdLayout::SmartPtr(smart_ptr))
+impl<L: Location> From<SmartPtrLayout<L>> for Layout<L> {
+    fn from(smart_ptr: SmartPtrLayout<L>) -> Self {
+        Layout::Std(StdLayout::SmartPtr(smart_ptr))
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum TypeLayout {
+pub struct TypeDefinition<L = ()>
+where
+    L: Location,
+{
+    /// The layout of the type definition
+    ///
+    /// This is an owned reference to the layout,
+    /// so it can be shared across multiple definitions
+    pub layout: Arc<Layout<L>>,
+
+    /// The location of the type definition in the DWARF
+    /// information. This is used to resolve
+    /// the type definition in the debug information.
+    pub location: L,
+}
+
+impl<L> TypeDefinition<L>
+where
+    L: Location,
+{
+    pub fn new(location: L, layout: Layout<L>) -> Self {
+        Self {
+            layout: Arc::new(layout),
+            location,
+        }
+    }
+
+    pub fn display_name(&self) -> String {
+        self.layout.display_name()
+    }
+
+    pub fn size(&self) -> Option<usize> {
+        self.layout.size()
+    }
+
+    pub fn matching_type(&self, other: &Self) -> bool {
+        self.layout.matching_type(&other.layout)
+    }
+}
+
+pub trait Location: Update {}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub enum Layout<L = ()>
+where
+    L: Location,
+{
     /// Language-specific primitive types from `core::primitive`
     /// (e.g. `i32`, `f64`, etc.)
     ///
     /// There are all simple types that can
     /// be backed by a single slice of memory
     /// and easily transumted to a Rust type
-    Primitive(PrimitiveLayout),
+    Primitive(PrimitiveLayout<L>),
 
     /// Common definitions from the Rust standard library
-    Std(StdLayout),
+    Std(StdLayout<L>),
 
     // Custom type definitions
     /// Structs and tuples
-    Struct(StructLayout),
+    Struct(StructLayout<L>),
 
     /// Enums
-    Enum(EnumLayout),
+    Enum(EnumLayout<L>),
 
     /// C-style enumerations (simple named integer constants)
     CEnum(CEnumLayout),
 
-    /// Reference to some other type
-    ///
-    /// We use this when we're traversing a type
-    /// definition and want to lazily evaluate nested
-    /// types.
-    Alias(UnresolvedType),
-
-    /// Other types not yet supported/handled
-    Other { name: String },
+    /// Type currently known only by its name
+    Alias { name: String },
 }
 
 /// From the Rust standard library:
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum PrimitiveLayout {
-    Array(ArrayLayout),
+pub enum PrimitiveLayout<L = ()>
+where
+    L: Location,
+{
+    Array(ArrayLayout<L>),
     Bool(()),
     Char(()),
     Float(FloatLayout),
-    Function(FunctionLayout),
+    Function(FunctionLayout<L>),
     Int(IntLayout),
     Never(()),
-    Pointer(PointerLayout),
-    Reference(ReferenceLayout),
-    Slice(SliceLayout),
+    Pointer(PointerLayout<L>),
+    Reference(ReferenceLayout<L>),
+    Slice(SliceLayout<L>),
     /// Technically constructable, `str` is like `[u8; N]`
     /// but where the size is opaque (since utf8 is variable length)
     /// and so rarely seen in the wild. We could have something like `Box<str>`
@@ -383,13 +404,13 @@ pub enum PrimitiveLayout {
     /// A specialization of `Slice` where the referenced type is `str`
     /// Also helps us avoid using the `str` type.
     StrSlice(StrSliceLayout),
-    Tuple(TupleLayout),
+    Tuple(TupleLayout<L>),
     Unit(UnitLayout),
     UnsignedInt(UnsignedIntLayout),
     // neverExperimental,
 }
 
-impl PrimitiveLayout {
+impl<L: Location> PrimitiveLayout<L> {
     fn size(&self) -> Option<usize> {
         let size = match self {
             PrimitiveLayout::Array(array_def) => {
@@ -434,23 +455,13 @@ impl PrimitiveLayout {
     }
 
     fn matching_type(&self, other: &Self) -> bool {
+        use PrimitiveLayout::*;
         match (self, other) {
-            (p1, p2) if p1 == p2 => true,
-
-            (PrimitiveLayout::Pointer(l), PrimitiveLayout::Pointer(r)) => {
-                l.pointed_type.matching_type(&r.pointed_type)
-            }
-            (PrimitiveLayout::Reference(l), PrimitiveLayout::Reference(r)) => {
-                l.pointed_type.matching_type(&r.pointed_type)
-            }
-            (PrimitiveLayout::Slice(l), PrimitiveLayout::Slice(r)) => {
-                l.element_type.matching_type(&r.element_type)
-            }
-            (PrimitiveLayout::Array(l), PrimitiveLayout::Array(r)) => {
-                l.element_type.matching_type(&r.element_type)
-            }
-
-            (PrimitiveLayout::Tuple(l), PrimitiveLayout::Tuple(r)) => {
+            (Pointer(l), Pointer(r)) => l.pointed_type.matching_type(&r.pointed_type),
+            (Reference(l), Reference(r)) => l.pointed_type.matching_type(&r.pointed_type),
+            (Slice(l), Slice(r)) => l.element_type.matching_type(&r.element_type),
+            (Array(l), Array(r)) => l.element_type.matching_type(&r.element_type),
+            (Tuple(l), Tuple(r)) => {
                 if l.elements.len() != r.elements.len() {
                     return false;
                 }
@@ -459,28 +470,57 @@ impl PrimitiveLayout {
                     .zip(r.elements.iter())
                     .all(|((_, l), (_, r))| l.matching_type(r))
             }
+
+            (Function(l), Function(r)) => {
+                l.arg_types.len() == r.arg_types.len()
+                    && l.return_type.is_none() == r.return_type.is_none()
+                    && l.return_type
+                        .as_ref()
+                        .zip(r.return_type.as_ref())
+                        .is_none_or(|(l_ret, r_ret)| l_ret.matching_type(r_ret))
+                    && l.arg_types
+                        .iter()
+                        .zip(r.arg_types.iter())
+                        .all(|(l_arg, r_arg)| l_arg.matching_type(r_arg))
+            }
+            (Bool(_), Bool(_))
+            | (Char(_), Char(_))
+            | (Never(_), Never(_))
+            | (Str(_), Str(_))
+            | (Unit(_), Unit(_)) => true,
+            (Float(l), Float(r)) => l == r,
+            (Int(l), Int(r)) => l == r,
+            (UnsignedInt(l), UnsignedInt(r)) => l == r,
+
+            (StrSlice(l), StrSlice(r)) => l == r,
             _ => false,
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct ArrayLayout {
-    pub element_type: Arc<TypeLayout>,
+pub struct ArrayLayout<L = ()>
+where
+    L: Location,
+{
+    pub element_type: TypeDefinition<L>,
     pub length: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub struct FloatLayout {
     pub size: usize,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct FunctionLayout {
-    pub return_type: Arc<TypeLayout>,
-    pub arg_types: Vec<Arc<TypeLayout>>,
+pub struct FunctionLayout<L = ()>
+where
+    L: Location,
+{
+    pub return_type: Option<TypeDefinition<L>>,
+    pub arg_types: Vec<TypeDefinition<L>>,
 }
 
-impl FunctionLayout {
+impl<L: Location> FunctionLayout<L> {
     pub fn display_name(&self) -> String {
         let arg_types = self
             .arg_types
@@ -491,17 +531,14 @@ impl FunctionLayout {
 
         let mut signature = format!("fn({arg_types})");
 
-        if !matches!(
-            self.return_type.as_ref(),
-            &TypeLayout::Primitive(PrimitiveLayout::Unit(_))
-        ) {
-            signature += format!(" -> {}", self.return_type.display_name()).as_str();
+        if let Some(l) = self.return_type.as_ref() {
+            signature += &format!(" -> {}", l.display_name());
         }
         signature
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub struct IntLayout {
     pub size: usize,
 }
@@ -513,22 +550,31 @@ impl IntLayout {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct PointerLayout {
+pub struct PointerLayout<L = ()>
+where
+    L: Location,
+{
     pub mutable: bool,
-    pub pointed_type: Arc<TypeLayout>,
+    pub pointed_type: TypeDefinition<L>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct ReferenceLayout {
+pub struct ReferenceLayout<L = ()>
+where
+    L: Location,
+{
     /// Is this a mutable reference?
     /// (i.e. `&mut T` vs `&T`)
     pub mutable: bool,
 
-    pub pointed_type: Arc<TypeLayout>,
+    pub pointed_type: TypeDefinition<L>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct SliceLayout {
-    pub element_type: Arc<TypeLayout>,
+pub struct SliceLayout<L = ()>
+where
+    L: Location,
+{
+    pub element_type: TypeDefinition<L>,
     pub data_ptr_offset: usize,
     pub length_offset: usize,
 }
@@ -540,15 +586,18 @@ pub struct StrSliceLayout {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct TupleLayout {
+pub struct TupleLayout<L = ()>
+where
+    L: Location,
+{
     /// List of elements + offsets to their data
-    pub elements: Vec<(usize, Arc<TypeLayout>)>,
+    pub elements: Vec<(usize, TypeDefinition<L>)>,
     pub size: usize,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct UnitLayout;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub struct UnsignedIntLayout {
     /// Size in bytes
     /// (e.g. 1 for u8, 2 for u16, etc.)
@@ -562,16 +611,19 @@ impl UnsignedIntLayout {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum StdLayout {
-    SmartPtr(SmartPtrLayout),
-    Map(MapLayout),
-    Option(OptionLayout),
-    Result(ResultLayout),
-    String(StringLayout),
-    Vec(VecLayout),
+pub enum StdLayout<L = ()>
+where
+    L: Location,
+{
+    SmartPtr(SmartPtrLayout<L>),
+    Map(MapLayout<L>),
+    Option(OptionLayout<L>),
+    Result(ResultLayout<L>),
+    String(StringLayout<L>),
+    Vec(VecLayout<L>),
 }
 
-impl StdLayout {
+impl<L: Location> StdLayout<L> {
     fn size(&self) -> Option<usize> {
         let size = match self {
             StdLayout::SmartPtr(smart_ptr_def) => match smart_ptr_def.variant {
@@ -599,7 +651,6 @@ impl StdLayout {
 
     fn matching_type(&self, other: &Self) -> bool {
         match (self, other) {
-            (l, r) if l == r => true,
             (StdLayout::SmartPtr(l), StdLayout::SmartPtr(r)) => {
                 l.variant == r.variant && l.inner_type.matching_type(&r.inner_type)
             }
@@ -620,8 +671,11 @@ impl StdLayout {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct SmartPtrLayout {
-    pub inner_type: Arc<TypeLayout>,
+pub struct SmartPtrLayout<L = ()>
+where
+    L: Location,
+{
+    pub inner_type: TypeDefinition<L>,
     pub inner_ptr_offset: usize,
     pub data_ptr_offset: usize,
     pub variant: SmartPtrVariant,
@@ -655,13 +709,16 @@ impl SmartPtrVariant {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct MapLayout {
-    pub key_type: Arc<TypeLayout>,
-    pub value_type: Arc<TypeLayout>,
+pub struct MapLayout<L = ()>
+where
+    L: Location,
+{
+    pub key_type: TypeDefinition<L>,
+    pub value_type: TypeDefinition<L>,
     pub variant: MapVariant,
 }
 
-impl MapLayout {
+impl<L: Location> MapLayout<L> {
     pub fn display_name(&self) -> String {
         format!(
             "{}<{}, {}>",
@@ -716,37 +773,48 @@ impl MapVariant {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct StringLayout(pub VecLayout);
+pub struct StringLayout<L = ()>(pub VecLayout<L>)
+where
+    L: Location;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct VecLayout {
+pub struct VecLayout<L = ()>
+where
+    L: Location,
+{
     pub length_offset: usize,
     pub data_ptr_offset: usize,
-    pub inner_type: Arc<TypeLayout>,
+    pub inner_type: TypeDefinition<L>,
 }
 
-impl VecLayout {
-    pub fn new<T: Into<TypeLayout>>(inner_type: T) -> Self {
+impl<L: Location + Default> VecLayout<L> {
+    pub fn new<T: Into<Layout<L>>>(inner_type: T) -> Self {
         Self {
             length_offset: 0,
             data_ptr_offset: 0,
-            inner_type: Arc::new(inner_type.into()),
+            inner_type: TypeDefinition::new(Default::default(), inner_type.into()),
         }
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct StructLayout {
+pub struct StructLayout<L = ()>
+where
+    L: Location,
+{
     pub name: String,
     pub size: usize,
     pub alignment: usize,
-    pub fields: Vec<StructField>,
+    pub fields: Vec<StructField<L>>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct StructField {
+pub struct StructField<L = ()>
+where
+    L: Location,
+{
     pub name: String,
     pub offset: usize,
-    pub ty: Arc<TypeLayout>,
+    pub ty: TypeDefinition<L>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -773,40 +841,52 @@ pub enum DiscriminantType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumLayout {
+pub struct EnumLayout<L = ()>
+where
+    L: Location,
+{
     pub name: String,
     pub discriminant: Discriminant,
-    pub variants: Vec<EnumVariantLayout>,
+    pub variants: Vec<EnumVariantLayout<L>>,
     pub size: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct EnumVariantLayout {
+pub struct EnumVariantLayout<L = ()>
+where
+    L: Location,
+{
     pub name: String,
     /// The discriminant value for this variant, if known
     ///
     /// If `None`, we should use the index of the variant
     /// in the `variants` vector as the discriminant value.
     pub discriminant: Option<i128>,
-    pub layout: Arc<TypeLayout>,
+    pub layout: TypeDefinition<L>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct OptionLayout {
+pub struct OptionLayout<L = ()>
+where
+    L: Location,
+{
     pub name: String,
     pub discriminant: Discriminant,
     pub some_offset: usize,
-    pub some_type: Arc<TypeLayout>,
+    pub some_type: TypeDefinition<L>,
     pub size: usize,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub struct ResultLayout {
+pub struct ResultLayout<L = ()>
+where
+    L: Location,
+{
     pub name: String,
     pub discriminant: Discriminant,
-    pub ok_type: Arc<TypeLayout>,
+    pub ok_type: TypeDefinition<L>,
     pub ok_offset: usize,
-    pub err_type: Arc<TypeLayout>,
+    pub err_type: TypeDefinition<L>,
     pub err_offset: usize,
     pub size: usize,
 }
@@ -844,18 +924,18 @@ impl IntLayout {
     }
 }
 
-impl ReferenceLayout {
-    pub fn new_mutable<T: Into<TypeLayout>>(pointed_type: T) -> Self {
+impl<L: Location + Default> ReferenceLayout<L> {
+    pub fn new_mutable<T: Into<Layout<L>>>(pointed_type: T) -> Self {
         Self {
             mutable: true,
-            pointed_type: Arc::new(pointed_type.into()),
+            pointed_type: TypeDefinition::new(Default::default(), pointed_type.into()),
         }
     }
 
-    pub fn new_immutable<T: Into<TypeLayout>>(pointed_type: T) -> Self {
+    pub fn new_immutable<T: Into<Layout<L>>>(pointed_type: T) -> Self {
         Self {
             mutable: false,
-            pointed_type: Arc::new(pointed_type.into()),
+            pointed_type: TypeDefinition::new(Default::default(), pointed_type.into()),
         }
     }
 }

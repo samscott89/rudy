@@ -10,9 +10,8 @@ use rudy_dwarf::{
     find_type_by_name,
     function::FunctionIndexEntry,
     symbols::{DebugFiles, SymbolIndex},
-    types::resolve_type_offset,
+    types::{DieTypeDefinition, resolve_type_offset},
 };
-use rudy_types::TypeLayout;
 
 use crate::database::Db;
 
@@ -236,11 +235,11 @@ pub fn find_all_by_address(
 }
 
 /// Resolve a type by name in the debug information
-pub fn resolve_type(
-    db: &dyn Db,
+pub fn resolve_type<'db>(
+    db: &'db dyn Db,
     binary: Binary,
     type_name: &str,
-) -> anyhow::Result<Option<(TypeLayout, DebugFile)>> {
+) -> anyhow::Result<Option<DieTypeDefinition<'db>>> {
     let (segments, name) = if let Some((name, generics)) = type_name.split_once('<') {
         // If the type name has generics, we need to handle them separately
         let mut segments = name
@@ -279,7 +278,7 @@ pub fn resolve_type(
             continue;
         };
 
-        return Ok(Some((resolve_type_offset(db, type_def)?, debug_file)));
+        return Ok(Some(resolve_type_offset(db, type_def)?));
     }
 
     // Type not found in any debug file
