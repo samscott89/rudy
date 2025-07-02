@@ -662,7 +662,29 @@ def rudy_command(debugger, command, result, internal_dict):
         # Handle response
         if response.get("type") == "Complete":
             result_data = response.get("result", {})
-            if isinstance(result_data, dict):
+
+            # Special formatting for methods command
+            if subcommand == "methods" and isinstance(result_data, dict):
+                type_name = result_data.get("type_name", "Unknown")
+                methods = result_data.get("methods", [])
+
+                print(f"Methods for {type_name}:")
+                if not methods:
+                    print("  (no methods found)")
+                else:
+                    for method in methods:
+                        if isinstance(method, dict):
+                            name = method.get("name", "unknown")
+                            sig = method.get("signature", "")
+                            callable_str = (
+                                " (callable)"
+                                if method.get("callable", False)
+                                else " (not callable)"
+                            )
+                            print(f"  - {sig}{callable_str}")
+                        else:
+                            print(f"  - {method}")
+            elif isinstance(result_data, dict):
                 for key, value in result_data.items():
                     print(f"{key}: {value}")
             else:

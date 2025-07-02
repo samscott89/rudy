@@ -368,6 +368,53 @@ fn convert_function_to_method(
     }))
 }
 
+/// Build a function signature string from FunctionInfo
+fn build_function_signature(
+    function: &rudy_dwarf::parser::functions::FunctionInfo,
+    self_type: Option<&rudy_dwarf::function::SelfType>,
+) -> String {
+    let mut sig = String::new();
+    sig.push_str("fn ");
+    sig.push_str(&function.name);
+    sig.push('(');
+
+    let mut params = Vec::new();
+
+    // Add self parameter if present
+    if let Some(self_type) = self_type {
+        params.push(match self_type {
+            rudy_dwarf::function::SelfType::Owned => "self".to_string(),
+            rudy_dwarf::function::SelfType::Borrowed => "&self".to_string(),
+            rudy_dwarf::function::SelfType::BorrowedMut => "&mut self".to_string(),
+        });
+    }
+
+    // Add other parameters (skip first if it's self)
+    let skip_first = self_type.is_some();
+    for (i, param) in function.parameters.iter().enumerate() {
+        if skip_first && i == 0 {
+            continue;
+        }
+
+        let param_str = if let Some(name) = &param.name {
+            format!("{name}: _")
+        } else {
+            "_: _".to_string()
+        };
+        params.push(param_str);
+    }
+
+    sig.push_str(&params.join(", "));
+    sig.push(')');
+
+    // Add return type if present
+    if function.return_type.is_some() {
+        sig.push_str(" -> _");
+    }
+
+    sig
+}
+
 /// Phase 2: Discover trait implementations by searching for {impl#N} blocks
 ///
 /// Rust trait implementations are compiled into {impl#N} modules adjacent to the type definition.

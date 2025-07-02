@@ -35,9 +35,7 @@ pub fn function_parser<'db>() -> impl Parser<'db, Option<FunctionInfo<'db>>> {
             let name = entry.name(db).unwrap_or_else(|_| "<anonymous>".to_string());
 
             // Extract linkage name for symbol lookup
-            let linkage_name = entry
-                .string_attr(db, crate::gimli::DW_AT_linkage_name)
-                .ok();
+            let linkage_name = entry.string_attr(db, crate::gimli::DW_AT_linkage_name).ok();
 
             // Parse return type (optional)
             let return_type = entry_type().parse(db, entry).ok();

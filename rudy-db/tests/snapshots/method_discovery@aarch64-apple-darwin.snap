@@ -7,7 +7,7 @@ snapshot_kind: text
     DiscoveredMethod {
         name: "new",
         full_name: "method_discovery::Session::new",
-        signature: "fn new",
+        signature: "fn new(_: _, _: _) -> _",
         address: 4294971060,
         self_type: None,
         callable: true,
@@ -15,7 +15,7 @@ snapshot_kind: text
     DiscoveredMethod {
         name: "get_id",
         full_name: "method_discovery::Session::get_id",
-        signature: "fn get_id",
+        signature: "fn get_id(&self) -> _",
         address: 4294971112,
         self_type: Some(
             Borrowed,
@@ -25,7 +25,7 @@ snapshot_kind: text
     DiscoveredMethod {
         name: "set_name",
         full_name: "method_discovery::Session::set_name",
-        signature: "fn set_name",
+        signature: "fn set_name(&mut self, _: _)",
         address: 4294971148,
         self_type: Some(
             BorrowedMut,
