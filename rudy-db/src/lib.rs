@@ -47,5 +47,5 @@ pub use outputs::{
     VariableInfo,
 };
 pub use rudy_dwarf::symbols::Symbol;
-pub use rudy_types::TypeLayout;
+pub use rudy_types::Layout;
 pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};

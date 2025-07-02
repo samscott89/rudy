@@ -10,7 +10,7 @@ use rudy_db::{
     DataResolver, DebugInfo, TypedPointer, Value, evaluate_synthetic_method, get_synthetic_methods,
 };
 use rudy_parser::Expression;
-use rudy_types::{StdLayout, TypeLayout};
+use rudy_types::{Layout, StdLayout};
 
 use crate::{
     protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument},
@@ -395,9 +395,9 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Check if a type supports string-based indexing (HashMap, etc.)
-    fn supports_string_indexing(&self, type_def: &TypeLayout) -> bool {
+    fn supports_string_indexing(&self, type_def: &Layout) -> bool {
         match type_def {
-            TypeLayout::Std(std_def) => {
+            Layout::Std(std_def) => {
                 matches!(std_def, StdLayout::Map(_))
             }
             _ => false,

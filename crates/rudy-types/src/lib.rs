@@ -5,18 +5,10 @@ use std::{mem::size_of, sync::Arc};
 use itertools::Itertools;
 use salsa::Update;
 
-/// Reference to a type in DWARF debug information
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct UnresolvedType {
-    pub name: String,
-    pub cu_offset: usize,
-    pub die_offset: usize,
-}
-
-impl TypeLayout {
+impl Layout {
     pub fn display_name(&self) -> String {
         match &self {
-            TypeLayout::Primitive(primitive_def) => match primitive_def {
+            Layout::Primitive(primitive_def) => match primitive_def {
                 PrimitiveLayout::Array(array_def) => format!(
                     "[{}; {}]",
                     array_def.element_type.display_name(),
@@ -53,7 +45,7 @@ impl TypeLayout {
                 PrimitiveLayout::Unit(_) => "()".to_string(),
                 PrimitiveLayout::UnsignedInt(unsigned_int_def) => unsigned_int_def.display_name(),
             },
-            TypeLayout::Std(std_def) => match std_def {
+            Layout::Std(std_def) => match std_def {
                 StdLayout::SmartPtr(smart_ptr_def) => {
                     let inner = smart_ptr_def.inner_type.display_name();
                     match smart_ptr_def.variant {
@@ -77,68 +69,58 @@ impl TypeLayout {
                     format!("Vec<{inner_type}>")
                 }
             },
-            TypeLayout::Struct(struct_def) => struct_def.name.clone(),
-            TypeLayout::Enum(enum_def) => enum_def.name.clone(),
-            TypeLayout::CEnum(c_enum_def) => c_enum_def.name.clone(),
-            TypeLayout::Alias(type_ref) => {
-                // For now, just return a placeholder name
-                // In a real implementation, you'd resolve this using the TypeRef
-                type_ref.name.to_string()
-            }
-            TypeLayout::Other { name } => name.to_string(),
+            Layout::Struct(struct_def) => struct_def.name.clone(),
+            Layout::Enum(enum_def) => enum_def.name.clone(),
+            Layout::CEnum(c_enum_def) => c_enum_def.name.clone(),
+            Layout::Alias { name } => name.to_string(),
         }
     }
 
     pub fn size(&self) -> Option<usize> {
         match &self {
-            TypeLayout::Primitive(primitive_def) => primitive_def.size(),
-            TypeLayout::Std(std_def) => std_def.size(),
-            TypeLayout::Struct(struct_def) => Some(struct_def.size),
-            TypeLayout::Enum(enum_def) => Some(enum_def.size),
-            TypeLayout::CEnum(c_enum_def) => Some(c_enum_def.size),
-            TypeLayout::Alias(_type_ref) => {
-                // Type resolution would need to happen at a higher level
-                None
-            }
-            TypeLayout::Other { name: _ } => None,
+            Layout::Primitive(primitive_def) => primitive_def.size(),
+            Layout::Std(std_def) => std_def.size(),
+            Layout::Struct(struct_def) => Some(struct_def.size),
+            Layout::Enum(enum_def) => Some(enum_def.size),
+            Layout::CEnum(c_enum_def) => Some(c_enum_def.size),
+            Layout::Alias { name: _ } => None,
         }
     }
 
-    pub fn matching_type(&self, other: &TypeLayout) -> bool {
+    pub fn matching_type(&self, other: &Layout) -> bool {
         match (self, other) {
-            (TypeLayout::Primitive(p1), TypeLayout::Primitive(p2)) => p1.matching_type(p2),
-            (TypeLayout::Std(s1), TypeLayout::Std(s2)) => s1.matching_type(s2),
+            (Layout::Primitive(p1), Layout::Primitive(p2)) => p1.matching_type(p2),
+            (Layout::Std(s1), Layout::Std(s2)) => s1.matching_type(s2),
             // TODO: Sam: handle this more robustly
-            (TypeLayout::Struct(s1), TypeLayout::Struct(s2)) => s1.name == s2.name,
-            (TypeLayout::Struct(s1), TypeLayout::Other { name }) => &s1.name == name,
-            (TypeLayout::Other { name: left }, TypeLayout::Other { name: right }) => {
+            (Layout::Struct(s1), Layout::Struct(s2)) => s1.name == s2.name,
+            (Layout::Struct(s1), Layout::Alias { name }) => &s1.name == name,
+            (Layout::Alias { name: left }, Layout::Alias { name: right }) => {
                 left.ends_with(right) || right.ends_with(left)
             }
-            // TODO: Sam: handle this more robustly
-            (TypeLayout::Enum(e1), TypeLayout::Enum(e2)) => e1.name == e2.name,
-            (TypeLayout::Enum(e1), TypeLayout::Other { name }) => &e1.name == name,
-            (TypeLayout::CEnum(e1), TypeLayout::CEnum(e2)) => e1.name == e2.name,
-            (TypeLayout::CEnum(e1), TypeLayout::Other { name }) => &e1.name == name,
-            (TypeLayout::Alias(alias), x) | (x, TypeLayout::Alias(alias)) => {
-                x.display_name().contains(&alias.name)
+            (Layout::Alias { name }, x) | (x, Layout::Alias { name }) => {
+                x.display_name().contains(name)
             }
+            // TODO: Sam: handle this more robustly
+            (Layout::Enum(e1), Layout::Enum(e2)) => e1.name == e2.name,
+            (Layout::CEnum(e1), Layout::CEnum(e2)) => e1.name == e2.name,
+
             _ => false,
         }
     }
 
-    pub fn as_reference(&self) -> TypeLayout {
-        TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
+    pub fn as_reference(&self) -> Layout {
+        Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
             mutable: false,
             pointed_type: Arc::new(self.clone()),
         }))
     }
 
-    pub fn dereferenced(&self) -> &TypeLayout {
+    pub fn dereferenced(&self) -> &Layout {
         match self {
-            TypeLayout::Primitive(PrimitiveLayout::Pointer(pointer_def)) => {
+            Layout::Primitive(PrimitiveLayout::Pointer(pointer_def)) => {
                 pointer_def.pointed_type.dereferenced()
             }
-            TypeLayout::Primitive(PrimitiveLayout::Reference(reference_def)) => {
+            Layout::Primitive(PrimitiveLayout::Reference(reference_def)) => {
                 reference_def.pointed_type.dereferenced()
             }
             _ => {
@@ -150,33 +132,27 @@ impl TypeLayout {
 }
 
 // Conversion helpers for cleaner test code
-impl From<PrimitiveLayout> for TypeLayout {
+impl From<PrimitiveLayout> for Layout {
     fn from(primitive: PrimitiveLayout) -> Self {
-        TypeLayout::Primitive(primitive)
+        Layout::Primitive(primitive)
     }
 }
 
-impl From<StdLayout> for TypeLayout {
+impl From<StdLayout> for Layout {
     fn from(std_def: StdLayout) -> Self {
-        TypeLayout::Std(std_def)
+        Layout::Std(std_def)
     }
 }
 
-impl From<StructLayout> for TypeLayout {
+impl From<StructLayout> for Layout {
     fn from(struct_def: StructLayout) -> Self {
-        TypeLayout::Struct(struct_def)
+        Layout::Struct(struct_def)
     }
 }
 
-impl From<EnumLayout> for TypeLayout {
+impl From<EnumLayout> for Layout {
     fn from(enum_def: EnumLayout) -> Self {
-        TypeLayout::Enum(enum_def)
-    }
-}
-
-impl From<UnresolvedType> for TypeLayout {
-    fn from(type_ref: UnresolvedType) -> Self {
-        TypeLayout::Alias(type_ref)
+        Layout::Enum(enum_def)
     }
 }
 
@@ -280,56 +256,97 @@ impl From<()> for PrimitiveLayout {
 }
 
 // Chain conversions for common patterns
-impl From<UnsignedIntLayout> for TypeLayout {
+impl From<UnsignedIntLayout> for Layout {
     fn from(uint: UnsignedIntLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(uint))
+        Layout::Primitive(PrimitiveLayout::UnsignedInt(uint))
     }
 }
 
-impl From<IntLayout> for TypeLayout {
+impl From<IntLayout> for Layout {
     fn from(int: IntLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::Int(int))
+        Layout::Primitive(PrimitiveLayout::Int(int))
     }
 }
 
-impl From<FloatLayout> for TypeLayout {
+impl From<FloatLayout> for Layout {
     fn from(float: FloatLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::Float(float))
+        Layout::Primitive(PrimitiveLayout::Float(float))
     }
 }
 
-impl From<ReferenceLayout> for TypeLayout {
+impl From<ReferenceLayout> for Layout {
     fn from(reference: ReferenceLayout) -> Self {
-        TypeLayout::Primitive(PrimitiveLayout::Reference(reference))
+        Layout::Primitive(PrimitiveLayout::Reference(reference))
     }
 }
 
-impl From<StringLayout> for TypeLayout {
+impl From<StringLayout> for Layout {
     fn from(string: StringLayout) -> Self {
-        TypeLayout::Std(StdLayout::String(string))
+        Layout::Std(StdLayout::String(string))
     }
 }
 
-impl From<VecLayout> for TypeLayout {
+impl From<VecLayout> for Layout {
     fn from(vec: VecLayout) -> Self {
-        TypeLayout::Std(StdLayout::Vec(vec))
+        Layout::Std(StdLayout::Vec(vec))
     }
 }
 
-impl From<MapLayout> for TypeLayout {
+impl From<MapLayout> for Layout {
     fn from(map: MapLayout) -> Self {
-        TypeLayout::Std(StdLayout::Map(map))
+        Layout::Std(StdLayout::Map(map))
     }
 }
 
-impl From<SmartPtrLayout> for TypeLayout {
+impl From<SmartPtrLayout> for Layout {
     fn from(smart_ptr: SmartPtrLayout) -> Self {
-        TypeLayout::Std(StdLayout::SmartPtr(smart_ptr))
+        Layout::Std(StdLayout::SmartPtr(smart_ptr))
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
-pub enum TypeLayout {
+pub struct TypeDefinition<L = ()>
+where
+    L: Update,
+{
+    /// The layout of the type definition
+    ///
+    /// This is an owned reference to the layout,
+    /// so it can be shared across multiple definitions
+    pub layout: Arc<Layout>,
+
+    /// The location of the type definition in the DWARF
+    /// information. This is used to resolve
+    /// the type definition in the debug information.
+    pub location: L,
+}
+
+impl<L> TypeDefinition<L>
+where
+    L: Update,
+{
+    pub fn new(location: L, layout: Layout) -> Self {
+        Self {
+            layout: Arc::new(layout),
+            location,
+        }
+    }
+
+    pub fn display_name(&self) -> String {
+        self.layout.display_name()
+    }
+
+    pub fn size(&self) -> Option<usize> {
+        self.layout.size()
+    }
+
+    pub fn matching_type(&self, other: &Self) -> bool {
+        self.layout.matching_type(&other.layout)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+pub enum Layout {
     /// Language-specific primitive types from `core::primitive`
     /// (e.g. `i32`, `f64`, etc.)
     ///
@@ -351,15 +368,8 @@ pub enum TypeLayout {
     /// C-style enumerations (simple named integer constants)
     CEnum(CEnumLayout),
 
-    /// Reference to some other type
-    ///
-    /// We use this when we're traversing a type
-    /// definition and want to lazily evaluate nested
-    /// types.
-    Alias(UnresolvedType),
-
-    /// Other types not yet supported/handled
-    Other { name: String },
+    /// Type currently known only by its name
+    Alias { name: String },
 }
 
 /// From the Rust standard library:
@@ -466,7 +476,7 @@ impl PrimitiveLayout {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ArrayLayout {
-    pub element_type: Arc<TypeLayout>,
+    pub element_type: Arc<Layout>,
     pub length: usize,
 }
 
@@ -476,8 +486,8 @@ pub struct FloatLayout {
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct FunctionLayout {
-    pub return_type: Arc<TypeLayout>,
-    pub arg_types: Vec<Arc<TypeLayout>>,
+    pub return_type: Arc<Layout>,
+    pub arg_types: Vec<Arc<Layout>>,
 }
 
 impl FunctionLayout {
@@ -493,7 +503,7 @@ impl FunctionLayout {
 
         if !matches!(
             self.return_type.as_ref(),
-            &TypeLayout::Primitive(PrimitiveLayout::Unit(_))
+            &Layout::Primitive(PrimitiveLayout::Unit(_))
         ) {
             signature += format!(" -> {}", self.return_type.display_name()).as_str();
         }
@@ -515,7 +525,7 @@ impl IntLayout {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct PointerLayout {
     pub mutable: bool,
-    pub pointed_type: Arc<TypeLayout>,
+    pub pointed_type: Arc<Layout>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ReferenceLayout {
@@ -523,12 +533,12 @@ pub struct ReferenceLayout {
     /// (i.e. `&mut T` vs `&T`)
     pub mutable: bool,
 
-    pub pointed_type: Arc<TypeLayout>,
+    pub pointed_type: Arc<Layout>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SliceLayout {
-    pub element_type: Arc<TypeLayout>,
+    pub element_type: Arc<Layout>,
     pub data_ptr_offset: usize,
     pub length_offset: usize,
 }
@@ -542,7 +552,7 @@ pub struct StrSliceLayout {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct TupleLayout {
     /// List of elements + offsets to their data
-    pub elements: Vec<(usize, Arc<TypeLayout>)>,
+    pub elements: Vec<(usize, Arc<Layout>)>,
     pub size: usize,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -621,7 +631,7 @@ impl StdLayout {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SmartPtrLayout {
-    pub inner_type: Arc<TypeLayout>,
+    pub inner_type: Arc<Layout>,
     pub inner_ptr_offset: usize,
     pub data_ptr_offset: usize,
     pub variant: SmartPtrVariant,
@@ -656,8 +666,8 @@ impl SmartPtrVariant {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct MapLayout {
-    pub key_type: Arc<TypeLayout>,
-    pub value_type: Arc<TypeLayout>,
+    pub key_type: Arc<Layout>,
+    pub value_type: Arc<Layout>,
     pub variant: MapVariant,
 }
 
@@ -722,11 +732,11 @@ pub struct StringLayout(pub VecLayout);
 pub struct VecLayout {
     pub length_offset: usize,
     pub data_ptr_offset: usize,
-    pub inner_type: Arc<TypeLayout>,
+    pub inner_type: Arc<Layout>,
 }
 
 impl VecLayout {
-    pub fn new<T: Into<TypeLayout>>(inner_type: T) -> Self {
+    pub fn new<T: Into<Layout>>(inner_type: T) -> Self {
         Self {
             length_offset: 0,
             data_ptr_offset: 0,
@@ -746,7 +756,7 @@ pub struct StructLayout {
 pub struct StructField {
     pub name: String,
     pub offset: usize,
-    pub ty: Arc<TypeLayout>,
+    pub ty: Arc<Layout>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -788,7 +798,7 @@ pub struct EnumVariantLayout {
     /// If `None`, we should use the index of the variant
     /// in the `variants` vector as the discriminant value.
     pub discriminant: Option<i128>,
-    pub layout: Arc<TypeLayout>,
+    pub layout: Arc<Layout>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -796,7 +806,7 @@ pub struct OptionLayout {
     pub name: String,
     pub discriminant: Discriminant,
     pub some_offset: usize,
-    pub some_type: Arc<TypeLayout>,
+    pub some_type: Arc<Layout>,
     pub size: usize,
 }
 
@@ -804,9 +814,9 @@ pub struct OptionLayout {
 pub struct ResultLayout {
     pub name: String,
     pub discriminant: Discriminant,
-    pub ok_type: Arc<TypeLayout>,
+    pub ok_type: Arc<Layout>,
     pub ok_offset: usize,
-    pub err_type: Arc<TypeLayout>,
+    pub err_type: Arc<Layout>,
     pub err_offset: usize,
     pub size: usize,
 }
@@ -845,14 +855,14 @@ impl IntLayout {
 }
 
 impl ReferenceLayout {
-    pub fn new_mutable<T: Into<TypeLayout>>(pointed_type: T) -> Self {
+    pub fn new_mutable<T: Into<Layout>>(pointed_type: T) -> Self {
         Self {
             mutable: true,
             pointed_type: Arc::new(pointed_type.into()),
         }
     }
 
-    pub fn new_immutable<T: Into<TypeLayout>>(pointed_type: T) -> Self {
+    pub fn new_immutable<T: Into<Layout>>(pointed_type: T) -> Self {
         Self {
             mutable: false,
             pointed_type: Arc::new(pointed_type.into()),

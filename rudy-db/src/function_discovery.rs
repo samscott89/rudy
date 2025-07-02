@@ -5,7 +5,7 @@ use rudy_dwarf::{
     Binary,
     function::{FunctionSignature, resolve_function_signature},
 };
-use rudy_types::TypeLayout;
+use rudy_types::Layout;
 
 use crate::{DiscoveredMethod, TypedPointer, database::Db};
 
@@ -163,7 +163,7 @@ pub fn discover_all_methods(
 
                 let first_type = first_param.ty(db).dereferenced();
 
-                if matches!(first_type, TypeLayout::Alias(a) if a.name == "unknown") {
+                if matches!(first_type, Layout::Alias(a) if a.name == "unknown") {
                     // Skip methods with an unknown type
                     continue;
                 }

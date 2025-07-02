@@ -69,7 +69,7 @@
 //! computations should use actual method execution instead.
 
 use anyhow::{Result, anyhow};
-use rudy_types::{StdLayout, TypeLayout};
+use rudy_types::{Layout, StdLayout};
 
 use crate::{DataResolver, Value};
 
@@ -87,9 +87,9 @@ pub struct SyntheticMethod {
 }
 
 /// Get all synthetic methods available for a given type
-pub fn get_synthetic_methods(type_layout: &TypeLayout) -> Vec<SyntheticMethod> {
+pub fn get_synthetic_methods(type_layout: &Layout) -> Vec<SyntheticMethod> {
     match type_layout {
-        TypeLayout::Std(std_layout) => match std_layout {
+        Layout::Std(std_layout) => match std_layout {
             StdLayout::Vec(_) => vec![
                 SyntheticMethod {
                     name: "len",
@@ -149,7 +149,7 @@ pub fn get_synthetic_methods(type_layout: &TypeLayout) -> Vec<SyntheticMethod> {
             ],
             _ => vec![],
         },
-        TypeLayout::Primitive(prim_layout) => {
+        Layout::Primitive(prim_layout) => {
             use rudy_types::PrimitiveLayout;
             match prim_layout {
                 PrimitiveLayout::Slice(_) | PrimitiveLayout::StrSlice(_) => vec![
@@ -179,13 +179,13 @@ pub fn get_synthetic_methods(type_layout: &TypeLayout) -> Vec<SyntheticMethod> {
 /// Evaluate a synthetic method call
 pub fn evaluate_synthetic_method(
     address: u64,
-    type_layout: &TypeLayout,
+    type_layout: &Layout,
     method: &str,
     _args: &[Value], // For future use when we support methods with arguments
     resolver: &dyn DataResolver,
 ) -> Result<Value> {
     match type_layout {
-        TypeLayout::Std(std_layout) => match std_layout {
+        Layout::Std(std_layout) => match std_layout {
             StdLayout::Vec(vec_layout) => {
                 evaluate_vec_method(address, vec_layout, method, resolver)
             }
@@ -207,7 +207,7 @@ pub fn evaluate_synthetic_method(
                 type_layout.display_name()
             )),
         },
-        TypeLayout::Primitive(prim_layout) => {
+        Layout::Primitive(prim_layout) => {
             use rudy_types::PrimitiveLayout;
             match prim_layout {
                 PrimitiveLayout::Slice(slice_layout) => {

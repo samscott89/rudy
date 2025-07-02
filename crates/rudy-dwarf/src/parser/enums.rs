@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use rudy_types::{
     CEnumLayout, CEnumVariant, Discriminant, DiscriminantType, EnumLayout, EnumVariantLayout,
-    PrimitiveLayout, TypeLayout,
+    Layout, PrimitiveLayout,
 };
 
 use crate::{
@@ -38,12 +38,12 @@ pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
                 // We have an explicit discriminant - resolve its type
                 let discriminant_type = resolve_entry_type(db, discr)?;
                 let ty = match discriminant_type {
-                    rudy_types::TypeLayout::Primitive(rudy_types::PrimitiveLayout::Int(i)) => {
+                    rudy_types::Layout::Primitive(rudy_types::PrimitiveLayout::Int(i)) => {
                         DiscriminantType::Int(i)
                     }
-                    rudy_types::TypeLayout::Primitive(
-                        rudy_types::PrimitiveLayout::UnsignedInt(u),
-                    ) => DiscriminantType::UnsignedInt(u),
+                    rudy_types::Layout::Primitive(rudy_types::PrimitiveLayout::UnsignedInt(u)) => {
+                        DiscriminantType::UnsignedInt(u)
+                    }
                     _ => {
                         tracing::warn!(
                             "discriminant type is not an integer: {discriminant_type:?} {}",
@@ -311,10 +311,8 @@ pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumLayout> {
                 entry_type()
                     .then(resolve_type_shallow())
                     .map_res(|ty| match ty {
-                        TypeLayout::Primitive(PrimitiveLayout::Int(i)) => {
-                            Ok(DiscriminantType::Int(i))
-                        }
-                        TypeLayout::Primitive(PrimitiveLayout::UnsignedInt(u)) => {
+                        Layout::Primitive(PrimitiveLayout::Int(i)) => Ok(DiscriminantType::Int(i)),
+                        Layout::Primitive(PrimitiveLayout::UnsignedInt(u)) => {
                             Ok(DiscriminantType::UnsignedInt(u))
                         }
                         _ => Err(anyhow::anyhow!(

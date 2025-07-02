@@ -6,7 +6,7 @@ mod variables;
 use anyhow::Context as _;
 pub use index::{function_index, FunctionData, FunctionIndex, FunctionIndexEntry};
 use itertools::Itertools;
-use rudy_types::{PrimitiveLayout, ReferenceLayout, TypeLayout, UnitLayout};
+use rudy_types::{Layout, PrimitiveLayout, ReferenceLayout, UnitLayout};
 pub use variables::{resolve_function_variables, Variable};
 
 use crate::{
@@ -175,7 +175,7 @@ pub struct FunctionSignature<'db> {
     pub params: Vec<Variable<'db>>,
 
     /// Return type of the function, e.g. "usize" for "std::vec::Vec<T>::len"
-    pub return_type: TypeLayout,
+    pub return_type: Layout,
 
     /// Somewhat duplicative with the `params` field, this
     /// determines (a) if we have a self parameter, and (b) what kind of self parameter it is.
@@ -219,8 +219,7 @@ fn function_parameter<'db>() -> impl Parser<'db, Variable<'db>> {
 }
 
 /// Parser to return function declaration information
-fn function_declaration<'db>() -> impl Parser<'db, (String, Option<TypeLayout>, Vec<Variable<'db>>)>
-{
+fn function_declaration<'db>() -> impl Parser<'db, (String, Option<Layout>, Vec<Variable<'db>>)> {
     all((
         attr::<String>(gimli::DW_AT_name),
         optional_attr::<Die<'db>>(gimli::DW_AT_type).then(resolve_type_shallow()),
@@ -255,9 +254,9 @@ pub fn resolve_function_signature<'db>(
         .parse(db, *declaration_die)
         .context("parsing function declaration")?;
 
-    let return_type = return_type.unwrap_or(TypeLayout::Primitive(
-        rudy_types::PrimitiveLayout::Unit(UnitLayout),
-    ));
+    let return_type = return_type.unwrap_or(Layout::Primitive(rudy_types::PrimitiveLayout::Unit(
+        UnitLayout,
+    )));
 
     let parameters = if let Some(specification_die) = specification_die {
         // If no parameters in declaration, try to get them from specification
@@ -314,13 +313,13 @@ pub enum SelfType {
 }
 
 impl SelfType {
-    pub fn from_param_type(param_type: &TypeLayout) -> Self {
+    pub fn from_param_type(param_type: &Layout) -> Self {
         match param_type {
-            TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
+            Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
                 mutable: true,
                 ..
             })) => Self::BorrowedMut,
-            TypeLayout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
+            Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
                 mutable: false,
                 ..
             })) => Self::Borrowed,

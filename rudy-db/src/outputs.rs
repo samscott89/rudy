@@ -3,7 +3,7 @@
 use std::{collections::BTreeMap, fmt, sync::Arc};
 
 use rudy_dwarf::{file::DebugFile, function::SelfType};
-use rudy_types::TypeLayout;
+use rudy_types::Layout;
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -43,7 +43,7 @@ pub struct VariableInfo {
     /// Memory address where variable is stored (if available)
     pub address: Option<u64>,
     /// Full type definition for the variable
-    pub type_def: Arc<TypeLayout>,
+    pub type_def: Arc<Layout>,
     /// Debug file containing the type information
     pub debug_file: DebugFile,
 }
@@ -64,7 +64,7 @@ pub struct TypedPointer {
     /// Memory address where variable is stored (if available)
     pub address: u64,
     /// Full type definition for the variable
-    pub type_def: Arc<TypeLayout>,
+    pub type_def: Arc<Layout>,
     /// Debug file containing the type information
     pub debug_file: DebugFile,
 }

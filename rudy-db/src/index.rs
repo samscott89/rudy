@@ -12,7 +12,7 @@ use rudy_dwarf::{
     symbols::{DebugFiles, SymbolIndex},
     types::resolve_type_offset,
 };
-use rudy_types::TypeLayout;
+use rudy_types::Layout;
 
 use crate::database::Db;
 
@@ -240,7 +240,7 @@ pub fn resolve_type(
     db: &dyn Db,
     binary: Binary,
     type_name: &str,
-) -> anyhow::Result<Option<(TypeLayout, DebugFile)>> {
+) -> anyhow::Result<Option<(Layout, DebugFile)>> {
     let (segments, name) = if let Some((name, generics)) = type_name.split_once('<') {
         // If the type name has generics, we need to handle them separately
         let mut segments = name

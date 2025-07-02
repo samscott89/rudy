@@ -1,6 +1,6 @@
 //! Variable resolution from DWARF debugging information
 
-use rudy_types::TypeLayout;
+use rudy_types::Layout;
 
 use crate::{
     die::position,
@@ -24,7 +24,7 @@ pub struct Variable<'db> {
     #[returns(ref)]
     pub name: Option<String>,
     #[returns(ref)]
-    pub ty: TypeLayout,
+    pub ty: Layout,
     pub location: Option<SourceLocation<'db>>,
     /// The DIE that this variable was parsed from
     pub origin: Die<'db>,

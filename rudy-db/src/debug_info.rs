@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use rudy_dwarf::{
     DebugFile, Die, SourceFile, function::resolve_function_variables, types::resolve_type_offset,
 };
-use rudy_types::{PrimitiveLayout, StdLayout, TypeLayout};
+use rudy_types::{Layout, PrimitiveLayout, StdLayout};
 
 use crate::{
     DiscoveredMethod, ResolvedLocation,
@@ -623,7 +623,7 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
-    pub fn resolve_type(&self, type_name: &str) -> Result<Option<(TypeLayout, DebugFile)>> {
+    pub fn resolve_type(&self, type_name: &str) -> Result<Option<(Layout, DebugFile)>> {
         crate::index::resolve_type(self.db, self.binary, type_name)
     }
 
@@ -678,11 +678,11 @@ impl<'db> DebugInfo<'db> {
     pub fn get_field(
         &self,
         base_address: u64,
-        base_type: &TypeLayout,
+        base_type: &Layout,
         field_name: &str,
     ) -> Result<TypedPointer> {
         match base_type {
-            TypeLayout::Struct(struct_def) => {
+            Layout::Struct(struct_def) => {
                 let field = struct_def
                     .fields
                     .iter()
@@ -709,7 +709,7 @@ impl<'db> DebugInfo<'db> {
                     debug_file: *debug_file,
                 })
             }
-            TypeLayout::Enum(enum_def) => {
+            Layout::Enum(enum_def) => {
                 // For enums, field access might be variant data access
                 // This is complex - for now return an error
                 Err(anyhow::anyhow!(
@@ -771,7 +771,7 @@ impl<'db> DebugInfo<'db> {
         let base_address = *base_address;
 
         match base_type.as_ref() {
-            TypeLayout::Primitive(PrimitiveLayout::Array(array_def)) => {
+            Layout::Primitive(PrimitiveLayout::Array(array_def)) => {
                 // Fixed-size array [T; N]
                 if index >= array_def.length as u64 {
                     return Err(anyhow::anyhow!(
@@ -794,7 +794,7 @@ impl<'db> DebugInfo<'db> {
                     debug_file: *debug_file,
                 })
             }
-            TypeLayout::Primitive(PrimitiveLayout::Slice(slice_def)) => {
+            Layout::Primitive(PrimitiveLayout::Slice(slice_def)) => {
                 // Slice [T] - need to read the fat pointer to get actual data pointer and length
                 let slice_value = crate::data::read_from_memory(
                     self.db,
@@ -827,7 +827,7 @@ impl<'db> DebugInfo<'db> {
                     debug_file: *debug_file,
                 })
             }
-            TypeLayout::Std(std_def) => {
+            Layout::Std(std_def) => {
                 match std_def {
                     StdLayout::Vec(vec_def) => {
                         let (data_ptr, vec_len) =
@@ -910,12 +910,12 @@ impl<'db> DebugInfo<'db> {
     pub fn get_index_by_value(
         &self,
         base_address: u64,
-        base_type: &TypeLayout,
+        base_type: &Layout,
         key: &crate::Value,
         data_resolver: &dyn crate::DataResolver,
     ) -> Result<TypedPointer> {
         match base_type {
-            TypeLayout::Std(StdLayout::Map(map_def)) => {
+            Layout::Std(StdLayout::Map(map_def)) => {
                 // For maps, we'll iterate through all key-value pairs
                 // and return the variable info for the value that matches the key.
 
@@ -1007,7 +1007,7 @@ fn variable_info<'db>(
     tracing::debug!("variable info: {:?} at {:?}", var.name(db), location);
 
     let type_def = match var.ty(db) {
-        TypeLayout::Alias(unresolved_type) => {
+        Layout::Alias(unresolved_type) => {
             // For type aliases, resolve the actual type
             let entry = Die::from_unresolved_entry(db, die.file(db), unresolved_type);
             resolve_type_offset(db, entry).context("Failed to resolve type alias")?

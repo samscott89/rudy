@@ -5,9 +5,9 @@ use std::{collections::BTreeMap, sync::Arc};
 use anyhow::{Context, Result};
 use rudy_dwarf::Die;
 use rudy_types::{
-    ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, MapLayout, MapVariant, OptionLayout,
-    PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant, StdLayout,
-    StrSliceLayout, TypeLayout, VecLayout,
+    ArrayLayout, BTreeNodeLayout, CEnumLayout, EnumLayout, Layout, MapLayout, MapVariant,
+    OptionLayout, PointerLayout, PrimitiveLayout, ReferenceLayout, SliceLayout, SmartPtrVariant,
+    StdLayout, StrSliceLayout, VecLayout,
 };
 
 use crate::{Value, database::Db, outputs::TypedPointer};
@@ -486,16 +486,16 @@ fn read_c_enum(
 pub fn read_from_memory(
     db: &dyn Db,
     address: u64,
-    ty: &TypeLayout,
+    ty: &Layout,
     data_resolver: &dyn crate::DataResolver,
     debug_file: &rudy_dwarf::DebugFile,
 ) -> Result<Value> {
     tracing::trace!("read_from_memory {address:#x} {}", ty.display_name());
     match &ty {
-        TypeLayout::Primitive(primitive_def) => {
+        Layout::Primitive(primitive_def) => {
             read_primitive_from_memory(db, address, primitive_def, data_resolver, debug_file)
         }
-        TypeLayout::Struct(struct_def) => {
+        Layout::Struct(struct_def) => {
             let mut fields = BTreeMap::new();
             for field in &struct_def.fields {
                 let field_name = &field.name;
@@ -514,19 +514,19 @@ pub fn read_from_memory(
                 fields,
             })
         }
-        TypeLayout::Std(std_def) => {
+        Layout::Std(std_def) => {
             read_std_from_memory(db, address, std_def, data_resolver, debug_file)
         }
-        TypeLayout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver, debug_file),
-        TypeLayout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
-        TypeLayout::Alias(entry) => {
+        Layout::Enum(enum_def) => read_enum(db, address, enum_def, data_resolver, debug_file),
+        Layout::CEnum(c_enum_def) => read_c_enum(address, c_enum_def, data_resolver),
+        Layout::Alias(entry) => {
             // For aliases, we'll resolve the underlying type and read that
             let entry = Die::from_unresolved_entry(db, *debug_file, entry);
             let underlying_type = rudy_dwarf::types::resolve_type_offset(db, entry)?;
             // now read the memory itself
             read_from_memory(db, address, &underlying_type, data_resolver, debug_file)
         }
-        TypeLayout::Other { name } => {
+        Layout::Alias { name } => {
             tracing::warn!("read_from_memory: unsupported type {name}");
             Err(anyhow::anyhow!("Unsupported type: {name}"))
         }
@@ -596,7 +596,7 @@ fn read_primitive_from_memory(
             element_type,
             length,
         }) => {
-            let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
+            let element_type = if let Layout::Alias(entry) = element_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
                 Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
@@ -645,7 +645,7 @@ fn read_primitive_from_memory(
             let length = u64::from_le_bytes(length_bytes.try_into().unwrap());
             tracing::trace!("length: {length}");
 
-            let element_type = if let TypeLayout::Alias(entry) = element_type.as_ref() {
+            let element_type = if let Layout::Alias(entry) = element_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
                 Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
@@ -846,7 +846,7 @@ fn read_std_from_memory(
             tracing::trace!(
                 "reading Vec at {address:#x}, length_offset: {length_offset:#x}, data_ptr_offset: {data_ptr_offset:#x}",
             );
-            let element_type = if let TypeLayout::Alias(entry) = inner_type.as_ref() {
+            let element_type = if let Layout::Alias(entry) = inner_type.as_ref() {
                 // Resolve the alias to get the actual type
                 let entry = Die::from_unresolved_entry(db, *debug_file, entry);
                 Arc::new(rudy_dwarf::types::resolve_type_offset(db, entry)?)
@@ -954,8 +954,8 @@ fn read_std_from_memory(
 fn read_btree_node_entries(
     node_ptr: u64,
     height: usize,
-    key_type: &std::sync::Arc<TypeLayout>,
-    value_type: &std::sync::Arc<TypeLayout>,
+    key_type: &std::sync::Arc<Layout>,
+    value_type: &std::sync::Arc<Layout>,
     node_layout: &BTreeNodeLayout,
     data_resolver: &dyn crate::DataResolver,
     debug_file: &rudy_dwarf::DebugFile,
