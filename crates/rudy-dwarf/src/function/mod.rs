@@ -6,7 +6,7 @@ mod variables;
 use anyhow::Context as _;
 pub use index::{function_index, FunctionData, FunctionIndex, FunctionIndexEntry};
 use itertools::Itertools;
-use rudy_types::{Layout, PrimitiveLayout, ReferenceLayout, UnitLayout};
+use rudy_types::{Layout, PrimitiveLayout, ReferenceLayout};
 pub use variables::{resolve_function_variables, Variable};
 
 use crate::{
@@ -22,6 +22,7 @@ use crate::{
         primitives::{attr, is_member_tag, optional_attr, resolve_type_shallow},
         Parser,
     },
+    types::{DieLayout, DieTypeDefinition},
     Die, DwarfDb,
 };
 
@@ -175,7 +176,7 @@ pub struct FunctionSignature<'db> {
     pub params: Vec<Variable<'db>>,
 
     /// Return type of the function, e.g. "usize" for "std::vec::Vec<T>::len"
-    pub return_type: Layout,
+    pub return_type: Option<DieTypeDefinition<'db>>,
 
     /// Somewhat duplicative with the `params` field, this
     /// determines (a) if we have a self parameter, and (b) what kind of self parameter it is.
@@ -204,11 +205,10 @@ impl<'db> FunctionSignature<'db> {
                 )
             })
             .join(", ");
-        let return_type = self.return_type(db).display_name();
-        if return_type == "()" {
-            format!("fn({params})")
+        if let Some(ret) = self.return_type(db) {
+            format!("fn({params}) -> {}", ret.display_name())
         } else {
-            format!("fn({params}) -> {return_type}")
+            format!("fn({params})")
         }
     }
 }
@@ -219,7 +219,8 @@ fn function_parameter<'db>() -> impl Parser<'db, Variable<'db>> {
 }
 
 /// Parser to return function declaration information
-fn function_declaration<'db>() -> impl Parser<'db, (String, Option<Layout>, Vec<Variable<'db>>)> {
+fn function_declaration<'db>(
+) -> impl Parser<'db, (String, Option<DieTypeDefinition<'db>>, Vec<Variable<'db>>)> {
     all((
         attr::<String>(gimli::DW_AT_name),
         optional_attr::<Die<'db>>(gimli::DW_AT_type).then(resolve_type_shallow()),
@@ -254,10 +255,6 @@ pub fn resolve_function_signature<'db>(
         .parse(db, *declaration_die)
         .context("parsing function declaration")?;
 
-    let return_type = return_type.unwrap_or(Layout::Primitive(rudy_types::PrimitiveLayout::Unit(
-        UnitLayout,
-    )));
-
     let parameters = if let Some(specification_die) = specification_die {
         // If no parameters in declaration, try to get them from specification
         function_specification()
@@ -274,7 +271,9 @@ pub fn resolve_function_signature<'db>(
             first_param_name.as_deref(),
             Some("self" | "&self" | "&mut self")
         ) {
-            Some(SelfType::from_param_type(first_param.ty(db)))
+            Some(SelfType::from_param_type(
+                first_param.ty(db).layout.as_ref(),
+            ))
         } else {
             None
         }
@@ -313,7 +312,7 @@ pub enum SelfType {
 }
 
 impl SelfType {
-    pub fn from_param_type(param_type: &Layout) -> Self {
+    pub fn from_param_type(param_type: &DieLayout<'_>) -> Self {
         match param_type {
             Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
                 mutable: true,

@@ -114,7 +114,7 @@ impl<L: Update> Layout<L> {
     {
         Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
             mutable: false,
-            pointed_type: Arc::new(TypeDefinition::new(location, self.clone())),
+            pointed_type: TypeDefinition::new(location, self.clone()),
         }))
     }
 
@@ -486,11 +486,11 @@ pub struct ArrayLayout<L = ()>
 where
     L: Update,
 {
-    pub element_type: Arc<TypeDefinition<L>>,
+    pub element_type: TypeDefinition<L>,
     pub length: usize,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub struct FloatLayout {
     pub size: usize,
 }
@@ -499,8 +499,8 @@ pub struct FunctionLayout<L = ()>
 where
     L: Update,
 {
-    pub return_type: Arc<TypeDefinition<L>>,
-    pub arg_types: Vec<Arc<TypeDefinition<L>>>,
+    pub return_type: Option<TypeDefinition<L>>,
+    pub arg_types: Vec<TypeDefinition<L>>,
 }
 
 impl<L: Update> FunctionLayout<L> {
@@ -514,17 +514,14 @@ impl<L: Update> FunctionLayout<L> {
 
         let mut signature = format!("fn({arg_types})");
 
-        if !matches!(
-            self.return_type.layout.as_ref(),
-            &Layout::Primitive(PrimitiveLayout::Unit(_))
-        ) {
-            signature += format!(" -> {}", self.return_type.display_name()).as_str();
+        if let Some(l) = self.return_type.as_ref() {
+            signature += &format!(" -> {}", l.display_name());
         }
         signature
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub struct IntLayout {
     pub size: usize,
 }
@@ -541,7 +538,7 @@ where
     L: Update,
 {
     pub mutable: bool,
-    pub pointed_type: Arc<TypeDefinition<L>>,
+    pub pointed_type: TypeDefinition<L>,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ReferenceLayout<L = ()>
@@ -552,7 +549,7 @@ where
     /// (i.e. `&mut T` vs `&T`)
     pub mutable: bool,
 
-    pub pointed_type: Arc<TypeDefinition<L>>,
+    pub pointed_type: TypeDefinition<L>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -560,7 +557,7 @@ pub struct SliceLayout<L = ()>
 where
     L: Update,
 {
-    pub element_type: Arc<TypeDefinition<L>>,
+    pub element_type: TypeDefinition<L>,
     pub data_ptr_offset: usize,
     pub length_offset: usize,
 }
@@ -577,13 +574,13 @@ where
     L: Update,
 {
     /// List of elements + offsets to their data
-    pub elements: Vec<(usize, Arc<TypeDefinition<L>>)>,
+    pub elements: Vec<(usize, TypeDefinition<L>)>,
     pub size: usize,
 }
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct UnitLayout;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Update, Copy)]
 pub struct UnsignedIntLayout {
     /// Size in bytes
     /// (e.g. 1 for u8, 2 for u16, etc.)
@@ -661,7 +658,7 @@ pub struct SmartPtrLayout<L = ()>
 where
     L: Update,
 {
-    pub inner_type: Arc<TypeDefinition<L>>,
+    pub inner_type: TypeDefinition<L>,
     pub inner_ptr_offset: usize,
     pub data_ptr_offset: usize,
     pub variant: SmartPtrVariant,
@@ -699,8 +696,8 @@ pub struct MapLayout<L = ()>
 where
     L: Update,
 {
-    pub key_type: Arc<TypeDefinition<L>>,
-    pub value_type: Arc<TypeDefinition<L>>,
+    pub key_type: TypeDefinition<L>,
+    pub value_type: TypeDefinition<L>,
     pub variant: MapVariant,
 }
 
@@ -770,7 +767,7 @@ where
 {
     pub length_offset: usize,
     pub data_ptr_offset: usize,
-    pub inner_type: Arc<TypeDefinition<L>>,
+    pub inner_type: TypeDefinition<L>,
 }
 
 impl<L: Update + Default> VecLayout<L> {
@@ -778,7 +775,7 @@ impl<L: Update + Default> VecLayout<L> {
         Self {
             length_offset: 0,
             data_ptr_offset: 0,
-            inner_type: Arc::new(TypeDefinition::new(Default::default(), inner_type.into())),
+            inner_type: TypeDefinition::new(Default::default(), inner_type.into()),
         }
     }
 }
@@ -800,7 +797,7 @@ where
 {
     pub name: String,
     pub offset: usize,
-    pub ty: Arc<TypeDefinition<L>>,
+    pub ty: TypeDefinition<L>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -848,7 +845,7 @@ where
     /// If `None`, we should use the index of the variant
     /// in the `variants` vector as the discriminant value.
     pub discriminant: Option<i128>,
-    pub layout: Arc<TypeDefinition<L>>,
+    pub layout: TypeDefinition<L>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
@@ -859,7 +856,7 @@ where
     pub name: String,
     pub discriminant: Discriminant,
     pub some_offset: usize,
-    pub some_type: Arc<TypeDefinition<L>>,
+    pub some_type: TypeDefinition<L>,
     pub size: usize,
 }
 
@@ -870,9 +867,9 @@ where
 {
     pub name: String,
     pub discriminant: Discriminant,
-    pub ok_type: Arc<TypeDefinition<L>>,
+    pub ok_type: TypeDefinition<L>,
     pub ok_offset: usize,
-    pub err_type: Arc<TypeDefinition<L>>,
+    pub err_type: TypeDefinition<L>,
     pub err_offset: usize,
     pub size: usize,
 }
@@ -914,14 +911,14 @@ impl<L: Update + Default> ReferenceLayout<L> {
     pub fn new_mutable<T: Into<Layout<L>>>(pointed_type: T) -> Self {
         Self {
             mutable: true,
-            pointed_type: Arc::new(TypeDefinition::new(Default::default(), pointed_type.into())),
+            pointed_type: TypeDefinition::new(Default::default(), pointed_type.into()),
         }
     }
 
     pub fn new_immutable<T: Into<Layout<L>>>(pointed_type: T) -> Self {
         Self {
             mutable: false,
-            pointed_type: Arc::new(TypeDefinition::new(Default::default(), pointed_type.into())),
+            pointed_type: TypeDefinition::new(Default::default(), pointed_type.into()),
         }
     }
 }

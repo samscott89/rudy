@@ -86,7 +86,7 @@ impl TypeName {
         })?;
 
         // let type_name = parsed_type.to_string();
-        let typedef = parsed_type.as_typedef();
+        let typedef = parsed_type.as_layout();
 
         tracing::trace!("TypeName::parse - name: {name}, typedef: {typedef:?}",);
 

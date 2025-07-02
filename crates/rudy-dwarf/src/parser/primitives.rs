@@ -1,12 +1,13 @@
 //! DWARF-specific primitive parsers and utilities
 
-use std::{convert::Infallible, sync::Arc};
+use std::convert::Infallible;
 
 use anyhow::Context as _;
-use rudy_types::*;
 
 use super::{Parser, Result};
-use crate::{die::utils::get_string_attr, file::DwarfReader, Die, DwarfDb};
+use crate::{
+    die::utils::get_string_attr, file::DwarfReader, types::DieTypeDefinition, Die, DwarfDb,
+};
 
 /// Parser for getting offset values
 pub fn offset() -> Offset {
@@ -319,15 +320,15 @@ pub fn generic(name: &str) -> Generic {
     }
 }
 
-pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, Arc<Layout>> {
-    generic(name).then(resolve_type_shallow()).map(Arc::new)
+pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, DieTypeDefinition<'db>> {
+    generic(name).then(resolve_type_shallow())
 }
 
 /// Combinator that resolves a Die into a type definition
 pub struct ResolveType;
 
-impl<'db> Parser<'db, Layout> for ResolveType {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Layout> {
+impl<'db> Parser<'db, DieTypeDefinition<'db>> for ResolveType {
+    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<DieTypeDefinition<'db>> {
         Ok(crate::types::resolve_type_offset(db, entry)?)
     }
 }
@@ -353,8 +354,8 @@ pub fn resolve_type() -> ResolveType {
 /// Combinator that resolves a Die into a type definition (shallow)
 pub struct ResolveTypeShallow;
 
-impl<'db> Parser<'db, Layout> for ResolveTypeShallow {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Layout> {
+impl<'db> Parser<'db, DieTypeDefinition<'db>> for ResolveTypeShallow {
+    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<DieTypeDefinition<'db>> {
         Ok(crate::types::shallow_resolve_type(db, entry)?)
     }
 }
