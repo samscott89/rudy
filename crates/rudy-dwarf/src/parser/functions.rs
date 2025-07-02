@@ -1,0 +1,77 @@
+//! Function parsing combinators for DWARF debug information
+
+use super::children::for_each_child;
+use super::primitives::entry_type;
+use super::{from_fn, Parser};
+use crate::{Die, DwarfDb};
+
+/// Information about a function discovered in DWARF
+#[derive(Debug, Clone)]
+pub struct FunctionInfo<'db> {
+    pub name: String,
+    pub die: Die<'db>,
+    pub parameters: Vec<ParameterInfo<'db>>,
+    pub return_type: Option<Die<'db>>,
+}
+
+/// Information about a function parameter
+#[derive(Debug, Clone)]
+pub struct ParameterInfo<'db> {
+    pub name: Option<String>,
+    pub type_die: Die<'db>,
+}
+
+/// Parser that attempts to parse a DIE as a function
+pub fn function_parser<'db>() -> impl Parser<'db, Option<FunctionInfo<'db>>> {
+    from_fn(
+        |db: &'db dyn DwarfDb, entry: Die<'db>| -> anyhow::Result<Option<FunctionInfo<'db>>> {
+            // Check if this is a function DIE
+            if entry.tag(db) != crate::gimli::DW_TAG_subprogram {
+                return Ok(None);
+            }
+
+            // Parse function components using parser combinators
+            let name = entry.name(db).unwrap_or_else(|_| "<anonymous>".to_string());
+
+            // Parse return type (optional)
+            let return_type = entry_type().parse(db, entry).ok();
+
+            // Parse parameters from children
+            let parameters = parameter_list_parser().parse(db, entry)?;
+
+            Ok(Some(FunctionInfo {
+                name,
+                die: entry,
+                parameters,
+                return_type,
+            }))
+        },
+    )
+}
+
+/// Parser for function parameters
+fn parameter_parser<'db>() -> impl Parser<'db, Option<ParameterInfo<'db>>> {
+    from_fn(
+        |db: &'db dyn DwarfDb, entry: Die<'db>| -> anyhow::Result<Option<ParameterInfo<'db>>> {
+            // Only process formal parameter DIEs
+            if entry.tag(db) != crate::gimli::DW_TAG_formal_parameter {
+                return Ok(None);
+            }
+
+            let name = entry.name(db).ok();
+            let type_die = entry_type().parse(db, entry)?;
+
+            Ok(Some(ParameterInfo { name, type_die }))
+        },
+    )
+}
+
+/// Parser that extracts all parameters from children
+fn parameter_list_parser<'db>() -> impl Parser<'db, Vec<ParameterInfo<'db>>> {
+    for_each_child(parameter_parser()).map(|results| results.into_iter().flatten().collect())
+}
+
+/// Parser that finds all functions among the children of a DIE
+pub fn child_functions_parser<'db>() -> impl Parser<'db, Vec<FunctionInfo<'db>>> {
+    for_each_child(function_parser()).map(|results| results.into_iter().flatten().collect())
+}
