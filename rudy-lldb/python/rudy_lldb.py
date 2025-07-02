@@ -671,16 +671,16 @@ def rudy_command(debugger, command, result, internal_dict):
                 # Separate regular and synthetic methods
                 regular_methods = []
                 synthetic_methods = []
-                
+
                 for method in methods:
                     if isinstance(method, dict):
                         if method.get("is_synthetic", False):
                             synthetic_methods.append(method)
                         else:
                             regular_methods.append(method)
-                
+
                 print(f"Methods for {type_name}:")
-                
+
                 # Print regular methods
                 if regular_methods:
                     for method in regular_methods:
@@ -693,7 +693,7 @@ def rudy_command(debugger, command, result, internal_dict):
                         print(f"  - {sig}{callable_str}")
                 else:
                     print("  (no methods found)")
-                
+
                 # Print synthetic methods if any
                 if synthetic_methods:
                     print("\nSynthetic methods (debug helpers):")

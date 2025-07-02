@@ -318,6 +318,6 @@ pub struct MethodInfo {
     pub name: String,
     pub signature: String,
     pub description: Option<String>,
-    pub callable: bool, // Whether we can actually call this method
+    pub callable: bool,     // Whether we can actually call this method
     pub is_synthetic: bool, // Whether this is a synthetic method (computed, not from debug info)
 }
