@@ -657,6 +657,8 @@ def rudy_command(debugger, command, result, internal_dict):
     try:
         response = conn.send_command(subcommand, cmd_args, debugger)
 
+        debug_print(f"Received response: {response}")
+
         # Handle response
         if response.get("type") == "Complete":
             result_data = response.get("result", {})

@@ -157,11 +157,7 @@ pub fn discover_all_methods(
                     continue;
                 };
 
-                let Some(self_type) = sig.self_type(db) else {
-                    // Not a method, skip
-                    continue;
-                };
-
+                let self_type = sig.self_type(db);
                 let first_type = first_param.ty(db).layout.dereferenced();
 
                 if matches!(first_type, Layout::Alias { name } if name == "unknown") {
@@ -208,7 +204,7 @@ pub fn discover_methods_for_type(
     let mut methods = Vec::new();
 
     // Phase 1: Direct method discovery - look for methods structurally nested under the type DIE
-    if let Some(direct_methods) = discover_direct_methods(db, target_type)? {
+    if let Some(direct_methods) = discover_direct_methods(db, binary, target_type)? {
         methods.extend(direct_methods);
         tracing::debug!(
             "Found {} direct methods for type {}",
@@ -238,7 +234,8 @@ pub fn discover_methods_for_type(
 ///
 /// In DWARF, Rust methods are often represented as functions nested directly under the type DIE.
 fn discover_direct_methods(
-    db: &dyn rudy_dwarf::DwarfDb,
+    db: &dyn Db,
+    binary: Binary,
     target_type: &rudy_dwarf::types::DieTypeDefinition,
 ) -> Result<Option<Vec<DiscoveredMethod>>> {
     use rudy_dwarf::parser::Parser;
@@ -257,11 +254,15 @@ fn discover_direct_methods(
         return Ok(None);
     }
 
+    // Get the symbol index for address lookup
+    let index = crate::index::debug_index(db, binary);
+    let symbol_index = index.symbol_index(db);
+
     let functions_count = functions.len();
     let mut methods = Vec::new();
     for function in functions {
         // Check if this function is a method (has self parameter matching our target type)
-        if let Some(method) = convert_function_to_method(db, function, target_type)? {
+        if let Some(method) = convert_function_to_method(db, function, target_type, symbol_index)? {
             methods.push(method);
         }
     }
@@ -285,34 +286,85 @@ fn discover_direct_methods(
 
 /// Convert a FunctionInfo to a DiscoveredMethod if it's a method for the target type
 fn convert_function_to_method(
-    db: &dyn rudy_dwarf::DwarfDb,
+    db: &dyn Db,
     function: rudy_dwarf::parser::functions::FunctionInfo,
     target_type: &rudy_dwarf::types::DieTypeDefinition,
+    symbol_index: &rudy_dwarf::symbols::SymbolIndex,
 ) -> Result<Option<DiscoveredMethod>> {
-    // Check if first parameter matches our target type
-    let Some(first_param) = function.parameters.first() else {
-        return Ok(None); // No parameters, not a method
+    // Determine if this is a method (has self parameter) or associated function
+    use rudy_dwarf::function::SelfType;
+    let self_type = if let Some(first_param) = function.parameters.first() {
+        if first_param.name.as_ref().is_some_and(|n| n != "self") {
+            // this is not a method - first parameter is not named "self"
+            None
+        } else {
+            // Check if first parameter matches our target type
+            let param_type = rudy_dwarf::types::resolve_type_offset(db, first_param.type_die)?;
+            let param_layout = param_type.layout.dereferenced();
+            if param_layout.matching_type(target_type.layout.as_ref()) {
+                // This is a method with self parameter
+                Some(SelfType::from_param_type(param_type.layout.as_ref()))
+            } else {
+                tracing::debug!(
+                    "First parameter type {} does not match target type {} for function {}",
+                    param_layout.display_name(),
+                    target_type.display_name(),
+                    function.name
+                );
+                // First parameter doesn't match target type - this could still be an associated function
+                // For now, we'll include it as an associated function (no self)
+                None
+            }
+        }
+    } else {
+        // No parameters - this is an associated function
+        None
     };
 
-    // Resolve the parameter type and check if it matches our target
-    let param_type = rudy_dwarf::types::resolve_type_offset(db, first_param.type_die)?;
-    if !param_type.matching_type(target_type) {
-        return Ok(None); // First parameter doesn't match target type
-    }
+    // Try to resolve the function address using linkage name
+    let (address, callable, full_name) = if let Some(linkage_name) = &function.linkage_name {
+        // Convert linkage name to RawSymbol and demangle it to get SymbolName
+        let raw_symbol = rudy_dwarf::symbols::RawSymbol::new(linkage_name.as_bytes().to_vec());
 
-    // Determine the self type based on the parameter type
-    use rudy_dwarf::function::SelfType;
-    let self_type = SelfType::from_param_type(param_type.layout.as_ref());
+        match raw_symbol.demangle() {
+            Ok(symbol_name) => {
+                if let Some(symbol) = symbol_index.get_function(&symbol_name) {
+                    tracing::debug!(
+                        "Found symbol address for method {}: {:#x}",
+                        function.name,
+                        symbol.address
+                    );
+                    (symbol.address, true, symbol.name.to_string())
+                } else {
+                    tracing::debug!(
+                        "No symbol found for demangled linkage name: {} ({})",
+                        symbol_name,
+                        linkage_name
+                    );
+                    (0, false, format!("{}::(direct)", function.name))
+                }
+            }
+            Err(e) => {
+                tracing::debug!("Failed to demangle linkage name {}: {}", linkage_name, e);
+                (0, false, format!("{}::(direct)", function.name))
+            }
+        }
+    } else {
+        tracing::debug!("No linkage name available for function: {}", function.name);
+        (0, false, format!("{}::(direct)", function.name))
+    };
+
+    // Build a more complete signature
+    let signature = build_function_signature(&function, self_type.as_ref());
 
     // This is a method! Convert to DiscoveredMethod
-    // Note: We don't have the symbol address, so we'll mark as not callable
     Ok(Some(DiscoveredMethod {
         name: function.name.clone(),
-        full_name: format!("{}::(direct)", function.name),
-        signature: format!("fn {}", function.name), // Simplified signature
-        address: 0,                                 // No symbol address available
+        full_name,
+        signature,
+        address,
         self_type,
-        callable: false, // Not callable without symbol address
+        callable,
     }))
 }
 

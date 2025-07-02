@@ -219,7 +219,7 @@ impl ClientConnection {
 
                 let input = &args[0];
                 let result = self.handle_methods_command(input, debug_info);
-
+                tracing::debug!("Method discovery result for '{input}': {result:#?}");
                 match result {
                     Ok(methods) => Ok(ServerMessage::Complete {
                         result: serde_json::to_value(&methods)?,
