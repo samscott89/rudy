@@ -1,9 +1,8 @@
 //! Output types that are part of the public interface of the debug info library.
 
-use std::{collections::BTreeMap, fmt, sync::Arc};
+use std::{collections::BTreeMap, fmt};
 
-use rudy_dwarf::{file::DebugFile, function::SelfType};
-use rudy_types::Layout;
+use rudy_dwarf::{file::DebugFile, function::SelfType, types::DieTypeDefinition};
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -29,73 +28,70 @@ pub struct ResolvedLocation {
 
 /// A variable with its type and optionally its runtime value.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Variable {
+pub struct Variable<'db> {
     pub name: String,
-    pub value: Option<Value>,
+    pub value: Option<Value<'db>>,
     pub ty: Option<Type>,
 }
 
 /// Variable metadata without resolved value - used for expression evaluation.
 #[derive(Debug, Clone)]
-pub struct VariableInfo {
+pub struct VariableInfo<'db> {
     /// Variable name
     pub name: String,
     /// Memory address where variable is stored (if available)
     pub address: Option<u64>,
     /// Full type definition for the variable
-    pub type_def: Arc<Layout>,
+    pub type_def: DieTypeDefinition<'db>,
     /// Debug file containing the type information
     pub debug_file: DebugFile,
 }
 
-impl VariableInfo {
-    pub fn as_pointer(&self) -> Option<TypedPointer> {
+impl<'db> VariableInfo<'db> {
+    pub fn as_pointer(&self) -> Option<TypedPointer<'db>> {
         self.address.map(|address| TypedPointer {
             address,
             type_def: self.type_def.clone(),
-            debug_file: self.debug_file,
         })
     }
 }
 
 /// A pointer to an entry in memory, with its type definition
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TypedPointer {
+pub struct TypedPointer<'db> {
     /// Memory address where variable is stored (if available)
     pub address: u64,
     /// Full type definition for the variable
-    pub type_def: Arc<Layout>,
-    /// Debug file containing the type information
-    pub debug_file: DebugFile,
+    pub type_def: DieTypeDefinition<'db>,
 }
 
 /// A value read from memory, supporting scalars, arrays, and structs.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Value {
+pub enum Value<'db> {
     Scalar {
         ty: String,
         value: String,
     },
     Array {
         ty: String,
-        items: Vec<Value>,
+        items: Vec<Value<'db>>,
     },
     Struct {
         ty: String,
-        fields: BTreeMap<String, Value>,
+        fields: BTreeMap<String, Value<'db>>,
     },
     Tuple {
         ty: String,
-        entries: Vec<Value>,
+        entries: Vec<Value<'db>>,
     },
     Map {
         ty: String,
-        entries: Vec<(Value, Value)>,
+        entries: Vec<(Value<'db>, Value<'db>)>,
     },
-    Pointer(TypedPointer),
+    Pointer(TypedPointer<'db>),
 }
 
-impl Value {
+impl<'db> Value<'db> {
     pub(crate) fn map_type<F>(&self, type_map: F) -> Self
     where
         F: Fn(&str) -> String,
@@ -124,7 +120,6 @@ impl Value {
             Value::Pointer(ptr) => Value::Pointer(TypedPointer {
                 address: ptr.address,
                 type_def: ptr.type_def.clone(),
-                debug_file: ptr.debug_file,
             }),
         }
     }
@@ -141,13 +136,13 @@ impl Value {
     }
 }
 
-impl PartialOrd for Value {
+impl<'db> PartialOrd for Value<'db> {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Value {
+impl<'db> Ord for Value<'db> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
         match (self, other) {
@@ -227,13 +222,13 @@ pub struct Type {
 
 /// A resolved function with its address and parameter information.
 #[derive(PartialEq, Eq, Clone)]
-pub struct ResolvedFunction {
+pub struct ResolvedFunction<'db> {
     pub name: String,
     pub address: u64,
-    pub params: Vec<Variable>,
+    pub params: Vec<Variable<'db>>,
 }
 
-impl fmt::Debug for ResolvedFunction {
+impl fmt::Debug for ResolvedFunction<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResolvedFunction")
             .field("name", &self.name)

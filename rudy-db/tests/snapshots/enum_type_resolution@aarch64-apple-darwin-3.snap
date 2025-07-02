@@ -3,27 +3,37 @@ source: rudy-db/tests/static_tests.rs
 expression: option_typedef
 snapshot_kind: text
 ---
-Std(
-    Option(
-        OptionLayout {
-            name: "Option<i32>",
-            discriminant: Discriminant {
-                ty: UnsignedInt(
-                    UnsignedIntLayout {
-                        size: 4,
-                    },
-                ),
-                offset: 0,
+TypeDefinition {
+    layout: Std(
+        Option(
+            OptionLayout {
+                name: "Option<i32>",
+                discriminant: Discriminant {
+                    ty: UnsignedInt(
+                        UnsignedIntLayout {
+                            size: 4,
+                        },
+                    ),
+                    offset: 0,
+                },
+                some_offset: 4,
+                some_type: TypeDefinition {
+                    layout: Primitive(
+                        Int(
+                            IntLayout {
+                                size: 4,
+                            },
+                        ),
+                    ),
+                    location: Die(
+                        Id(184c),
+                    ),
+                },
+                size: 8,
             },
-            some_offset: 4,
-            some_type: Primitive(
-                Int(
-                    IntLayout {
-                        size: 4,
-                    },
-                ),
-            ),
-            size: 8,
-        },
+        ),
     ),
-)
+    location: Die(
+        Id(1841),
+    ),
+}

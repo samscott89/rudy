@@ -118,14 +118,14 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
     let debug_info = DebugInfo::new(&db, &exe_path).expect("Failed to load debug info");
 
     // Find TestEnum type
-    let (test_enum_typedef, _) = debug_info
+    let test_enum_typedef = debug_info
         .resolve_type("enums::TestEnum")
         .expect("Failed to resolve enums::TestEnum")
         .expect("enums::TestEnum type should be found");
 
     insta::assert_debug_snapshot!(test_enum_typedef);
 
-    let (repr_c_typedef, _) = debug_info
+    let repr_c_typedef = debug_info
         .resolve_type("enums::ReprCEnum")
         .expect("Failed to resolve enums::ReprCEnum")
         .expect("enums::ReprCEnum type should be found");
@@ -133,14 +133,14 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
     insta::assert_debug_snapshot!(repr_c_typedef);
 
     // we'll also test our special-cased enums Option and Result
-    let (option_typedef, _) = debug_info
+    let option_typedef = debug_info
         .resolve_type("core::option::Option<i32>")
         .expect("Failed to resolve core::option::Option<i32>")
         .expect("core::option::Option<i32> type should be found");
 
     insta::assert_debug_snapshot!(option_typedef);
 
-    let (result_typedef, _) = debug_info
+    let result_typedef = debug_info
         .resolve_type("core::result::Result<i32, alloc::string::String>")
         .expect("Failed to resolve core::result::Result<i32, alloc::string::String>")
         .expect("core::result::Result<i32, alloc::string::String> type should be found");
@@ -148,7 +148,7 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
     insta::assert_debug_snapshot!(result_typedef);
 
     // Test U8Enum variants
-    let (u8_enum_typedef, _) = debug_info
+    let u8_enum_typedef = debug_info
         .resolve_type("enums::U8Enum")
         .expect("Failed to resolve enums::U8Enum")
         .expect("enums::U8Enum type should be found");

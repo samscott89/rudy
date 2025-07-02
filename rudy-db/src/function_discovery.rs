@@ -161,9 +161,9 @@ pub fn discover_all_methods(
                     continue;
                 };
 
-                let first_type = first_param.ty(db).dereferenced();
+                let first_type = first_param.ty(db).layout.dereferenced();
 
-                if matches!(first_type, Layout::Alias(a) if a.name == "unknown") {
+                if matches!(first_type, Layout::Alias { name } if name == "unknown") {
                     // Skip methods with an unknown type
                     continue;
                 }
@@ -209,8 +209,10 @@ pub fn discover_all_methods_for_pointer(
         tracing::debug!("Processing symbol: {}", symbol.name);
 
         let debug_file = symbol.debug_file;
-        if debug_file != pointer.debug_file {
-            // If the symbol is not in the same debug file as the pointer, we can skip it
+
+        // TODO: this entire method will be rewritten to use the location
+        // directly.
+        if debug_file != pointer.type_def.location.file(db) {
             continue;
         }
 
@@ -235,8 +237,9 @@ pub fn discover_all_methods_for_pointer(
 
                 if !first_param
                     .ty(db)
+                    .layout
                     .dereferenced()
-                    .matching_type(&pointer.type_def)
+                    .matching_type(&pointer.type_def.layout)
                 {
                     // Not the target type, skip
                     continue;

@@ -239,7 +239,7 @@ fn resolve_tuple_type<'db>(db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Tupl
     Ok(TupleLayout { elements, size })
 }
 
-fn resolve_primitive_type<'db, L: salsa::Update + Clone>(
+fn resolve_primitive_type<'db, L: Location + Clone>(
     db: &'db dyn DwarfDb,
     entry: Die<'db>,
     def: &PrimitiveLayout<L>,
@@ -606,7 +606,9 @@ pub fn resolve_type_offset<'db>(
 
 #[cfg(test)]
 mod test {
-    use crate::function::resolve_function_variables;
+    use rudy_types::StdLayout;
+
+    use crate::{function::resolve_function_variables, types::DieLayout};
 
     #[test]
     fn test_std_type_detection() {
@@ -654,13 +656,30 @@ mod test {
         settings.set_prepend_module_to_snapshot(false);
         crate::test_utils::add_filters(&mut settings);
         // Check if we can resolve the types of the parameters
-        for param in params.params(db) {
-            let ty = param.ty(db);
+        let params = params.params(db);
+        assert_eq!(params.len(), 3, "Expected 3 parameters in test_fn");
 
-            settings.bind(|| {
-                salsa::attach(db, || insta::assert_debug_snapshot!(ty));
-            });
-        }
+        let string_param = params[0];
+        let vec_param = params[1];
+        let map_param = params[2];
+
+        let string_type = string_param.ty(db).layout.as_ref();
+        assert!(
+            matches!(string_type, DieLayout::Std(StdLayout::<_>::String(_))),
+            "Expected first parameter to be a String, got: {string_type:?}"
+        );
+
+        let vec_type = vec_param.ty(db).layout.as_ref();
+        assert!(
+            matches!(vec_type, DieLayout::Std(StdLayout::<_>::Vec(_))),
+            "Expected second parameter to be a Vec, got: {vec_type:?}"
+        );
+
+        let map_type = map_param.ty(db).layout.as_ref();
+        assert!(
+            matches!(map_type, DieLayout::Std(StdLayout::<_>::Map(_))),
+            "Expected third parameter to be a Map, got: {map_type:?}"
+        );
 
         // Test resolving variables if we can find any
         // This is a basic smoke test to make sure the new get_die_name function works

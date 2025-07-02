@@ -3,32 +3,37 @@ source: rudy-db/tests/static_tests.rs
 expression: u8_enum_typedef
 snapshot_kind: text
 ---
-CEnum(
-    CEnumLayout {
-        name: "U8Enum",
-        discriminant_type: UnsignedInt(
-            UnsignedIntLayout {
-                size: 1,
-            },
-        ),
-        variants: [
-            CEnumVariant {
-                name: "First",
-                value: 0,
-            },
-            CEnumVariant {
-                name: "Second",
-                value: 1,
-            },
-            CEnumVariant {
-                name: "Third",
-                value: 2,
-            },
-            CEnumVariant {
-                name: "Fifth",
-                value: 5,
-            },
-        ],
-        size: 1,
-    },
-)
+TypeDefinition {
+    layout: CEnum(
+        CEnumLayout {
+            name: "U8Enum",
+            discriminant_type: UnsignedInt(
+                UnsignedIntLayout {
+                    size: 1,
+                },
+            ),
+            variants: [
+                CEnumVariant {
+                    name: "First",
+                    value: 0,
+                },
+                CEnumVariant {
+                    name: "Second",
+                    value: 1,
+                },
+                CEnumVariant {
+                    name: "Third",
+                    value: 2,
+                },
+                CEnumVariant {
+                    name: "Fifth",
+                    value: 5,
+                },
+            ],
+            size: 1,
+        },
+    ),
+    location: Die(
+        Id(1824),
+    ),
+}

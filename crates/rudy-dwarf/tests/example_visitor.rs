@@ -211,7 +211,7 @@ fn dwarf_outline_examples(#[case] target: &'static str) {
             );
         }
 
-        tracing::info!("Examining DWARF structure for: {name}");
+        tracing::debug!("Examining DWARF structure for: {name}");
 
         let binary = load_binary(db, &path);
         let (debug_files, _) =
@@ -224,7 +224,7 @@ fn dwarf_outline_examples(#[case] target: &'static str) {
             let file_name = debug_file.name(db);
 
             // Only examine files that likely contain our method_discovery code
-            tracing::info!("Examining DWARF structure for: {file_name}",);
+            tracing::debug!("Examining DWARF structure for: {file_name}",);
 
             let mut visitor = TestVisitor::new_for_module(name);
             walk_file(db, *debug_file, &mut visitor).unwrap();

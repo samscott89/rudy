@@ -5,7 +5,9 @@ use std::{mem::size_of, sync::Arc};
 use itertools::Itertools;
 use salsa::Update;
 
-impl<L: Update> Layout<L> {
+impl Location for () {}
+
+impl<L: Location> Layout<L> {
     pub fn display_name(&self) -> String {
         match &self {
             Layout::Primitive(primitive_def) => match primitive_def {
@@ -91,19 +93,17 @@ impl<L: Update> Layout<L> {
         match (self, other) {
             (Layout::Primitive(p1), Layout::Primitive(p2)) => p1.matching_type(p2),
             (Layout::Std(s1), Layout::Std(s2)) => s1.matching_type(s2),
-            // TODO: Sam: handle this more robustly
             (Layout::Struct(s1), Layout::Struct(s2)) => s1.name == s2.name,
             (Layout::Struct(s1), Layout::Alias { name }) => &s1.name == name,
             (Layout::Alias { name: left }, Layout::Alias { name: right }) => {
                 left.ends_with(right) || right.ends_with(left)
             }
             (Layout::Alias { name }, x) | (x, Layout::Alias { name }) => {
-                x.display_name().contains(name)
+                let other_name = x.display_name();
+                other_name.contains(name) || name.contains(&other_name)
             }
-            // TODO: Sam: handle this more robustly
             (Layout::Enum(e1), Layout::Enum(e2)) => e1.name == e2.name,
             (Layout::CEnum(e1), Layout::CEnum(e2)) => e1.name == e2.name,
-
             _ => false,
         }
     }
@@ -135,173 +135,173 @@ impl<L: Update> Layout<L> {
 }
 
 // Conversion helpers for cleaner test code
-impl<L: Update> From<PrimitiveLayout<L>> for Layout<L> {
+impl<L: Location> From<PrimitiveLayout<L>> for Layout<L> {
     fn from(primitive: PrimitiveLayout<L>) -> Self {
         Layout::Primitive(primitive)
     }
 }
 
-impl<L: Update> From<StdLayout<L>> for Layout<L> {
+impl<L: Location> From<StdLayout<L>> for Layout<L> {
     fn from(std_def: StdLayout<L>) -> Self {
         Layout::Std(std_def)
     }
 }
 
-impl<L: Update> From<StructLayout<L>> for Layout<L> {
+impl<L: Location> From<StructLayout<L>> for Layout<L> {
     fn from(struct_def: StructLayout<L>) -> Self {
         Layout::Struct(struct_def)
     }
 }
 
-impl<L: Update> From<EnumLayout<L>> for Layout<L> {
+impl<L: Location> From<EnumLayout<L>> for Layout<L> {
     fn from(enum_def: EnumLayout<L>) -> Self {
         Layout::Enum(enum_def)
     }
 }
 
 // PrimitiveDef conversions
-impl<L: Update> From<ArrayLayout<L>> for PrimitiveLayout<L> {
+impl<L: Location> From<ArrayLayout<L>> for PrimitiveLayout<L> {
     fn from(array: ArrayLayout<L>) -> Self {
         PrimitiveLayout::Array(array)
     }
 }
 
-impl<L: Update> From<FloatLayout> for PrimitiveLayout<L> {
+impl<L: Location> From<FloatLayout> for PrimitiveLayout<L> {
     fn from(float: FloatLayout) -> Self {
         PrimitiveLayout::Float(float)
     }
 }
 
-impl<L: Update> From<FunctionLayout<L>> for PrimitiveLayout<L> {
+impl<L: Location> From<FunctionLayout<L>> for PrimitiveLayout<L> {
     fn from(function: FunctionLayout<L>) -> Self {
         PrimitiveLayout::Function(function)
     }
 }
 
-impl<L: Update> From<IntLayout> for PrimitiveLayout<L> {
+impl<L: Location> From<IntLayout> for PrimitiveLayout<L> {
     fn from(int: IntLayout) -> Self {
         PrimitiveLayout::Int(int)
     }
 }
 
-impl<L: Update> From<PointerLayout<L>> for PrimitiveLayout<L> {
+impl<L: Location> From<PointerLayout<L>> for PrimitiveLayout<L> {
     fn from(pointer: PointerLayout<L>) -> Self {
         PrimitiveLayout::Pointer(pointer)
     }
 }
 
-impl<L: Update> From<ReferenceLayout<L>> for PrimitiveLayout<L> {
+impl<L: Location> From<ReferenceLayout<L>> for PrimitiveLayout<L> {
     fn from(reference: ReferenceLayout<L>) -> Self {
         PrimitiveLayout::Reference(reference)
     }
 }
 
-impl<L: Update> From<SliceLayout<L>> for PrimitiveLayout<L> {
+impl<L: Location> From<SliceLayout<L>> for PrimitiveLayout<L> {
     fn from(slice: SliceLayout<L>) -> Self {
         PrimitiveLayout::Slice(slice)
     }
 }
 
-impl<L: Update> From<StrSliceLayout> for PrimitiveLayout<L> {
+impl<L: Location> From<StrSliceLayout> for PrimitiveLayout<L> {
     fn from(str_slice: StrSliceLayout) -> Self {
         PrimitiveLayout::StrSlice(str_slice)
     }
 }
 
-impl<L: Update> From<TupleLayout<L>> for PrimitiveLayout<L> {
+impl<L: Location> From<TupleLayout<L>> for PrimitiveLayout<L> {
     fn from(tuple: TupleLayout<L>) -> Self {
         PrimitiveLayout::Tuple(tuple)
     }
 }
 
-impl<L: Update> From<UnitLayout> for PrimitiveLayout<L> {
+impl<L: Location> From<UnitLayout> for PrimitiveLayout<L> {
     fn from(unit: UnitLayout) -> Self {
         PrimitiveLayout::Unit(unit)
     }
 }
 
-impl<L: Update> From<UnsignedIntLayout> for PrimitiveLayout<L> {
+impl<L: Location> From<UnsignedIntLayout> for PrimitiveLayout<L> {
     fn from(uint: UnsignedIntLayout) -> Self {
         PrimitiveLayout::UnsignedInt(uint)
     }
 }
 
 // StdDef conversions
-impl<L: Update> From<SmartPtrLayout<L>> for StdLayout<L> {
+impl<L: Location> From<SmartPtrLayout<L>> for StdLayout<L> {
     fn from(smart_ptr: SmartPtrLayout<L>) -> Self {
         StdLayout::SmartPtr(smart_ptr)
     }
 }
 
-impl<L: Update> From<MapLayout<L>> for StdLayout<L> {
+impl<L: Location> From<MapLayout<L>> for StdLayout<L> {
     fn from(map: MapLayout<L>) -> Self {
         StdLayout::Map(map)
     }
 }
 
-impl<L: Update> From<StringLayout<L>> for StdLayout<L> {
+impl<L: Location> From<StringLayout<L>> for StdLayout<L> {
     fn from(string: StringLayout<L>) -> Self {
         StdLayout::String(string)
     }
 }
 
-impl<L: Update> From<VecLayout<L>> for StdLayout<L> {
+impl<L: Location> From<VecLayout<L>> for StdLayout<L> {
     fn from(vec: VecLayout<L>) -> Self {
         StdLayout::Vec(vec)
     }
 }
 
 // Convenience constructors for primitives with unit values
-impl<L: Update> From<()> for PrimitiveLayout<L> {
+impl<L: Location> From<()> for PrimitiveLayout<L> {
     fn from(_: ()) -> Self {
         PrimitiveLayout::Bool(())
     }
 }
 
 // Chain conversions for common patterns
-impl<L: Update> From<UnsignedIntLayout> for Layout<L> {
+impl<L: Location> From<UnsignedIntLayout> for Layout<L> {
     fn from(uint: UnsignedIntLayout) -> Self {
         Layout::Primitive(PrimitiveLayout::UnsignedInt(uint))
     }
 }
 
-impl<L: Update> From<IntLayout> for Layout<L> {
+impl<L: Location> From<IntLayout> for Layout<L> {
     fn from(int: IntLayout) -> Self {
         Layout::Primitive(PrimitiveLayout::Int(int))
     }
 }
 
-impl<L: Update> From<FloatLayout> for Layout<L> {
+impl<L: Location> From<FloatLayout> for Layout<L> {
     fn from(float: FloatLayout) -> Self {
         Layout::Primitive(PrimitiveLayout::Float(float))
     }
 }
 
-impl<L: Update> From<ReferenceLayout<L>> for Layout<L> {
+impl<L: Location> From<ReferenceLayout<L>> for Layout<L> {
     fn from(reference: ReferenceLayout<L>) -> Self {
         Layout::Primitive(PrimitiveLayout::Reference(reference))
     }
 }
 
-impl<L: Update> From<StringLayout<L>> for Layout<L> {
+impl<L: Location> From<StringLayout<L>> for Layout<L> {
     fn from(string: StringLayout<L>) -> Self {
         Layout::Std(StdLayout::String(string))
     }
 }
 
-impl<L: Update> From<VecLayout<L>> for Layout<L> {
+impl<L: Location> From<VecLayout<L>> for Layout<L> {
     fn from(vec: VecLayout<L>) -> Self {
         Layout::Std(StdLayout::Vec(vec))
     }
 }
 
-impl<L: Update> From<MapLayout<L>> for Layout<L> {
+impl<L: Location> From<MapLayout<L>> for Layout<L> {
     fn from(map: MapLayout<L>) -> Self {
         Layout::Std(StdLayout::Map(map))
     }
 }
 
-impl<L: Update> From<SmartPtrLayout<L>> for Layout<L> {
+impl<L: Location> From<SmartPtrLayout<L>> for Layout<L> {
     fn from(smart_ptr: SmartPtrLayout<L>) -> Self {
         Layout::Std(StdLayout::SmartPtr(smart_ptr))
     }
@@ -310,7 +310,7 @@ impl<L: Update> From<SmartPtrLayout<L>> for Layout<L> {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct TypeDefinition<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     /// The layout of the type definition
     ///
@@ -326,7 +326,7 @@ where
 
 impl<L> TypeDefinition<L>
 where
-    L: Update,
+    L: Location,
 {
     pub fn new(location: L, layout: Layout<L>) -> Self {
         Self {
@@ -348,10 +348,12 @@ where
     }
 }
 
+pub trait Location: Update {}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum Layout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     /// Language-specific primitive types from `core::primitive`
     /// (e.g. `i32`, `f64`, etc.)
@@ -382,7 +384,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum PrimitiveLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     Array(ArrayLayout<L>),
     Bool(()),
@@ -408,7 +410,7 @@ where
     // neverExperimental,
 }
 
-impl<L: Update> PrimitiveLayout<L> {
+impl<L: Location> PrimitiveLayout<L> {
     fn size(&self) -> Option<usize> {
         let size = match self {
             PrimitiveLayout::Array(array_def) => {
@@ -453,21 +455,13 @@ impl<L: Update> PrimitiveLayout<L> {
     }
 
     fn matching_type(&self, other: &Self) -> bool {
+        use PrimitiveLayout::*;
         match (self, other) {
-            (PrimitiveLayout::Pointer(l), PrimitiveLayout::Pointer(r)) => {
-                l.pointed_type.matching_type(&r.pointed_type)
-            }
-            (PrimitiveLayout::Reference(l), PrimitiveLayout::Reference(r)) => {
-                l.pointed_type.matching_type(&r.pointed_type)
-            }
-            (PrimitiveLayout::Slice(l), PrimitiveLayout::Slice(r)) => {
-                l.element_type.matching_type(&r.element_type)
-            }
-            (PrimitiveLayout::Array(l), PrimitiveLayout::Array(r)) => {
-                l.element_type.matching_type(&r.element_type)
-            }
-
-            (PrimitiveLayout::Tuple(l), PrimitiveLayout::Tuple(r)) => {
+            (Pointer(l), Pointer(r)) => l.pointed_type.matching_type(&r.pointed_type),
+            (Reference(l), Reference(r)) => l.pointed_type.matching_type(&r.pointed_type),
+            (Slice(l), Slice(r)) => l.element_type.matching_type(&r.element_type),
+            (Array(l), Array(r)) => l.element_type.matching_type(&r.element_type),
+            (Tuple(l), Tuple(r)) => {
                 if l.elements.len() != r.elements.len() {
                     return false;
                 }
@@ -476,6 +470,29 @@ impl<L: Update> PrimitiveLayout<L> {
                     .zip(r.elements.iter())
                     .all(|((_, l), (_, r))| l.matching_type(r))
             }
+
+            (Function(l), Function(r)) => {
+                l.arg_types.len() == r.arg_types.len()
+                    && l.return_type.is_none() == r.return_type.is_none()
+                    && l.return_type
+                        .as_ref()
+                        .zip(r.return_type.as_ref())
+                        .is_none_or(|(l_ret, r_ret)| l_ret.matching_type(r_ret))
+                    && l.arg_types
+                        .iter()
+                        .zip(r.arg_types.iter())
+                        .all(|(l_arg, r_arg)| l_arg.matching_type(r_arg))
+            }
+            (Bool(_), Bool(_))
+            | (Char(_), Char(_))
+            | (Never(_), Never(_))
+            | (Str(_), Str(_))
+            | (Unit(_), Unit(_)) => true,
+            (Float(l), Float(r)) => l == r,
+            (Int(l), Int(r)) => l == r,
+            (UnsignedInt(l), UnsignedInt(r)) => l == r,
+
+            (StrSlice(l), StrSlice(r)) => l == r,
             _ => false,
         }
     }
@@ -484,7 +501,7 @@ impl<L: Update> PrimitiveLayout<L> {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ArrayLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub element_type: TypeDefinition<L>,
     pub length: usize,
@@ -497,13 +514,13 @@ pub struct FloatLayout {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct FunctionLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub return_type: Option<TypeDefinition<L>>,
     pub arg_types: Vec<TypeDefinition<L>>,
 }
 
-impl<L: Update> FunctionLayout<L> {
+impl<L: Location> FunctionLayout<L> {
     pub fn display_name(&self) -> String {
         let arg_types = self
             .arg_types
@@ -535,7 +552,7 @@ impl IntLayout {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct PointerLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub mutable: bool,
     pub pointed_type: TypeDefinition<L>,
@@ -543,7 +560,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ReferenceLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     /// Is this a mutable reference?
     /// (i.e. `&mut T` vs `&T`)
@@ -555,7 +572,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SliceLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub element_type: TypeDefinition<L>,
     pub data_ptr_offset: usize,
@@ -571,7 +588,7 @@ pub struct StrSliceLayout {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct TupleLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     /// List of elements + offsets to their data
     pub elements: Vec<(usize, TypeDefinition<L>)>,
@@ -596,7 +613,7 @@ impl UnsignedIntLayout {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum StdLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     SmartPtr(SmartPtrLayout<L>),
     Map(MapLayout<L>),
@@ -606,7 +623,7 @@ where
     Vec(VecLayout<L>),
 }
 
-impl<L: Update> StdLayout<L> {
+impl<L: Location> StdLayout<L> {
     fn size(&self) -> Option<usize> {
         let size = match self {
             StdLayout::SmartPtr(smart_ptr_def) => match smart_ptr_def.variant {
@@ -656,7 +673,7 @@ impl<L: Update> StdLayout<L> {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct SmartPtrLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub inner_type: TypeDefinition<L>,
     pub inner_ptr_offset: usize,
@@ -694,14 +711,14 @@ impl SmartPtrVariant {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct MapLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub key_type: TypeDefinition<L>,
     pub value_type: TypeDefinition<L>,
     pub variant: MapVariant,
 }
 
-impl<L: Update> MapLayout<L> {
+impl<L: Location> MapLayout<L> {
     pub fn display_name(&self) -> String {
         format!(
             "{}<{}, {}>",
@@ -758,19 +775,19 @@ impl MapVariant {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StringLayout<L = ()>(pub VecLayout<L>)
 where
-    L: Update;
+    L: Location;
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct VecLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub length_offset: usize,
     pub data_ptr_offset: usize,
     pub inner_type: TypeDefinition<L>,
 }
 
-impl<L: Update + Default> VecLayout<L> {
+impl<L: Location + Default> VecLayout<L> {
     pub fn new<T: Into<Layout<L>>>(inner_type: T) -> Self {
         Self {
             length_offset: 0,
@@ -783,7 +800,7 @@ impl<L: Update + Default> VecLayout<L> {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StructLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub name: String,
     pub size: usize,
@@ -793,7 +810,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct StructField<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub name: String,
     pub offset: usize,
@@ -826,7 +843,7 @@ pub enum DiscriminantType {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub name: String,
     pub discriminant: Discriminant,
@@ -837,7 +854,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct EnumVariantLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub name: String,
     /// The discriminant value for this variant, if known
@@ -851,7 +868,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct OptionLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub name: String,
     pub discriminant: Discriminant,
@@ -863,7 +880,7 @@ where
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub struct ResultLayout<L = ()>
 where
-    L: Update,
+    L: Location,
 {
     pub name: String,
     pub discriminant: Discriminant,
@@ -907,7 +924,7 @@ impl IntLayout {
     }
 }
 
-impl<L: Update + Default> ReferenceLayout<L> {
+impl<L: Location + Default> ReferenceLayout<L> {
     pub fn new_mutable<T: Into<Layout<L>>>(pointed_type: T) -> Self {
         Self {
             mutable: true,

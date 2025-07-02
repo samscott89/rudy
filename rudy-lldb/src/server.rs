@@ -251,7 +251,7 @@ impl ClientConnection {
             match pointer {
                 Ok(pointer) => {
                     tracing::info!("Resolved pointer: {pointer:#?}");
-                    return Ok(self.discover_methods_for_pointer(&pointer, debug_info));
+                    return Ok(discover_methods_for_pointer(&pointer, debug_info));
                 }
                 Err(e) => {
                     tracing::error!("Error resolving type for expression: {input}: {e}");
@@ -264,43 +264,42 @@ impl ClientConnection {
             input
         ))
     }
+}
 
-    /// Discover methods available for a given type using DWARF debug information
-    fn discover_methods_for_pointer(
-        &self,
-        pointer: &TypedPointer,
-        debug_info: &DebugInfo,
-    ) -> MethodDiscoveryResult {
-        // Use the real DWARF-based method discovery
-        match debug_info.discover_methods_for_pointer(pointer) {
-            Ok(discovered_methods) => {
-                // Convert DiscoveredMethod to MethodInfo
-                let methods = discovered_methods
-                    .into_iter()
-                    .map(|dm| MethodInfo {
-                        name: dm.name,
-                        signature: dm.signature,
-                        description: Some(format!("Function at address {:#x}", dm.address)),
-                        callable: dm.callable,
-                    })
-                    .collect();
+/// Discover methods available for a given type using DWARF debug information
+fn discover_methods_for_pointer(
+    pointer: &TypedPointer<'_>,
+    debug_info: &DebugInfo,
+) -> MethodDiscoveryResult {
+    // Use the real DWARF-based method discovery
+    match debug_info.discover_methods_for_pointer(pointer) {
+        Ok(discovered_methods) => {
+            // Convert DiscoveredMethod to MethodInfo
+            let methods = discovered_methods
+                .into_iter()
+                .map(|dm| MethodInfo {
+                    name: dm.name,
+                    signature: dm.signature,
+                    description: Some(format!("Function at address {:#x}", dm.address)),
+                    callable: dm.callable,
+                })
+                .collect();
 
-                MethodDiscoveryResult {
-                    type_name: pointer.type_def.display_name(),
-                    methods,
-                }
+            MethodDiscoveryResult {
+                type_name: pointer.type_def.display_name(),
+                methods,
             }
-            Err(e) => {
-                // Fallback to indicating an error occurred
-                MethodDiscoveryResult {
-                    type_name: pointer.type_def.display_name(),
-                    methods: vec![MethodInfo {
-                        name: "error".to_string(),
-                        signature: "discovery failed".to_string(),
-                        description: Some(format!("Method discovery failed: {e}")),
-                        callable: false,
-                    }],
-                }
+        }
+        Err(e) => {
+            // Fallback to indicating an error occurred
+            MethodDiscoveryResult {
+                type_name: pointer.type_def.display_name(),
+                methods: vec![MethodInfo {
+                    name: "error".to_string(),
+                    signature: "discovery failed".to_string(),
+                    description: Some(format!("Method discovery failed: {e}")),
+                    callable: false,
+                }],
             }
         }
     }
