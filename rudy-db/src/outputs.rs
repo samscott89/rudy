@@ -255,4 +255,6 @@ pub struct DiscoveredMethod {
     pub self_type: Option<SelfType>,
     /// Whether this method can be called (has an address)
     pub callable: bool,
+    /// Whether this is a synthetic method (computed, not from debug info)
+    pub is_synthetic: bool,
 }

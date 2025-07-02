@@ -282,6 +282,7 @@ fn discover_methods_for_pointer(
                     signature: dm.signature,
                     description: Some(format!("Function at address {:#x}", dm.address)),
                     callable: dm.callable,
+                    is_synthetic: dm.is_synthetic,
                 })
                 .collect();
 
@@ -299,6 +300,7 @@ fn discover_methods_for_pointer(
                     signature: "discovery failed".to_string(),
                     description: Some(format!("Method discovery failed: {e}")),
                     callable: false,
+                    is_synthetic: false,
                 }],
             }
         }
@@ -317,4 +319,5 @@ pub struct MethodInfo {
     pub signature: String,
     pub description: Option<String>,
     pub callable: bool, // Whether we can actually call this method
+    pub is_synthetic: bool, // Whether this is a synthetic method (computed, not from debug info)
 }

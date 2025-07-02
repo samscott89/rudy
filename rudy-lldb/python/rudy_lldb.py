@@ -668,22 +668,38 @@ def rudy_command(debugger, command, result, internal_dict):
                 type_name = result_data.get("type_name", "Unknown")
                 methods = result_data.get("methods", [])
 
-                print(f"Methods for {type_name}:")
-                if not methods:
-                    print("  (no methods found)")
-                else:
-                    for method in methods:
-                        if isinstance(method, dict):
-                            name = method.get("name", "unknown")
-                            sig = method.get("signature", "")
-                            callable_str = (
-                                " (callable)"
-                                if method.get("callable", False)
-                                else " (not callable)"
-                            )
-                            print(f"  - {sig}{callable_str}")
+                # Separate regular and synthetic methods
+                regular_methods = []
+                synthetic_methods = []
+                
+                for method in methods:
+                    if isinstance(method, dict):
+                        if method.get("is_synthetic", False):
+                            synthetic_methods.append(method)
                         else:
-                            print(f"  - {method}")
+                            regular_methods.append(method)
+                
+                print(f"Methods for {type_name}:")
+                
+                # Print regular methods
+                if regular_methods:
+                    for method in regular_methods:
+                        sig = method.get("signature", "")
+                        callable_str = (
+                            " (callable)"
+                            if method.get("callable", False)
+                            else " (not callable)"
+                        )
+                        print(f"  - {sig}{callable_str}")
+                else:
+                    print("  (no methods found)")
+                
+                # Print synthetic methods if any
+                if synthetic_methods:
+                    print("\nSynthetic methods (debug helpers):")
+                    for method in synthetic_methods:
+                        sig = method.get("signature", "")
+                        print(f"  - {sig}")
             elif isinstance(result_data, dict):
                 for key, value in result_data.items():
                     print(f"{key}: {value}")

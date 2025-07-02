@@ -176,6 +176,7 @@ pub fn discover_all_methods(
                         self_type,
                         // defaults to callable
                         callable: true,
+                        is_synthetic: false,
                     });
             }
             Err(e) => {
@@ -222,8 +223,23 @@ pub fn discover_methods_for_type(
         target_type.display_name()
     );
 
+    // Phase 3: Add synthetic methods based on the type layout
+    let synthetic_methods =
+        crate::synthetic_methods::get_synthetic_methods(target_type.layout.as_ref());
+    for synthetic in synthetic_methods {
+        methods.push(DiscoveredMethod {
+            name: synthetic.name.to_string(),
+            full_name: format!("{}::{}", target_type.display_name(), synthetic.name),
+            signature: synthetic.signature.to_string(),
+            address: 0, // Synthetic methods don't have addresses
+            self_type: Some(rudy_dwarf::function::SelfType::Borrowed), // Most synthetic methods take &self
+            callable: false, // Can't call synthetic methods directly
+            is_synthetic: true,
+        });
+    }
+
     tracing::debug!(
-        "Final method count for type {}: {}",
+        "Final method count for type {} (including synthetic): {}",
         target_type.display_name(),
         methods.len()
     );
@@ -355,7 +371,7 @@ fn convert_function_to_method(
     };
 
     // Build a more complete signature
-    let signature = build_function_signature(&function, self_type.as_ref());
+    let signature = build_function_signature(db, &function, self_type.as_ref());
 
     // This is a method! Convert to DiscoveredMethod
     Ok(Some(DiscoveredMethod {
@@ -365,11 +381,13 @@ fn convert_function_to_method(
         address,
         self_type,
         callable,
+        is_synthetic: false,
     }))
 }
 
 /// Build a function signature string from FunctionInfo
 fn build_function_signature(
+    db: &dyn Db,
     function: &rudy_dwarf::parser::functions::FunctionInfo,
     self_type: Option<&rudy_dwarf::function::SelfType>,
 ) -> String {
@@ -396,10 +414,16 @@ fn build_function_signature(
             continue;
         }
 
+        // Try to resolve the parameter type
+        let type_str = match rudy_dwarf::types::resolve_type_offset(db, param.type_die) {
+            Ok(resolved_type) => resolved_type.display_name(),
+            Err(_) => "?".to_string(),
+        };
+
         let param_str = if let Some(name) = &param.name {
-            format!("{name}: _")
+            format!("{name}: {type_str}")
         } else {
-            "_: _".to_string()
+            format!("_: {type_str}")
         };
         params.push(param_str);
     }
@@ -408,8 +432,20 @@ fn build_function_signature(
     sig.push(')');
 
     // Add return type if present
-    if function.return_type.is_some() {
-        sig.push_str(" -> _");
+    if let Some(return_die) = function.return_type {
+        match rudy_dwarf::types::resolve_type_offset(db, return_die) {
+            Ok(resolved_type) => {
+                let return_type = resolved_type.display_name();
+                if return_type != "()" {
+                    // Don't show unit type
+                    sig.push_str(" -> ");
+                    sig.push_str(&return_type);
+                }
+            }
+            Err(_) => {
+                sig.push_str(" -> ?");
+            }
+        }
     }
 
     sig

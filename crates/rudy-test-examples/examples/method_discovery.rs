@@ -122,7 +122,7 @@ pub mod utils {
 }
 
 // A function to ensure everything gets compiled and linked
-pub fn test_all_methods(mut session: Session) {
+pub fn test_all_methods(mut session: Session, names: Vec<String>) {
     // Call regular methods
     let _ = session.get_id();
     session.set_name("updated".to_string());
@@ -149,6 +149,7 @@ pub fn test_all_methods(mut session: Session) {
 
 fn main() {
     let session = Session::new(1, "test".to_string());
-    test_all_methods(session);
+    let names = vec!["Alice".to_string(), "Bob".to_string()];
+    test_all_methods(session, names);
     println!("Method discovery test completed");
 }

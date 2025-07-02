@@ -7,29 +7,32 @@ snapshot_kind: text
     DiscoveredMethod {
         name: "new",
         full_name: "method_discovery::Session::new",
-        signature: "fn new(_: _, _: _) -> _",
+        signature: "fn new(_: u64, _: String) -> Session",
         address: 4294971060,
         self_type: None,
         callable: true,
+        is_synthetic: false,
     },
     DiscoveredMethod {
         name: "get_id",
         full_name: "method_discovery::Session::get_id",
-        signature: "fn get_id(&self) -> _",
+        signature: "fn get_id(&self) -> u64",
         address: 4294971112,
         self_type: Some(
             Borrowed,
         ),
         callable: true,
+        is_synthetic: false,
     },
     DiscoveredMethod {
         name: "set_name",
         full_name: "method_discovery::Session::set_name",
-        signature: "fn set_name(&mut self, _: _)",
+        signature: "fn set_name(&mut self, _: String)",
         address: 4294971148,
         self_type: Some(
             BorrowedMut,
         ),
         callable: true,
+        is_synthetic: false,
     },
 ]
