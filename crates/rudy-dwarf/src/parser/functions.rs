@@ -9,6 +9,7 @@ use crate::{Die, DwarfDb};
 #[derive(Debug, Clone)]
 pub struct FunctionInfo<'db> {
     pub name: String,
+    pub linkage_name: Option<String>,
     pub die: Die<'db>,
     pub parameters: Vec<ParameterInfo<'db>>,
     pub return_type: Option<Die<'db>>,
@@ -33,6 +34,9 @@ pub fn function_parser<'db>() -> impl Parser<'db, Option<FunctionInfo<'db>>> {
             // Parse function components using parser combinators
             let name = entry.name(db).unwrap_or_else(|_| "<anonymous>".to_string());
 
+            // Extract linkage name for symbol lookup
+            let linkage_name = entry.string_attr(db, crate::gimli::DW_AT_linkage_name).ok();
+
             // Parse return type (optional)
             let return_type = entry_type().parse(db, entry).ok();
 
@@ -41,6 +45,7 @@ pub fn function_parser<'db>() -> impl Parser<'db, Option<FunctionInfo<'db>>> {
 
             Ok(Some(FunctionInfo {
                 name,
+                linkage_name,
                 die: entry,
                 parameters,
                 return_type,

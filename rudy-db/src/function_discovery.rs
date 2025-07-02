@@ -157,11 +157,7 @@ pub fn discover_all_methods(
                     continue;
                 };
 
-                let Some(self_type) = sig.self_type(db) else {
-                    // Not a method, skip
-                    continue;
-                };
-
+                let self_type = sig.self_type(db);
                 let first_type = first_param.ty(db).layout.dereferenced();
 
                 if matches!(first_type, Layout::Alias { name } if name == "unknown") {
@@ -180,6 +176,7 @@ pub fn discover_all_methods(
                         self_type,
                         // defaults to callable
                         callable: true,
+                        is_synthetic: false,
                     });
             }
             Err(e) => {
@@ -208,7 +205,7 @@ pub fn discover_methods_for_type(
     let mut methods = Vec::new();
 
     // Phase 1: Direct method discovery - look for methods structurally nested under the type DIE
-    if let Some(direct_methods) = discover_direct_methods(db, target_type)? {
+    if let Some(direct_methods) = discover_direct_methods(db, binary, target_type)? {
         methods.extend(direct_methods);
         tracing::debug!(
             "Found {} direct methods for type {}",
@@ -226,8 +223,23 @@ pub fn discover_methods_for_type(
         target_type.display_name()
     );
 
+    // Phase 3: Add synthetic methods based on the type layout
+    let synthetic_methods =
+        crate::synthetic_methods::get_synthetic_methods(target_type.layout.as_ref());
+    for synthetic in synthetic_methods {
+        methods.push(DiscoveredMethod {
+            name: synthetic.name.to_string(),
+            full_name: format!("{}::{}", target_type.display_name(), synthetic.name),
+            signature: synthetic.signature.to_string(),
+            address: 0, // Synthetic methods don't have addresses
+            self_type: Some(rudy_dwarf::function::SelfType::Borrowed), // Most synthetic methods take &self
+            callable: false, // Can't call synthetic methods directly
+            is_synthetic: true,
+        });
+    }
+
     tracing::debug!(
-        "Final method count for type {}: {}",
+        "Final method count for type {} (including synthetic): {}",
         target_type.display_name(),
         methods.len()
     );
@@ -238,7 +250,8 @@ pub fn discover_methods_for_type(
 ///
 /// In DWARF, Rust methods are often represented as functions nested directly under the type DIE.
 fn discover_direct_methods(
-    db: &dyn rudy_dwarf::DwarfDb,
+    db: &dyn Db,
+    binary: Binary,
     target_type: &rudy_dwarf::types::DieTypeDefinition,
 ) -> Result<Option<Vec<DiscoveredMethod>>> {
     use rudy_dwarf::parser::Parser;
@@ -257,11 +270,15 @@ fn discover_direct_methods(
         return Ok(None);
     }
 
+    // Get the symbol index for address lookup
+    let index = crate::index::debug_index(db, binary);
+    let symbol_index = index.symbol_index(db);
+
     let functions_count = functions.len();
     let mut methods = Vec::new();
     for function in functions {
         // Check if this function is a method (has self parameter matching our target type)
-        if let Some(method) = convert_function_to_method(db, function, target_type)? {
+        if let Some(method) = convert_function_to_method(db, function, target_type, symbol_index)? {
             methods.push(method);
         }
     }
@@ -285,35 +302,153 @@ fn discover_direct_methods(
 
 /// Convert a FunctionInfo to a DiscoveredMethod if it's a method for the target type
 fn convert_function_to_method(
-    db: &dyn rudy_dwarf::DwarfDb,
+    db: &dyn Db,
     function: rudy_dwarf::parser::functions::FunctionInfo,
     target_type: &rudy_dwarf::types::DieTypeDefinition,
+    symbol_index: &rudy_dwarf::symbols::SymbolIndex,
 ) -> Result<Option<DiscoveredMethod>> {
-    // Check if first parameter matches our target type
-    let Some(first_param) = function.parameters.first() else {
-        return Ok(None); // No parameters, not a method
+    // Determine if this is a method (has self parameter) or associated function
+    use rudy_dwarf::function::SelfType;
+    let self_type = if let Some(first_param) = function.parameters.first() {
+        if first_param.name.as_ref().is_some_and(|n| n != "self") {
+            // this is not a method - first parameter is not named "self"
+            None
+        } else {
+            // Check if first parameter matches our target type
+            let param_type = rudy_dwarf::types::resolve_type_offset(db, first_param.type_die)?;
+            let param_layout = param_type.layout.dereferenced();
+            if param_layout.matching_type(target_type.layout.as_ref()) {
+                // This is a method with self parameter
+                Some(SelfType::from_param_type(param_type.layout.as_ref()))
+            } else {
+                tracing::debug!(
+                    "First parameter type {} does not match target type {} for function {}",
+                    param_layout.display_name(),
+                    target_type.display_name(),
+                    function.name
+                );
+                // First parameter doesn't match target type - this could still be an associated function
+                // For now, we'll include it as an associated function (no self)
+                None
+            }
+        }
+    } else {
+        // No parameters - this is an associated function
+        None
     };
 
-    // Resolve the parameter type and check if it matches our target
-    let param_type = rudy_dwarf::types::resolve_type_offset(db, first_param.type_die)?;
-    if !param_type.matching_type(target_type) {
-        return Ok(None); // First parameter doesn't match target type
-    }
+    // Try to resolve the function address using linkage name
+    let (address, callable, full_name) = if let Some(linkage_name) = &function.linkage_name {
+        // Convert linkage name to RawSymbol and demangle it to get SymbolName
+        let raw_symbol = rudy_dwarf::symbols::RawSymbol::new(linkage_name.as_bytes().to_vec());
 
-    // Determine the self type based on the parameter type
-    use rudy_dwarf::function::SelfType;
-    let self_type = SelfType::from_param_type(param_type.layout.as_ref());
+        match raw_symbol.demangle() {
+            Ok(symbol_name) => {
+                if let Some(symbol) = symbol_index.get_function(&symbol_name) {
+                    tracing::debug!(
+                        "Found symbol address for method {}: {:#x}",
+                        function.name,
+                        symbol.address
+                    );
+                    (symbol.address, true, symbol.name.to_string())
+                } else {
+                    tracing::debug!(
+                        "No symbol found for demangled linkage name: {} ({})",
+                        symbol_name,
+                        linkage_name
+                    );
+                    (0, false, format!("{}::(direct)", function.name))
+                }
+            }
+            Err(e) => {
+                tracing::debug!("Failed to demangle linkage name {}: {}", linkage_name, e);
+                (0, false, format!("{}::(direct)", function.name))
+            }
+        }
+    } else {
+        tracing::debug!("No linkage name available for function: {}", function.name);
+        (0, false, format!("{}::(direct)", function.name))
+    };
+
+    // Build a more complete signature
+    let signature = build_function_signature(db, &function, self_type.as_ref());
 
     // This is a method! Convert to DiscoveredMethod
-    // Note: We don't have the symbol address, so we'll mark as not callable
     Ok(Some(DiscoveredMethod {
         name: function.name.clone(),
-        full_name: format!("{}::(direct)", function.name),
-        signature: format!("fn {}", function.name), // Simplified signature
-        address: 0,                                 // No symbol address available
+        full_name,
+        signature,
+        address,
         self_type,
-        callable: false, // Not callable without symbol address
+        callable,
+        is_synthetic: false,
     }))
+}
+
+/// Build a function signature string from FunctionInfo
+fn build_function_signature(
+    db: &dyn Db,
+    function: &rudy_dwarf::parser::functions::FunctionInfo,
+    self_type: Option<&rudy_dwarf::function::SelfType>,
+) -> String {
+    let mut sig = String::new();
+    sig.push_str("fn ");
+    sig.push_str(&function.name);
+    sig.push('(');
+
+    let mut params = Vec::new();
+
+    // Add self parameter if present
+    if let Some(self_type) = self_type {
+        params.push(match self_type {
+            rudy_dwarf::function::SelfType::Owned => "self".to_string(),
+            rudy_dwarf::function::SelfType::Borrowed => "&self".to_string(),
+            rudy_dwarf::function::SelfType::BorrowedMut => "&mut self".to_string(),
+        });
+    }
+
+    // Add other parameters (skip first if it's self)
+    let skip_first = self_type.is_some();
+    for (i, param) in function.parameters.iter().enumerate() {
+        if skip_first && i == 0 {
+            continue;
+        }
+
+        // Try to resolve the parameter type
+        let type_str = match rudy_dwarf::types::resolve_type_offset(db, param.type_die) {
+            Ok(resolved_type) => resolved_type.display_name(),
+            Err(_) => "?".to_string(),
+        };
+
+        let param_str = if let Some(name) = &param.name {
+            format!("{name}: {type_str}")
+        } else {
+            format!("_: {type_str}")
+        };
+        params.push(param_str);
+    }
+
+    sig.push_str(&params.join(", "));
+    sig.push(')');
+
+    // Add return type if present
+    if let Some(return_die) = function.return_type {
+        match rudy_dwarf::types::resolve_type_offset(db, return_die) {
+            Ok(resolved_type) => {
+                let return_type = resolved_type.display_name();
+                if return_type != "()" {
+                    // Don't show unit type
+                    sig.push_str(" -> ");
+                    sig.push_str(&return_type);
+                }
+            }
+            Err(_) => {
+                sig.push_str(" -> ?");
+            }
+        }
+    }
+
+    sig
 }
 
 /// Phase 2: Discover trait implementations by searching for {impl#N} blocks

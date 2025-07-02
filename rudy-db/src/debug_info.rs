@@ -916,11 +916,15 @@ impl<'db> DebugInfo<'db> {
         &self,
         typed_pointer: &TypedPointer,
     ) -> Result<Vec<DiscoveredMethod>> {
-        crate::function_discovery::discover_methods_for_type(
+        Ok(crate::function_discovery::discover_methods_for_type(
             self.db,
             self.binary,
             &typed_pointer.type_def,
-        )
+        )?
+        .into_iter()
+        // filter out associated methods that are not self methods
+        .filter(|m| m.self_type.is_some())
+        .collect())
     }
 
     pub fn discover_methods_for_type(

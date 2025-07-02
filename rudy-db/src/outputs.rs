@@ -252,7 +252,9 @@ pub struct DiscoveredMethod {
     /// The memory address of the method
     pub address: u64,
     /// Type of self parameter
-    pub self_type: SelfType,
+    pub self_type: Option<SelfType>,
     /// Whether this method can be called (has an address)
     pub callable: bool,
+    /// Whether this is a synthetic method (computed, not from debug info)
+    pub is_synthetic: bool,
 }

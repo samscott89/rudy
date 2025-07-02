@@ -657,10 +657,50 @@ def rudy_command(debugger, command, result, internal_dict):
     try:
         response = conn.send_command(subcommand, cmd_args, debugger)
 
+        debug_print(f"Received response: {response}")
+
         # Handle response
         if response.get("type") == "Complete":
             result_data = response.get("result", {})
-            if isinstance(result_data, dict):
+
+            # Special formatting for methods command
+            if subcommand == "methods" and isinstance(result_data, dict):
+                type_name = result_data.get("type_name", "Unknown")
+                methods = result_data.get("methods", [])
+
+                # Separate regular and synthetic methods
+                regular_methods = []
+                synthetic_methods = []
+
+                for method in methods:
+                    if isinstance(method, dict):
+                        if method.get("is_synthetic", False):
+                            synthetic_methods.append(method)
+                        else:
+                            regular_methods.append(method)
+
+                print(f"Methods for {type_name}:")
+
+                # Print regular methods
+                if regular_methods:
+                    for method in regular_methods:
+                        sig = method.get("signature", "")
+                        callable_str = (
+                            " (callable)"
+                            if method.get("callable", False)
+                            else " (not callable)"
+                        )
+                        print(f"  - {sig}{callable_str}")
+                else:
+                    print("  (no methods found)")
+
+                # Print synthetic methods if any
+                if synthetic_methods:
+                    print("\nSynthetic methods (debug helpers):")
+                    for method in synthetic_methods:
+                        sig = method.get("signature", "")
+                        print(f"  - {sig}")
+            elif isinstance(result_data, dict):
                 for key, value in result_data.items():
                     print(f"{key}: {value}")
             else:
