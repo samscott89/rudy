@@ -4,10 +4,11 @@ use anyhow::Result;
 use rudy_dwarf::{
     Binary,
     function::{FunctionSignature, resolve_function_signature},
+    types::DieTypeDefinition,
 };
 use rudy_types::Layout;
 
-use crate::{DiscoveredMethod, TypedPointer, database::Db};
+use crate::{DiscoveredMethod, database::Db};
 
 /// Result of analyzing a symbol for method discovery
 #[derive(Debug, Clone)]
@@ -199,10 +200,10 @@ pub fn discover_all_methods(
 /// 1. Direct method discovery from type DIE structure (methods nested under structs)
 /// 2. Trait implementation discovery using module traversal ({impl#N} patterns)
 /// 3. Fallback to symbol-based search for edge cases
-pub fn discover_all_methods_for_pointer(
+pub fn discover_methods_for_type(
     db: &dyn Db,
     binary: Binary,
-    target_type: &rudy_dwarf::types::DieTypeDefinition,
+    target_type: &DieTypeDefinition,
 ) -> Result<Vec<DiscoveredMethod>> {
     let mut methods = Vec::new();
 
@@ -224,19 +225,6 @@ pub fn discover_all_methods_for_pointer(
         methods.len(),
         target_type.display_name()
     );
-
-    // Phase 3: Fallback to symbol-based search for any missed methods
-    // This provides backward compatibility and catches edge cases
-    let fallback_methods = discover_methods_symbol_fallback(db, binary, target_type)?;
-    for fallback_method in fallback_methods {
-        // Only add if we haven't already found this method
-        if !methods
-            .iter()
-            .any(|m| m.full_name == fallback_method.full_name)
-        {
-            methods.push(fallback_method);
-        }
-    }
 
     tracing::debug!(
         "Final method count for type {}: {}",

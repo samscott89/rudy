@@ -148,6 +148,10 @@ impl<'db> DebugInfo<'db> {
         Ok(Some(ResolvedFunction {
             name: name.to_string(),
             address: symbol.address,
+            size: fie
+                .data(self.db)
+                .address_range
+                .map_or(0, |(start, end)| end - start),
             params: params
                 .params(self.db)
                 .into_iter()
@@ -157,9 +161,7 @@ impl<'db> DebugInfo<'db> {
                         .name(self.db)
                         .as_ref()
                         .map_or_else(|| format!("__{i}"), |s| s.to_string()),
-                    ty: Some(crate::Type {
-                        name: var.ty(self.db).display_name(),
-                    }),
+                    ty: var.ty(self.db).clone(),
                     value: None,
                 })
                 .collect(),
@@ -545,9 +547,7 @@ impl<'db> DebugInfo<'db> {
                 };
                 crate::Variable {
                     name: info.name,
-                    ty: Some(crate::Type {
-                        name: info.type_def.display_name(),
-                    }),
+                    ty: info.type_def,
                     value,
                 }
             })
@@ -563,9 +563,7 @@ impl<'db> DebugInfo<'db> {
                 };
                 crate::Variable {
                     name: info.name,
-                    ty: Some(crate::Type {
-                        name: info.type_def.display_name(),
-                    }),
+                    ty: info.type_def,
                     value,
                 }
             })
@@ -581,9 +579,7 @@ impl<'db> DebugInfo<'db> {
                 };
                 crate::Variable {
                     name: info.name,
-                    ty: Some(crate::Type {
-                        name: info.type_def.display_name(),
-                    }),
+                    ty: info.type_def,
                     value,
                 }
             })
@@ -608,7 +604,7 @@ impl<'db> DebugInfo<'db> {
     /// # use rudy_db::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// if let Some((typedef, _)) = debug_info.resolve_type("String").unwrap() {
+    /// if let Some(typedef) = debug_info.resolve_type("String").unwrap() {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
@@ -920,18 +916,19 @@ impl<'db> DebugInfo<'db> {
         &self,
         typed_pointer: &TypedPointer,
     ) -> Result<Vec<DiscoveredMethod>> {
-        crate::function_discovery::discover_all_methods_for_pointer(
+        crate::function_discovery::discover_methods_for_type(
             self.db,
             self.binary,
-            typed_pointer,
+            &typed_pointer.type_def,
         )
     }
-    // pub fn discover_methods_for_type(
-    //     &self,
-    //     target_type: &TypeLayout,
-    // ) -> Result<Vec<DiscoveredMethod>> {
-    //     crate::function_discovery::discover_all_methods_for_type(self.db, self.binary, target_type)
-    // }
+
+    pub fn discover_methods_for_type(
+        &self,
+        type_def: &DieTypeDefinition<'db>,
+    ) -> Result<Vec<DiscoveredMethod>> {
+        crate::function_discovery::discover_methods_for_type(self.db, self.binary, type_def)
+    }
 }
 
 fn variable_info<'db>(

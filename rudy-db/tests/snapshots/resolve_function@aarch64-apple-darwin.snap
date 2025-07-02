@@ -7,6 +7,7 @@ Some(
     ResolvedFunction {
         name: "simple_test::main",
         address: "0x100000a10",
+        size: "0xa4",
         params: [],
     },
 )

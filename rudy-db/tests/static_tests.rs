@@ -155,3 +155,29 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
 
     insta::assert_debug_snapshot!(u8_enum_typedef);
 }
+
+#[apply(binary_target)]
+fn test_method_discovery(#[case] target: &'static str) {
+    let _guards = setup!(target);
+
+    let db = common::debug_db(Some(target));
+    let exe_path = binary_path(target, "method_discovery");
+    let debug_info = DebugInfo::new(&db, &exe_path).expect("Failed to load debug info");
+
+    // Find `test_all_methods` function
+    let test_all_methods = debug_info
+        .resolve_function("method_discovery::test_all_methods")
+        .expect("Failed to resolve method_discovery::test_all_methods")
+        .expect("method_discovery::test_all_methods function should be found");
+
+    let session_param = test_all_methods
+        .params
+        .iter()
+        .find(|p| p.name == "session")
+        .expect("Session parameter not found");
+    let methods = debug_info
+        .discover_methods_for_type(&session_param.ty)
+        .expect("Failed to discover methods for session type");
+
+    insta::assert_debug_snapshot!(methods);
+}

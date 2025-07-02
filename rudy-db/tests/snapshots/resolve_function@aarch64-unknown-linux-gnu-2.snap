@@ -7,15 +7,23 @@ Some(
     ResolvedFunction {
         name: "simple_test::function_call",
         address: "0x64e8",
+        size: "0x68",
         params: [
             Variable {
                 name: "x",
                 value: None,
-                ty: Some(
-                    Type {
-                        name: "i32",
-                    },
-                ),
+                ty: TypeDefinition {
+                    layout: Primitive(
+                        Int(
+                            IntLayout {
+                                size: 4,
+                            },
+                        ),
+                    ),
+                    location: Die(
+                        Id(21d3),
+                    ),
+                },
             },
         ],
     },

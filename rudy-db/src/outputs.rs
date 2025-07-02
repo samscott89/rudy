@@ -31,7 +31,7 @@ pub struct ResolvedLocation {
 pub struct Variable<'db> {
     pub name: String,
     pub value: Option<Value<'db>>,
-    pub ty: Option<Type>,
+    pub ty: DieTypeDefinition<'db>,
 }
 
 /// Variable metadata without resolved value - used for expression evaluation.
@@ -225,6 +225,7 @@ pub struct Type {
 pub struct ResolvedFunction<'db> {
     pub name: String,
     pub address: u64,
+    pub size: u64,
     pub params: Vec<Variable<'db>>,
 }
 
@@ -233,6 +234,7 @@ impl fmt::Debug for ResolvedFunction<'_> {
         f.debug_struct("ResolvedFunction")
             .field("name", &self.name)
             .field("address", &format!("{:#x}", self.address))
+            .field("size", &format!("{:#x}", self.size))
             .field("params", &self.params)
             .finish()
     }
