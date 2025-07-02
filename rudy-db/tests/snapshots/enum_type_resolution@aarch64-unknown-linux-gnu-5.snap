@@ -34,6 +34,6 @@ TypeDefinition {
         },
     ),
     location: Die(
-        Id(2c3c),
+        Id(23f0),
     ),
 }

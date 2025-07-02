@@ -4,14 +4,12 @@ expression: all_structure
 snapshot_kind: text
 ---
 === [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/lldb_demo ===
-0x000003fc:  namespace 'lldb_demo'
-0x00000401:    structure_type 'Session'
-0x0000042e:    structure_type 'User'
-0x00000d9d:  namespace 'lldb_demo'
-0x00000da2:    structure_type 'User'
 0x00000ce8:  namespace 'lldb_demo'
 0x00000ced:    structure_type 'User'
 0x00000d26:    structure_type 'Session'
+0x000003fc:  namespace 'lldb_demo'
+0x00000401:    structure_type 'Session'
+0x0000042e:    structure_type 'User'
 0x0000063a:  namespace 'lldb_demo'
 0x0000063f:    structure_type 'User'
 0x00000677:      subprogram 'new'
@@ -37,5 +35,7 @@ snapshot_kind: text
 0x0000080f:      subprogram 'fmt'
 0x0000082c:        formal_parameter 'self'
 0x0000083a:        formal_parameter 'f'
+0x00000d9d:  namespace 'lldb_demo'
+0x00000da2:    structure_type 'User'
 0x00000768:  namespace 'lldb_demo'
 0x0000076d:    structure_type 'User'
