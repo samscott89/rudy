@@ -1,6 +1,6 @@
 [package]
 name = "rudy-dwarf"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "DWARF debug information parsing and querying for Rust debugging tools"
 license = "MIT"

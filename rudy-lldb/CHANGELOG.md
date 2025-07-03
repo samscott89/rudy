@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.3...rudy-lldb-v0.1.4) - 2025-07-03
+
+### Other
+
+- Resolve trait methods ([#18](https://github.com/samscott89/rudy/pull/18))
+- Resolve method addresses ([#17](https://github.com/samscott89/rudy/pull/17))
+- Improved method discovery ([#16](https://github.com/samscott89/rudy/pull/16))
+
 ## [0.1.3](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.2...rudy-lldb-v0.1.3) - 2025-07-01
 
 ### Other
