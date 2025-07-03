@@ -13,7 +13,7 @@ use rudy_parser::Expression;
 use rudy_types::{Layout, Location, StdLayout};
 
 use crate::{
-    protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument},
+    protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument, MethodCallResult},
     server::ClientConnection,
 };
 
@@ -575,24 +575,59 @@ impl<'a> EvalContext<'a> {
             }
         }
 
-        // Determine return type
-        let return_type = self.infer_return_type(&method_info.signature);
-
         // Send the ExecuteMethod event
         let event = EventRequest::ExecuteMethod {
             method_address: method_info.address,
             base_address: pointer.address,
             args: method_args,
-            return_type: return_type.clone(),
+            return_type_size: method_info.return_type_size,
         };
 
         let response = self.conn.conn.borrow_mut().send_event_request(event)?;
 
         match response {
-            EventResponseData::MethodResult { value, return_type } => Ok(EvalResult {
-                value,
-                type_name: return_type,
-            }),
+            EventResponseData::MethodResult { result } => match result {
+                MethodCallResult::SimpleValue { value, return_type } => Ok(EvalResult {
+                    value: value.to_string(),
+                    type_name: return_type,
+                }),
+                MethodCallResult::ComplexPointer {
+                    address,
+                    size,
+                    return_type,
+                } => {
+                    // For complex types, read the raw bytes and try to interpret them
+                    // This uses the same memory reading infrastructure as the rest of rudy-db
+                    match self.conn.read_memory(address, size) {
+                        Ok(raw_bytes) => {
+                            // For now, we'll format as raw bytes - in the future we could 
+                            // create a TypedPointer and use the full deserialization
+                            let hex_bytes: Vec<String> = raw_bytes
+                                .iter()
+                                .take(16) // Show first 16 bytes
+                                .map(|b| format!("{:02x}", b))
+                                .collect();
+                            let preview = if raw_bytes.len() > 16 {
+                                format!("{}... ({} bytes)", hex_bytes.join(" "), size)
+                            } else {
+                                hex_bytes.join(" ")
+                            };
+                            
+                            Ok(EvalResult {
+                                value: format!("<{} bytes: {}>", size, preview),
+                                type_name: return_type,
+                            })
+                        }
+                        Err(e) => {
+                            tracing::warn!("Failed to read complex return value: {}", e);
+                            Ok(EvalResult {
+                                value: format!("<complex value at {address:#x} (read failed)>"),
+                                type_name: return_type,
+                            })
+                        }
+                    }
+                }
+            },
             EventResponseData::Error { message } => {
                 Err(anyhow!("Method execution failed: {}", message))
             }
@@ -618,23 +653,6 @@ impl<'a> EvalContext<'a> {
                 Err(anyhow!("Variable arguments not yet supported"))
             }
             _ => Err(anyhow!("Unsupported argument type: {:?}", expr)),
-        }
-    }
-
-    /// Infer the return type from a method signature
-    fn infer_return_type(&self, signature: &str) -> String {
-        // Simple signature parsing - this is a rough heuristic
-        if signature.contains("-> usize") {
-            "usize".to_string()
-        } else if signature.contains("-> bool") {
-            "bool".to_string()
-        } else if signature.contains("-> i32") {
-            "i32".to_string()
-        } else if signature.contains("-> u64") {
-            "u64".to_string()
-        } else {
-            // Default to usize for unknown return types
-            "usize".to_string()
         }
     }
 }

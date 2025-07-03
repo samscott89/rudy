@@ -184,6 +184,7 @@ pub fn discover_all_methods(
                         // defaults to callable
                         callable: true,
                         is_synthetic: false,
+                        return_type_size: sig.return_type(db).as_ref().and_then(|t| t.size()),
                     });
             }
             Err(e) => {
@@ -242,6 +243,7 @@ pub fn discover_methods_for_type(
             self_type: Some(rudy_dwarf::function::SelfType::Borrowed), // Most synthetic methods take &self
             callable: false, // Can't call synthetic methods directly
             is_synthetic: true,
+            return_type_size: None,
         });
     }
 
@@ -474,6 +476,17 @@ fn convert_function_to_method(
     // Build a more complete signature
     let signature = build_function_signature(db, &function, self_type.as_ref());
 
+    let return_type_size = if let Some(return_die) = function.return_type {
+        match rudy_dwarf::types::resolve_type_offset(db, return_die) {
+            Ok(resolved_type) => resolved_type.layout.size(),
+            Err(_) => {
+                Some(0) // Unknown return type size
+            }
+        }
+    } else {
+        Some(0)
+    };
+
     // This is a method! Convert to DiscoveredMethod
     Ok(Some(DiscoveredMethod {
         name: function.name.clone(),
@@ -483,6 +496,7 @@ fn convert_function_to_method(
         self_type,
         callable,
         is_synthetic: false,
+        return_type_size,
     }))
 }
 

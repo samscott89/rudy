@@ -255,4 +255,6 @@ pub struct DiscoveredMethod {
     pub callable: bool,
     /// Whether this is a synthetic method (computed, not from debug info)
     pub is_synthetic: bool,
+    /// The size of the return type in bytes, if known
+    pub return_type_size: Option<usize>,
 }
