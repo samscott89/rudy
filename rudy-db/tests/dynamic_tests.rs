@@ -426,6 +426,8 @@ fn test_introspect_enums() {
 fn test_real_method_execution() -> Result<()> {
     let (_guards, debug_info) = setup_db!();
 
+    let resolver = get_resolver(&debug_info);
+
     // Test &'static str method execution - this should be simple and safe
     let test_struct = TestBasicStruct {
         id: 123,
@@ -462,9 +464,11 @@ fn test_real_method_execution() -> Result<()> {
         num_bytes_method.signature
     );
 
+    let method_address = num_bytes_method.address + resolver.aslr_slide();
+
     // Attempt to call the num_bytes method
     let method_pointer: fn(&TestBasicStruct) -> usize =
-        unsafe { std::mem::transmute(num_bytes_method.address as usize as *const ()) };
+        unsafe { std::mem::transmute(method_address) };
 
     let num_bytes_value = method_pointer(&test_struct);
     tracing::info!("Num bytes: {num_bytes_value:?}");
@@ -491,10 +495,6 @@ struct TestSession {
 impl TestSession {
     fn new(id: u64, name: String) -> Self {
         Self { id, name }
-    }
-
-    fn get_id(&self) -> u64 {
-        self.id
     }
 }
 

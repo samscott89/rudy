@@ -253,3 +253,60 @@ fn dwarf_outline_examples(#[case] target: &'static str) {
         insta::assert_snapshot!(name, all_structure);
     }
 }
+
+// not a real test, just here for easy debugging of dwarf binaries
+#[test]
+#[ignore]
+fn debugging_helper() {
+    test_utils::init_tracing();
+    let mut settings = insta::Settings::clone_current();
+    settings.set_prepend_module_to_snapshot(false);
+    test_utils::add_filters(&mut settings);
+    let _guard = settings.bind_to_scope();
+
+    // Build the method_discovery example first
+    let path = test_utils::workspace_dir()
+        .join("target")
+        .join("debug")
+        .join("deps")
+        .join("dynamic_tests-29b7f5c5bf7be683");
+
+    let db = test_db(None);
+    let db = &db;
+
+    if !path.exists() {
+        panic!("Test binary not found at: {}", path.display());
+    }
+
+    tracing::debug!("Examining DWARF structure for: {}", path.display());
+
+    let binary = load_binary(db, &path);
+    let (debug_files, _) =
+        rudy_dwarf::symbols::index_symbol_map(db, binary).expect("Failed to index debug files");
+
+    // Get debug files to examine
+    let mut all_structure = String::new();
+
+    for debug_file in debug_files.values() {
+        let file_name = debug_file.name(db);
+
+        // Only examine files that likely contain our method_discovery code
+        tracing::debug!("Examining DWARF structure for: {file_name}",);
+
+        let mut visitor = TestVisitor::new_for_module("dynamic_tests");
+        walk_file(db, *debug_file, &mut visitor).unwrap();
+
+        let structure = visitor.format_structure();
+        if !structure.trim().is_empty() && !structure.contains("No structure found") {
+            all_structure.push_str(&format!("\n=== {file_name} ===\n",));
+            all_structure.push_str(&structure);
+        }
+    }
+
+    // Create snapshot of the structure
+    let name = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("unknown_file");
+    insta::assert_snapshot!(name, all_structure);
+}

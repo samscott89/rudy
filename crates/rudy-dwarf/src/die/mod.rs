@@ -140,7 +140,7 @@ impl<'db> Die<'db> {
         self.cu_offset(db).as_debug_info_offset().unwrap().0 + self.die_offset(db).0
     }
 
-    pub(crate) fn location(&self, db: &'db dyn salsa::Database) -> String {
+    pub fn location(&self, db: &'db dyn salsa::Database) -> String {
         format!("{} {:#010x}", self.file(db).name(db), self.offset(db),)
     }
 
@@ -174,7 +174,7 @@ impl<'db> Die<'db> {
             .unwrap_or(gimli::DW_TAG_null)
     }
 
-    pub(crate) fn name(&self, db: &'db dyn DwarfDb) -> Result<String> {
+    pub fn name(&self, db: &'db dyn DwarfDb) -> Result<String> {
         self.string_attr(db, gimli::DW_AT_name)
     }
 

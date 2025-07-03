@@ -2,8 +2,15 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use rudy_dwarf::{
-    Binary,
+    Binary, Die,
     function::{FunctionSignature, resolve_function_signature},
+    gimli,
+    parser::{
+        Parser,
+        children::for_each_child,
+        combinators::all,
+        primitives::{is_member_tag, resolve_type},
+    },
     types::DieTypeDefinition,
 };
 use rudy_types::Layout;
@@ -246,57 +253,151 @@ pub fn discover_methods_for_type(
     Ok(methods)
 }
 
+/// Find all DIEs that represent the same type as target_type across all compilation units
+fn find_matching_type_dies<'db>(
+    db: &'db dyn Db,
+    binary: Binary,
+    target_type: &rudy_dwarf::types::DieTypeDefinition<'db>,
+) -> Result<Vec<rudy_dwarf::Die<'db>>> {
+    let mut matching_dies = vec![];
+
+    // Get the type's namespace path for searching
+    // find the module path
+
+    let Some(module_path) = rudy_dwarf::modules::get_containing_module(db, target_type.location)
+    else {
+        tracing::warn!(
+            "No module index found for type {}, returning only original DIE",
+            target_type.display_name()
+        );
+        matching_dies.push(target_type.location);
+        return Ok(matching_dies);
+    };
+
+    /// Parser to find all children of a type DIE that match the target type
+    fn is_matching_type<'db>(target_type: &DieTypeDefinition) -> impl Parser<'db, Vec<Die<'db>>> {
+        for_each_child(
+            all((
+                is_member_tag(gimli::DW_TAG_structure_type),
+                resolve_type().map_res(|t| {
+                    if t.layout.matching_type(target_type.layout.as_ref()) {
+                        Ok(())
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Type {} does not match target type {}",
+                            t.layout.display_name(),
+                            target_type.display_name()
+                        ))
+                    }
+                }),
+            ))
+            .map(|(die, _)| die),
+        )
+    }
+
+    // find all DIEs across all debug files that match the namespace
+    let debug_files = crate::index::debug_index(db, binary).debug_files(db);
+    for debug_file in debug_files.values() {
+        let Some(module) =
+            rudy_dwarf::modules::module_index(db, *debug_file).find_by_path(db, module_path)
+        else {
+            tracing::trace!(
+                "No module found for path {} in debug file {}",
+                module_path.join("::"),
+                debug_file.name(db)
+            );
+            continue;
+        };
+
+        tracing::trace!(
+            "{} modules found with a matching path",
+            module.entries.len(),
+        );
+
+        for module_die in &module.entries {
+            tracing::trace!(
+                "In module: {} at {}",
+                module_die.name(db).unwrap(),
+                module_die.location(db)
+            );
+            // need to find all children that are matching structs
+            matching_dies.extend(is_matching_type(target_type).parse(db, *module_die)?)
+        }
+    }
+
+    Ok(matching_dies)
+}
+
 /// Phase 1: Discover methods that are structurally nested under the type DIE
 ///
 /// In DWARF, Rust methods are often represented as functions nested directly under the type DIE.
-fn discover_direct_methods(
-    db: &dyn Db,
+fn discover_direct_methods<'db>(
+    db: &'db dyn Db,
     binary: Binary,
-    target_type: &rudy_dwarf::types::DieTypeDefinition,
+    target_type: &rudy_dwarf::types::DieTypeDefinition<'db>,
 ) -> Result<Option<Vec<DiscoveredMethod>>> {
     use rudy_dwarf::parser::Parser;
     use rudy_dwarf::parser::functions::child_functions_parser;
 
-    let type_die = target_type.location;
+    // Find all DIEs that represent the same type (might be spread across compilation units)
+    let matching_type_dies = find_matching_type_dies(db, binary, target_type)?;
 
-    // Use the function parser to find all functions nested under this type DIE
-    let functions = child_functions_parser().parse(db, type_die)?;
-
-    if functions.is_empty() {
-        tracing::debug!(
-            "No direct methods found for type {}",
+    if matching_type_dies.is_empty() {
+        tracing::trace!(
+            "No matching type DIEs found for type {}",
             target_type.display_name()
         );
         return Ok(None);
     }
 
+    tracing::trace!(
+        "Found {} type DIEs for type {}",
+        matching_type_dies.len(),
+        target_type.display_name()
+    );
+
     // Get the symbol index for address lookup
     let index = crate::index::debug_index(db, binary);
     let symbol_index = index.symbol_index(db);
 
-    let functions_count = functions.len();
-    let mut methods = Vec::new();
-    for function in functions {
-        // Check if this function is a method (has self parameter matching our target type)
-        if let Some(method) = convert_function_to_method(db, function, target_type, symbol_index)? {
-            methods.push(method);
+    let mut all_methods = Vec::new();
+
+    // Process each matching type DIE
+    for type_die in matching_type_dies {
+        // Use the function parser to find all functions nested under this type DIE
+        let functions = child_functions_parser().parse(db, type_die)?;
+
+        tracing::trace!(
+            "Type DIE at {}: found {} functions",
+            type_die.location(db),
+            functions.len()
+        );
+
+        for function in functions {
+            tracing::trace!(
+                "  - Function {} in DIE at {}",
+                function.name,
+                type_die.location(db)
+            );
+            // Check if this function is a method (has self parameter matching our target type)
+            if let Some(method) =
+                convert_function_to_method(db, function, target_type, symbol_index)?
+            {
+                all_methods.push(method);
+            }
         }
     }
 
-    if methods.is_empty() {
-        tracing::debug!(
-            "Found {} functions but no methods for type {}",
-            functions_count,
-            target_type.display_name()
-        );
+    if all_methods.is_empty() {
+        tracing::debug!("No methods found for type {}", target_type.display_name());
         Ok(None)
     } else {
         tracing::debug!(
-            "Found {} methods for type {}",
-            methods.len(),
+            "Found {} total methods for type {}",
+            all_methods.len(),
             target_type.display_name()
         );
-        Ok(Some(methods))
+        Ok(Some(all_methods))
     }
 }
 

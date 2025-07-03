@@ -24,9 +24,8 @@ pub struct TestBasicStruct {
 }
 
 impl TestBasicStruct {
-    #[inline(never)]
     pub fn num_bytes(&self) -> usize {
-        self.bytes.len() + 2
+        self.bytes.len()
     }
 }
 

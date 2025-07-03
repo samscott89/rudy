@@ -9,7 +9,7 @@ use crate::{
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
 pub struct Module<'db> {
     pub(crate) modules: BTreeMap<String, Module<'db>>,
-    pub(crate) entries: Vec<Die<'db>>,
+    pub entries: Vec<Die<'db>>,
 }
 
 #[salsa::tracked(debug)]
@@ -255,6 +255,15 @@ pub fn module_index<'db>(db: &'db dyn DwarfDb, debug_file: DebugFile) -> ModuleI
     ModuleIndex::new(db, ranges, modules)
 }
 
+#[salsa::tracked(returns(ref))]
+pub fn get_containing_module<'db>(db: &'db dyn DwarfDb, die: Die<'db>) -> Option<Vec<String>> {
+    let module_index = module_index(db, die.file(db));
+    let die_offset = die.offset(db);
+    module_index
+        .find_by_offset(db, die_offset)
+        .map(|range| range.module_path.clone())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -277,9 +286,6 @@ mod tests {
         let mut output = String::new();
 
         for (_, file) in debug_files {
-            // if !file.relocatable(db) || !file.name(db).contains(example_name) {
-            //     continue;
-            // }
             let module_index = module_index(db, file);
             let file_name = file.name(db);
 

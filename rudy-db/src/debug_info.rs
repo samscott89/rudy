@@ -121,7 +121,7 @@ impl<'db> DebugInfo<'db> {
     /// # use rudy_db::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// if let Some(func) = debug_info.resolve_function("main").unwrap() {
+    /// if let Some(func) = debug_info.find_function_by_name("main").unwrap() {
     ///     println!("Function 'main' is at address {:#x}", func.address);
     /// }
     /// ```
