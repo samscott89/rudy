@@ -125,7 +125,7 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Function 'main' is at address {:#x}", func.address);
     /// }
     /// ```
-    pub fn resolve_function(&self, function: &str) -> Result<Option<ResolvedFunction>> {
+    pub fn find_function_by_name(&self, function: &str) -> Result<Option<ResolvedFunction>> {
         let Some((name, _)) = index::find_closest_function(self.db, self.binary, function) else {
             tracing::debug!("no function found for {function}");
             return Ok(None);
@@ -166,6 +166,17 @@ impl<'db> DebugInfo<'db> {
                 })
                 .collect(),
         }))
+    }
+
+    pub fn find_symbol_by_name(&self, symbol: &str) -> Result<Option<rudy_dwarf::symbols::Symbol>> {
+        let index = crate::index::debug_index(self.db, self.binary);
+        let symbol_index = index.symbol_index(self.db);
+
+        let Some(symbols) = symbol_index.symbols.get(symbol) else {
+            return Ok(None);
+        };
+
+        Ok(symbols.first_key_value().map(|(_, s)| s.clone()))
     }
 
     /// Resolves a memory address to its source location with error handling.

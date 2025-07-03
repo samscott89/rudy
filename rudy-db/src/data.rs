@@ -54,7 +54,20 @@ pub trait DataResolver {
     ///
     /// This is typically the base address where the binary is loaded in memory.
     /// All addresses returned by this trait should be adjusted by this base.
-    fn base_address(&self) -> u64;
+    ///
+    /// Not currently in use
+    fn base_address(&self) -> u64 {
+        0
+    }
+
+    /// TODO: Fix this
+    ///
+    /// Between this and `base_address` we're supposed to be figuring out how
+    /// to access memory in the presence of ASLR. This one is currently working
+    /// in tests.
+    fn aslr_slide(&self) -> u64 {
+        0
+    }
 
     /// Reads raw bytes from memory at the given address.
     ///

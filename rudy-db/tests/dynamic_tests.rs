@@ -19,7 +19,7 @@ use rudy_db::{DataResolver, DebugDb, DebugInfo, Value};
 /// Uses a little hackery since we don't have a real program counter (PC) in tests.
 macro_rules! resolve_variable {
     ($debug_info:ident, $var:ident) => {{
-        let resolver = SelfProcessResolver;
+        let resolver = get_resolver(&$debug_info);
         let var_info_pointer = variable_pointer!($debug_info, $var);
 
         let value = $debug_info
@@ -35,7 +35,7 @@ macro_rules! resolve_variable {
 
 macro_rules! variable_pointer {
     ($debug_info:ident, $var:ident) => {{
-        let resolver = SelfProcessResolver;
+        let resolver = get_resolver(&$debug_info);
         let address = $debug_info
             .resolve_position(file!(), line!() as u64, None)
             .expect("Failed to resolve current position")
@@ -54,6 +54,26 @@ macro_rules! variable_pointer {
             .as_pointer()
             .expect("Variable should have a pointer")
     }};
+}
+
+/// Used in the `get_resolver` method below so that we can dynamically
+/// figure out the ASLR slide for the current process.
+#[used]
+static BASE_ADDRESS: u64 = 0;
+
+fn get_resolver(debug_info: &DebugInfo) -> SelfProcessResolver {
+    let base_address = debug_info
+        .find_symbol_by_name("BASE_ADDRESS")
+        .expect("Failed to find BASE_ADDRESS symbol")
+        .expect("BASE_ADDRESS should be defined");
+
+    let from_debug = base_address.address;
+    let actual = &BASE_ADDRESS as *const _ as u64;
+    let shift = actual - from_debug;
+
+    tracing::info!("Base address: {from_debug:#x}. Actual: {actual:#x}. Shift: {shift:#x}");
+
+    SelfProcessResolver::new(shift)
 }
 
 fn read_value_recursively<'db>(
@@ -128,23 +148,23 @@ fn test_simple_resolve_debug() -> Result<()> {
     let debug_info =
         DebugInfo::new(&db, exe_path.to_str().unwrap()).expect("Failed to load debug info");
 
-    println!("Starting resolve_type call...");
+    tracing::info!("Starting resolve_type call...");
     let start = std::time::Instant::now();
 
     // Try to resolve a simple type
     match debug_info.resolve_type("u32") {
         Ok(Some(typedef)) => {
-            println!(
+            tracing::info!(
                 "Found u32 type in {:?}: {}",
                 start.elapsed(),
                 typedef.display_name()
             );
         }
         Ok(None) => {
-            println!("u32 type not found in {:?}", start.elapsed());
+            tracing::info!("u32 type not found in {:?}", start.elapsed());
         }
         Err(e) => {
-            println!("Error resolving u32 type in {:?}: {}", start.elapsed(), e);
+            tracing::info!("Error resolving u32 type in {:?}: {}", start.elapsed(), e);
         }
     }
 
@@ -406,52 +426,166 @@ fn test_introspect_enums() {
 fn test_real_method_execution() -> Result<()> {
     let (_guards, debug_info) = setup_db!();
 
-    // Test Vec::len() method execution - this should be simple and safe
-    let test_vec = vec![1, 2, 3, 4, 5];
+    // Test &'static str method execution - this should be simple and safe
+    let test_struct = TestBasicStruct {
+        id: 123,
+        count: 10,
+        enabled: true,
+        bytes: [0; 4],
+    };
 
-    // Get discovered methods for Vec<i32>
+    let _num_bytes = test_struct.num_bytes();
 
-    let vec_pointer = variable_pointer!(debug_info, test_vec);
+    // Get discovered methods for &str
 
-    let methods = debug_info.discover_methods_for_pointer(&vec_pointer)?;
-    println!("Methods found for Vec<i32> ({} total):", methods.len());
+    let struct_pointer = variable_pointer!(debug_info, test_struct);
 
-    // Show only the first 10 methods to avoid spam
-    for (i, method) in methods.iter().take(10).enumerate() {
-        println!(
-            "  {}: {} - address: {:#x}, callable: {}, signature: {}",
-            i + 1,
+    let methods = debug_info.discover_methods_for_pointer(&struct_pointer)?;
+    tracing::info!(
+        "Methods found for TestBasicStruct ({} total):",
+        methods.len()
+    );
+    tracing::info!("{methods:#?}");
+
+    // get the `num_bytes` method
+    let num_bytes_method = methods
+        .iter()
+        .find(|m| m.name == "num_bytes")
+        .expect("Should find num_bytes() method");
+
+    tracing::info!(
+        "Found method: {} - address: {:#x}, callable: {}, is_synthetic: {}, signature: {}",
+        num_bytes_method.name,
+        num_bytes_method.address,
+        num_bytes_method.callable,
+        num_bytes_method.is_synthetic,
+        num_bytes_method.signature
+    );
+
+    // Attempt to call the num_bytes method
+    let method_pointer: fn(&TestBasicStruct) -> usize =
+        unsafe { std::mem::transmute(num_bytes_method.address as usize as *const ()) };
+
+    let num_bytes_value = method_pointer(&test_struct);
+    tracing::info!("Num bytes: {num_bytes_value:?}");
+
+    assert_eq!(num_bytes_value, 4, "Num bytes should match expected result");
+
+    // Keep test data alive
+    let _ = test_struct;
+    Ok(())
+}
+
+// Define a trait for testing trait method discovery
+trait Describable {
+    fn describe(&self) -> String;
+    fn description_length(&self) -> u32;
+}
+
+// Test struct that implements our trait
+struct TestSession {
+    id: u64,
+    name: String,
+}
+
+impl TestSession {
+    fn new(id: u64, name: String) -> Self {
+        Self { id, name }
+    }
+
+    fn get_id(&self) -> u64 {
+        self.id
+    }
+}
+
+impl Describable for TestSession {
+    fn describe(&self) -> String {
+        format!("Session {} with name: {}", self.id, self.name)
+    }
+
+    fn description_length(&self) -> u32 {
+        self.describe().len() as u32
+    }
+}
+
+#[test]
+fn test_trait_method_discovery() -> Result<()> {
+    let (_guards, debug_info) = setup_db!();
+
+    let resolver = get_resolver(&debug_info);
+
+    // Create an instance of our test struct
+    let test_session = TestSession::new(42, "test_session".to_string());
+    let _descrip = test_session.describe(); // Call to ensure method is compiled in
+    let _len = test_session.description_length(); // Call to ensure method is compiled in
+
+    // Get a pointer to the test_session
+    let session_pointer = variable_pointer!(debug_info, test_session);
+
+    // Discover all methods for TestSession
+    let methods = debug_info.discover_methods_for_pointer(&session_pointer)?;
+
+    tracing::info!("Methods found for TestSession ({} total):", methods.len());
+    for method in &methods {
+        tracing::info!(
+            "  {} - address: {:#x}, callable: {}, is_synthetic: {}, signature: {}",
             method.name,
             method.address,
             method.callable,
+            method.is_synthetic,
             method.signature
         );
     }
 
-    if methods.len() > 10 {
-        println!("  ... and {} more methods", methods.len() - 10);
-    }
+    // Verify we found trait methods
 
-    // Look for specific methods we know should exist
-    let len_methods: Vec<_> = methods.iter().filter(|m| m.name.contains("len")).collect();
-    println!("\nMethods containing 'len':");
-    for method in &len_methods {
-        println!(
-            "  {} - address: {:#x}, signature: {}",
-            method.name, method.address, method.signature
-        );
-    }
+    // Test calling methods with different return types
+
+    // 1. Test simple return type (usize) - this usually works
+    let description_length_method = methods
+        .iter()
+        .find(|m| m.name == "description_length")
+        .expect("Should find description_length() method");
+
+    let pointer = description_length_method.address + resolver.aslr_slide();
+    let expected = <TestSession as Describable>::description_length as usize;
+
+    assert_eq!(
+        pointer as usize, expected,
+        "Method address should match transmuted pointer. Got: {pointer:#x}, expected: {expected:#x}",
+    );
+
+    // For simple types like usize, direct transmute usually works
+    let method_pointer: fn(&TestSession) -> u32 = unsafe { std::mem::transmute(pointer) };
+
+    let result = method_pointer(&test_session);
+    assert_eq!(result, 34, "Expected description length to be 34");
+    tracing::info!("Description length: {result}");
+
+    // 2. Test complex return type (String) - test both approaches
+    let describe_method = methods
+        .iter()
+        .find(|m| m.name == "describe")
+        .expect("Should find describe() method");
+
+    // Approach 1: Manual return-via-pointer ABI
+
+    let method_pointer: fn(&TestSession) -> String =
+        unsafe { std::mem::transmute(describe_method.address + resolver.aslr_slide()) };
+
+    let result = method_pointer(&test_session);
+    tracing::info!("Describe result: {result}");
+    assert_eq!(result, "Session 42 with name: test_session");
 
     // Keep test data alive
-    let _ = test_vec;
+    let _ = test_session;
     Ok(())
 }
 
 #[test]
 fn test_synthetic_methods() -> Result<()> {
     let (_guards, debug_info) = setup_db!();
-    let resolver = SelfProcessResolver;
-
+    let resolver = get_resolver(&debug_info);
     // Test Vec synthetic methods
     let test_vec = vec![1, 2, 3, 4, 5];
 
@@ -461,7 +595,7 @@ fn test_synthetic_methods() -> Result<()> {
 
     // Evaluate Vec::len()
     let len_value = rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "len", &[], &resolver)?;
-    println!("Vec::len() = {len_value:?}");
+    tracing::info!("Vec::len() = {len_value:?}");
     assert_eq!(
         len_value,
         Value::Scalar {
@@ -473,7 +607,7 @@ fn test_synthetic_methods() -> Result<()> {
     // Evaluate Vec::capacity()
     let cap_value =
         rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "capacity", &[], &resolver)?;
-    println!("Vec::capacity() = {cap_value:?}");
+    tracing::info!("Vec::capacity() = {cap_value:?}");
     // Capacity should be at least 5
     if let Value::Scalar { value, .. } = &cap_value {
         let cap: usize = value.parse().unwrap();
@@ -483,7 +617,7 @@ fn test_synthetic_methods() -> Result<()> {
     // Evaluate Vec::is_empty()
     let is_empty_value =
         rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "is_empty", &[], &resolver)?;
-    println!("Vec::is_empty() = {is_empty_value:?}");
+    tracing::info!("Vec::is_empty() = {is_empty_value:?}");
     assert_eq!(
         is_empty_value,
         Value::Scalar {
@@ -500,7 +634,7 @@ fn test_synthetic_methods() -> Result<()> {
 
     let string_len =
         rudy_db::evaluate_synthetic_method(string_ptr, &string_type, "len", &[], &resolver)?;
-    println!("String::len() = {string_len:?}");
+    tracing::info!("String::len() = {string_len:?}");
     assert_eq!(
         string_len,
         Value::Scalar {
@@ -521,7 +655,7 @@ fn test_synthetic_methods() -> Result<()> {
 
     let is_some =
         rudy_db::evaluate_synthetic_method(some_ptr, &option_type, "is_some", &[], &resolver)?;
-    println!("Some(42).is_some() = {is_some:?}");
+    tracing::info!("Some(42).is_some() = {is_some:?}");
     assert_eq!(
         is_some,
         Value::Scalar {
@@ -532,7 +666,7 @@ fn test_synthetic_methods() -> Result<()> {
 
     let is_none =
         rudy_db::evaluate_synthetic_method(none_ptr, &option_type, "is_none", &[], &resolver)?;
-    println!("None.is_none() = {is_none:?}");
+    tracing::info!("None.is_none() = {is_none:?}");
     assert_eq!(
         is_none,
         Value::Scalar {
@@ -554,7 +688,7 @@ fn test_synthetic_methods() -> Result<()> {
 
     let slice_len =
         rudy_db::evaluate_synthetic_method(slice_ptr, &slice_type, "len", &[], &resolver)?;
-    println!("&[i32]::len() = {slice_len:?}");
+    tracing::info!("&[i32]::len() = {slice_len:?}");
     assert_eq!(
         slice_len,
         Value::Scalar {
