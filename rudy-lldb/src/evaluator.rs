@@ -575,12 +575,18 @@ impl<'a> EvalContext<'a> {
             }
         }
 
+        // Calculate return type size from the type definition
+        let return_type_size = method_info
+            .return_type
+            .as_ref()
+            .and_then(|t| t.layout.size());
+
         // Send the ExecuteMethod event
         let event = EventRequest::ExecuteMethod {
             method_address: method_info.address,
             base_address: pointer.address,
             args: method_args,
-            return_type_size: method_info.return_type_size,
+            return_type_size,
         };
 
         let response = self.conn.conn.borrow_mut().send_event_request(event)?;
@@ -593,38 +599,24 @@ impl<'a> EvalContext<'a> {
                 }),
                 MethodCallResult::ComplexPointer {
                     address,
-                    size,
-                    return_type,
+                    size: _,
+                    return_type: _,
                 } => {
-                    // For complex types, read the raw bytes and try to interpret them
-                    // This uses the same memory reading infrastructure as the rest of rudy-db
-                    match self.conn.read_memory(address, size) {
-                        Ok(raw_bytes) => {
-                            // For now, we'll format as raw bytes - in the future we could 
-                            // create a TypedPointer and use the full deserialization
-                            let hex_bytes: Vec<String> = raw_bytes
-                                .iter()
-                                .take(16) // Show first 16 bytes
-                                .map(|b| format!("{:02x}", b))
-                                .collect();
-                            let preview = if raw_bytes.len() > 16 {
-                                format!("{}... ({} bytes)", hex_bytes.join(" "), size)
-                            } else {
-                                hex_bytes.join(" ")
-                            };
-                            
-                            Ok(EvalResult {
-                                value: format!("<{} bytes: {}>", size, preview),
-                                type_name: return_type,
-                            })
-                        }
-                        Err(e) => {
-                            tracing::warn!("Failed to read complex return value: {}", e);
-                            Ok(EvalResult {
-                                value: format!("<complex value at {address:#x} (read failed)>"),
-                                type_name: return_type,
-                            })
-                        }
+                    // Create a TypedPointer using the return type definition from the method
+                    if let Some(return_type_def) = &method_info.return_type {
+                        let typed_pointer = TypedPointer {
+                            address,
+                            type_def: return_type_def.clone(),
+                        };
+
+                        // Use the existing pointer_to_result method to get proper formatting
+                        self.pointer_to_result(&typed_pointer)
+                    } else {
+                        // Fallback: no type definition available
+                        Ok(EvalResult {
+                            value: format!("<complex value at {address:#x}>"),
+                            type_name: "unknown".to_string(),
+                        })
                     }
                 }
             },

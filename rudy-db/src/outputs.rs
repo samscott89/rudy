@@ -239,8 +239,8 @@ impl fmt::Debug for ResolvedFunction<'_> {
 }
 
 /// A discovered method with its metadata
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct DiscoveredMethod {
+#[derive(Debug, Clone)]
+pub struct DiscoveredMethod<'db> {
     /// The method name (e.g., "len", "push")
     pub name: String,
     /// The full method name including type path
@@ -255,6 +255,6 @@ pub struct DiscoveredMethod {
     pub callable: bool,
     /// Whether this is a synthetic method (computed, not from debug info)
     pub is_synthetic: bool,
-    /// The size of the return type in bytes, if known
-    pub return_type_size: Option<usize>,
+    /// The return type definition for creating TypedPointers
+    pub return_type: Option<DieTypeDefinition<'db>>,
 }

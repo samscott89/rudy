@@ -915,7 +915,7 @@ impl<'db> DebugInfo<'db> {
         }
     }
 
-    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod>>> {
+    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod<'db>>>> {
         crate::function_discovery::discover_all_methods(self.db, self.binary)
     }
 
@@ -925,8 +925,8 @@ impl<'db> DebugInfo<'db> {
 
     pub fn discover_methods_for_pointer(
         &self,
-        typed_pointer: &TypedPointer,
-    ) -> Result<Vec<DiscoveredMethod>> {
+        typed_pointer: &TypedPointer<'db>,
+    ) -> Result<Vec<DiscoveredMethod<'db>>> {
         Ok(crate::function_discovery::discover_methods_for_type(
             self.db,
             self.binary,
@@ -941,7 +941,7 @@ impl<'db> DebugInfo<'db> {
     pub fn discover_methods_for_type(
         &self,
         type_def: &DieTypeDefinition<'db>,
-    ) -> Result<Vec<DiscoveredMethod>> {
+    ) -> Result<Vec<DiscoveredMethod<'db>>> {
         crate::function_discovery::discover_methods_for_type(self.db, self.binary, type_def)
     }
 }

@@ -12,6 +12,69 @@ snapshot_kind: text
         self_type: None,
         callable: true,
         is_synthetic: false,
+        return_type: Some(
+            TypeDefinition {
+                layout: Struct(
+                    StructLayout {
+                        name: "Session",
+                        size: 32,
+                        alignment: 8,
+                        fields: [
+                            StructField {
+                                name: "id",
+                                offset: 24,
+                                ty: TypeDefinition {
+                                    layout: Primitive(
+                                        UnsignedInt(
+                                            UnsignedIntLayout {
+                                                size: 8,
+                                            },
+                                        ),
+                                    ),
+                                    location: Die(
+                                        Id(2207),
+                                    ),
+                                },
+                            },
+                            StructField {
+                                name: "name",
+                                offset: 0,
+                                ty: TypeDefinition {
+                                    layout: Std(
+                                        String(
+                                            StringLayout(
+                                                VecLayout {
+                                                    length_offset: 16,
+                                                    data_ptr_offset: 8,
+                                                    inner_type: TypeDefinition {
+                                                        layout: Primitive(
+                                                            UnsignedInt(
+                                                                UnsignedIntLayout {
+                                                                    size: 1,
+                                                                },
+                                                            ),
+                                                        ),
+                                                        location: Die(
+                                                            Id(220d),
+                                                        ),
+                                                    },
+                                                },
+                                            ),
+                                        ),
+                                    ),
+                                    location: Die(
+                                        Id(3cdc),
+                                    ),
+                                },
+                            },
+                        ],
+                    },
+                ),
+                location: Die(
+                    Id(2201),
+                ),
+            },
+        ),
     },
     DiscoveredMethod {
         name: "get_id",
@@ -23,6 +86,20 @@ snapshot_kind: text
         ),
         callable: true,
         is_synthetic: false,
+        return_type: Some(
+            TypeDefinition {
+                layout: Primitive(
+                    UnsignedInt(
+                        UnsignedIntLayout {
+                            size: 8,
+                        },
+                    ),
+                ),
+                location: Die(
+                    Id(2207),
+                ),
+            },
+        ),
     },
     DiscoveredMethod {
         name: "set_name",
@@ -34,6 +111,7 @@ snapshot_kind: text
         ),
         callable: true,
         is_synthetic: false,
+        return_type: None,
     },
     DiscoveredMethod {
         name: "describe",
@@ -45,6 +123,35 @@ snapshot_kind: text
         ),
         callable: true,
         is_synthetic: false,
+        return_type: Some(
+            TypeDefinition {
+                layout: Std(
+                    String(
+                        StringLayout(
+                            VecLayout {
+                                length_offset: 16,
+                                data_ptr_offset: 8,
+                                inner_type: TypeDefinition {
+                                    layout: Primitive(
+                                        UnsignedInt(
+                                            UnsignedIntLayout {
+                                                size: 1,
+                                            },
+                                        ),
+                                    ),
+                                    location: Die(
+                                        Id(220d),
+                                    ),
+                                },
+                            },
+                        ),
+                    ),
+                ),
+                location: Die(
+                    Id(3cdc),
+                ),
+            },
+        ),
     },
     DiscoveredMethod {
         name: "description_length",
@@ -56,6 +163,20 @@ snapshot_kind: text
         ),
         callable: true,
         is_synthetic: false,
+        return_type: Some(
+            TypeDefinition {
+                layout: Primitive(
+                    UnsignedInt(
+                        UnsignedIntLayout {
+                            size: 8,
+                        },
+                    ),
+                ),
+                location: Die(
+                    Id(3d54),
+                ),
+            },
+        ),
     },
     DiscoveredMethod {
         name: "identifier",
@@ -67,6 +188,35 @@ snapshot_kind: text
         ),
         callable: true,
         is_synthetic: false,
+        return_type: Some(
+            TypeDefinition {
+                layout: Std(
+                    String(
+                        StringLayout(
+                            VecLayout {
+                                length_offset: 16,
+                                data_ptr_offset: 8,
+                                inner_type: TypeDefinition {
+                                    layout: Primitive(
+                                        UnsignedInt(
+                                            UnsignedIntLayout {
+                                                size: 1,
+                                            },
+                                        ),
+                                    ),
+                                    location: Die(
+                                        Id(220d),
+                                    ),
+                                },
+                            },
+                        ),
+                    ),
+                ),
+                location: Die(
+                    Id(3cdc),
+                ),
+            },
+        ),
     },
     DiscoveredMethod {
         name: "fmt",
@@ -78,5 +228,48 @@ snapshot_kind: text
         ),
         callable: true,
         is_synthetic: false,
+        return_type: Some(
+            TypeDefinition {
+                layout: Std(
+                    Result(
+                        ResultLayout {
+                            name: "Result<(), core::fmt::Error>",
+                            discriminant: Discriminant {
+                                ty: UnsignedInt(
+                                    UnsignedIntLayout {
+                                        size: 1,
+                                    },
+                                ),
+                                offset: 0,
+                            },
+                            ok_type: TypeDefinition {
+                                layout: Primitive(
+                                    Unit(
+                                        UnitLayout,
+                                    ),
+                                ),
+                                location: Die(
+                                    Id(3d6b),
+                                ),
+                            },
+                            ok_offset: 1,
+                            err_type: TypeDefinition {
+                                layout: Alias {
+                                    name: "Error",
+                                },
+                                location: Die(
+                                    Id(3d70),
+                                ),
+                            },
+                            err_offset: 1,
+                            size: 1,
+                        },
+                    ),
+                ),
+                location: Die(
+                    Id(3d58),
+                ),
+            },
+        ),
     },
 ]
