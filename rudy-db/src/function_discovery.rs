@@ -455,16 +455,124 @@ fn build_function_signature(
 ///
 /// Rust trait implementations are compiled into {impl#N} modules adjacent to the type definition.
 fn discover_trait_impl_methods(
-    _db: &dyn Db,
-    _binary: Binary,
+    db: &dyn Db,
+    binary: Binary,
     target_type: &rudy_dwarf::types::DieTypeDefinition,
 ) -> Result<Vec<DiscoveredMethod>> {
-    // This is a more complex implementation that would traverse the DWARF tree
-    // looking for impl blocks. For now, we'll return an empty vec and implement
-    // this in a future phase.
+    use rudy_dwarf::parser::Parser;
+    use rudy_dwarf::parser::functions::{impl_namespaces_in_module_parser, child_functions_parser};
+
+    let type_die = target_type.location;
+
+    // Find all {impl#N} namespaces in the same compilation unit
+    let impl_namespaces = impl_namespaces_in_module_parser().parse(db, type_die)?;
+    
+    if impl_namespaces.is_empty() {
+        tracing::debug!(
+            "No impl namespaces found for type {}",
+            target_type.display_name()
+        );
+        return Ok(vec![]);
+    }
+
+    // Get the symbol index for address lookup
+    let index = crate::index::debug_index(db, binary);
+    let symbol_index = index.symbol_index(db);
+
+    let mut trait_methods = Vec::new();
+    
+    for impl_namespace in impl_namespaces {
+        tracing::debug!(
+            "Searching impl namespace for trait methods"
+        );
+        
+        // Find all functions within this impl namespace
+        let functions = child_functions_parser().parse(db, impl_namespace)?;
+        
+        // Check if ANY function in this impl block is for our target type
+        // If none are, skip this entire impl block
+        let mut impl_methods = Vec::new();
+        for function in functions {
+            // Check if this function is a method for our target type
+            if let Some(method) = convert_function_to_method(db, function, target_type, symbol_index)? {
+                // For trait methods, only include methods that have self parameters
+                // Skip associated functions (no self) as they don't make sense for method discovery on pointers
+                if method.self_type.is_some() {
+                    impl_methods.push(method);
+                } else {
+                    tracing::debug!(
+                        "Skipping trait associated function {} (no self parameter)", 
+                        method.name
+                    );
+                }
+            }
+        }
+        
+        // Only add methods from impl blocks that actually contain methods for our target type
+        if !impl_methods.is_empty() {
+            tracing::debug!(
+                "Found {} methods for target type in impl block", 
+                impl_methods.len()
+            );
+            
+            for method in impl_methods {
+                // Enhance the method with trait context
+                let enhanced_method = enhance_method_with_trait_info(method, &impl_namespace, db)?;
+                trait_methods.push(enhanced_method);
+            }
+        } else {
+            tracing::debug!(
+                "Impl block contains no methods for target type, skipping"
+            );
+        }
+    }
+
     tracing::debug!(
-        "Trait implementation discovery not yet implemented for {}",
+        "Found {} trait methods for type {}",
+        trait_methods.len(),
         target_type.display_name()
     );
-    Ok(vec![])
+    
+    Ok(trait_methods)
+}
+
+/// Enhance a discovered method with trait information from symbol demangling
+fn enhance_method_with_trait_info(
+    mut method: DiscoveredMethod,
+    _impl_namespace: &rudy_dwarf::Die,
+    _db: &dyn rudy_dwarf::DwarfDb,
+) -> Result<DiscoveredMethod> {
+    // Try to extract trait information from the demangled symbol name
+    if let Ok(demangled) = extract_trait_from_symbol(&method.full_name) {
+        // Update the full name to include trait context
+        method.full_name = format!("{} (from {})", method.full_name, demangled);
+    } else {
+        // Fallback: just indicate it's from a trait impl
+        method.full_name = format!("{} (from trait impl)", method.full_name);
+    }
+    
+    Ok(method)
+}
+
+/// Extract trait name from demangled symbol name
+/// Example: "Session as Describable" from symbol like "_ZN75_$LT$method_discovery..Session$u20$as$u20$method_discovery..Describable$GT$..."
+fn extract_trait_from_symbol(symbol_name: &str) -> Result<String> {
+    // This is a simplified trait extraction
+    // In a full implementation, we'd use a proper Rust symbol demangling library
+    // For now, we'll look for patterns in the symbol name
+    
+    if symbol_name.contains(" as ") {
+        // Already demangled, extract the trait part
+        if let Some(as_pos) = symbol_name.find(" as ") {
+            let after_as = &symbol_name[as_pos + 4..];
+            if let Some(end_pos) = after_as.find("::") {
+                return Ok(after_as[..end_pos].to_string());
+            } else {
+                return Ok(after_as.to_string());
+            }
+        }
+    }
+    
+    // If no trait information can be extracted, return an error
+    Err(anyhow::anyhow!("No trait information found in symbol name"))
 }

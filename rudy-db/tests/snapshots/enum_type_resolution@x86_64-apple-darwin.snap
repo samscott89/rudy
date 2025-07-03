@@ -26,7 +26,7 @@ TypeDefinition {
                             name: "Unit",
                         },
                         location: Die(
-                            Id(183b),
+                            Id(184a),
                         ),
                     },
                 },
@@ -38,7 +38,7 @@ TypeDefinition {
                             name: "Tuple",
                         },
                         location: Die(
-                            Id(183c),
+                            Id(184b),
                         ),
                     },
                 },
@@ -52,7 +52,7 @@ TypeDefinition {
                             name: "Struct",
                         },
                         location: Die(
-                            Id(183d),
+                            Id(184c),
                         ),
                     },
                 },
@@ -61,6 +61,6 @@ TypeDefinition {
         },
     ),
     location: Die(
-        Id(1838),
+        Id(1844),
     ),
 }

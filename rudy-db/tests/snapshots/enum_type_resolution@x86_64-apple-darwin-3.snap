@@ -26,7 +26,7 @@ TypeDefinition {
                         ),
                     ),
                     location: Die(
-                        Id(185f),
+                        Id(186d),
                     ),
                 },
                 size: 8,
@@ -34,6 +34,6 @@ TypeDefinition {
         ),
     ),
     location: Die(
-        Id(1854),
+        Id(1862),
     ),
 }

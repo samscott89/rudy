@@ -2,7 +2,7 @@
 
 use std::{collections::BTreeMap, fmt};
 
-use rudy_dwarf::{file::DebugFile, function::SelfType, types::DieTypeDefinition};
+use rudy_dwarf::{function::SelfType, types::DieTypeDefinition};
 
 /// A resolved memory address from a source location.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -43,8 +43,6 @@ pub struct VariableInfo<'db> {
     pub address: Option<u64>,
     /// Full type definition for the variable
     pub type_def: DieTypeDefinition<'db>,
-    /// Debug file containing the type information
-    pub debug_file: DebugFile,
 }
 
 impl<'db> VariableInfo<'db> {

@@ -10,13 +10,13 @@ use crate::{
 };
 
 /// Parser for getting offset values
-pub fn offset() -> Offset {
-    Offset
+pub fn data_offset() -> DataOffset {
+    DataOffset
 }
 
-pub struct Offset;
+pub struct DataOffset;
 
-impl<'db> Parser<'db, usize> for Offset {
+impl<'db> Parser<'db, usize> for DataOffset {
     fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<usize> {
         Ok(entry.udata_attr(db, gimli::DW_AT_data_member_location)?)
     }
@@ -265,6 +265,10 @@ impl<'db> Parser<'db, Die<'db>> for MemberByTag {
 }
 
 /// Check if current entry has expected tag and return it
+pub fn is_member_tag(tag: gimli::DwTag) -> IsMemberTag {
+    IsMemberTag { expected_tag: tag }
+}
+
 pub struct IsMemberTag {
     expected_tag: gimli::DwTag,
 }
@@ -281,10 +285,6 @@ impl<'db> Parser<'db, Die<'db>> for IsMemberTag {
             ))
         }
     }
-}
-
-pub fn is_member_tag(tag: gimli::DwTag) -> IsMemberTag {
-    IsMemberTag { expected_tag: tag }
 }
 
 /// Check if current entry matches expected generic name
@@ -432,6 +432,8 @@ pub fn tag<'db>() -> impl Parser<'db, gimli::DwTag> {
     super::from_fn(|db, entry: Die<'_>| Ok::<_, Infallible>(entry.tag(db)))
 }
 
-pub fn die_offset<'db>() -> impl Parser<'db, usize> {
-    super::from_fn(|db, entry: Die<'_>| Ok::<_, Infallible>(entry.die_offset(db).0))
+pub fn offset<'db>() -> impl Parser<'db, usize> {
+    super::from_fn(|db: &'db dyn DwarfDb, entry: Die<'_>| {
+        Ok::<_, Infallible>(entry.offset(db.as_dyn_database()))
+    })
 }

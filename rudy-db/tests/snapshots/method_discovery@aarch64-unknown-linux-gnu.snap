@@ -35,4 +35,48 @@ snapshot_kind: text
         callable: true,
         is_synthetic: false,
     },
+    DiscoveredMethod {
+        name: "describe",
+        full_name: "<method_discovery::Session as method_discovery::Describable>::describe (from method_discovery)",
+        signature: "fn describe(&self) -> String",
+        address: 26996,
+        self_type: Some(
+            Borrowed,
+        ),
+        callable: true,
+        is_synthetic: false,
+    },
+    DiscoveredMethod {
+        name: "description_length",
+        full_name: "<method_discovery::Session as method_discovery::Describable>::description_length (from method_discovery)",
+        signature: "fn description_length(&self) -> u64",
+        address: 27128,
+        self_type: Some(
+            Borrowed,
+        ),
+        callable: true,
+        is_synthetic: false,
+    },
+    DiscoveredMethod {
+        name: "identifier",
+        full_name: "<method_discovery::Session as method_discovery::Identifiable>::identifier (from method_discovery)",
+        signature: "fn identifier(&self) -> String",
+        address: 27240,
+        self_type: Some(
+            Borrowed,
+        ),
+        callable: true,
+        is_synthetic: false,
+    },
+    DiscoveredMethod {
+        name: "fmt",
+        full_name: "<method_discovery::Session as core::fmt::Display>::fmt (from core)",
+        signature: "fn fmt(&self, f: ?) -> Result<(), Error>",
+        address: 27348,
+        self_type: Some(
+            Borrowed,
+        ),
+        callable: true,
+        is_synthetic: false,
+    },
 ]

@@ -35,7 +35,7 @@ use crate::{
         children::parse_children,
         option::parse_option_entry,
         pointers::nonnull,
-        primitives::{is_member, member, offset, resolved_generic},
+        primitives::{is_member, member, data_offset, resolved_generic},
     },
     Die, DwarfDb,
 };
@@ -56,8 +56,8 @@ impl<'db> Parser<'db, MapLayout<Die<'db>>> for BTreeMapParser {
             parse_children((
                 resolved_generic("K"),
                 resolved_generic("V"),
-                is_member("root").then(offset().and(entry_type())),
-                is_member("length").then(offset()),
+                is_member("root").then(data_offset().and(entry_type())),
+                is_member("length").then(data_offset()),
             ))
             .parse(db, entry)?;
 
@@ -71,8 +71,8 @@ impl<'db> Parser<'db, MapLayout<Die<'db>>> for BTreeMapParser {
 
         // Parse the NodeRef struct to get height and node pointer offsets
         let (height_offset, (node_offset, node_ptr_type)) = parse_children((
-            is_member("height").then(offset()),
-            is_member("node").then(offset().and(entry_type())),
+            is_member("height").then(data_offset()),
+            is_member("node").then(data_offset().and(entry_type())),
         ))
         .parse(db, node_ref_type)?;
 
@@ -89,9 +89,9 @@ impl<'db> Parser<'db, MapLayout<Die<'db>>> for BTreeMapParser {
 
         // Parse the LeafNode structure to get offsets
         let (len_offset, keys_offset, vals_offset) = parse_children((
-            is_member("len").then(offset()),
-            is_member("keys").then(offset()),
-            is_member("vals").then(offset()),
+            is_member("len").then(data_offset()),
+            is_member("keys").then(data_offset()),
+            is_member("vals").then(data_offset()),
         ))
         .parse(db, leaf_node_type)?;
 
@@ -109,7 +109,7 @@ impl<'db> Parser<'db, MapLayout<Die<'db>>> for BTreeMapParser {
 
         // For InternalNode, we need the edges offset. The edges field is specific to InternalNode.
         let edges_offset = member("edges")
-            .then(offset())
+            .then(data_offset())
             .parse(db, internal_node_type)?;
 
         // Create the node layout

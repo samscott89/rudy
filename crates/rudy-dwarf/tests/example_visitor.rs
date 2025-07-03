@@ -3,7 +3,7 @@
 use rudy_dwarf::{
     parser::{
         combinators::all,
-        primitives::{die_offset, name, tag},
+        primitives::{name, offset, tag},
         Parser,
     },
     visitor::{walk_file, DieVisitor, DieWalker, VisitorNode},
@@ -100,7 +100,7 @@ impl TestVisitor {
 }
 
 fn entry_parser<'db>() -> impl Parser<'db, StructureEntry> {
-    all((tag(), name(), die_offset())).map(|(tag, name, offset)| StructureEntry {
+    all((tag(), name(), offset())).map(|(tag, name, offset)| StructureEntry {
         depth: 0, // Depth will be set during walking
         tag: tag.to_string().replace("DW_TAG_", ""),
         name,
@@ -141,6 +141,15 @@ impl<'db> DieVisitor<'db> for TestVisitor {
         walker.visitor.depth += 1;
         walker.walk_children()?;
         walker.visitor.depth -= 1;
+        Ok(())
+    }
+
+    fn visit_base_type<'a>(
+        walker: &mut DieWalker<'a, 'db, Self>,
+        node: VisitorNode<'a>,
+    ) -> Result<()> {
+        let entry = walker.parse(node, entry_parser())?;
+        walker.visitor.add_entry(entry);
         Ok(())
     }
 

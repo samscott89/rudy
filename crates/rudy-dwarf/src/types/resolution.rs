@@ -608,21 +608,18 @@ pub fn resolve_type_offset<'db>(
 mod test {
     use rudy_types::StdLayout;
 
-    use crate::{function::resolve_function_variables, types::DieLayout};
+    use crate::{function::resolve_function_variables, test_utils, types::DieLayout};
 
     #[test]
     fn test_std_type_detection() {
-        crate::test_utils::init_tracing();
+        test_utils::init_tracing();
 
-        let db = crate::test_utils::test_db(None);
+        let _guard = test_utils::init_tracing_and_insta();
+
+        let artifacts = test_utils::artifacts_dir(Some("aarch64-apple-darwin"));
+        let db = test_utils::test_db(Some("aarch64-apple-darwin"));
         let db = &db;
-
-        // Create a test binary that should have std types
-        let test_binary_path = create_test_binary();
-        let binary = crate::test_utils::load_binary(db, &test_binary_path);
-
-        tracing::info!("=== Testing std type detection ===");
-        tracing::info!("Using binary: {test_binary_path}");
+        let binary = test_utils::load_binary(db, artifacts.join("std_types"));
 
         let (_, symbol_index) = crate::symbols::index_symbol_map(db, binary).unwrap();
 
@@ -654,7 +651,7 @@ mod test {
 
         let mut settings = insta::Settings::clone_current();
         settings.set_prepend_module_to_snapshot(false);
-        crate::test_utils::add_filters(&mut settings);
+        test_utils::add_filters(&mut settings);
         // Check if we can resolve the types of the parameters
         let params = params.params(db);
         assert_eq!(params.len(), 3, "Expected 3 parameters in test_fn");
@@ -684,67 +681,5 @@ mod test {
         // Test resolving variables if we can find any
         // This is a basic smoke test to make sure the new get_die_name function works
         tracing::info!("DebugInfo appears to be working correctly");
-    }
-
-    fn create_test_binary() -> String {
-        use std::{fs, process::Command};
-
-        let test_code = r#"
-    use std::collections::HashMap;
-
-    fn test_fn(s: String, v: Vec<i32>, map: HashMap<String, i32>) {
-        println!("String: {s}, Vec: {v:?}, Map: {map:?}");
-    }
-
-    fn main() {
-        let s = String::from("hello");
-        let mut v: Vec<i32> = vec![1, 2, 3];
-        let mut map: HashMap<String, i32> = HashMap::new();
-        map.insert("key".to_string(), 42);
-
-        test_fn(s, v, map);
-    }
-    "#;
-
-        let temp_dir = std::env::temp_dir().join("rudy_dwarf_test");
-        fs::create_dir_all(&temp_dir).expect("Failed to create temp dir");
-
-        let src_file = temp_dir.join("main.rs");
-        fs::write(&src_file, test_code).expect("Failed to write test code");
-
-        let binary_path = temp_dir.join("test_binary");
-
-        #[cfg(target_os = "macos")]
-        let output = Command::new("rustc")
-            .args([
-                "-g", // Include debug info
-                "-C",
-                "split-debuginfo=unpacked", // Use unpacked split debuginfo
-                "-o",
-                binary_path.to_str().unwrap(),
-                src_file.to_str().unwrap(),
-            ])
-            .output()
-            .expect("Failed to compile test binary");
-
-        #[cfg(target_os = "linux")]
-        let output = Command::new("rustc")
-            .args([
-                "-g", // Include debug info
-                "-o",
-                binary_path.to_str().unwrap(),
-                src_file.to_str().unwrap(),
-            ])
-            .output()
-            .expect("Failed to compile test binary");
-
-        if !output.status.success() {
-            panic!(
-                "Failed to compile test binary: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-
-        binary_path.to_string_lossy().to_string()
     }
 }

@@ -24,6 +24,7 @@ pub struct DieWalker<'a, 'db, V> {
 
     /// The current depth in the DIE tree
     current_depth: isize,
+    last_offset: usize,
     /// The next peeked entry, if any
     /// Stored as (depth, RawDie)
     next_entry: Option<(isize, RawDie<'a>)>,
@@ -66,6 +67,7 @@ pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
             current_depth: 0,
             next_entry: None,
             depth: 0,
+            last_offset: unit_offset.as_debug_info_offset().map(|o| o.0).unwrap_or(0),
         };
 
         // Walk the compilation unit
@@ -97,6 +99,7 @@ pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
             current_depth: 0,
             next_entry: None,
             depth: 0,
+            last_offset: entry.offset().0,
         };
         let Some(die) = walker.next() else {
             tracing::error!("No entries found in DIE: {}", die.print(db));
@@ -116,7 +119,8 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
     }
 
     pub(crate) fn peek_next_offset(&mut self) -> Option<usize> {
-        Some(self.peek()?.1.offset().0)
+        let next = self.peek()?.1;
+        Some(self.get_die(next).offset(self.db))
     }
 
     pub fn parse<T>(
@@ -168,6 +172,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
                 depth, self.current_depth,
                 "`next` must only be called when already at the correct depth"
             );
+            self.last_offset = die.offset().0;
             return Some(die);
         }
 
@@ -178,6 +183,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
                     delta, 0,
                     "`next` must only be called when already at the correct depth"
                 );
+                self.last_offset = die.offset().0;
                 Some(die.clone())
             }
             Ok(None) => None,
@@ -193,6 +199,7 @@ impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
             Some((depth, die)) if depth == self.current_depth => {
                 tracing::trace!("got sibling {:#x} at depth {depth}", die.offset().0);
                 // we have a sibling at the current depth, return it
+                self.last_offset = die.offset().0;
                 self.next_entry.take().map(|(_, die)| die)
             }
             // the next entry is a child of the current DIE, so we need to skip it

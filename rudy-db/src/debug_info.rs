@@ -969,7 +969,6 @@ fn variable_info<'db>(
             .map_or_else(|| "_".to_string(), |s| s.to_string()),
         address: location,
         type_def,
-        debug_file: die.file(db),
     })
 }
 
