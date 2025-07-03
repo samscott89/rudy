@@ -460,13 +460,13 @@ fn discover_trait_impl_methods(
     target_type: &rudy_dwarf::types::DieTypeDefinition,
 ) -> Result<Vec<DiscoveredMethod>> {
     use rudy_dwarf::parser::Parser;
-    use rudy_dwarf::parser::functions::{impl_namespaces_in_module_parser, child_functions_parser};
+    use rudy_dwarf::parser::functions::{child_functions_parser, impl_namespaces_in_module_parser};
 
     let type_die = target_type.location;
 
     // Find all {impl#N} namespaces in the same compilation unit
     let impl_namespaces = impl_namespaces_in_module_parser().parse(db, type_die)?;
-    
+
     if impl_namespaces.is_empty() {
         tracing::debug!(
             "No impl namespaces found for type {}",
@@ -480,50 +480,48 @@ fn discover_trait_impl_methods(
     let symbol_index = index.symbol_index(db);
 
     let mut trait_methods = Vec::new();
-    
+
     for impl_namespace in impl_namespaces {
-        tracing::debug!(
-            "Searching impl namespace for trait methods"
-        );
-        
+        tracing::debug!("Searching impl namespace for trait methods");
+
         // Find all functions within this impl namespace
         let functions = child_functions_parser().parse(db, impl_namespace)?;
-        
+
         // Check if ANY function in this impl block is for our target type
         // If none are, skip this entire impl block
         let mut impl_methods = Vec::new();
         for function in functions {
             // Check if this function is a method for our target type
-            if let Some(method) = convert_function_to_method(db, function, target_type, symbol_index)? {
+            if let Some(method) =
+                convert_function_to_method(db, function, target_type, symbol_index)?
+            {
                 // For trait methods, only include methods that have self parameters
                 // Skip associated functions (no self) as they don't make sense for method discovery on pointers
                 if method.self_type.is_some() {
                     impl_methods.push(method);
                 } else {
                     tracing::debug!(
-                        "Skipping trait associated function {} (no self parameter)", 
+                        "Skipping trait associated function {} (no self parameter)",
                         method.name
                     );
                 }
             }
         }
-        
+
         // Only add methods from impl blocks that actually contain methods for our target type
         if !impl_methods.is_empty() {
             tracing::debug!(
-                "Found {} methods for target type in impl block", 
+                "Found {} methods for target type in impl block",
                 impl_methods.len()
             );
-            
+
             for method in impl_methods {
                 // Enhance the method with trait context
                 let enhanced_method = enhance_method_with_trait_info(method, &impl_namespace, db)?;
                 trait_methods.push(enhanced_method);
             }
         } else {
-            tracing::debug!(
-                "Impl block contains no methods for target type, skipping"
-            );
+            tracing::debug!("Impl block contains no methods for target type, skipping");
         }
     }
 
@@ -532,7 +530,7 @@ fn discover_trait_impl_methods(
         trait_methods.len(),
         target_type.display_name()
     );
-    
+
     Ok(trait_methods)
 }
 
@@ -550,7 +548,7 @@ fn enhance_method_with_trait_info(
         // Fallback: just indicate it's from a trait impl
         method.full_name = format!("{} (from trait impl)", method.full_name);
     }
-    
+
     Ok(method)
 }
 
@@ -560,7 +558,7 @@ fn extract_trait_from_symbol(symbol_name: &str) -> Result<String> {
     // This is a simplified trait extraction
     // In a full implementation, we'd use a proper Rust symbol demangling library
     // For now, we'll look for patterns in the symbol name
-    
+
     if symbol_name.contains(" as ") {
         // Already demangled, extract the trait part
         if let Some(as_pos) = symbol_name.find(" as ") {
@@ -572,7 +570,7 @@ fn extract_trait_from_symbol(symbol_name: &str) -> Result<String> {
             }
         }
     }
-    
+
     // If no trait information can be extracted, return an error
     Err(anyhow::anyhow!("No trait information found in symbol name"))
 }

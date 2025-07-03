@@ -35,7 +35,7 @@ use crate::{
         children::parse_children,
         option::parse_option_entry,
         pointers::nonnull,
-        primitives::{is_member, member, data_offset, resolved_generic},
+        primitives::{data_offset, is_member, member, resolved_generic},
     },
     Die, DwarfDb,
 };

@@ -4,7 +4,7 @@ use rudy_types::MapVariant;
 
 use super::{
     children::parse_children,
-    primitives::{attr, entry_type, generic, is_member, is_member_offset, member, data_offset},
+    primitives::{attr, data_offset, entry_type, generic, is_member, is_member_offset, member},
     Parser,
 };
 use crate::{Die, DwarfDb};
