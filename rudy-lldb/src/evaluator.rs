@@ -13,7 +13,7 @@ use rudy_parser::Expression;
 use rudy_types::{Layout, Location, StdLayout};
 
 use crate::{
-    protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument},
+    protocol::{ArgumentType, EventRequest, EventResponseData, MethodArgument, MethodCallResult},
     server::ClientConnection,
 };
 
@@ -575,24 +575,51 @@ impl<'a> EvalContext<'a> {
             }
         }
 
-        // Determine return type
-        let return_type = self.infer_return_type(&method_info.signature);
+        // Calculate return type size from the type definition
+        let return_type_size = method_info
+            .return_type
+            .as_ref()
+            .and_then(|t| t.layout.size());
 
         // Send the ExecuteMethod event
         let event = EventRequest::ExecuteMethod {
             method_address: method_info.address,
             base_address: pointer.address,
             args: method_args,
-            return_type: return_type.clone(),
+            return_type_size,
         };
 
         let response = self.conn.conn.borrow_mut().send_event_request(event)?;
 
         match response {
-            EventResponseData::MethodResult { value, return_type } => Ok(EvalResult {
-                value,
-                type_name: return_type,
-            }),
+            EventResponseData::MethodResult { result } => match result {
+                MethodCallResult::SimpleValue { value, return_type } => Ok(EvalResult {
+                    value: value.to_string(),
+                    type_name: return_type,
+                }),
+                MethodCallResult::ComplexPointer {
+                    address,
+                    size: _,
+                    return_type: _,
+                } => {
+                    // Create a TypedPointer using the return type definition from the method
+                    if let Some(return_type_def) = &method_info.return_type {
+                        let typed_pointer = TypedPointer {
+                            address,
+                            type_def: return_type_def.clone(),
+                        };
+
+                        // Use the existing pointer_to_result method to get proper formatting
+                        self.pointer_to_result(&typed_pointer)
+                    } else {
+                        // Fallback: no type definition available
+                        Ok(EvalResult {
+                            value: format!("<complex value at {address:#x}>"),
+                            type_name: "unknown".to_string(),
+                        })
+                    }
+                }
+            },
             EventResponseData::Error { message } => {
                 Err(anyhow!("Method execution failed: {}", message))
             }
@@ -618,23 +645,6 @@ impl<'a> EvalContext<'a> {
                 Err(anyhow!("Variable arguments not yet supported"))
             }
             _ => Err(anyhow!("Unsupported argument type: {:?}", expr)),
-        }
-    }
-
-    /// Infer the return type from a method signature
-    fn infer_return_type(&self, signature: &str) -> String {
-        // Simple signature parsing - this is a rough heuristic
-        if signature.contains("-> usize") {
-            "usize".to_string()
-        } else if signature.contains("-> bool") {
-            "bool".to_string()
-        } else if signature.contains("-> i32") {
-            "i32".to_string()
-        } else if signature.contains("-> u64") {
-            "u64".to_string()
-        } else {
-            // Default to usize for unknown return types
-            "usize".to_string()
         }
     }
 }

@@ -403,93 +403,125 @@ class RudyConnection:
             }
 
     def _handle_execute_method(self, event_msg: dict, target) -> dict:
-        """Handle ExecuteMethod event"""
+        """Handle ExecuteMethod event with support for complex return types"""
         method_address = event_msg.get("method_address", 0)
         base_address = event_msg.get("base_address", 0)
         args = event_msg.get("args", [])
-        return_type = event_msg.get("return_type", "usize")
+        return_type_size = event_msg.get("return_type_size")
 
         try:
-            # Build the function call expression
-            # For now, we'll handle the common case of methods that take &self and return simple types
-
-            # Build function signature based on arguments
-            if not args:
-                # No args method like len() - just takes &self
-                func_signature = f"((unsigned long (*)(void*)){method_address:#x})"
-                call_expr = f"{func_signature}((void*){base_address:#x})"
-            else:
-                # Methods with arguments - build signature based on argument types
-                arg_types = []
-                arg_values = []
-
-                # Always include the base address as first argument (&self)
-                arg_types.append("void*")
-                arg_values.append(f"(void*){base_address:#x}")
-
-                # Add other arguments
-                for arg in args:
-                    arg_type = arg.get("arg_type", "Integer")
-                    arg_value = arg.get("value", "0")
-
-                    if arg_type == "Pointer":
-                        arg_types.append("void*")
-                        arg_values.append(f"(void*){arg_value}")
-                    elif arg_type == "Integer":
-                        arg_types.append("unsigned long")
-                        arg_values.append(arg_value)
-                    elif arg_type == "Bool":
-                        arg_types.append("int")
-                        arg_values.append(
-                            "1" if arg_value.lower() in ("true", "1") else "0"
-                        )
-                    elif arg_type == "Float":
-                        arg_types.append("double")
-                        arg_values.append(arg_value)
-                    else:
-                        # Default to integer
-                        arg_types.append("unsigned long")
-                        arg_values.append(arg_value)
-
-                # Determine return type
-                if return_type in ("usize", "u64", "i64"):
-                    ret_type = "unsigned long"
-                elif return_type == "bool":
-                    ret_type = "int"
-                else:
-                    ret_type = "unsigned long"  # default
-
-                # Build the function signature
-                arg_types_str = ", ".join(arg_types)
-                func_signature = (
-                    f"(({ret_type} (*)({arg_types_str})){method_address:#x})"
-                )
-                args_str = ", ".join(arg_values)
-                call_expr = f"{func_signature}({args_str})"
-
-            debug_print(f"Executing method call: {call_expr}")
-            debug_print(f"Method address: {method_address:#x}")
+            debug_print(f"Executing method at {method_address:#x}")
             debug_print(f"Base address: {base_address:#x}")
-            debug_print(f"Arguments: {args}")
+            debug_print(f"Return type size: {return_type_size}")
 
-            # Execute the method call using LLDB's expression evaluator
-            result = target.EvaluateExpression(call_expr)
+            # Build argument types and values for the call
+            arg_types = ["void*"]  # Always start with &self
+            arg_values = [f"(void*){base_address:#x}"]
 
-            if result.IsValid() and not result.GetError().Fail():
-                value_str = str(result.GetValue() or result.GetSummary() or "")
-                return {
-                    "type": "EventResponse",
-                    "event": "MethodResult",
-                    "value": value_str,
-                    "return_type": return_type,
-                }
+            # Add other arguments
+            for arg in args:
+                arg_type = arg.get("arg_type", "Integer")
+                arg_value = arg.get("value", "0")
+
+                if arg_type == "Pointer":
+                    arg_types.append("void*")
+                    arg_values.append(f"(void*){arg_value}")
+                elif arg_type == "Integer":
+                    arg_types.append("unsigned long")
+                    arg_values.append(arg_value)
+                elif arg_type == "Bool":
+                    arg_types.append("int")
+                    arg_values.append(
+                        "1" if arg_value.lower() in ("true", "1") else "0"
+                    )
+                elif arg_type == "Float":
+                    arg_types.append("double")
+                    arg_values.append(arg_value)
+                else:
+                    arg_types.append("unsigned long")
+                    arg_values.append(arg_value)
+
+            if return_type_size is None:
+                # Simple return type - direct call returning value in register
+                func_signature = (
+                    f"((unsigned long (*)({', '.join(arg_types)})){method_address:#x})"
+                )
+                call_expr = f"{func_signature}({', '.join(arg_values)})"
+
+                debug_print(f"Simple call: {call_expr}")
+                result = target.EvaluateExpression(call_expr)
+
+                if result.IsValid() and not result.GetError().Fail():
+                    value = result.GetValueAsUnsigned()
+                    return {
+                        "type": "EventResponse",
+                        "event": "MethodResult",
+                        "result": {
+                            "SimpleValue": {
+                                "value": value,
+                                "return_type": "usize",  # Default for simple types
+                            }
+                        },
+                    }
+                else:
+                    error = result.GetError()
+                    return {
+                        "type": "EventResponse",
+                        "event": "Error",
+                        "message": f"Simple method call failed: {error.GetCString() if error else 'Unknown error'}",
+                    }
             else:
-                error = result.GetError()
-                return {
-                    "type": "EventResponse",
-                    "event": "Error",
-                    "message": f"Method execution failed: {error.GetCString() if error else 'Unknown error'}",
-                }
+                # Complex return type - use byte array struct approach
+                size = return_type_size
+
+                # Create a struct to hold the return value
+                struct_def = (
+                    f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
+                )
+                func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types)})){method_address:#x})"
+                call_expr = f"{struct_def}; auto result = {func_signature}({', '.join(arg_values)}); &result"
+
+                debug_print(f"Complex call: {call_expr}")
+                result = target.EvaluateExpression(call_expr)
+
+                if result.IsValid() and not result.GetError().Fail():
+                    # Get the address of the result struct
+                    # Since we used &result, this should be a pointer to the struct
+                    result_addr = result.GetValueAsUnsigned()
+                    if result_addr == 0:
+                        # Fallback to load address method
+                        result_addr = result.GetLoadAddress()
+                        if result_addr == lldb.LLDB_INVALID_ADDRESS:
+                            result_addr = result.GetAddress().GetLoadAddress(target)
+
+                    debug_print(f"Complex result at address: {result_addr:#x}")
+                    debug_print(f"Result value type: {result.GetTypeName()}")
+
+                    if result_addr != lldb.LLDB_INVALID_ADDRESS:
+                        return {
+                            "type": "EventResponse",
+                            "event": "MethodResult",
+                            "result": {
+                                "ComplexPointer": {
+                                    "address": result_addr,
+                                    "size": size,
+                                    "return_type": "complex",
+                                }
+                            },
+                        }
+                    else:
+                        return {
+                            "type": "EventResponse",
+                            "event": "Error",
+                            "message": "Could not get address of complex return value",
+                        }
+                else:
+                    error = result.GetError()
+                    return {
+                        "type": "EventResponse",
+                        "event": "Error",
+                        "message": f"Complex method call failed: {error.GetCString() if error else 'Unknown error'}",
+                    }
 
         except Exception as e:
             return {

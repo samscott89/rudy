@@ -4,7 +4,7 @@ use rudy_types::MapVariant;
 
 use super::{
     children::parse_children,
-    primitives::{attr, entry_type, generic, is_member, is_member_offset, member, offset},
+    primitives::{attr, data_offset, entry_type, generic, is_member, is_member_offset, member},
     Parser,
 };
 use crate::{Die, DwarfDb};
@@ -19,7 +19,7 @@ pub fn hashbrown_map<'db>() -> impl Parser<'db, MapVariant> {
         fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<MapVariant> {
             // table -> RawTable
             let (mut table_offset, inner_table_type) = member("table")
-                .then(offset().and(entry_type()))
+                .then(data_offset().and(entry_type()))
                 .parse(db, entry)?;
 
             let ((pair_size, (key_offset, value_offset)), (inner_table_offset, raw_table_type)) =
@@ -30,7 +30,7 @@ pub fn hashbrown_map<'db>() -> impl Parser<'db, MapVariant> {
                         is_member_offset("__1"),
                     )))),
                     // we'll also get the RawTableInner type which contains the actual layout of the table
-                    is_member("table").then(offset().and(entry_type())),
+                    is_member("table").then(data_offset().and(entry_type())),
                 ))
                 .parse(db, inner_table_type)?;
 

@@ -23,6 +23,12 @@ pub struct TestBasicStruct {
     pub bytes: [u8; 4],
 }
 
+impl TestBasicStruct {
+    pub fn num_bytes(&self) -> usize {
+        self.bytes.len()
+    }
+}
+
 #[derive(Debug)]
 pub struct TestComplexData {
     pub id: u64,

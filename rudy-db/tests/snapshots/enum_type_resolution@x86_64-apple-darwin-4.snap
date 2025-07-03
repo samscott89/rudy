@@ -25,7 +25,7 @@ TypeDefinition {
                         ),
                     ),
                     location: Die(
-                        Id(185f),
+                        Id(183d),
                     ),
                 },
                 ok_offset: 8,
@@ -45,7 +45,7 @@ TypeDefinition {
                                             ),
                                         ),
                                         location: Die(
-                                            Id(1879),
+                                            Id(1806),
                                         ),
                                     },
                                 },
@@ -53,7 +53,7 @@ TypeDefinition {
                         ),
                     ),
                     location: Die(
-                        Id(1872),
+                        Id(184e),
                     ),
                 },
                 err_offset: 0,
@@ -62,6 +62,6 @@ TypeDefinition {
         ),
     ),
     location: Die(
-        Id(1863),
+        Id(183f),
     ),
 }

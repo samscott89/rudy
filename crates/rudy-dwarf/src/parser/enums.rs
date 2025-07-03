@@ -11,7 +11,7 @@ use crate::{
         children::{for_each_child, parse_children},
         combinators::all,
         primitives::{
-            attr, entry_type, is_member_tag, member, member_by_tag, offset, optional_attr,
+            attr, data_offset, entry_type, is_member_tag, member, member_by_tag, optional_attr,
             resolve_type_shallow, IsMember,
         },
         Parser,
@@ -88,7 +88,7 @@ pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariantLayout<Die<'db>>> {
                     // which has a name, offset, and type
                     all((
                         attr::<String>(gimli::DW_AT_name),
-                        offset(),
+                        data_offset(),
                         entry_type().then(resolve_type_shallow()),
                     )),
                 ),
@@ -155,7 +155,7 @@ pub(super) fn named_enum_variant<'db>(
 ) -> impl Parser<'db, PartiallyParsedEnumVariant<'db>> {
     is_member_tag(gimli::DW_TAG_variant).then(
         optional_attr::<usize>(gimli::DW_AT_discr)
-            .and(member(variant_name).then(all((offset(), entry_type()))))
+            .and(member(variant_name).then(all((data_offset(), entry_type()))))
             .map(
                 |(discriminant, (offset, layout))| PartiallyParsedEnumVariant {
                     discriminant,
@@ -215,7 +215,7 @@ macro_rules! impl_parse_enum_named_tuple_variant_for_tuples {
                     $(
                         IsMember { expected_name: format!("__{}", $idx) }
                             .then(all((
-                                offset(),
+                                data_offset(),
                                 entry_type().then(&self.parser.$idx)
                             ))),
                     )*

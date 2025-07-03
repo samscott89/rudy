@@ -45,8 +45,8 @@ fn test_resolve_function(#[case] target: &'static str) {
     let db = common::debug_db(Some(target));
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
-    insta::assert_debug_snapshot!(resolver.resolve_function("main").unwrap());
-    insta::assert_debug_snapshot!(resolver.resolve_function("function_call").unwrap());
+    insta::assert_debug_snapshot!(resolver.find_function_by_name("main").unwrap());
+    insta::assert_debug_snapshot!(resolver.find_function_by_name("function_call").unwrap());
 }
 
 #[apply(binary_target)]
@@ -166,7 +166,7 @@ fn test_method_discovery(#[case] target: &'static str) {
 
     // Find `test_all_methods` function
     let test_all_methods = debug_info
-        .resolve_function("method_discovery::test_all_methods")
+        .find_function_by_name("method_discovery::test_all_methods")
         .expect("Failed to resolve method_discovery::test_all_methods")
         .expect("method_discovery::test_all_methods function should be found");
 

@@ -68,7 +68,7 @@ fn find_test_addresses(binary_path: &str) -> Result<Vec<(u64, String)>> {
     let mut addresses = Vec::new();
 
     for func_name in TEST_FUNCTIONS {
-        match debug_info.resolve_function(func_name)? {
+        match debug_info.find_function_by_name(func_name)? {
             Some(func) => {
                 println!("  Found {} at {:#x}", func_name, func.address);
                 addresses.push((func.address, func_name.to_string()));

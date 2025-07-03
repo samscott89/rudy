@@ -26,9 +26,9 @@ use crate::{
 #[salsa::interned(debug)]
 #[derive(Ord, PartialOrd)]
 pub struct Die<'db> {
-    pub file: DebugFile,
-    pub cu_offset: UnitSectionOffset<usize>,
-    pub die_offset: Offset,
+    pub(crate) file: DebugFile,
+    pub(crate) cu_offset: UnitSectionOffset<usize>,
+    pub(crate) die_offset: Offset,
 }
 
 struct DieLocation {
@@ -135,12 +135,13 @@ impl<'db> Die<'db> {
         }
     }
 
-    pub(crate) fn location(&self, db: &'db dyn DwarfDb) -> String {
-        format!(
-            "{} {:#010x}",
-            self.file(db).name(db),
-            self.cu_offset(db).as_debug_info_offset().unwrap().0 + self.die_offset(db).0,
-        )
+    /// Get the offset of this DIE within the entire debug file
+    pub(crate) fn offset(&self, db: &'db dyn salsa::Database) -> usize {
+        self.cu_offset(db).as_debug_info_offset().unwrap().0 + self.die_offset(db).0
+    }
+
+    pub fn location(&self, db: &'db dyn salsa::Database) -> String {
+        format!("{} {:#010x}", self.file(db).name(db), self.offset(db),)
     }
 
     pub(crate) fn format_with_location<T: AsRef<str>>(
@@ -152,7 +153,7 @@ impl<'db> Die<'db> {
             "{} for {} {:#010x}",
             message.as_ref(),
             self.file(db).name(db),
-            self.die_offset(db).0,
+            self.offset(db),
         )
     }
 
@@ -173,7 +174,7 @@ impl<'db> Die<'db> {
             .unwrap_or(gimli::DW_TAG_null)
     }
 
-    pub(crate) fn name(&self, db: &'db dyn DwarfDb) -> Result<String> {
+    pub fn name(&self, db: &'db dyn DwarfDb) -> Result<String> {
         self.string_attr(db, gimli::DW_AT_name)
     }
 

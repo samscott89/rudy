@@ -26,6 +26,19 @@ pub enum ArgumentType {
     Float,
 }
 
+/// Result of method execution - handles both simple and complex return types
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum MethodCallResult {
+    /// Simple value returned in registers (primitives)
+    SimpleValue { value: u64, return_type: String },
+    /// Complex value returned via pointer (String, Vec, structs, etc.)
+    ComplexPointer {
+        address: u64,
+        size: usize,
+        return_type: String,
+    },
+}
+
 /// Messages sent from client (LLDB) to server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -91,7 +104,9 @@ pub enum EventRequest {
         method_address: u64,
         base_address: u64,
         args: Vec<MethodArgument>,
-        return_type: String,
+        /// Size in bytes for complex return types that use return-via-pointer ABI.
+        /// None for simple types returned in registers, Some(size) for complex types.
+        return_type_size: Option<usize>,
     },
 }
 
@@ -121,13 +136,13 @@ impl fmt::Debug for EventRequest {
                 method_address,
                 base_address,
                 args,
-                return_type,
+                return_type_size,
             } => f
                 .debug_struct("ExecuteMethod")
                 .field("method_address", &format!("{method_address:#x}"))
                 .field("base_address", &format!("{base_address:#x}"))
                 .field("args", args)
-                .field("return_type", return_type)
+                .field("return_type_size", return_type_size)
                 .finish(),
         }
     }
@@ -154,7 +169,7 @@ pub enum EventResponseData {
     /// LLDB expression result
     ExpressionResult { value: String },
     /// Method execution result
-    MethodResult { value: String, return_type: String },
+    MethodResult { result: MethodCallResult },
     /// Generic error response
     Error { message: String },
 }
@@ -186,10 +201,9 @@ impl fmt::Debug for EventResponseData {
                 .debug_struct("ExpressionResult")
                 .field("value", value)
                 .finish(),
-            Self::MethodResult { value, return_type } => f
+            Self::MethodResult { result } => f
                 .debug_struct("MethodResult")
-                .field("value", value)
-                .field("return_type", return_type)
+                .field("result", result)
                 .finish(),
             Self::Error { message } => f.debug_struct("Error").field("message", message).finish(),
         }

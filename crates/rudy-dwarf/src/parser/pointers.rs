@@ -2,7 +2,7 @@
 
 use super::Parser;
 use crate::{
-    parser::primitives::{entry_type, is_member_tag, member, offset},
+    parser::primitives::{data_offset, entry_type, is_member_tag, member},
     Die,
 };
 
@@ -16,7 +16,7 @@ pub fn nonnull<'db>() -> impl Parser<'db, Die<'db>> {
     // we'll verify some of this though
     member("pointer")
         .then(
-            offset().and(
+            data_offset().and(
                 entry_type().then(is_member_tag(gimli::DW_TAG_pointer_type).then(entry_type())),
             ),
         )

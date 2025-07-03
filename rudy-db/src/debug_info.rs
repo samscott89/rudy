@@ -121,11 +121,11 @@ impl<'db> DebugInfo<'db> {
     /// # use rudy_db::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// if let Some(func) = debug_info.resolve_function("main").unwrap() {
+    /// if let Some(func) = debug_info.find_function_by_name("main").unwrap() {
     ///     println!("Function 'main' is at address {:#x}", func.address);
     /// }
     /// ```
-    pub fn resolve_function(&self, function: &str) -> Result<Option<ResolvedFunction>> {
+    pub fn find_function_by_name(&self, function: &str) -> Result<Option<ResolvedFunction>> {
         let Some((name, _)) = index::find_closest_function(self.db, self.binary, function) else {
             tracing::debug!("no function found for {function}");
             return Ok(None);
@@ -166,6 +166,17 @@ impl<'db> DebugInfo<'db> {
                 })
                 .collect(),
         }))
+    }
+
+    pub fn find_symbol_by_name(&self, symbol: &str) -> Result<Option<rudy_dwarf::symbols::Symbol>> {
+        let index = crate::index::debug_index(self.db, self.binary);
+        let symbol_index = index.symbol_index(self.db);
+
+        let Some(symbols) = symbol_index.symbols.get(symbol) else {
+            return Ok(None);
+        };
+
+        Ok(symbols.first_key_value().map(|(_, s)| s.clone()))
     }
 
     /// Resolves a memory address to its source location with error handling.
@@ -904,7 +915,7 @@ impl<'db> DebugInfo<'db> {
         }
     }
 
-    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod>>> {
+    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod<'db>>>> {
         crate::function_discovery::discover_all_methods(self.db, self.binary)
     }
 
@@ -914,8 +925,8 @@ impl<'db> DebugInfo<'db> {
 
     pub fn discover_methods_for_pointer(
         &self,
-        typed_pointer: &TypedPointer,
-    ) -> Result<Vec<DiscoveredMethod>> {
+        typed_pointer: &TypedPointer<'db>,
+    ) -> Result<Vec<DiscoveredMethod<'db>>> {
         Ok(crate::function_discovery::discover_methods_for_type(
             self.db,
             self.binary,
@@ -930,7 +941,7 @@ impl<'db> DebugInfo<'db> {
     pub fn discover_methods_for_type(
         &self,
         type_def: &DieTypeDefinition<'db>,
-    ) -> Result<Vec<DiscoveredMethod>> {
+    ) -> Result<Vec<DiscoveredMethod<'db>>> {
         crate::function_discovery::discover_methods_for_type(self.db, self.binary, type_def)
     }
 }
@@ -969,7 +980,6 @@ fn variable_info<'db>(
             .map_or_else(|| "_".to_string(), |s| s.to_string()),
         address: location,
         type_def,
-        debug_file: die.file(db),
     })
 }
 

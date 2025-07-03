@@ -108,7 +108,7 @@ fn benchmark_function_lookup(debug_info: &DebugInfo) -> Result<()> {
     let start = Instant::now();
     let mut found = 0;
     for func in &functions {
-        if debug_info.resolve_function(func)?.is_some() {
+        if debug_info.find_function_by_name(func)?.is_some() {
             found += 1;
         }
     }

@@ -80,7 +80,7 @@ impl File {
         Ok(Self::new(db, path, member_file, mtime, size))
     }
 
-    pub fn name(&self, db: &dyn DwarfDb) -> String {
+    pub fn name(&self, db: &dyn salsa::Database) -> String {
         self.path(db).display().to_string()
     }
 }
@@ -107,7 +107,7 @@ pub struct DebugFile {
 }
 
 impl DebugFile {
-    pub fn name(&self, db: &dyn DwarfDb) -> String {
+    pub fn name(&self, db: &dyn salsa::Database) -> String {
         let file = self.file(db);
         if let Some(member) = file.member_file(db) {
             format!("{}({})", file.name(db), member)

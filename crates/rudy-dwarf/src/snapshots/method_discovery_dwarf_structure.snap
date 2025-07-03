@@ -1,0 +1,58 @@
+---
+source: rudy-db/src/dwarf/structure_tests.rs
+expression: all_structure
+snapshot_kind: text
+---
+=== [CARGO_WORKSPACE_DIR]/target/aarch64-apple-darwin/debug/examples/method_discovery-88889d3634685904.b4tlc6v7tbix3znu7ikkf558r.0o4j240.rcgu.o ===
+DwTag(57) 'method_discovery' (method_discovery) @ 0x2a
+  DwTag(19) 'Session' (method_discovery) @ 0x2f
+    DwTag(46) 'new' (method_discovery) @ 0x4f
+      DwTag(5) (method_discovery) @ 0x5e
+      DwTag(5) (method_discovery) @ 0x63
+    DwTag(46) 'get_id' (method_discovery) @ 0x69
+      DwTag(5) (method_discovery) @ 0x78
+    DwTag(46) 'set_name' (method_discovery) @ 0x7e
+      DwTag(5) (method_discovery) @ 0x89
+      DwTag(5) (method_discovery) @ 0x8e
+  DwTag(57) '{impl#1}' (method_discovery::{impl#1}) @ 0x95
+    DwTag(46) 'describe' (method_discovery::{impl#1}) @ 0x9a
+      DwTag(5) 'self' (method_discovery::{impl#1}) @ 0xb7
+    DwTag(46) 'description_length' (method_discovery::{impl#1}) @ 0xe3
+      DwTag(5) 'self' (method_discovery::{impl#1}) @ 0x100
+  DwTag(57) '{impl#2}' (method_discovery::{impl#2}) @ 0x110
+    DwTag(46) 'identifier' (method_discovery::{impl#2}) @ 0x115
+      DwTag(5) 'self' (method_discovery::{impl#2}) @ 0x132
+  DwTag(57) '{impl#3}' (method_discovery::{impl#3}) @ 0x15f
+    DwTag(46) 'fmt' (method_discovery::{impl#3}) @ 0x164
+      DwTag(5) 'self' (method_discovery::{impl#3}) @ 0x181
+      DwTag(5) 'f' (method_discovery::{impl#3}) @ 0x18f
+  DwTag(19) 'Container<method_discovery::Session>' (method_discovery) @ 0x19f
+    DwTag(46) 'get_session_id' (method_discovery) @ 0x1bc
+      DwTag(5) (method_discovery) @ 0x1cb
+  DwTag(46) 'process_session' (method_discovery) @ 0x1d2
+    DwTag(5) 'session' (method_discovery) @ 0x1ef
+  DwTag(46) 'modify_session' (method_discovery) @ 0x21b
+    DwTag(5) 'session' (method_discovery) @ 0x234
+    DwTag(5) 'new_name' (method_discovery) @ 0x242
+  DwTag(46) 'test_all_methods' (method_discovery) @ 0x252
+    DwTag(52) 'session' (method_discovery) @ 0x270
+    DwTag(52) 'container' (method_discovery) @ 0x2a2
+  DwTag(46) 'main' (method_discovery) @ 0x2b5
+
+=== [CARGO_WORKSPACE_DIR]/target/aarch64-apple-darwin/debug/examples/method_discovery-88889d3634685904.chtwdl0ogssp28irs1h04w5mu.0o4j240.rcgu.o ===
+DwTag(57) 'method_discovery' (method_discovery) @ 0x2a
+  DwTag(19) 'Container<method_discovery::Session>' (method_discovery) @ 0x2f
+    DwTag(46) 'new<method_discovery::Session>' (method_discovery) @ 0x4c
+      DwTag(5) (method_discovery) @ 0x64
+    DwTag(46) 'get<method_discovery::Session>' (method_discovery) @ 0x6a
+      DwTag(5) (method_discovery) @ 0x82
+  DwTag(19) 'Session' (method_discovery) @ 0x89
+
+=== [CARGO_WORKSPACE_DIR]/target/aarch64-apple-darwin/debug/examples/method_discovery-88889d3634685904.eu376hnvexz98az4caofpbn92.0o4j240.rcgu.o ===
+DwTag(57) 'method_discovery' (method_discovery) @ 0x2a
+  DwTag(57) 'utils' (method_discovery::utils) @ 0x2f
+    DwTag(46) 'validate_session' (method_discovery::utils) @ 0x34
+      DwTag(5) 'session' (method_discovery::utils) @ 0x51
+    DwTag(46) 'format_session' (method_discovery::utils) @ 0x60
+      DwTag(5) 'session' (method_discovery::utils) @ 0x7d
+  DwTag(19) 'Session' (method_discovery) @ 0xaa

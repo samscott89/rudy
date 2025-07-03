@@ -50,11 +50,23 @@ macro_rules! setup {
 }
 
 /// A DataResolver that reads from the current process memory
-pub struct SelfProcessResolver;
+pub struct SelfProcessResolver {
+    aslr_slide: u64,
+}
+
+impl SelfProcessResolver {
+    pub fn new(aslr_slide: u64) -> Self {
+        Self { aslr_slide }
+    }
+}
 
 impl DataResolver for SelfProcessResolver {
     fn base_address(&self) -> u64 {
         0
+    }
+
+    fn aslr_slide(&self) -> u64 {
+        self.aslr_slide
     }
 
     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> {
