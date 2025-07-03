@@ -3,7 +3,11 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.2mu4g3uig2ehggx0o8wj40i96.0eho9zw.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-c045415d6f994244.7oxkig8lj4n51t18i2g0cmedy.18ppunt.rcgu.o ===
+0x00000d9d:  namespace 'lldb_demo'
+0x00000da2:    structure_type 'User'
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-c045415d6f994244.8z58shijy3y8y0nzqubu93lwb.18ppunt.rcgu.o ===
 0x0000063a:  namespace 'lldb_demo'
 0x0000063f:    structure_type 'User'
 0x00000677:      subprogram 'new'
@@ -30,20 +34,16 @@ snapshot_kind: text
 0x0000082c:        formal_parameter 'self'
 0x0000083a:        formal_parameter 'f'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.2zbpl5wcnwxpen1v5w7wjjnwx.0eho9zw.rcgu.o ===
-0x00000ce8:  namespace 'lldb_demo'
-0x00000ced:    structure_type 'User'
-0x00000d26:    structure_type 'Session'
-
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.a2rcwfsf0i8j42qszc8f5l60x.0eho9zw.rcgu.o ===
-0x00000d9d:  namespace 'lldb_demo'
-0x00000da2:    structure_type 'User'
-
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.c2iolettt1sb9jyhbx9twpna3.0eho9zw.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-c045415d6f994244.9kcnknprebku3nrpry6j4u39b.18ppunt.rcgu.o ===
 0x000003fc:  namespace 'lldb_demo'
 0x00000401:    structure_type 'Session'
 0x0000042e:    structure_type 'User'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-5bbeefd31682d15b.cvrtzgxf9kyoui34ytywtahe3.0eho9zw.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-c045415d6f994244.9x2d6w7ifc4da1gnzuanlzox6.18ppunt.rcgu.o ===
+0x00000ce8:  namespace 'lldb_demo'
+0x00000ced:    structure_type 'User'
+0x00000d26:    structure_type 'Session'
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-c045415d6f994244.bggadaxdmi1g9fv0jo6l1rms8.18ppunt.rcgu.o ===
 0x00000768:  namespace 'lldb_demo'
 0x0000076d:    structure_type 'User'

@@ -8,7 +8,7 @@ snapshot_kind: text
         name: "new",
         full_name: "method_discovery::Session::new",
         signature: "fn new(_: u64, _: String) -> Session",
-        address: 4294971060,
+        address: 4294970336,
         self_type: None,
         callable: true,
         is_synthetic: false,
@@ -17,7 +17,7 @@ snapshot_kind: text
         name: "get_id",
         full_name: "method_discovery::Session::get_id",
         signature: "fn get_id(&self) -> u64",
-        address: 4294971112,
+        address: 4294970388,
         self_type: Some(
             Borrowed,
         ),
@@ -28,7 +28,7 @@ snapshot_kind: text
         name: "set_name",
         full_name: "method_discovery::Session::set_name",
         signature: "fn set_name(&mut self, _: String)",
-        address: 4294971148,
+        address: 4294970424,
         self_type: Some(
             BorrowedMut,
         ),
@@ -39,7 +39,7 @@ snapshot_kind: text
         name: "describe",
         full_name: "<method_discovery::Session as method_discovery::Describable>::describe (from method_discovery)",
         signature: "fn describe(&self) -> String",
-        address: 4294971268,
+        address: 4294970544,
         self_type: Some(
             Borrowed,
         ),
@@ -50,7 +50,7 @@ snapshot_kind: text
         name: "description_length",
         full_name: "<method_discovery::Session as method_discovery::Describable>::description_length (from method_discovery)",
         signature: "fn description_length(&self) -> u64",
-        address: 4294971400,
+        address: 4294970676,
         self_type: Some(
             Borrowed,
         ),
@@ -61,7 +61,7 @@ snapshot_kind: text
         name: "identifier",
         full_name: "<method_discovery::Session as method_discovery::Identifiable>::identifier (from method_discovery)",
         signature: "fn identifier(&self) -> String",
-        address: 4294971512,
+        address: 4294970788,
         self_type: Some(
             Borrowed,
         ),
@@ -72,7 +72,7 @@ snapshot_kind: text
         name: "fmt",
         full_name: "<method_discovery::Session as core::fmt::Display>::fmt (from core)",
         signature: "fn fmt(&self, f: ?) -> Result<(), Error>",
-        address: 4294971620,
+        address: 4294970896,
         self_type: Some(
             Borrowed,
         ),
