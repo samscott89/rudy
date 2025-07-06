@@ -16,7 +16,7 @@ use crate::{
         Parser,
     },
     types::{get_die_typename, DieTypeDefinition, TypeIndexEntry},
-    Die, DwarfDb,
+    DebugFile, Die, DwarfDb,
 };
 
 type Result<T> = std::result::Result<T, crate::Error>;
@@ -504,9 +504,9 @@ fn resolve_struct_type(db: &dyn DwarfDb, entry: Die) -> Result<StructLayout<Die>
 
 fn resolve_type_offset_tracked<'db>(
     db: &'db dyn DwarfDb,
-    entry: TypeIndexEntry<'db>,
+    _file: DebugFile,
+    entry: Die,
 ) -> Result<DieTypeDefinition> {
-    let entry = entry.die(db);
     if let Some(def) = resolve_as_builtin_type(db, entry)? {
         return Ok(def);
     }
@@ -579,7 +579,7 @@ fn resolve_type_offset_tracked<'db>(
 }
 
 pub fn resolve_type_offset(db: &dyn DwarfDb, entry: Die) -> Result<DieTypeDefinition> {
-    resolve_type_offset_tracked(db, TypeIndexEntry::new(db, entry))
+    resolve_type_offset_tracked(db, entry.file, entry)
 }
 
 #[cfg(test)]

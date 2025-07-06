@@ -25,9 +25,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Unit",
                         },
-                        location: Die(
-                            Id(1848),
-                        ),
+                        location: Die at DebugFile { [salsa id]: Id(812) } 0x00000812,
                     },
                 },
                 EnumVariantLayout {
@@ -37,9 +35,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Tuple",
                         },
-                        location: Die(
-                            Id(1849),
-                        ),
+                        location: Die at DebugFile { [salsa id]: Id(812) } 0x0000081a,
                     },
                 },
                 EnumVariantLayout {
@@ -51,16 +47,12 @@ TypeDefinition {
                         layout: Alias {
                             name: "Struct",
                         },
-                        location: Die(
-                            Id(184a),
-                        ),
+                        location: Die at DebugFile { [salsa id]: Id(812) } 0x0000083b,
                     },
                 },
             ],
             size: 32,
         },
     ),
-    location: Die(
-        Id(1842),
-    ),
+    location: Die at DebugFile { [salsa id]: Id(812) } 0x000007c6,
 }

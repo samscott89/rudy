@@ -23,11 +23,18 @@ use crate::{
 };
 
 /// References a specific DWARF debugging information entry
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, salsa::Update)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, salsa::Update)]
 pub struct Die {
     pub(crate) file: DebugFile,
     pub(crate) cu_offset: UnitSectionOffset<usize>,
     pub(crate) die_offset: Offset,
+}
+
+impl fmt::Debug for Die {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        salsa::with_attached_database(|db| write!(f, "Die {}", self.location(db)))
+            .unwrap_or_else(|| write!(f, "Die at {:?} {:#010x}", self.file, self.offset()))
+    }
 }
 
 impl Die {

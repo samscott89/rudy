@@ -1,6 +1,6 @@
 ---
 source: rudy-db/tests/static_tests.rs
-expression: "resolver.resolve_function(\"function_call\").unwrap()"
+expression: "resolver.find_function_by_name(\"function_call\").unwrap()"
 snapshot_kind: text
 ---
 Some(
@@ -20,9 +20,7 @@ Some(
                             },
                         ),
                     ),
-                    location: Die(
-                        Id(21d3),
-                    ),
+                    location: Die at DebugFile { [salsa id]: Id(c00) } 0x000000c5,
                 },
             },
         ],
