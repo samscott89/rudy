@@ -629,24 +629,26 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Evaluate a function call expression
-    fn evaluate_function_call(&mut self, function: &str, args: &[Expression]) -> Result<EvalResult> {
+    fn evaluate_function_call(
+        &mut self,
+        function: &str,
+        args: &[Expression],
+    ) -> Result<EvalResult> {
         // First, discover functions that match the given pattern
         let discovered_functions = self.debug_info.discover_functions(function)?;
 
         // Find the best matching function
-        let function_info = discovered_functions
-            .first()
-            .ok_or_else(|| {
-                anyhow!(
-                    "Function '{}' not found. Available functions: {}",
-                    function,
-                    discovered_functions
-                        .iter()
-                        .take(5)
-                        .map(|f| &f.name)
-                        .join(", ")
-                )
-            })?;
+        let function_info = discovered_functions.first().ok_or_else(|| {
+            anyhow!(
+                "Function '{}' not found. Available functions: {}",
+                function,
+                discovered_functions
+                    .iter()
+                    .take(5)
+                    .map(|f| &f.name)
+                    .join(", ")
+            )
+        })?;
 
         // Check if the function is callable (has an address)
         if function_info.address == 0 {

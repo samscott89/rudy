@@ -47,8 +47,8 @@ pub use data::DataResolver;
 pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
 pub use outputs::{
-    DiscoveredFunction, DiscoveredMethod, FunctionParameter, ResolvedAddress, ResolvedLocation, Type, TypedPointer, Value, Variable,
-    VariableInfo,
+    DiscoveredFunction, DiscoveredMethod, FunctionParameter, ResolvedAddress, ResolvedLocation,
+    Type, TypedPointer, Value, Variable, VariableInfo,
 };
 pub use rudy_dwarf::function::SelfType;
 pub use synthetic_methods::{SyntheticMethod, evaluate_synthetic_method, get_synthetic_methods};

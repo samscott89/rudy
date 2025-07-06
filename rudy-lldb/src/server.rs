@@ -285,7 +285,7 @@ impl ClientConnection {
         if args.is_empty() {
             // List all functions
             let all_functions = debug_info.discover_all_functions()?;
-            
+
             // Convert to FunctionInfo for serialization
             let function_list: Vec<crate::evaluator::FunctionInfo> = all_functions
                 .into_values()
@@ -298,13 +298,13 @@ impl ClientConnection {
                     module_path: discovered_func.module_path,
                 })
                 .collect();
-            
+
             Ok(function_list)
         } else {
             // Search for functions matching the pattern
             let pattern = &args[0];
             let discovered_functions = debug_info.discover_functions(pattern)?;
-            
+
             // Convert to FunctionInfo for serialization
             let function_list: Vec<crate::evaluator::FunctionInfo> = discovered_functions
                 .into_iter()
@@ -317,7 +317,7 @@ impl ClientConnection {
                     module_path: discovered_func.module_path,
                 })
                 .collect();
-            
+
             Ok(function_list)
         }
     }

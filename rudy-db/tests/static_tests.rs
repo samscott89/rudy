@@ -194,10 +194,13 @@ fn test_function_discovery(#[case] target: &'static str) {
     let main_functions = debug_info
         .discover_functions("main")
         .expect("Failed to discover main functions");
-    
+
     // Should find at least the main function
-    assert!(!main_functions.is_empty(), "Should find at least one main function");
-    
+    assert!(
+        !main_functions.is_empty(),
+        "Should find at least one main function"
+    );
+
     let main_function = &main_functions[0];
     assert_eq!(main_function.name, "main");
     assert!(main_function.callable);
@@ -210,8 +213,11 @@ fn test_function_discovery(#[case] target: &'static str) {
         .discover_functions("function_call")
         .expect("Failed to discover function_call functions");
 
-    assert!(!function_call_functions.is_empty(), "Should find function_call function");
-    
+    assert!(
+        !function_call_functions.is_empty(),
+        "Should find function_call function"
+    );
+
     let function_call = &function_call_functions[0];
     assert_eq!(function_call.name, "function_call");
     assert!(function_call.callable);
@@ -226,9 +232,12 @@ fn test_function_discovery(#[case] target: &'static str) {
 
     // Should have many functions
     assert!(all_functions.len() > 2, "Should find multiple functions");
-    
+
     // Main function should be in the results
-    assert!(all_functions.contains_key("simple_test::main"), "Should contain main function");
+    assert!(
+        all_functions.contains_key("simple_test::main"),
+        "Should contain main function"
+    );
 
     // Snapshot a subset for testing
     let subset: std::collections::BTreeMap<_, _> = all_functions
