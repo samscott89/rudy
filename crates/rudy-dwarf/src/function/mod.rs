@@ -110,10 +110,10 @@ pub enum FunctionDeclarationType {
 ///                DW_AT_frame_base        (DW_OP_reg29 W29)
 ///                DW_AT_specification     (0x000058e0 "_ZN5small11TestStruct08method_017h636bec720e368708E")
 #[allow(dead_code)]
-pub fn get_declaration_type<'db>(
-    _db: &'db dyn DwarfDb,
-    die: &RawDie<'db>,
-    unit_ref: &UnitRef<'db>,
+pub fn get_declaration_type(
+    _db: &dyn DwarfDb,
+    die: &RawDie,
+    unit_ref: &UnitRef,
 ) -> FunctionDeclarationType {
     if die.attr(gimli::DW_AT_declaration).ok().flatten().is_some() {
         return FunctionDeclarationType::ClassMethodDeclaration;
@@ -167,16 +167,16 @@ pub fn get_declaration_type<'db>(
     FunctionDeclarationType::Function { inlined }
 }
 
-#[salsa::tracked(debug)]
-pub struct FunctionSignature<'db> {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
+pub struct FunctionSignature {
     /// Short name of the function, e.g. "len" for "std::vec::Vec<T>::len"
     pub name: String,
 
     /// Params for the function, e.g. "self: &mut Self, index: usize"
-    pub params: Vec<Variable<'db>>,
+    pub params: Vec<Variable>,
 
     /// Return type of the function, e.g. "usize" for "std::vec::Vec<T>::len"
-    pub return_type: Option<DieTypeDefinition<'db>>,
+    pub return_type: Option<DieTypeDefinition>,
 
     /// Somewhat duplicative with the `params` field, this
     /// determines (a) if we have a self parameter, and (b) what kind of self parameter it is.
@@ -192,20 +192,40 @@ pub struct FunctionSignature<'db> {
     pub debug_location: String,
 }
 
-impl<'db> FunctionSignature<'db> {
-    pub fn print_sig(&self, db: &'db dyn DwarfDb) -> String {
+impl FunctionSignature {
+    pub fn new(
+        name: String,
+        params: Vec<Variable>,
+        return_type: Option<DieTypeDefinition>,
+        self_type: Option<SelfType>,
+        callable: bool,
+        debug_location: String,
+    ) -> Self {
+        Self {
+            name,
+            params,
+            return_type,
+            self_type,
+            callable,
+            debug_location,
+        }
+    }
+}
+
+impl FunctionSignature {
+    pub fn print_sig(&self) -> String {
         let params = self
-            .params(db)
+            .params
             .iter()
             .map(|p| {
                 format!(
                     "{}: {}",
-                    p.name(db).as_deref().unwrap_or("_"),
-                    p.ty(db).display_name()
+                    p.name.as_deref().unwrap_or("_"),
+                    p.ty.display_name()
                 )
             })
             .join(", ");
-        if let Some(ret) = self.return_type(db) {
+        if let Some(ret) = &self.return_type {
             format!("fn({params}) -> {}", ret.display_name())
         } else {
             format!("fn({params})")
@@ -214,16 +234,15 @@ impl<'db> FunctionSignature<'db> {
 }
 
 /// Parser to extract function parameters
-fn function_parameter<'db>() -> impl Parser<'db, Variable<'db>> {
+fn function_parameter() -> impl Parser<Variable> {
     is_member_tag(gimli::DW_TAG_formal_parameter).then(variable())
 }
 
 /// Parser to return function declaration information
-fn function_declaration<'db>(
-) -> impl Parser<'db, (String, Option<DieTypeDefinition<'db>>, Vec<Variable<'db>>)> {
+fn function_declaration() -> impl Parser<(String, Option<DieTypeDefinition>, Vec<Variable>)> {
     all((
         attr::<String>(gimli::DW_AT_name),
-        optional_attr::<Die<'db>>(gimli::DW_AT_type).then(resolve_type_shallow()),
+        optional_attr::<Die>(gimli::DW_AT_type).then(resolve_type_shallow()),
         // If the child is a formal parameter, then attempt to parse it as a variable
         try_for_each_child(
             is_member_tag(gimli::DW_TAG_formal_parameter)
@@ -234,7 +253,7 @@ fn function_declaration<'db>(
 }
 
 /// Parser to extract function specification information
-fn function_specification<'db>() -> impl Parser<'db, Vec<Variable<'db>>> {
+fn function_specification() -> impl Parser<Vec<Variable>> {
     for_each_child(function_parameter())
 }
 
@@ -243,7 +262,7 @@ fn function_specification<'db>() -> impl Parser<'db, Vec<Variable<'db>>> {
 pub fn resolve_function_signature<'db>(
     db: &'db dyn DwarfDb,
     function_index_entry: FunctionIndexEntry<'db>,
-) -> Result<FunctionSignature<'db>> {
+) -> Result<FunctionSignature> {
     let FunctionData {
         declaration_die,
         specification_die,
@@ -266,14 +285,12 @@ pub fn resolve_function_signature<'db>(
 
     let self_type = if let Some(first_param) = parameters.first() {
         // If the first parameter is self-like, determine its type
-        let first_param_name = first_param.name(db);
+        let first_param_name = &first_param.name;
         if matches!(
             first_param_name.as_deref(),
             Some("self" | "&self" | "&mut self")
         ) {
-            Some(SelfType::from_param_type(
-                first_param.ty(db).layout.as_ref(),
-            ))
+            Some(SelfType::from_param_type(first_param.ty.layout.as_ref()))
         } else {
             None
         }
@@ -290,7 +307,6 @@ pub fn resolve_function_signature<'db>(
     }
 
     Ok(FunctionSignature::new(
-        db,
         name,
         parameters,
         return_type,
@@ -312,7 +328,7 @@ pub enum SelfType {
 }
 
 impl SelfType {
-    pub fn from_param_type(param_type: &DieLayout<'_>) -> Self {
+    pub fn from_param_type(param_type: &DieLayout) -> Self {
         match param_type {
             Layout::Primitive(PrimitiveLayout::Reference(ReferenceLayout {
                 mutable: true,

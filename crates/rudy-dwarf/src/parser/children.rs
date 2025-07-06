@@ -20,9 +20,9 @@ fn extract_tuple<T>(tuple: (T,)) -> T {
 type ExtractTuple<T> = fn((T,)) -> T;
 
 /// Finds the first child that matches the given parser
-pub fn child<'db, P, T>(parser: P) -> Map<ParseChildren<(P,)>, ExtractTuple<T>, (T,)>
+pub fn child<P, T>(parser: P) -> Map<ParseChildren<(P,)>, ExtractTuple<T>, (T,)>
 where
-    P: Parser<'db, T>,
+    P: Parser<T>,
 {
     Map {
         parser: parse_children((parser,)),
@@ -40,11 +40,11 @@ pub fn for_each_child<P>(parser: P) -> ForEachChild<P> {
     ForEachChild { parser }
 }
 
-impl<'db, T, P> Parser<'db, Vec<T>> for ForEachChild<P>
+impl<T, P> Parser<Vec<T>> for ForEachChild<P>
 where
-    P: Parser<'db, T>,
+    P: Parser<T>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Vec<T>> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Vec<T>> {
         let mut results = Vec::new();
 
         for child in entry.children(db)? {
@@ -79,11 +79,11 @@ pub fn try_for_each_child<P>(parser: P) -> TryForEachChild<P> {
     TryForEachChild { parser }
 }
 
-impl<'db, T, P> Parser<'db, Vec<T>> for TryForEachChild<P>
+impl<T, P> Parser<Vec<T>> for TryForEachChild<P>
 where
-    P: Parser<'db, Option<T>>,
+    P: Parser<Option<T>>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Vec<T>> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Vec<T>> {
         let mut results = Vec::new();
 
         for child in entry.children(db)? {
@@ -102,11 +102,11 @@ macro_rules! impl_parse_children_for_tuples {
     (
         $($P:ident, $T:ident, $idx:tt),*
     ) => {
-        impl<'db, $($T, $P,)*> Parser<'db, ($($T,)*)> for ParseChildren<($($P,)*)>
+        impl< $($T, $P,)*> Parser< ($($T,)*)> for ParseChildren<($($P,)*)>
         where
-            $($P: Parser<'db, $T>),*
+            $($P: Parser< $T>),*
         {
-            fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> anyhow::Result<($($T,)*)> {
+            fn parse(&self, db: &dyn DwarfDb, entry: Die) -> anyhow::Result<($($T,)*)> {
 
                 #[allow(unused)] // unused when len=0
                 let mut result = ($(

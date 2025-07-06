@@ -11,7 +11,7 @@ use crate::{
 /// This basically just walks the "pointer" member to the pointer
 /// type, and then from the pointer type to the inner type. Does
 /// a little verification along the way.
-pub fn nonnull<'db>() -> impl Parser<'db, Die<'db>> {
+pub fn nonnull() -> impl Parser<Die> {
     // NonNull<T> should generally be a thin wrapper around a pointer type,
     // we'll verify some of this though
     member("pointer")

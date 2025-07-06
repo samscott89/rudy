@@ -27,14 +27,14 @@ use combinators::{And, Context, Map, MapRes, Then};
 pub type Result<T> = anyhow::Result<T>;
 
 /// Core parser trait that all combinators implement
-pub trait Parser<'db, T> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<T>;
+pub trait Parser<T> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<T>;
 
     /// Combine this parser with another, applying both and combining results
     fn and<U, P>(self, other: P) -> And<Self, P, T, U>
     where
         Self: Sized,
-        P: Parser<'db, U>,
+        P: Parser<U>,
     {
         And {
             first: self,
@@ -70,10 +70,10 @@ pub trait Parser<'db, T> {
         }
     }
 
-    fn map_with_db_and_entry<U, F>(self, f: F) -> MapWithDbAndEntry<Self, F, T>
+    fn map_with_entry<U, F>(self, f: F) -> MapWithDbAndEntry<Self, F, T>
     where
         Self: Sized,
-        F: Fn(&'db dyn DwarfDb, Die<'db>, T) -> U,
+        F: Fn(&dyn DwarfDb, Die, T) -> U,
     {
         MapWithDbAndEntry {
             parser: self,
@@ -98,8 +98,8 @@ pub trait Parser<'db, T> {
     /// Chain this parser with another, where the second operates on the first's result
     fn then<U, P, V>(self, next: P) -> Then<Self, P, V>
     where
-        Self: Sized + Parser<'db, V>,
-        P: Parser<'db, U>,
+        Self: Sized + Parser<V>,
+        P: Parser<U>,
     {
         Then {
             first: self,
@@ -120,12 +120,12 @@ pub trait Parser<'db, T> {
     }
 }
 
-impl<'db, T, P> Parser<'db, T> for &'_ P
+impl<T, P> Parser<T> for &'_ P
 where
-    P: Parser<'db, T>,
+    P: Parser<T>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<T> {
-        <P as Parser<'db, T>>::parse(self, db, entry)
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<T> {
+        <P as Parser<T>>::parse(self, db, entry)
     }
 }
 
@@ -139,12 +139,12 @@ pub fn from_fn<F>(f: F) -> FromFn<F> {
 
 // Functions matching the `Parser::parse` signature
 // are automatically parsers
-impl<'db, T, F, E> Parser<'db, T> for FromFn<F>
+impl<T, F, E> Parser<T> for FromFn<F>
 where
-    F: Fn(&'db dyn DwarfDb, Die<'db>) -> std::result::Result<T, E>,
+    F: Fn(&dyn DwarfDb, Die) -> std::result::Result<T, E>,
     E: Into<anyhow::Error>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<T> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<T> {
         (self.f)(db, entry).map_err(Into::into)
     }
 }

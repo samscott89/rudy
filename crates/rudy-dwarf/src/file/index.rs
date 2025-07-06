@@ -13,10 +13,10 @@ use crate::{
 /// that can be extracted from demangled symbols) to their
 /// corresponding DIE entry in the DWARF information.
 #[salsa::tracked(returns(ref))]
-pub fn index_debug_file_sources<'db>(
-    db: &'db dyn DwarfDb,
+pub fn index_debug_file_sources(
+    db: &dyn DwarfDb,
     debug_file: DebugFile,
-) -> (BTreeSet<PathBuf>, BTreeSet<SourceFile<'db>>) {
+) -> (BTreeSet<PathBuf>, BTreeSet<SourceFile>) {
     let mut compile_dirs = BTreeSet::new();
     let mut sources = BTreeSet::new();
 
@@ -55,10 +55,7 @@ pub fn index_debug_file_sources<'db>(
                     lp.header()
                         .file_names()
                         .iter()
-                        .flat_map(|f| {
-                            file_entry_to_path(db, f, unit_ref)
-                                .map(|path| SourceFile::new(db, path))
-                        })
+                        .flat_map(|f| file_entry_to_path(db, f, unit_ref).map(SourceFile::new))
                         .collect::<BTreeSet<_>>()
                 })
                 .unwrap_or_default();

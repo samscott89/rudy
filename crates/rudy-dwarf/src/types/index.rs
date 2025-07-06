@@ -2,24 +2,28 @@
 
 use crate::{die::Die, file::DebugFile, modules::module_index, DwarfDb, TypeName};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
+#[salsa::tracked(debug)]
 pub struct TypeIndexEntry<'db> {
-    pub die: Die<'db>,
+    pub die: Die,
 }
 
 /// Get typename by lazily resolving namespace context (avoids full indexing)
 /// This is salsa-cached for performance
 #[salsa::tracked(returns(ref))]
-pub fn get_die_typename<'db>(db: &'db dyn DwarfDb, die: Die<'db>) -> Option<TypeName> {
+pub fn get_die_typename<'db>(
+    db: &'db dyn DwarfDb,
+    indexed_type: TypeIndexEntry<'db>,
+) -> Option<TypeName> {
     // Get the namespace ranges for this debug file (cached)
-    let module_index = module_index(db, die.file(db));
+    let die = indexed_type.die(db);
+    let module_index = module_index(db, die.file);
 
     // Find the module path for this DIE using range lookup
-    let Some(range) = module_index.find_by_offset(db, die.offset(db)) else {
+    let Some(range) = module_index.find_by_offset(db, die.offset()) else {
         tracing::warn!(
             "No module range found for DIE at offset {:#x} in file {}",
-            die.offset(db),
-            die.file(db).name(db)
+            die.offset(),
+            die.file.name(db)
         );
         return None;
     };
@@ -33,11 +37,11 @@ pub fn get_die_typename<'db>(db: &'db dyn DwarfDb, die: Die<'db>) -> Option<Type
     TypeName::parse(&range.module_path, &name).ok()
 }
 
-pub fn find_type_by_name<'db>(
-    db: &'db dyn DwarfDb,
+pub fn find_type_by_name(
+    db: &dyn DwarfDb,
     debug_file: DebugFile,
     type_name: TypeName,
-) -> Option<Die<'db>> {
+) -> Option<Die> {
     let module_index = module_index(db, debug_file);
 
     // let indexed = super::navigation::function_index(db, debug_file);

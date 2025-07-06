@@ -99,7 +99,7 @@ impl TestVisitor {
     }
 }
 
-fn entry_parser<'db>() -> impl Parser<'db, StructureEntry> {
+fn entry_parser() -> impl Parser<StructureEntry> {
     all((tag(), name(), offset())).map(|(tag, name, offset)| StructureEntry {
         depth: 0, // Depth will be set during walking
         tag: tag.to_string().replace("DW_TAG_", ""),

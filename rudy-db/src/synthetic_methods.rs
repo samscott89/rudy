@@ -234,7 +234,7 @@ pub fn evaluate_synthetic_method<'db>(
 
 fn evaluate_vec_method<'db>(
     address: u64,
-    vec_layout: &rudy_types::VecLayout<Die<'db>>,
+    vec_layout: &rudy_types::VecLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
 ) -> Result<Value<'db>> {
@@ -275,7 +275,7 @@ fn evaluate_vec_method<'db>(
 
 fn evaluate_string_method<'db>(
     address: u64,
-    string_layout: &rudy_types::StringLayout<Die<'db>>,
+    string_layout: &rudy_types::StringLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
 ) -> Result<Value<'db>> {
@@ -290,7 +290,7 @@ fn evaluate_string_method<'db>(
 
 fn evaluate_option_method<'db>(
     address: u64,
-    option_layout: &rudy_types::OptionLayout<Die<'db>>,
+    option_layout: &rudy_types::OptionLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
 ) -> Result<Value<'db>> {
@@ -325,7 +325,7 @@ fn evaluate_option_method<'db>(
 
 fn evaluate_result_method<'db>(
     address: u64,
-    result_layout: &rudy_types::ResultLayout<Die<'db>>,
+    result_layout: &rudy_types::ResultLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
 ) -> Result<Value<'db>> {
@@ -386,7 +386,7 @@ fn evaluate_result_method<'db>(
 
 fn evaluate_map_method<'db>(
     _address: u64,
-    _map_layout: &rudy_types::MapLayout<Die<'db>>,
+    _map_layout: &rudy_types::MapLayout<Die>,
     method: &str,
     _resolver: &dyn DataResolver,
 ) -> Result<Value<'db>> {
@@ -402,7 +402,7 @@ fn evaluate_map_method<'db>(
 
 fn evaluate_slice_method<'db>(
     address: u64,
-    _slice_layout: &rudy_types::SliceLayout<Die<'db>>,
+    _slice_layout: &rudy_types::SliceLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
 ) -> Result<Value<'db>> {
@@ -462,7 +462,7 @@ fn evaluate_str_slice_method<'db>(
 }
 
 fn evaluate_array_method<'db>(
-    array_layout: &rudy_types::ArrayLayout<Die<'db>>,
+    array_layout: &rudy_types::ArrayLayout<Die>,
     method: &str,
 ) -> Result<Value<'db>> {
     match method {

@@ -23,12 +23,25 @@ use crate::{
 };
 
 /// References a specific DWARF debugging information entry
-#[salsa::interned(debug)]
-#[derive(Ord, PartialOrd)]
-pub struct Die<'db> {
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, salsa::Update)]
+pub struct Die {
     pub(crate) file: DebugFile,
     pub(crate) cu_offset: UnitSectionOffset<usize>,
     pub(crate) die_offset: Offset,
+}
+
+impl Die {
+    pub(crate) fn new(
+        file: DebugFile,
+        cu_offset: UnitSectionOffset<usize>,
+        die_offset: Offset,
+    ) -> Self {
+        Self {
+            file,
+            cu_offset,
+            die_offset,
+        }
+    }
 }
 
 struct DieLocation {
@@ -84,21 +97,21 @@ impl std::error::Error for DieAccessError {
     }
 }
 
-impl<'db> Die<'db> {
+impl Die {
     // GROUP 1: Core Identity (Keep - no dependencies)
 
-    pub(crate) fn cu(&self, db: &'db dyn DwarfDb) -> CompilationUnitId<'db> {
-        CompilationUnitId::new(db, self.file(db), self.cu_offset(db))
+    pub(crate) fn cu(&self) -> CompilationUnitId {
+        CompilationUnitId::new(self.file, self.cu_offset)
     }
 
     // GROUP 2: High-Cohesion Navigation + Basic Attributes (Keep - used together 90% of time)
-    pub(crate) fn children(&self, db: &'db dyn DwarfDb) -> Result<Vec<Die<'db>>> {
+    pub(crate) fn children(&self, db: &dyn DwarfDb) -> Result<Vec<Die>> {
         let mut children = vec![];
 
         let unit_ref = self.unit_ref(db)?;
 
         let mut tree = unit_ref
-            .entries_tree(Some(self.die_offset(db)))
+            .entries_tree(Some(self.die_offset))
             .context("Failed to get children nodes")
             .into_die_result(db, self)?;
         let tree_root = tree
@@ -114,7 +127,7 @@ impl<'db> Die<'db> {
             .into_die_result(db, self)?
         {
             let child_offset = child.entry().offset();
-            let child_die = Die::new(db, self.file(db), self.cu_offset(db), child_offset);
+            let child_die = Die::new(self.file, self.cu_offset, child_offset);
             children.push(child_die);
         }
 
@@ -123,64 +136,60 @@ impl<'db> Die<'db> {
 
     pub(crate) fn make_error<E: Into<anyhow::Error>>(
         &self,
-        db: &'db dyn DwarfDb,
+        db: &dyn DwarfDb,
         error: E,
     ) -> DieAccessError {
         DieAccessError {
             inner: error.into(),
             location: DieLocation {
-                path: self.file(db).name(db),
-                die_offset: self.die_offset(db).0,
+                path: self.file.name(db),
+                die_offset: self.die_offset.0,
             },
         }
     }
 
     /// Get the offset of this DIE within the entire debug file
-    pub(crate) fn offset(&self, db: &'db dyn salsa::Database) -> usize {
-        self.cu_offset(db).as_debug_info_offset().unwrap().0 + self.die_offset(db).0
+    pub(crate) fn offset(&self) -> usize {
+        self.cu_offset.as_debug_info_offset().unwrap().0 + self.die_offset.0
     }
 
-    pub fn location(&self, db: &'db dyn salsa::Database) -> String {
-        format!("{} {:#010x}", self.file(db).name(db), self.offset(db),)
+    pub fn location(&self, db: &dyn salsa::Database) -> String {
+        format!("{} {:#010x}", self.file.name(db), self.offset())
     }
 
     pub(crate) fn format_with_location<T: AsRef<str>>(
         &self,
-        db: &'db dyn DwarfDb,
+        db: &dyn DwarfDb,
         message: T,
     ) -> String {
         format!(
             "{} for {} {:#010x}",
             message.as_ref(),
-            self.file(db).name(db),
-            self.offset(db),
+            self.file.name(db),
+            self.offset(),
         )
     }
 
-    pub(crate) fn get_referenced_entry(
-        &self,
-        db: &'db dyn DwarfDb,
-        attr: gimli::DwAt,
-    ) -> Result<Die<'db>> {
+    pub(crate) fn get_referenced_entry(&self, db: &dyn DwarfDb, attr: gimli::DwAt) -> Result<Die> {
         self.with_entry_and_unit(db, |entry, _| {
             get_unit_ref_attr(entry, attr)
-                .map(|unit_offset| Die::new(db, self.file(db), self.cu_offset(db), unit_offset))
+                .map(|unit_offset| Die::new(self.file, self.cu_offset, unit_offset))
                 .into_die_result(db, self)
         })?
     }
 
-    pub(crate) fn tag(&self, db: &'db dyn DwarfDb) -> gimli::DwTag {
+    pub(crate) fn tag(&self, db: &dyn DwarfDb) -> gimli::DwTag {
         self.with_entry(db, |entry| entry.tag())
             .unwrap_or(gimli::DW_TAG_null)
     }
 
-    pub fn name(&self, db: &'db dyn DwarfDb) -> Result<String> {
+    pub fn name(&self, db: &dyn DwarfDb) -> Result<String> {
         self.string_attr(db, gimli::DW_AT_name)
     }
 
     // GROUP 3: Attribute Access (Keep - building blocks for other operations)
 
-    pub(crate) fn get_member(&self, db: &'db dyn DwarfDb, name: &str) -> Result<Die<'db>> {
+    pub(crate) fn get_member(&self, db: &dyn DwarfDb, name: &str) -> Result<Die> {
         self.children(db)?
             .into_iter()
             .find(|child| child.name(db).is_ok_and(|n| n == name))
@@ -188,11 +197,7 @@ impl<'db> Die<'db> {
             .into_die_result(db, self)
     }
 
-    pub(crate) fn get_member_by_tag(
-        &self,
-        db: &'db dyn DwarfDb,
-        tag: gimli::DwTag,
-    ) -> Result<Die<'db>> {
+    pub(crate) fn get_member_by_tag(&self, db: &dyn DwarfDb, tag: gimli::DwTag) -> Result<Die> {
         self.children(db)?
             .into_iter()
             .find(|child| child.tag(db) == tag)
@@ -202,18 +207,14 @@ impl<'db> Die<'db> {
 
     pub(crate) fn get_udata_member_attribute(
         &self,
-        db: &'db dyn DwarfDb,
+        db: &dyn DwarfDb,
         name: &str,
         attr: gimli::DwAt,
     ) -> Result<usize> {
         self.get_member(db, name)?.udata_attr(db, attr)
     }
 
-    pub(crate) fn get_generic_type_entry(
-        &self,
-        db: &'db dyn DwarfDb,
-        name: &str,
-    ) -> Result<Die<'db>> {
+    pub(crate) fn get_generic_type_entry(&self, db: &dyn DwarfDb, name: &str) -> Result<Die> {
         self.children(db)?
             .into_iter()
             .find(|child| {
@@ -227,7 +228,7 @@ impl<'db> Die<'db> {
 
     pub(crate) fn get_attr(
         &self,
-        db: &'db dyn DwarfDb,
+        db: &dyn DwarfDb,
         attr: gimli::DwAt,
     ) -> Result<gimli::AttributeValue<DwarfReader>> {
         Ok(self
@@ -239,13 +240,13 @@ impl<'db> Die<'db> {
             .value())
     }
 
-    pub(crate) fn string_attr(&self, db: &'db dyn DwarfDb, attr: gimli::DwAt) -> Result<String> {
+    pub(crate) fn string_attr(&self, db: &dyn DwarfDb, attr: gimli::DwAt) -> Result<String> {
         self.with_entry_and_unit(db, |entry, unit_ref| {
             parse_die_string_attribute(entry, attr, unit_ref).into_die_result(db, self)
         })?
     }
 
-    pub(crate) fn udata_attr(&self, db: &'db dyn DwarfDb, attr: gimli::DwAt) -> Result<usize> {
+    pub(crate) fn udata_attr(&self, db: &dyn DwarfDb, attr: gimli::DwAt) -> Result<usize> {
         let v = self.get_attr(db, attr)?;
 
         v.udata_value()
@@ -254,7 +255,7 @@ impl<'db> Die<'db> {
             .into_die_result(db, self)
     }
 
-    pub(crate) fn print(&self, db: &'db dyn DwarfDb) -> String {
+    pub(crate) fn print(&self, db: &dyn DwarfDb) -> String {
         self.with_entry_and_unit(db, |entry, unit_ref| {
             self.format_with_location(db, pretty_print_die_entry(entry, unit_ref))
         })
@@ -268,7 +269,7 @@ impl<'db> Die<'db> {
 
     pub(super) fn with_entry_and_unit<F: FnOnce(&RawDie<'_>, &UnitRef<'_>) -> T, T>(
         &self,
-        db: &'db dyn DwarfDb,
+        db: &dyn DwarfDb,
         f: F,
     ) -> Result<T> {
         let unit_ref = self.unit_ref(db)?;
@@ -276,32 +277,29 @@ impl<'db> Die<'db> {
         Ok(f(&entry, &unit_ref))
     }
 
-    pub(crate) fn unit_ref(&self, db: &'db dyn DwarfDb) -> Result<UnitRef<'db>> {
-        self.cu(db)
+    pub(crate) fn unit_ref<'db>(&self, db: &'db dyn DwarfDb) -> Result<UnitRef<'db>> {
+        self.cu()
             .unit_ref(db)
             .context("Failed to get unit reference")
             .into_die_result(db, self)
     }
 
-    fn with_entry<F: FnOnce(&RawDie<'_>) -> T, T>(&self, db: &'db dyn DwarfDb, f: F) -> Result<T> {
+    fn with_entry<F: FnOnce(&RawDie<'_>) -> T, T>(&self, db: &dyn DwarfDb, f: F) -> Result<T> {
         let unit_ref = self.unit_ref(db)?;
         let entry = self.entry(db, &unit_ref)?;
         Ok(f(&entry))
     }
 
-    fn entry<'a>(&self, db: &'db dyn DwarfDb, unit_ref: &'a UnitRef<'db>) -> Result<RawDie<'a>> {
+    fn entry<'a>(&self, db: &dyn DwarfDb, unit_ref: &'a UnitRef<'_>) -> Result<RawDie<'a>> {
         unit_ref
-            .entry(self.die_offset(db))
+            .entry(self.die_offset)
             .context("Failed to get DIE entry")
             .into_die_result(db, self)
     }
 }
 
 /// Get the position for a DIE entry
-pub(crate) fn position<'db>(
-    db: &'db dyn DwarfDb,
-    entry: Die<'db>,
-) -> Result<Option<SourceLocation<'db>>> {
+pub(crate) fn position(db: &dyn DwarfDb, entry: Die) -> Result<Option<SourceLocation>> {
     let Ok(decl_file_attr) = entry.get_attr(db, gimli::DW_AT_decl_file) else {
         return Ok(None);
     };
@@ -333,9 +331,8 @@ pub(crate) fn position<'db>(
         return Err(entry.make_error(db, anyhow::anyhow!("Failed to convert file entry to path")));
     };
 
-    let source_file = SourceFile::new(db, path);
+    let source_file = SourceFile::new(path);
     Ok(Some(SourceLocation::new(
-        db,
         source_file,
         decl_line as u64,
         None,

@@ -16,8 +16,8 @@ pub fn data_offset() -> DataOffset {
 
 pub struct DataOffset;
 
-impl<'db> Parser<'db, usize> for DataOffset {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<usize> {
+impl Parser<usize> for DataOffset {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<usize> {
         Ok(entry.udata_attr(db, gimli::DW_AT_data_member_location)?)
     }
 }
@@ -27,7 +27,7 @@ pub fn attr<T>(attr: gimli::DwAt) -> Attr<T> {
     Attr::new(attr)
 }
 
-pub fn entry_type<'db>() -> Attr<Die<'db>> {
+pub fn entry_type() -> Attr<Die> {
     Attr::new(gimli::DW_AT_type)
 }
 
@@ -45,14 +45,14 @@ impl<T> Attr<T> {
     }
 }
 
-impl<'db> Parser<'db, usize> for Attr<usize> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<usize> {
+impl Parser<usize> for Attr<usize> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<usize> {
         Ok(entry.udata_attr(db, self.attr)?)
     }
 }
 
-impl<'db> Parser<'db, u64> for Attr<u64> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<u64> {
+impl Parser<u64> for Attr<u64> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<u64> {
         let value = entry.get_attr(db, self.attr)?;
         if let Some(v) = value.udata_value() {
             Ok(v)
@@ -73,8 +73,8 @@ impl<'db> Parser<'db, u64> for Attr<u64> {
     }
 }
 
-impl<'db> Parser<'db, i64> for Attr<i64> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<i64> {
+impl Parser<i64> for Attr<i64> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<i64> {
         let value = entry.get_attr(db, self.attr)?;
         if let Some(v) = value.udata_value() {
             if v > i64::MAX as u64 {
@@ -92,8 +92,8 @@ impl<'db> Parser<'db, i64> for Attr<i64> {
     }
 }
 
-impl<'db> Parser<'db, i128> for Attr<i128> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<i128> {
+impl Parser<i128> for Attr<i128> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<i128> {
         let value = entry.get_attr(db, self.attr)?;
         if let Some(v) = value.udata_value() {
             Ok(v as i128)
@@ -108,34 +108,28 @@ impl<'db> Parser<'db, i128> for Attr<i128> {
     }
 }
 
-impl<'db> Parser<'db, String> for Attr<String> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<String> {
+impl Parser<String> for Attr<String> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<String> {
         Ok(entry.string_attr(db, self.attr)?)
     }
 }
 
-impl<'db> Parser<'db, Option<String>> for Attr<Option<String>> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Option<String>> {
+impl Parser<Option<String>> for Attr<Option<String>> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Option<String>> {
         entry.with_entry_and_unit(db, |entry, unit_ref| {
             get_string_attr(entry, self.attr, unit_ref)
         })?
     }
 }
 
-impl<'db> Parser<'db, gimli::AttributeValue<DwarfReader>>
-    for Attr<gimli::AttributeValue<DwarfReader>>
-{
-    fn parse(
-        &self,
-        db: &'db dyn DwarfDb,
-        entry: Die<'db>,
-    ) -> Result<gimli::AttributeValue<DwarfReader>> {
+impl Parser<gimli::AttributeValue<DwarfReader>> for Attr<gimli::AttributeValue<DwarfReader>> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<gimli::AttributeValue<DwarfReader>> {
         Ok(entry.get_attr(db, self.attr)?)
     }
 }
 
-impl<'db> Parser<'db, gimli::DwLang> for Attr<gimli::DwLang> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<gimli::DwLang> {
+impl Parser<gimli::DwLang> for Attr<gimli::DwLang> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<gimli::DwLang> {
         let value = entry.get_attr(db, self.attr)?;
         if let gimli::AttributeValue::Language(lang) = value {
             Ok(lang)
@@ -148,8 +142,8 @@ impl<'db> Parser<'db, gimli::DwLang> for Attr<gimli::DwLang> {
     }
 }
 
-impl<'db> Parser<'db, Die<'db>> for Attr<Die<'db>> {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Die<'db>> {
+impl Parser<Die> for Attr<Die> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Die> {
         Ok(entry.get_referenced_entry(db, self.attr)?)
     }
 }
@@ -160,11 +154,11 @@ pub struct OptionalAttr<T> {
     _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, T> Parser<'db, Option<T>> for OptionalAttr<T>
+impl<T> Parser<Option<T>> for OptionalAttr<T>
 where
-    Attr<T>: Parser<'db, T>,
+    Attr<T>: Parser<T>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Option<T>> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Option<T>> {
         Ok(attr(self.attr).parse(db, entry).ok())
     }
 }
@@ -187,8 +181,8 @@ pub struct Member {
     name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for Member {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Die<'db>> {
+impl Parser<Die> for Member {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Die> {
         Ok(entry.get_member(db, &self.name)?)
     }
 }
@@ -198,8 +192,8 @@ pub struct IsMember {
     pub(super) expected_name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for IsMember {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Die<'db>> {
+impl Parser<Die> for IsMember {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Die> {
         let entry_name = entry.name(db).context("Failed to get entry name")?;
         if entry_name == self.expected_name {
             Ok(entry)
@@ -223,8 +217,8 @@ pub struct IsMemberOffset {
     expected_name: String,
 }
 
-impl<'db> Parser<'db, usize> for IsMemberOffset {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<usize> {
+impl Parser<usize> for IsMemberOffset {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<usize> {
         let entry_name = entry
             .name(db)
             .map_err(|e| crate::Error::from(anyhow::anyhow!("Failed to get entry name: {}", e)))?;
@@ -256,8 +250,8 @@ pub struct MemberByTag {
     tag: gimli::DwTag,
 }
 
-impl<'db> Parser<'db, Die<'db>> for MemberByTag {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Die<'db>> {
+impl Parser<Die> for MemberByTag {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Die> {
         entry
             .get_member_by_tag(db, self.tag)
             .with_context(|| format!("Failed to find member with tag '{}'", self.tag,))
@@ -273,8 +267,8 @@ pub struct IsMemberTag {
     expected_tag: gimli::DwTag,
 }
 
-impl<'db> Parser<'db, Die<'db>> for IsMemberTag {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Die<'db>> {
+impl Parser<Die> for IsMemberTag {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Die> {
         let entry_tag = entry.tag(db);
         if entry_tag == self.expected_tag {
             Ok(entry)
@@ -292,8 +286,8 @@ pub struct Generic {
     expected_name: String,
 }
 
-impl<'db> Parser<'db, Die<'db>> for Generic {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Die<'db>> {
+impl Parser<Die> for Generic {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Die> {
         if entry.tag(db) != gimli::DW_TAG_template_type_parameter {
             return Err(anyhow::anyhow!(
                 "Expected generic type parameter, found tag {}",
@@ -320,15 +314,15 @@ pub fn generic(name: &str) -> Generic {
     }
 }
 
-pub fn resolved_generic<'db>(name: &str) -> impl Parser<'db, DieTypeDefinition<'db>> {
+pub fn resolved_generic(name: &str) -> impl Parser<DieTypeDefinition> {
     generic(name).then(resolve_type_shallow())
 }
 
 /// Combinator that resolves a Die into a type definition
 pub struct ResolveType;
 
-impl<'db> Parser<'db, DieTypeDefinition<'db>> for ResolveType {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<DieTypeDefinition<'db>> {
+impl Parser<DieTypeDefinition> for ResolveType {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<DieTypeDefinition> {
         Ok(crate::types::resolve_type_offset(db, entry)?)
     }
 }
@@ -340,8 +334,8 @@ pub fn identity() -> Identity {
 
 pub struct Identity;
 
-impl<'db> Parser<'db, Die<'db>> for Identity {
-    fn parse(&self, _db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Die<'db>> {
+impl Parser<Die> for Identity {
+    fn parse(&self, _db: &dyn DwarfDb, entry: Die) -> Result<Die> {
         Ok(entry)
     }
 }
@@ -354,8 +348,8 @@ pub fn resolve_type() -> ResolveType {
 /// Combinator that resolves a Die into a type definition (shallow)
 pub struct ResolveTypeShallow;
 
-impl<'db> Parser<'db, DieTypeDefinition<'db>> for ResolveTypeShallow {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<DieTypeDefinition<'db>> {
+impl Parser<DieTypeDefinition> for ResolveTypeShallow {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<DieTypeDefinition> {
         Ok(crate::types::shallow_resolve_type(db, entry)?)
     }
 }
@@ -375,8 +369,8 @@ impl FieldPath {
     }
 }
 
-impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
-    fn parse(&self, db: &'db dyn DwarfDb, mut entry: Die<'db>) -> Result<(Die<'db>, usize)> {
+impl Parser<(Die, usize)> for FieldPath {
+    fn parse(&self, db: &dyn DwarfDb, mut entry: Die) -> Result<(Die, usize)> {
         let mut path_iter = self.path.iter();
 
         let mut offset = 0;
@@ -416,24 +410,22 @@ impl<'db> Parser<'db, (Die<'db>, usize)> for FieldPath {
 }
 
 /// Parse a field path and return the final offset
-pub fn field_path_offset<'db>(path: Vec<&str>) -> impl Parser<'db, usize> {
+pub fn field_path_offset(path: Vec<&str>) -> impl Parser<usize> {
     FieldPath::new(path.into_iter().map(|s| s.to_string()).collect()).map(|(_, offset)| offset)
 }
 
-pub fn rust_cu<'db>() -> impl Parser<'db, bool> {
+pub fn rust_cu() -> impl Parser<bool> {
     attr(gimli::DW_AT_language).map(|lang| matches!(lang, gimli::DW_LANG_Rust))
 }
 
-pub fn name<'db>() -> impl Parser<'db, Option<String>> {
+pub fn name() -> impl Parser<Option<String>> {
     attr(gimli::DW_AT_name)
 }
 
-pub fn tag<'db>() -> impl Parser<'db, gimli::DwTag> {
-    super::from_fn(|db, entry: Die<'_>| Ok::<_, Infallible>(entry.tag(db)))
+pub fn tag() -> impl Parser<gimli::DwTag> {
+    super::from_fn(|db: &dyn DwarfDb, entry: Die| Ok::<_, Infallible>(entry.tag(db)))
 }
 
-pub fn offset<'db>() -> impl Parser<'db, usize> {
-    super::from_fn(|db: &'db dyn DwarfDb, entry: Die<'_>| {
-        Ok::<_, Infallible>(entry.offset(db.as_dyn_database()))
-    })
+pub fn offset() -> impl Parser<usize> {
+    super::from_fn(|_: &dyn DwarfDb, entry: Die| Ok::<_, Infallible>(entry.offset()))
 }

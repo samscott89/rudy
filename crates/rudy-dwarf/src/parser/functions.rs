@@ -9,25 +9,25 @@ use crate::{Die, DwarfDb};
 
 /// Information about a function discovered in DWARF
 #[derive(Debug, Clone)]
-pub struct FunctionInfo<'db> {
+pub struct FunctionInfo {
     pub name: String,
     pub linkage_name: Option<String>,
-    pub die: Die<'db>,
-    pub parameters: Vec<ParameterInfo<'db>>,
-    pub return_type: Option<Die<'db>>,
+    pub die: Die,
+    pub parameters: Vec<ParameterInfo>,
+    pub return_type: Option<Die>,
 }
 
 /// Information about a function parameter
 #[derive(Debug, Clone)]
-pub struct ParameterInfo<'db> {
+pub struct ParameterInfo {
     pub name: Option<String>,
-    pub type_die: Die<'db>,
+    pub type_die: Die,
 }
 
 /// Parser that attempts to parse a DIE as a function
-pub fn function_parser<'db>() -> impl Parser<'db, Option<FunctionInfo<'db>>> {
+pub fn function_parser() -> impl Parser<Option<FunctionInfo>> {
     from_fn(
-        |db: &'db dyn DwarfDb, entry: Die<'db>| -> anyhow::Result<Option<FunctionInfo<'db>>> {
+        |db: &dyn DwarfDb, entry: Die| -> anyhow::Result<Option<FunctionInfo>> {
             // Check if this is a function DIE
             if entry.tag(db) != crate::gimli::DW_TAG_subprogram {
                 return Ok(None);
@@ -57,9 +57,9 @@ pub fn function_parser<'db>() -> impl Parser<'db, Option<FunctionInfo<'db>>> {
 }
 
 /// Parser for function parameters
-fn parameter_parser<'db>() -> impl Parser<'db, Option<ParameterInfo<'db>>> {
+fn parameter_parser() -> impl Parser<Option<ParameterInfo>> {
     from_fn(
-        |db: &'db dyn DwarfDb, entry: Die<'db>| -> anyhow::Result<Option<ParameterInfo<'db>>> {
+        |db: &dyn DwarfDb, entry: Die| -> anyhow::Result<Option<ParameterInfo>> {
             // Only process formal parameter DIEs
             if entry.tag(db) != crate::gimli::DW_TAG_formal_parameter {
                 return Ok(None);
@@ -74,20 +74,20 @@ fn parameter_parser<'db>() -> impl Parser<'db, Option<ParameterInfo<'db>>> {
 }
 
 /// Parser that extracts all parameters from children
-fn parameter_list_parser<'db>() -> impl Parser<'db, Vec<ParameterInfo<'db>>> {
+fn parameter_list_parser() -> impl Parser<Vec<ParameterInfo>> {
     for_each_child(parameter_parser()).map(|results| results.into_iter().flatten().collect())
 }
 
 /// Parser that finds all functions among the children of a DIE
-pub fn child_functions_parser<'db>() -> impl Parser<'db, Vec<FunctionInfo<'db>>> {
+pub fn child_functions_parser() -> impl Parser<Vec<FunctionInfo>> {
     for_each_child(function_parser()).map(|results| results.into_iter().flatten().collect())
 }
 
 /// Parser that finds impl namespace DIEs containing trait implementations
 /// by looking for {impl#N} patterns that are siblings to the target type
-pub fn impl_namespaces_in_module_parser<'db>() -> impl Parser<'db, Vec<Die<'db>>> {
+pub fn impl_namespaces_in_module_parser() -> impl Parser<Vec<Die>> {
     from_fn(
-        |db: &'db dyn DwarfDb, type_die: Die<'db>| -> anyhow::Result<Vec<Die<'db>>> {
+        |db: &dyn DwarfDb, type_die: Die| -> anyhow::Result<Vec<Die>> {
             let mut impl_namespaces = Vec::new();
 
             // Find {impl#N} blocks that are siblings to our target type
@@ -105,16 +105,16 @@ pub fn impl_namespaces_in_module_parser<'db>() -> impl Parser<'db, Vec<Die<'db>>
 
 /// Helper function to find {impl#N} namespaces that are in the same module as the target type
 /// Uses module indexing to find DIEs in the same namespace scope
-fn find_sibling_impl_namespaces<'db>(
-    db: &'db dyn DwarfDb,
-    type_die: Die<'db>,
-    impl_namespaces: &mut Vec<Die<'db>>,
+fn find_sibling_impl_namespaces(
+    db: &dyn DwarfDb,
+    type_die: Die,
+    impl_namespaces: &mut Vec<Die>,
 ) -> anyhow::Result<()> {
     // Get the module index for this debug file
-    let module_index = crate::modules::module_index(db, type_die.file(db));
+    let module_index = crate::modules::module_index(db, type_die.file);
 
     // Find the module path for our target type using its DIE offset
-    let target_offset = type_die.offset(db);
+    let target_offset = type_die.offset();
     let Some(module_range) = module_index.find_by_offset(db, target_offset) else {
         tracing::debug!("No module range found for offset {target_offset:#x}");
         return Ok(());
@@ -131,7 +131,7 @@ fn find_sibling_impl_namespaces<'db>(
         all((
             is_member_tag(gimli::DW_TAG_namespace),
             name()
-                .map_with_db_and_entry(|_, entry, n| {
+                .map_with_entry(|_, entry, n| {
                     n.and_then(|n| {
                         if n.starts_with("{impl#") && n.ends_with('}') {
                             tracing::debug!("Found impl namespace: {n}");

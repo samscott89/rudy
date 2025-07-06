@@ -260,7 +260,7 @@ fn find_matching_type_dies<'db>(
     db: &'db dyn Db,
     binary: Binary,
     target_type: &rudy_dwarf::types::DieTypeDefinition<'db>,
-) -> Result<Vec<rudy_dwarf::Die<'db>>> {
+) -> Result<Vec<rudy_dwarf::Die>> {
     let mut matching_dies = vec![];
 
     // Get the type's namespace path for searching
@@ -277,7 +277,7 @@ fn find_matching_type_dies<'db>(
     };
 
     /// Parser to find all children of a type DIE that match the target type
-    fn is_matching_type<'db>(target_type: &DieTypeDefinition) -> impl Parser<'db, Vec<Die<'db>>> {
+    fn is_matching_type<'db>(target_type: &DieTypeDefinition) -> impl Parser<Vec<Die>> {
         for_each_child(
             all((
                 is_member_tag(gimli::DW_TAG_structure_type),

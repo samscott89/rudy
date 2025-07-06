@@ -11,7 +11,7 @@ use super::{
 };
 
 /// Parser for Vec<T> type layout
-pub fn vec<'db>() -> impl Parser<'db, VecLayout<Die<'db>>> {
+pub fn vec() -> impl Parser<VecLayout<Die>> {
     parse_children((
         field_path_offset(vec!["buf", "inner", "ptr"]),
         is_member_offset("len"),

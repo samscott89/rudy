@@ -18,30 +18,44 @@ use crate::{
 type Result<T> = std::result::Result<T, crate::Error>;
 
 /// Tracked variable information
-#[salsa::tracked(debug)]
-pub struct Variable<'db> {
-    #[returns(ref)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
+pub struct Variable {
     pub name: Option<String>,
-    #[returns(ref)]
-    pub ty: DieTypeDefinition<'db>,
-    pub location: Option<SourceLocation<'db>>,
+    pub ty: DieTypeDefinition,
+    pub location: Option<SourceLocation>,
     /// The DIE that this variable was parsed from
-    pub origin: Die<'db>,
+    pub origin: Die,
+}
+
+impl Variable {
+    pub fn new(
+        name: Option<String>,
+        ty: DieTypeDefinition,
+        location: Option<SourceLocation>,
+        origin: Die,
+    ) -> Self {
+        Self {
+            name,
+            ty,
+            location,
+            origin,
+        }
+    }
 }
 
 /// Resolved variables for a function
-#[salsa::tracked]
-pub struct ResolvedVariables<'db> {
-    pub params: Vec<Variable<'db>>,
-    pub locals: Vec<Variable<'db>>,
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
+pub struct ResolvedVariables {
+    pub params: Vec<Variable>,
+    pub locals: Vec<Variable>,
 }
 
-struct VariableVisitor<'db> {
-    params: Vec<Variable<'db>>,
-    locals: Vec<Variable<'db>>,
+struct VariableVisitor {
+    params: Vec<Variable>,
+    locals: Vec<Variable>,
 }
 
-impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
+impl<'db> DieVisitor<'db> for VariableVisitor {
     fn visit_variable<'a>(
         walker: &mut crate::visitor::DieWalker<'a, 'db, Self>,
         node: crate::visitor::VisitorNode<'a>,
@@ -89,7 +103,7 @@ impl<'db> DieVisitor<'db> for VariableVisitor<'db> {
 pub fn resolve_function_variables<'db>(
     db: &'db dyn DwarfDb,
     fie: FunctionIndexEntry<'db>,
-) -> Result<ResolvedVariables<'db>> {
+) -> Result<ResolvedVariables> {
     let data = fie.data(db);
     let die = data.specification_die.unwrap_or(data.declaration_die);
 
@@ -103,16 +117,17 @@ pub fn resolve_function_variables<'db>(
         locals: vec![],
     };
     visitor::walk_die(db, die, &mut visitor)?;
-    Ok(ResolvedVariables::new(db, visitor.params, visitor.locals))
+    Ok(ResolvedVariables {
+        params: visitor.params,
+        locals: visitor.locals,
+    })
 }
 
-pub fn variable<'db>() -> impl Parser<'db, Variable<'db>> {
+pub fn variable() -> impl Parser<Variable> {
     all((
         optional_attr(gimli::DW_AT_name),
         entry_type().then(resolve_type_shallow()),
         from_fn(position),
     ))
-    .map_with_db_and_entry(|db, entry, (name, ty, position)| {
-        Variable::new(db, name, ty, position, entry)
-    })
+    .map_with_entry(|_db, entry, (name, ty, position)| Variable::new(name, ty, position, entry))
 }

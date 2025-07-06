@@ -13,11 +13,11 @@ use crate::{
 ///
 /// This function takes in the `address` to find, as well as
 /// the function data for the function that contains the address.
-pub fn address_to_location<'db>(
-    db: &'db dyn DwarfDb,
+pub fn address_to_location(
+    db: &dyn DwarfDb,
     relative_address: u64,
-    data: &FunctionData<'db>,
-) -> Option<SourceLocation<'db>> {
+    data: &FunctionData,
+) -> Option<SourceLocation> {
     let unit_ref = data
         .declaration_die
         .unit_ref(db)
@@ -48,7 +48,7 @@ pub fn address_to_location<'db>(
             let file = match row.file(header) {
                 Some(file) => {
                     let path = file_entry_to_path(db, file, &unit_ref)?;
-                    SourceFile::new(db, path)
+                    SourceFile::new(path)
                 }
                 None => {
                     tracing::debug!("no source file known for address {relative_address:#x}",);
@@ -56,7 +56,7 @@ pub fn address_to_location<'db>(
                 }
             };
             tracing::debug!("found line {line} at address {relative_address:#x}");
-            return Some(SourceLocation::new(db, file, line, column));
+            return Some(SourceLocation::new(file, line, column));
         }
     }
 
@@ -72,11 +72,11 @@ pub fn location_to_address(
     function_index: &FunctionIndex<'_>,
     query: SourceLocation,
 ) -> Option<(u64, u64)> {
-    let file = query.file(db);
-    let file = file.path(db);
+    let file = &query.file;
+    let file = &file.path;
     // let (dir, file) = file.rsplit_once("/")?;
-    let target_line = query.line(db);
-    let _target_column = query.column(db);
+    let target_line = query.line;
+    let _target_column = query.column;
 
     let mut min_line_distance = u64::MAX;
     // let mut min_col_distance = u64::MAX;
@@ -89,10 +89,10 @@ pub fn location_to_address(
     );
 
     for root in parse_roots(db, debug_file) {
-        if !root.files(db).contains(&query.file(db)) {
+        if !root.files(db).contains(&query.file) {
             tracing::debug!(
                 "skipping root compilation unit {:#x} -- no matching file for `{}`",
-                root.cu(db).offset(db).as_debug_info_offset().unwrap().0,
+                root.cu(db).offset.as_debug_info_offset().unwrap().0,
                 file.display()
             );
             continue;
@@ -102,7 +102,7 @@ pub fn location_to_address(
         let Some(unit_ref) = cu.unit_ref(db) else {
             tracing::debug!(
                 "skipping root compilation unit {:#x} -- no unit reference",
-                cu.offset(db).as_debug_info_offset().unwrap().0
+                cu.offset.as_debug_info_offset().unwrap().0
             );
             continue;
         };
@@ -137,7 +137,7 @@ pub fn location_to_address(
             tracing::trace!(
                 "could not find target file `{}` in line program for {:#x} in file {}",
                 file.display(),
-                cu.offset(db).as_debug_info_offset().unwrap().0,
+                cu.offset.as_debug_info_offset().unwrap().0,
                 debug_file.name(db)
             );
             continue;

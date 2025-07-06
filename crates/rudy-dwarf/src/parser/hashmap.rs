@@ -12,11 +12,11 @@ use crate::{Die, DwarfDb};
 type Result<T> = anyhow::Result<T>;
 
 /// Parser for hashbrown HashMap layout
-pub fn hashbrown_map<'db>() -> impl Parser<'db, MapVariant> {
+pub fn hashbrown_map() -> impl Parser<MapVariant> {
     struct HashBrownMapParser;
 
-    impl<'db> Parser<'db, MapVariant> for HashBrownMapParser {
-        fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<MapVariant> {
+    impl Parser<MapVariant> for HashBrownMapParser {
+        fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<MapVariant> {
             // table -> RawTable
             let (mut table_offset, inner_table_type) = member("table")
                 .then(data_offset().and(entry_type()))

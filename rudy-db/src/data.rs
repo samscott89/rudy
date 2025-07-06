@@ -160,7 +160,7 @@ impl<'a, R: DataResolver + ?Sized> rudy_dwarf::expressions::ExpressionContext
 /// Returns a list of map entries from a memory address.
 pub fn read_map_entries<'db>(
     address: u64,
-    def: &MapLayout<Die<'db>>,
+    def: &MapLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Vec<(TypedPointer<'db>, TypedPointer<'db>)>> {
     tracing::trace!("read_map_entries {address:#x} {}", def.display_name());
@@ -297,7 +297,7 @@ pub fn read_map_entries<'db>(
 fn read_enum<'db>(
     db: &'db dyn Db,
     address: u64,
-    enum_def: &EnumLayout<Die<'db>>,
+    enum_def: &EnumLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value<'db>> {
     tracing::trace!("read_enum {address:#x} {enum_def:#?}");
@@ -529,7 +529,7 @@ pub fn read_from_memory<'db>(
 /// Extract pointer, length, and capacity from a Vec Value
 pub fn extract_vec_info(
     base_address: u64,
-    def: &VecLayout<Die<'_>>,
+    def: &VecLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<(u64, usize)> {
     let VecLayout {
@@ -559,7 +559,7 @@ pub fn extract_vec_info(
 fn read_primitive_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
-    def: &PrimitiveLayout<Die<'db>>,
+    def: &PrimitiveLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value<'db>> {
     let value = match def {
@@ -779,7 +779,7 @@ fn resolve_alias<'db>(
 fn read_option_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
-    opt_def: &OptionLayout<Die<'db>>,
+    opt_def: &OptionLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value<'db>> {
     let OptionLayout {
@@ -810,7 +810,7 @@ fn read_option_from_memory<'db>(
 fn read_std_from_memory<'db>(
     db: &'db dyn Db,
     address: u64,
-    def: &StdLayout<Die<'db>>,
+    def: &StdLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
 ) -> Result<Value<'db>> {
     let value = match def {

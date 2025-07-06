@@ -948,7 +948,7 @@ impl<'db> DebugInfo<'db> {
 
 fn variable_info<'db>(
     db: &'db dyn Db,
-    function: Die<'db>,
+    function: Die,
     base_address: u64,
     var: rudy_dwarf::function::Variable<'db>,
     data_resolver: &dyn crate::DataResolver,
