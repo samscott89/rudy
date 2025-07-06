@@ -270,18 +270,203 @@ impl<'a> EvalContext<'a> {
                 self.evaluate_field_access_to_ref(base, field)
             }
             Expression::Index { base, index } => self.evaluate_index_to_ref(base, index),
-            // Method calls and function calls need special handling
-            Expression::MethodCall { .. } => Err(anyhow!(
-                "Method calls cannot be evaluated to a memory reference - they return computed values"
-            )),
-            Expression::FunctionCall { .. } => Err(anyhow!(
-                "Function calls cannot be evaluated to a memory reference"
-            )),
+            // Method calls can potentially return pointers/references
+            Expression::MethodCall { base, method, args } => {
+                self.evaluate_method_call_to_ref(base, method, args)
+            }
+            Expression::FunctionCall { function, args } => {
+                self.evaluate_function_call_to_ref(function, args)
+            }
             // Literals, deref, and address-of don't have memory locations
             _ => Err(anyhow!(
                 "Expression {:?} cannot be evaluated to a memory reference",
                 expr
             )),
+        }
+    }
+
+    /// Evaluate a method call and try to return a TypedPointer if it returns a complex pointer
+    fn evaluate_method_call_to_ref(
+        &mut self,
+        base: &Expression,
+        method: &str,
+        args: &[Expression],
+    ) -> Result<TypedPointer> {
+        // First, get the base object's type and address
+        let base_ref = self.evaluate_to_ref(base)?;
+        let base_type = &base_ref.type_def;
+
+        // Check if this is a synthetic method we can evaluate
+        let synthetic_methods = get_synthetic_methods(base_type.layout.as_ref());
+        let is_synthetic = synthetic_methods.iter().any(|m| m.name == method);
+
+        if is_synthetic {
+            // Synthetic methods don't typically return pointers we can use as arguments
+            return Err(anyhow!("Synthetic method '{}' cannot be used as an argument", method));
+        }
+
+        // Try to execute the real method
+        let discovered_methods = self.debug_info.discover_methods_for_pointer(&base_ref)?;
+
+        // Find the specific method we want to call
+        let method_info = discovered_methods
+            .iter()
+            .find(|m| m.name == method)
+            .ok_or_else(|| {
+                anyhow!(
+                    "Method '{}' not found for type '{}' when trying to use as argument",
+                    method,
+                    base_ref.type_def.display_name()
+                )
+            })?;
+
+        // Check if the method is callable (has an address)
+        if method_info.address == 0 {
+            return Err(anyhow!(
+                "Method '{}' is not callable (no address found)",
+                method
+            ));
+        }
+
+        // Convert arguments to MethodArguments (recursive call)
+        let mut method_args = Vec::new();
+        for arg_expr in args {
+            match self.convert_expression_to_method_arg(arg_expr) {
+                Ok(method_arg) => method_args.push(method_arg),
+                Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
+            }
+        }
+
+        // Calculate return type size from the type definition
+        let return_type_size = method_info
+            .return_type
+            .as_ref()
+            .and_then(|t| t.layout.size());
+
+        // Send the ExecuteMethod event
+        let event = EventRequest::ExecuteMethod {
+            method_address: method_info.address,
+            base_address: base_ref.address,
+            args: method_args,
+            return_type_size,
+        };
+
+        let response = self.conn.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::MethodResult { result } => match result {
+                MethodCallResult::SimpleValue { .. } => {
+                    Err(anyhow!("Method '{}' returns a simple value, not a pointer that can be used as an argument", method))
+                }
+                MethodCallResult::ComplexPointer {
+                    address,
+                    size: _,
+                    return_type: _,
+                } => {
+                    // Create a TypedPointer using the return type definition from the method
+                    if let Some(return_type_def) = &method_info.return_type {
+                        Ok(TypedPointer {
+                            address,
+                            type_def: return_type_def.clone(),
+                        })
+                    } else {
+                        Err(anyhow!("Method '{}' returned a complex pointer but has no type definition", method))
+                    }
+                }
+            },
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Method execution failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for ExecuteMethod")),
+        }
+    }
+
+    /// Evaluate a function call and try to return a TypedPointer if it returns a complex pointer
+    fn evaluate_function_call_to_ref(
+        &mut self,
+        function: &str,
+        args: &[Expression],
+    ) -> Result<TypedPointer> {
+        // First, discover functions that match the given pattern
+        let discovered_functions = self.debug_info.discover_functions(function)?;
+
+        // Find the best matching function
+        let function_info = discovered_functions
+            .first()
+            .ok_or_else(|| {
+                anyhow!(
+                    "Function '{}' not found when trying to use as argument",
+                    function
+                )
+            })?;
+
+        // Check if the function is callable (has an address)
+        if function_info.address == 0 {
+            return Err(anyhow!(
+                "Function '{}' is not callable (no address found)",
+                function
+            ));
+        }
+
+        // Check parameter count match
+        if args.len() != function_info.parameters.len() {
+            return Err(anyhow!(
+                "Function '{}' expects {} arguments, but {} were provided when trying to use as argument",
+                function,
+                function_info.parameters.len(),
+                args.len()
+            ));
+        }
+
+        // Convert arguments to MethodArguments (recursive call)
+        let mut function_args = Vec::new();
+        for arg_expr in args {
+            match self.convert_expression_to_method_arg(arg_expr) {
+                Ok(function_arg) => function_args.push(function_arg),
+                Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
+            }
+        }
+
+        // Calculate return type size from the type definition
+        let return_type_size = function_info
+            .return_type
+            .as_ref()
+            .and_then(|t| t.layout.size());
+
+        // Send the ExecuteFunction event
+        let event = EventRequest::ExecuteFunction {
+            function_address: function_info.address,
+            args: function_args,
+            return_type_size,
+        };
+
+        let response = self.conn.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::FunctionResult { result } => match result {
+                MethodCallResult::SimpleValue { .. } => {
+                    Err(anyhow!("Function '{}' returns a simple value, not a pointer that can be used as an argument", function))
+                }
+                MethodCallResult::ComplexPointer {
+                    address,
+                    size: _,
+                    return_type: _,
+                } => {
+                    // Create a TypedPointer using the return type definition from the function
+                    if let Some(return_type_def) = &function_info.return_type {
+                        Ok(TypedPointer {
+                            address,
+                            type_def: return_type_def.clone(),
+                        })
+                    } else {
+                        Err(anyhow!("Function '{}' returned a complex pointer but has no type definition", function))
+                    }
+                }
+            },
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Function execution failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for ExecuteFunction")),
         }
     }
 
@@ -569,10 +754,14 @@ impl<'a> EvalContext<'a> {
 
         // Convert arguments to MethodArguments
         let mut method_args = Vec::new();
-        for arg_expr in args {
+        for (i, arg_expr) in args.iter().enumerate() {
             match self.convert_expression_to_method_arg(arg_expr) {
                 Ok(method_arg) => method_args.push(method_arg),
-                Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
+                Err(e) => {
+                    // For methods, we don't have parameter type info in DiscoveredMethod
+                    // Just provide the basic error
+                    return Err(anyhow!("Failed to convert argument {} ({}): {}", i + 1, format!("{:?}", arg_expr), e))
+                },
             }
         }
 
@@ -680,10 +869,21 @@ impl<'a> EvalContext<'a> {
 
         // Convert arguments to MethodArguments
         let mut function_args = Vec::new();
-        for arg_expr in args {
+        for (i, arg_expr) in args.iter().enumerate() {
             match self.convert_expression_to_method_arg(arg_expr) {
                 Ok(function_arg) => function_args.push(function_arg),
-                Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
+                Err(e) => {
+                    // Provide helpful context about parameter types
+                    let param_info = if i < function_info.parameters.len() {
+                        let param = &function_info.parameters[i];
+                        let default_name = format!("arg{}", i);
+                        let param_name = param.name.as_deref().unwrap_or(&default_name);
+                        format!(" (parameter '{}' expects type: {})", param_name, param.type_def.display_name())
+                    } else {
+                        String::new()
+                    };
+                    return Err(anyhow!("Failed to convert argument {:?}{}: {}", arg_expr, param_info, e))
+                },
             }
         }
 
@@ -748,14 +948,71 @@ impl<'a> EvalContext<'a> {
             Expression::StringLiteral(_value) => {
                 // For string literals, we'd need to allocate them in the target process
                 // For now, this is not supported
-                Err(anyhow!("String literal arguments not yet supported"))
+                Err(anyhow!("String literal arguments not yet supported - try passing a String variable instead"))
             }
-            Expression::Variable(_) => {
-                // Variables need to be evaluated to get their address/value
-                // For now, this is complex to implement
-                Err(anyhow!("Variable arguments not yet supported"))
+            // For all expressions that can be evaluated to a memory reference, use evaluate_to_ref
+            Expression::Variable(_) | Expression::FieldAccess { .. } | Expression::Index { .. } | Expression::MethodCall { .. } | Expression::FunctionCall { .. } => {
+                // Try to get a TypedPointer first (for variables, field access, indexing, and complex pointer returns)
+                match self.evaluate_to_ref(expr) {
+                    Ok(typed_pointer) => {
+                        // We got a TypedPointer - pass the address as a pointer argument
+                        Ok(MethodArgument {
+                            value: format!("{:x}", typed_pointer.address), // No 0x prefix for LLDB
+                            arg_type: ArgumentType::Pointer,
+                        })
+                    }
+                    Err(_) => {
+                        // evaluate_to_ref failed (likely because it returns a simple value)
+                        // Fall back to evaluating and converting the result
+                        let result = self.evaluate(expr)?;
+                        self.eval_result_to_method_arg(result)
+                    }
+                }
             }
             _ => Err(anyhow!("Unsupported argument type: {:?}", expr)),
+        }
+    }
+
+    /// Convert an EvalResult to a MethodArgument (for bare primitives)
+    fn eval_result_to_method_arg(&self, result: EvalResult) -> Result<MethodArgument> {
+        // Check if it's a pointer format "<Type @ 0xADDRESS>"
+        if let Some(at_pos) = result.value.find(" @ 0x") {
+            let addr_str = &result.value[at_pos + 4..result.value.len() - 1]; // Skip " @ 0x" and final ">"
+            Ok(MethodArgument {
+                value: addr_str.to_string(), // Use just the hex value without 0x prefix
+                arg_type: ArgumentType::Pointer,
+            })
+        } else if result.value.starts_with("0x") {
+            // Direct address value
+            Ok(MethodArgument {
+                value: result.value[2..].to_string(), // Remove 0x prefix
+                arg_type: ArgumentType::Pointer,
+            })
+        } else if result.value == "true" || result.value == "false" {
+            // Boolean value
+            Ok(MethodArgument {
+                value: if result.value == "true" { "1" } else { "0" }.to_string(),
+                arg_type: ArgumentType::Bool,
+            })
+        } else if result.value.parse::<f64>().is_ok() {
+            // Numeric value - could be integer or float
+            if result.type_name.contains("f32") || result.type_name.contains("f64") {
+                Ok(MethodArgument {
+                    value: result.value,
+                    arg_type: ArgumentType::Float,
+                })
+            } else {
+                Ok(MethodArgument {
+                    value: result.value,
+                    arg_type: ArgumentType::Integer,
+                })
+            }
+        } else {
+            Err(anyhow!(
+                "Cannot convert result to method argument: {} (type: {})",
+                result.value,
+                result.type_name
+            ))
         }
     }
 }
