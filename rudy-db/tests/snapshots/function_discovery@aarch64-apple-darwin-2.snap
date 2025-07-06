@@ -10,9 +10,9 @@ snapshot_kind: text
         signature: "fn function_call(x: i32)",
         address: 4294969576,
         callable: true,
-        module_path: Some(
+        module_path: [
             "simple_test",
-        ),
+        ],
         return_type: None,
         parameters: [
             FunctionParameter {
@@ -27,9 +27,7 @@ snapshot_kind: text
                             },
                         ),
                     ),
-                    location: Die(
-                        Id(1d46),
-                    ),
+                    location: Die at DebugFile { [salsa id]: Id(802) } 0x000000c5,
                 },
             },
         ],

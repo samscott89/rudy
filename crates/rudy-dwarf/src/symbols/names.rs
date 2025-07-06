@@ -135,7 +135,7 @@ impl RawSymbol {
 pub struct SymbolName {
     pub lookup_name: String,
     pub hash: String,
-    module_path: Vec<String>,
+    pub module_path: Vec<String>,
     full_path: String,
 }
 

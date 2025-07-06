@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, fmt, path::PathBuf};
 
 use anyhow::{Context, Result};
 use rudy_dwarf::{
-    Die, SourceFile,
+    Die, SourceFile, SymbolName,
     function::resolve_function_variables,
     types::{DieTypeDefinition, resolve_type_offset},
 };
@@ -974,8 +974,10 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Found function: {} at address {:#x}", func.name, func.address);
     /// }
     /// ```
-    pub fn discover_functions(&self, pattern: &str) -> Result<Vec<crate::DiscoveredFunction<'db>>> {
-        crate::function_discovery::discover_functions(self.db, self.binary, pattern)
+    pub fn discover_functions(&self, pattern: &str) -> Result<Vec<crate::DiscoveredFunction>> {
+        let pattern = SymbolName::parse(pattern)
+            .with_context(|| format!("Failed to parse function pattern: {pattern}"))?;
+        crate::function_discovery::discover_functions(self.db, self.binary, &pattern)
     }
 
     /// Discover all functions in the binary
@@ -999,7 +1001,7 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Function: {} -> {}", name, func.signature);
     /// }
     /// ```
-    pub fn discover_all_functions(&self) -> Result<BTreeMap<String, crate::DiscoveredFunction<'db>>> {
+    pub fn discover_all_functions(&self) -> Result<BTreeMap<String, crate::DiscoveredFunction>> {
         crate::function_discovery::discover_all_functions(self.db, self.binary)
     }
 }

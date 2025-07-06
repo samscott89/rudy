@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::Result;
 use rudy_dwarf::{
-    Binary, Die,
+    Binary, Die, SymbolName,
     function::{FunctionSignature, resolve_function_signature},
     gimli,
     parser::{
@@ -695,36 +695,38 @@ fn extract_trait_from_symbol(symbol_name: &str) -> Result<String> {
 /// - Fully qualified names (e.g., "test_mod1::my_fn")
 ///
 /// Returns a vector of discovered functions sorted by match quality.
-pub fn discover_functions<'db>(
-    db: &'db dyn Db,
+pub fn discover_functions(
+    db: &dyn Db,
     binary: Binary,
-    pattern: &str,
-) -> Result<Vec<crate::DiscoveredFunction<'db>>> {
+    pattern: &SymbolName,
+) -> Result<Vec<crate::DiscoveredFunction>> {
     let index = crate::index::debug_index(db, binary);
     let symbol_index = index.symbol_index(db);
-    
+
     let mut discovered_functions = Vec::new();
-    
+
     // Iterate through all function symbols
     for symbol in symbol_index.functions.values().flat_map(|map| map.values()) {
-        let symbol_name = symbol.name.to_string();
-        
         // Check if this function matches the pattern
-        if function_matches_pattern(&symbol_name, pattern) {
+        if function_matches_pattern(&symbol.name, pattern) {
             // Try to get debug info for this function
             if let Some((debug_file, fie)) = index.get_function(db, &symbol.name) {
                 match create_discovered_function(db, symbol, fie, debug_file) {
                     Ok(discovered_func) => discovered_functions.push(discovered_func),
                     Err(e) => {
-                        tracing::debug!("Failed to create discovered function for {}: {}", symbol_name, e);
+                        tracing::debug!(
+                            "Failed to create discovered function for {}: {}",
+                            symbol.name,
+                            e
+                        );
                         // Still add it as a basic function without detailed info
                         discovered_functions.push(crate::DiscoveredFunction {
-                            name: extract_function_name(&symbol_name),
-                            full_name: symbol_name.clone(),
-                            signature: format!("fn {}(?)", extract_function_name(&symbol_name)),
+                            name: symbol.name.lookup_name.clone(),
+                            full_name: symbol.name.to_string(),
+                            signature: format!("fn {}(?)", symbol.name),
                             address: symbol.address,
-                            callable: true,
-                            module_path: extract_module_path(&symbol_name),
+                            callable: false,
+                            module_path: symbol.name.module_path.clone(),
                             return_type: None,
                             parameters: vec![],
                         });
@@ -733,64 +735,74 @@ pub fn discover_functions<'db>(
             } else {
                 // Function symbol exists but no debug info
                 discovered_functions.push(crate::DiscoveredFunction {
-                    name: extract_function_name(&symbol_name),
-                    full_name: symbol_name.clone(),
-                    signature: format!("fn {}(?)", extract_function_name(&symbol_name)),
+                    name: symbol.name.lookup_name.clone(),
+                    full_name: symbol.name.to_string(),
+                    signature: format!("fn {}(?)", symbol.name),
                     address: symbol.address,
-                    callable: true,
-                    module_path: extract_module_path(&symbol_name),
+                    callable: false,
+                    module_path: symbol.name.module_path.clone(),
                     return_type: None,
                     parameters: vec![],
                 });
             }
         }
     }
-    
-    // Sort by match quality (exact matches first, then by name)
-    discovered_functions.sort_by(|a, b| {
-        let a_exact = a.name == pattern || a.full_name == pattern;
-        let b_exact = b.name == pattern || b.full_name == pattern;
-        
-        match (a_exact, b_exact) {
-            (true, false) => std::cmp::Ordering::Less,
-            (false, true) => std::cmp::Ordering::Greater,
-            _ => a.name.cmp(&b.name),
-        }
-    });
-    
+
     Ok(discovered_functions)
+}
+
+fn function_matches_pattern(symbol_name: &SymbolName, pattern: &SymbolName) -> bool {
+    // Check for exact match
+    if symbol_name == pattern {
+        return true;
+    }
+
+    // Check for suffix match
+    if symbol_name.lookup_name == pattern.lookup_name
+        && symbol_name.module_path.ends_with(&pattern.module_path)
+    {
+        return true;
+    }
+
+    false
 }
 
 /// Discover all functions in the binary
 ///
 /// Returns a map of function name to discovered function information.
-pub fn discover_all_functions<'db>(
-    db: &'db dyn Db,
+pub fn discover_all_functions(
+    db: &dyn Db,
     binary: Binary,
-) -> Result<BTreeMap<String, crate::DiscoveredFunction<'db>>> {
+) -> Result<BTreeMap<String, crate::DiscoveredFunction>> {
     let index = crate::index::debug_index(db, binary);
     let symbol_index = index.symbol_index(db);
-    
+
     let mut discovered_functions = BTreeMap::new();
-    
+
     // Iterate through all function symbols
     for symbol in symbol_index.functions.values().flat_map(|map| map.values()) {
         let symbol_name = symbol.name.to_string();
-        
+
         // Try to get debug info for this function
-        let discovered_func = if let Some((debug_file, fie)) = index.get_function(db, &symbol.name) {
+        let discovered_func = if let Some((debug_file, fie)) = index.get_function(db, &symbol.name)
+        {
             match create_discovered_function(db, symbol, fie, debug_file) {
                 Ok(func) => func,
                 Err(e) => {
-                    tracing::debug!("Failed to create discovered function for {}: {}", symbol_name, e);
+                    tracing::debug!(
+                        "Failed to create discovered function for {}: {}",
+                        symbol_name,
+                        e
+                    );
                     // Still add it as a basic function without detailed info
                     crate::DiscoveredFunction {
-                        name: extract_function_name(&symbol_name),
+                        name: symbol.name.lookup_name.clone(),
                         full_name: symbol_name.clone(),
-                        signature: format!("fn {}(?)", extract_function_name(&symbol_name)),
+                        signature: format!("fn {}(?)", symbol.name),
+
                         address: symbol.address,
-                        callable: true,
-                        module_path: extract_module_path(&symbol_name),
+                        callable: false,
+                        module_path: symbol.name.module_path.clone(),
                         return_type: None,
                         parameters: vec![],
                     }
@@ -799,20 +811,20 @@ pub fn discover_all_functions<'db>(
         } else {
             // Function symbol exists but no debug info
             crate::DiscoveredFunction {
-                name: extract_function_name(&symbol_name),
+                name: symbol.name.lookup_name.clone(),
                 full_name: symbol_name.clone(),
-                signature: format!("fn {}(?)", extract_function_name(&symbol_name)),
+                signature: format!("fn {}(?)", symbol.name),
                 address: symbol.address,
-                callable: true,
-                module_path: extract_module_path(&symbol_name),
+                callable: false,
+                module_path: symbol.name.module_path.clone(),
                 return_type: None,
                 parameters: vec![],
             }
         };
-        
+
         discovered_functions.insert(symbol_name, discovered_func);
     }
-    
+
     Ok(discovered_functions)
 }
 
@@ -822,28 +834,29 @@ fn create_discovered_function<'db>(
     symbol: &rudy_dwarf::symbols::Symbol,
     fie: rudy_dwarf::function::FunctionIndexEntry<'db>,
     _debug_file: rudy_dwarf::DebugFile,
-) -> Result<crate::DiscoveredFunction<'db>> {
+) -> Result<crate::DiscoveredFunction> {
     let symbol_name = symbol.name.to_string();
-    
+
     // Get function data from the index entry
     let _fie_data = fie.data(db);
-    
+
     // Try to get function variables instead of signature
-    let (parameters, return_type) = match rudy_dwarf::function::resolve_function_variables(db, fie) {
+    let (parameters, return_type) = match rudy_dwarf::function::resolve_function_variables(db, fie)
+    {
         Ok(vars) => {
             let mut params = Vec::new();
-            for param in vars.params(db) {
-                let param_name = param.name(db).clone();
-                let type_def = param.ty(db).clone();
+            for param in &vars.params {
+                let param_name = param.name.clone();
+                let type_def = param.ty.clone();
                 params.push(crate::FunctionParameter {
                     name: param_name,
                     type_def,
                 });
             }
-            
+
             // Try to get return type from the function DIE itself if available
             let ret_type = None; // For now, we'll skip return type resolution
-            
+
             (params, ret_type)
         }
         Err(_) => {
@@ -851,90 +864,50 @@ fn create_discovered_function<'db>(
             (Vec::new(), None)
         }
     };
-    
+
     // Build signature
-    let signature = build_function_signature_for_discovered(&symbol_name, &parameters, return_type.as_ref());
-    
+    let signature =
+        build_function_signature_for_discovered(&symbol.name, &parameters, return_type.as_ref());
+
     Ok(crate::DiscoveredFunction {
-        name: extract_function_name(&symbol_name),
+        name: symbol.name.lookup_name.clone(),
         full_name: symbol_name.clone(),
         signature,
         address: symbol.address,
         callable: true,
-        module_path: extract_module_path(&symbol_name),
+        module_path: symbol.name.module_path.clone(),
         return_type,
         parameters,
     })
 }
 
-/// Check if a function name matches the given pattern
-fn function_matches_pattern(function_name: &str, pattern: &str) -> bool {
-    // Exact match
-    if function_name == pattern {
-        return true;
-    }
-    
-    // Check if the function name contains the pattern
-    if function_name.contains(pattern) {
-        return true;
-    }
-    
-    // Check if the short name (without module path) matches
-    let short_name = extract_function_name(function_name);
-    if short_name == pattern || short_name.contains(pattern) {
-        return true;
-    }
-    
-    false
-}
-
-/// Extract the function name from a fully qualified symbol name
-fn extract_function_name(symbol_name: &str) -> String {
-    // For Rust symbols, the function name is typically the last component
-    // after the last "::" separator
-    if let Some(last_colon) = symbol_name.rfind("::") {
-        symbol_name[last_colon + 2..].to_string()
-    } else {
-        symbol_name.to_string()
-    }
-}
-
-/// Extract the module path from a fully qualified symbol name
-fn extract_module_path(symbol_name: &str) -> Option<String> {
-    if let Some(last_colon) = symbol_name.rfind("::") {
-        Some(symbol_name[..last_colon].to_string())
-    } else {
-        None
-    }
-}
-
 /// Build a function signature string from parameters and return type
 fn build_function_signature_for_discovered(
-    function_name: &str,
+    symbol: &SymbolName,
     parameters: &[crate::FunctionParameter],
     return_type: Option<&DieTypeDefinition>,
 ) -> String {
     let mut sig = String::new();
     sig.push_str("fn ");
-    sig.push_str(&extract_function_name(function_name));
+    sig.push_str(&symbol.lookup_name);
     sig.push('(');
-    
+
     let param_strings: Vec<String> = parameters
         .iter()
         .enumerate()
         .map(|(i, param)| {
             let type_str = param.type_def.display_name();
             if let Some(name) = &param.name {
-                format!("{}: {}", name, type_str)
+                format!("{name}: {type_str}")
             } else {
-                format!("_{}: {}", i, type_str)
+                format!("_{i}: {type_str}")
             }
         })
         .collect();
-    
+
     sig.push_str(&param_strings.join(", "));
     sig.push(')');
-    
+
     // Add return type if present and not unit type
     if let Some(ret_type) = return_type {
         let return_type_str = ret_type.display_name();
@@ -943,6 +916,6 @@ fn build_function_signature_for_discovered(
             sig.push_str(&return_type_str);
         }
     }
-    
+
     sig
 }
