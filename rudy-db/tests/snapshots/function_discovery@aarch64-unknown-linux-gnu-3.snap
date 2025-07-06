@@ -1,0 +1,47 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: subset
+snapshot_kind: text
+---
+{
+    "simple_test::function_call": DiscoveredFunction {
+        name: "function_call",
+        full_name: "simple_test::function_call",
+        signature: "fn function_call(x: i32)",
+        address: 25684,
+        callable: true,
+        module_path: [
+            "simple_test",
+        ],
+        return_type: None,
+        parameters: [
+            FunctionParameter {
+                name: Some(
+                    "x",
+                ),
+                type_def: TypeDefinition {
+                    layout: Primitive(
+                        Int(
+                            IntLayout {
+                                size: 4,
+                            },
+                        ),
+                    ),
+                    location: Die at DebugFile { [salsa id]: Id(800) } 0x000000c5,
+                },
+            },
+        ],
+    },
+    "simple_test::main": DiscoveredFunction {
+        name: "main",
+        full_name: "simple_test::main",
+        signature: "fn main()",
+        address: 25788,
+        callable: true,
+        module_path: [
+            "simple_test",
+        ],
+        return_type: None,
+        parameters: [],
+    },
+}

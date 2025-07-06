@@ -1,0 +1,35 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: function_call_functions
+snapshot_kind: text
+---
+[
+    DiscoveredFunction {
+        name: "function_call",
+        full_name: "simple_test::function_call",
+        signature: "fn function_call(x: i32)",
+        address: 31456,
+        callable: true,
+        module_path: [
+            "simple_test",
+        ],
+        return_type: None,
+        parameters: [
+            FunctionParameter {
+                name: Some(
+                    "x",
+                ),
+                type_def: TypeDefinition {
+                    layout: Primitive(
+                        Int(
+                            IntLayout {
+                                size: 4,
+                            },
+                        ),
+                    ),
+                    location: Die at DebugFile { [salsa id]: Id(800) } 0x00000427,
+                },
+            },
+        ],
+    },
+]

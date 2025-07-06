@@ -1,0 +1,19 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: main_functions
+snapshot_kind: text
+---
+[
+    DiscoveredFunction {
+        name: "main",
+        full_name: "simple_test::main",
+        signature: "fn main()",
+        address: 4294969680,
+        callable: true,
+        module_path: [
+            "simple_test",
+        ],
+        return_type: None,
+        parameters: [],
+    },
+]

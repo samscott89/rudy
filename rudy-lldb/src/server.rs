@@ -228,6 +228,17 @@ impl ClientConnection {
                 }
             }
 
+            "functions" => {
+                let result = self.handle_functions_command(args, debug_info);
+                tracing::debug!("Function discovery result: {result:#?}");
+                match result {
+                    Ok(functions) => Ok(ServerMessage::Complete {
+                        result: serde_json::to_value(&functions)?,
+                    }),
+                    Err(e) => Ok(e.into()),
+                }
+            }
+
             _ => Ok(ServerMessage::Error {
                 error: format!("Unknown command: {cmd}"),
                 backtrace: None,
@@ -263,6 +274,52 @@ impl ClientConnection {
             "Could not resolve '{}' as a type or expression",
             input
         ))
+    }
+
+    /// Handle the functions command - discover functions in the binary
+    fn handle_functions_command(
+        &mut self,
+        args: &[String],
+        debug_info: &DebugInfo,
+    ) -> Result<Vec<crate::evaluator::FunctionInfo>> {
+        if args.is_empty() {
+            // List all functions
+            let all_functions = debug_info.discover_all_functions()?;
+
+            // Convert to FunctionInfo for serialization
+            let function_list: Vec<crate::evaluator::FunctionInfo> = all_functions
+                .into_values()
+                .map(|discovered_func| crate::evaluator::FunctionInfo {
+                    name: discovered_func.name,
+                    full_name: discovered_func.full_name,
+                    signature: discovered_func.signature,
+                    address: discovered_func.address,
+                    callable: discovered_func.callable,
+                    module_path: discovered_func.module_path,
+                })
+                .collect();
+
+            Ok(function_list)
+        } else {
+            // Search for functions matching the pattern
+            let pattern = &args[0];
+            let discovered_functions = debug_info.discover_functions(pattern)?;
+
+            // Convert to FunctionInfo for serialization
+            let function_list: Vec<crate::evaluator::FunctionInfo> = discovered_functions
+                .into_iter()
+                .map(|discovered_func| crate::evaluator::FunctionInfo {
+                    name: discovered_func.name,
+                    full_name: discovered_func.full_name,
+                    signature: discovered_func.signature,
+                    address: discovered_func.address,
+                    callable: discovered_func.callable,
+                    module_path: discovered_func.module_path,
+                })
+                .collect();
+
+            Ok(function_list)
+        }
     }
 }
 

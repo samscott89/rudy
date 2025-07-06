@@ -653,13 +653,16 @@ def rudy_command(debugger, command, result, internal_dict):
     if not args:
         print("Usage: rd <subcommand> [args...]")
         print("Available commands:")
-        print("  eval <expression>  - Evaluate a Rust expression")
-        print("  print <expression> - Pretty print a Rust expression")
-        print("  status             - Show Rudy server status")
+        print("  eval <expression>     - Evaluate a Rust expression")
+        print("  methods <expression>  - List all methods for a type or expression")
+        print("  functions [pattern]   - List all functions or search by pattern")
+        print("  print <expression>    - Pretty print a Rust expression")
+        print("  status                - Show Rudy server status")
         return
 
     shortcodes = {
         "e": "eval",
+        "f": "functions",
         "m": "methods",
         "p": "print",
         "s": "status",
@@ -732,6 +735,28 @@ def rudy_command(debugger, command, result, internal_dict):
                     for method in synthetic_methods:
                         sig = method.get("signature", "")
                         print(f"  - {sig}")
+
+            # Special formatting for functions command
+            elif subcommand == "functions" and isinstance(result_data, list):
+                if result_data:
+                    print(f"Found {len(result_data)} function(s):")
+                    for func in result_data:
+                        if isinstance(func, dict):
+                            name = func.get("name", "")
+                            signature = func.get("signature", "")
+                            callable_str = (
+                                " (callable)"
+                                if func.get("callable", False)
+                                else " (not callable)"
+                            )
+                            module_path = func.get("module_path", [])
+                            if module_path:
+                                full_path = "::".join(module_path + [name])
+                                print(f"  {full_path}: {signature}{callable_str}")
+                            else:
+                                print(f"  {name}: {signature}{callable_str}")
+                else:
+                    print("No functions found")
             elif isinstance(result_data, dict):
                 for key, value in result_data.items():
                     print(f"{key}: {value}")
@@ -751,9 +776,10 @@ def __lldb_init_module(debugger, internal_dict):
 
     print("rudy-lldb extension loaded!")
     print("Available commands:")
-    print("  rd eval <expression>  - Evaluate Rust expressions")
-    print("  rd print <expression> - Pretty print Rust values")
-    print("  rd status             - Check server status")
+    print("  rd eval <expression>    - Evaluate Rust expressions")
+    print("  rd functions [pattern]  - List all functions or search by pattern")
+    print("  rd print <expression>   - Pretty print Rust values")
+    print("  rd status               - Check server status")
     print("")
     print(f"Server: {RUDY_HOST}:{RUDY_PORT}")
 
