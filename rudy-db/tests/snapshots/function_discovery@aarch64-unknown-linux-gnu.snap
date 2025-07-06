@@ -1,0 +1,79 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: main_functions
+snapshot_kind: text
+---
+[
+    DiscoveredFunction {
+        name: "main",
+        full_name: "simple_test::main",
+        signature: "fn main()",
+        address: 25788,
+        callable: true,
+        module_path: Some(
+            "simple_test",
+        ),
+        return_type: None,
+        parameters: [],
+    },
+    DiscoveredFunction {
+        name: "driftsort_main",
+        full_name: "core::slice::sort::stable::driftsort_main",
+        signature: "fn driftsort_main()",
+        address: 40332,
+        callable: true,
+        module_path: Some(
+            "core::slice::sort::stable",
+        ),
+        return_type: None,
+        parameters: [],
+    },
+    DiscoveredFunction {
+        name: "driftsort_main",
+        full_name: "core::slice::sort::stable::driftsort_main",
+        signature: "fn driftsort_main()",
+        address: 40660,
+        callable: true,
+        module_path: Some(
+            "core::slice::sort::stable",
+        ),
+        return_type: None,
+        parameters: [],
+    },
+    DiscoveredFunction {
+        name: "driftsort_main",
+        full_name: "core::slice::sort::stable::driftsort_main",
+        signature: "fn driftsort_main()",
+        address: 40988,
+        callable: true,
+        module_path: Some(
+            "core::slice::sort::stable",
+        ),
+        return_type: None,
+        parameters: [],
+    },
+    DiscoveredFunction {
+        name: "driftsort_main",
+        full_name: "core::slice::sort::stable::driftsort_main",
+        signature: "fn driftsort_main()",
+        address: 41316,
+        callable: true,
+        module_path: Some(
+            "core::slice::sort::stable",
+        ),
+        return_type: None,
+        parameters: [],
+    },
+    DiscoveredFunction {
+        name: "driftsort_main",
+        full_name: "core::slice::sort::stable::driftsort_main",
+        signature: "fn driftsort_main()",
+        address: 41680,
+        callable: true,
+        module_path: Some(
+            "core::slice::sort::stable",
+        ),
+        return_type: None,
+        parameters: [],
+    },
+]

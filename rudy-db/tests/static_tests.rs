@@ -181,3 +181,62 @@ fn test_method_discovery(#[case] target: &'static str) {
 
     insta::assert_debug_snapshot!(methods);
 }
+
+#[apply(binary_target)]
+fn test_function_discovery(#[case] target: &'static str) {
+    let _guards = setup!(target);
+
+    let db = common::debug_db(Some(target));
+    let exe_path = binary_path(target, "simple_test");
+    let debug_info = DebugInfo::new(&db, &exe_path).expect("Failed to load debug info");
+
+    // Test discovering functions by pattern
+    let main_functions = debug_info
+        .discover_functions("main")
+        .expect("Failed to discover main functions");
+    
+    // Should find at least the main function
+    assert!(!main_functions.is_empty(), "Should find at least one main function");
+    
+    let main_function = &main_functions[0];
+    assert_eq!(main_function.name, "main");
+    assert!(main_function.callable);
+    assert!(main_function.address > 0);
+
+    insta::assert_debug_snapshot!(main_functions);
+
+    // Test discovering functions by partial name
+    let function_call_functions = debug_info
+        .discover_functions("function_call")
+        .expect("Failed to discover function_call functions");
+
+    assert!(!function_call_functions.is_empty(), "Should find function_call function");
+    
+    let function_call = &function_call_functions[0];
+    assert_eq!(function_call.name, "function_call");
+    assert!(function_call.callable);
+    assert!(function_call.address > 0);
+
+    insta::assert_debug_snapshot!(function_call_functions);
+
+    // Test discovering all functions
+    let all_functions = debug_info
+        .discover_all_functions()
+        .expect("Failed to discover all functions");
+
+    // Should have many functions
+    assert!(all_functions.len() > 2, "Should find multiple functions");
+    
+    // Main function should be in the results
+    assert!(all_functions.contains_key("simple_test::main"), "Should contain main function");
+
+    // Snapshot a subset for testing
+    let subset: std::collections::BTreeMap<_, _> = all_functions
+        .iter()
+        .filter(|(name, _)| name.contains("simple_test"))
+        .take(10)
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    insta::assert_debug_snapshot!(subset);
+}

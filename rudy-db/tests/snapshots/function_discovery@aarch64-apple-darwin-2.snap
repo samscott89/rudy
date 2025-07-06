@@ -1,0 +1,37 @@
+---
+source: rudy-db/tests/static_tests.rs
+expression: function_call_functions
+snapshot_kind: text
+---
+[
+    DiscoveredFunction {
+        name: "function_call",
+        full_name: "simple_test::function_call",
+        signature: "fn function_call(x: i32)",
+        address: 4294969576,
+        callable: true,
+        module_path: Some(
+            "simple_test",
+        ),
+        return_type: None,
+        parameters: [
+            FunctionParameter {
+                name: Some(
+                    "x",
+                ),
+                type_def: TypeDefinition {
+                    layout: Primitive(
+                        Int(
+                            IntLayout {
+                                size: 4,
+                            },
+                        ),
+                    ),
+                    location: Die(
+                        Id(1d46),
+                    ),
+                },
+            },
+        ],
+    },
+]

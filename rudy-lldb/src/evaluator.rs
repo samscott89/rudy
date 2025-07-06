@@ -6,6 +6,7 @@
 use std::{cell::RefCell, collections::BTreeMap};
 
 use anyhow::{Context, Result, anyhow};
+use itertools::Itertools;
 use rudy_db::{
     DataResolver, DebugInfo, TypedPointer, Value, evaluate_synthetic_method, get_synthetic_methods,
 };
@@ -255,9 +256,9 @@ impl<'a> EvalContext<'a> {
             Expression::MethodCall { base, method, args } => {
                 self.evaluate_method_call(base, method, args)
             }
-            Expression::FunctionCall { .. } => Err(anyhow!(
-                "Function calls not yet supported - use method calls instead"
-            )),
+            Expression::FunctionCall { function, args } => {
+                self.evaluate_function_call(function, args)
+            }
         }
     }
 
@@ -624,6 +625,114 @@ impl<'a> EvalContext<'a> {
                 Err(anyhow!("Method execution failed: {}", message))
             }
             _ => Err(anyhow!("Unexpected response type for ExecuteMethod")),
+        }
+    }
+
+    /// Evaluate a function call expression
+    fn evaluate_function_call(&mut self, function: &str, args: &[Expression]) -> Result<EvalResult> {
+        // First, discover functions that match the given pattern
+        let discovered_functions = self.debug_info.discover_functions(function)?;
+
+        // Find the best matching function
+        let function_info = discovered_functions
+            .first()
+            .ok_or_else(|| {
+                anyhow!(
+                    "Function '{}' not found. Available functions: {}",
+                    function,
+                    discovered_functions
+                        .iter()
+                        .take(5)
+                        .map(|f| &f.name)
+                        .join(", ")
+                )
+            })?;
+
+        // Check if the function is callable (has an address)
+        if function_info.address == 0 {
+            return Err(anyhow!(
+                "Function '{}' is not callable (no address found)",
+                function
+            ));
+        }
+
+        // Debug logging
+        tracing::debug!(
+            "Executing function '{}' at address {:#x}",
+            function,
+            function_info.address
+        );
+        tracing::debug!("Function signature: {}", function_info.signature);
+        tracing::debug!("Number of arguments: {}", args.len());
+
+        // Check parameter count match
+        if args.len() != function_info.parameters.len() {
+            return Err(anyhow!(
+                "Function '{}' expects {} arguments, but {} were provided. Signature: {}",
+                function,
+                function_info.parameters.len(),
+                args.len(),
+                function_info.signature
+            ));
+        }
+
+        // Convert arguments to MethodArguments
+        let mut function_args = Vec::new();
+        for arg_expr in args {
+            match self.convert_expression_to_method_arg(arg_expr) {
+                Ok(function_arg) => function_args.push(function_arg),
+                Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
+            }
+        }
+
+        // Calculate return type size from the type definition
+        let return_type_size = function_info
+            .return_type
+            .as_ref()
+            .and_then(|t| t.layout.size());
+
+        // Send the ExecuteFunction event
+        let event = EventRequest::ExecuteFunction {
+            function_address: function_info.address,
+            args: function_args,
+            return_type_size,
+        };
+
+        let response = self.conn.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::FunctionResult { result } => match result {
+                MethodCallResult::SimpleValue { value, return_type } => Ok(EvalResult {
+                    value: value.to_string(),
+                    type_name: return_type,
+                }),
+                MethodCallResult::ComplexPointer {
+                    address,
+                    size: _,
+                    return_type: _,
+                } => {
+                    // Create a TypedPointer using the return type definition from the function
+                    if let Some(return_type_def) = &function_info.return_type {
+                        let typed_pointer = TypedPointer {
+                            address,
+                            type_def: return_type_def.clone(),
+                        };
+
+                        // Use the existing pointer_to_result method to get proper formatting
+                        self.pointer_to_result(&typed_pointer)
+                    } else {
+                        // Fallback: no type definition available
+                        Ok(EvalResult {
+                            value: format!("<complex value at {address:#x}>"),
+                            type_name: "unknown".to_string(),
+                        })
+                    }
+                }
+            },
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Function execution failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for ExecuteFunction")),
         }
     }
 

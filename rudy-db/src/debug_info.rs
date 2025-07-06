@@ -945,6 +945,63 @@ impl<'db> DebugInfo<'db> {
     ) -> Result<Vec<DiscoveredMethod>> {
         crate::function_discovery::discover_methods_for_type(self.db, self.binary, type_def)
     }
+
+    /// Discover functions in the binary that match a given pattern
+    ///
+    /// This method searches through all function symbols in the binary and returns
+    /// functions that match the provided pattern. It supports:
+    /// - Exact matches (e.g., "main")
+    /// - Fuzzy matches (e.g., "calc" matching "calculate_sum")
+    /// - Fully qualified names (e.g., "test_mod1::my_fn")
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - The pattern to match against function names
+    ///
+    /// # Returns
+    ///
+    /// A vector of discovered functions sorted by match quality (exact matches first)
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rudy_db::{DebugDb, DebugInfo};
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// // Find all functions containing "main"
+    /// let functions = debug_info.discover_functions("main").unwrap();
+    /// for func in functions {
+    ///     println!("Found function: {} at address {:#x}", func.name, func.address);
+    /// }
+    /// ```
+    pub fn discover_functions(&self, pattern: &str) -> Result<Vec<crate::DiscoveredFunction<'db>>> {
+        crate::function_discovery::discover_functions(self.db, self.binary, pattern)
+    }
+
+    /// Discover all functions in the binary
+    ///
+    /// Returns a map of function name to discovered function information.
+    /// This includes both functions with debug information and those without.
+    ///
+    /// # Returns
+    ///
+    /// A map of function name to discovered function information
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use rudy_db::{DebugDb, DebugInfo};
+    /// # let db = DebugDb::new();
+    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
+    /// let all_functions = debug_info.discover_all_functions().unwrap();
+    /// println!("Found {} functions in binary", all_functions.len());
+    /// for (name, func) in all_functions {
+    ///     println!("Function: {} -> {}", name, func.signature);
+    /// }
+    /// ```
+    pub fn discover_all_functions(&self) -> Result<BTreeMap<String, crate::DiscoveredFunction<'db>>> {
+        crate::function_discovery::discover_all_functions(self.db, self.binary)
+    }
 }
 
 fn variable_info(

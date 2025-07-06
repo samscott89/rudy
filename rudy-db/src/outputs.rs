@@ -258,3 +258,33 @@ pub struct DiscoveredMethod {
     /// The return type definition for creating TypedPointers
     pub return_type: Option<DieTypeDefinition>,
 }
+
+/// A discovered function with its metadata
+#[derive(Debug, Clone)]
+pub struct DiscoveredFunction<'db> {
+    /// The function name (e.g., "main", "calculate_sum")
+    pub name: String,
+    /// The full function name including module path
+    pub full_name: String,
+    /// The function signature as a string
+    pub signature: String,
+    /// The memory address of the function
+    pub address: u64,
+    /// Whether this function can be called (has an address)
+    pub callable: bool,
+    /// Module path for disambiguation (e.g., "test_mod1", "std::collections")
+    pub module_path: Option<String>,
+    /// The return type definition for creating TypedPointers
+    pub return_type: Option<DieTypeDefinition<'db>>,
+    /// Function parameters with their types
+    pub parameters: Vec<FunctionParameter<'db>>,
+}
+
+/// A function parameter with its type information
+#[derive(Debug, Clone)]
+pub struct FunctionParameter<'db> {
+    /// Parameter name (if available)
+    pub name: Option<String>,
+    /// Parameter type definition
+    pub type_def: DieTypeDefinition<'db>,
+}

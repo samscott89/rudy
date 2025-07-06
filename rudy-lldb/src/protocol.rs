@@ -108,6 +108,14 @@ pub enum EventRequest {
         /// None for simple types returned in registers, Some(size) for complex types.
         return_type_size: Option<usize>,
     },
+    /// Execute a function by calling it directly
+    ExecuteFunction {
+        function_address: u64,
+        args: Vec<MethodArgument>,
+        /// Size in bytes for complex return types that use return-via-pointer ABI.
+        /// None for simple types returned in registers, Some(size) for complex types.
+        return_type_size: Option<usize>,
+    },
 }
 
 impl fmt::Debug for EventRequest {
@@ -144,6 +152,16 @@ impl fmt::Debug for EventRequest {
                 .field("args", args)
                 .field("return_type_size", return_type_size)
                 .finish(),
+            Self::ExecuteFunction {
+                function_address,
+                args,
+                return_type_size,
+            } => f
+                .debug_struct("ExecuteFunction")
+                .field("function_address", &format!("{function_address:#x}"))
+                .field("args", args)
+                .field("return_type_size", return_type_size)
+                .finish(),
         }
     }
 }
@@ -170,6 +188,8 @@ pub enum EventResponseData {
     ExpressionResult { value: String },
     /// Method execution result
     MethodResult { result: MethodCallResult },
+    /// Function execution result
+    FunctionResult { result: MethodCallResult },
     /// Generic error response
     Error { message: String },
 }
@@ -203,6 +223,10 @@ impl fmt::Debug for EventResponseData {
                 .finish(),
             Self::MethodResult { result } => f
                 .debug_struct("MethodResult")
+                .field("result", result)
+                .finish(),
+            Self::FunctionResult { result } => f
+                .debug_struct("FunctionResult")
                 .field("result", result)
                 .finish(),
             Self::Error { message } => f.debug_struct("Error").field("message", message).finish(),

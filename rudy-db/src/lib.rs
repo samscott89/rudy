@@ -47,7 +47,7 @@ pub use data::DataResolver;
 pub use database::DebugDatabaseImpl as DebugDb;
 pub use debug_info::DebugInfo;
 pub use outputs::{
-    DiscoveredMethod, ResolvedAddress, ResolvedLocation, Type, TypedPointer, Value, Variable,
+    DiscoveredFunction, DiscoveredMethod, FunctionParameter, ResolvedAddress, ResolvedLocation, Type, TypedPointer, Value, Variable,
     VariableInfo,
 };
 pub use rudy_dwarf::function::SelfType;
