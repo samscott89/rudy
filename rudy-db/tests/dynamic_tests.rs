@@ -78,9 +78,9 @@ fn get_resolver(debug_info: &DebugInfo) -> SelfProcessResolver {
 
 fn read_value_recursively<'db>(
     debug_info: &DebugInfo<'db>,
-    value: Value<'db>,
+    value: Value,
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     match value {
         Value::Pointer(typed_pointer) => {
             let value = debug_info.read_pointer(&typed_pointer, resolver)?;

@@ -70,7 +70,7 @@ pub fn location_to_address(
     db: &dyn DwarfDb,
     debug_file: DebugFile,
     function_index: &FunctionIndex<'_>,
-    query: SourceLocation,
+    query: &SourceLocation,
 ) -> Option<(u64, u64)> {
     let file = &query.file;
     let file = &file.path;

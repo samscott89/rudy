@@ -158,11 +158,11 @@ impl<'a, R: DataResolver + ?Sized> rudy_dwarf::expressions::ExpressionContext
 }
 
 /// Returns a list of map entries from a memory address.
-pub fn read_map_entries<'db>(
+pub fn read_map_entries(
     address: u64,
     def: &MapLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Vec<(TypedPointer<'db>, TypedPointer<'db>)>> {
+) -> Result<Vec<(TypedPointer, TypedPointer)>> {
     tracing::trace!("read_map_entries {address:#x} {}", def.display_name());
 
     match def.variant.clone() {
@@ -294,12 +294,12 @@ pub fn read_map_entries<'db>(
     }
 }
 
-fn read_enum<'db>(
-    db: &'db dyn Db,
+fn read_enum(
+    db: &dyn Db,
     address: u64,
     enum_def: &EnumLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     tracing::trace!("read_enum {address:#x} {enum_def:#?}");
 
     let EnumLayout {
@@ -421,11 +421,11 @@ fn read_enum<'db>(
     })
 }
 
-fn read_c_enum<'db>(
+fn read_c_enum(
     address: u64,
     c_enum_def: &CEnumLayout,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     let CEnumLayout {
         name,
         discriminant_type,
@@ -485,12 +485,12 @@ fn read_c_enum<'db>(
     })
 }
 
-pub fn read_from_memory<'db>(
-    db: &'db dyn Db,
+pub fn read_from_memory(
+    db: &dyn Db,
     address: u64,
-    ty: &DieTypeDefinition<'db>,
+    ty: &DieTypeDefinition,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     tracing::trace!("read_from_memory {address:#x} {}", ty.display_name());
     match ty.layout.as_ref() {
         Layout::Primitive(primitive_def) => {
@@ -556,12 +556,12 @@ pub fn extract_vec_info(
     Ok((address, length))
 }
 
-fn read_primitive_from_memory<'db>(
-    db: &'db dyn Db,
+fn read_primitive_from_memory(
+    db: &dyn Db,
     address: u64,
     def: &PrimitiveLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     let value = match def {
         PrimitiveLayout::Bool(_) => {
             let memory = data_resolver.read_memory(address, 1)?;
@@ -764,10 +764,7 @@ fn read_primitive_from_memory<'db>(
     Ok(value)
 }
 
-fn resolve_alias<'db>(
-    db: &'db dyn Db,
-    def: &DieTypeDefinition<'db>,
-) -> Result<DieTypeDefinition<'db>> {
+fn resolve_alias(db: &dyn Db, def: &DieTypeDefinition) -> Result<DieTypeDefinition> {
     if let Layout::Alias { name } = def.layout.as_ref() {
         rudy_dwarf::types::resolve_type_offset(db, def.location)
             .with_context(|| format!("Failed to resolve alias for {name}"))
@@ -776,12 +773,12 @@ fn resolve_alias<'db>(
     }
 }
 
-fn read_option_from_memory<'db>(
-    db: &'db dyn Db,
+fn read_option_from_memory(
+    db: &dyn Db,
     address: u64,
     opt_def: &OptionLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     let OptionLayout {
         discriminant,
         some_offset,
@@ -807,12 +804,12 @@ fn read_option_from_memory<'db>(
     .wrap_type("Option"))
 }
 
-fn read_std_from_memory<'db>(
-    db: &'db dyn Db,
+fn read_std_from_memory(
+    db: &dyn Db,
     address: u64,
     def: &StdLayout<Die>,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     let value = match def {
         StdLayout::Option(enum_def) => {
             tracing::trace!("reading Option at {address:#x}");
@@ -926,14 +923,14 @@ fn read_std_from_memory<'db>(
 
 /// Recursively read entries from a BTree node following the algorithm from the Python code
 #[allow(clippy::too_many_arguments)]
-fn read_btree_node_entries<'db>(
+fn read_btree_node_entries(
     node_ptr: u64,
     height: usize,
-    key_type: &DieTypeDefinition<'db>,
-    value_type: &DieTypeDefinition<'db>,
+    key_type: &DieTypeDefinition,
+    value_type: &DieTypeDefinition,
     node_layout: &BTreeNodeLayout,
     data_resolver: &dyn crate::DataResolver,
-    entries: &mut Vec<(TypedPointer<'db>, TypedPointer<'db>)>,
+    entries: &mut Vec<(TypedPointer, TypedPointer)>,
 ) -> Result<()> {
     tracing::trace!("read_btree_node_entries at {node_ptr:#x}, height: {height}");
 

@@ -69,7 +69,7 @@ impl<'db> FunctionIndex<'db> {
         &self,
         db: &dyn DwarfDb,
         debug_file: DebugFile,
-        location: SourceLocation,
+        location: &SourceLocation,
     ) -> Option<(u64, u64)> {
         location_to_address(db, debug_file, self, location)
     }

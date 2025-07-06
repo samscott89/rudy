@@ -19,10 +19,10 @@ use crate::{DiscoveredMethod, database::Db};
 
 /// Result of analyzing a symbol for method discovery
 #[derive(Debug, Clone)]
-pub enum SymbolAnalysisResult<'db> {
+pub enum SymbolAnalysisResult {
     /// Successfully discovered a method
     DiscoveredFunction {
-        signature: FunctionSignature<'db>,
+        signature: FunctionSignature,
     },
     /// Symbol exists but is not a method
     NotAMethod {
@@ -119,10 +119,10 @@ pub fn discover_all_functions_debug(
 }
 
 /// Discover all methods in the binary and organize them by type of the first
-pub fn discover_all_methods<'db>(
-    db: &'db dyn Db,
+pub fn discover_all_methods(
+    db: &dyn Db,
     binary: Binary,
-) -> Result<BTreeMap<String, Vec<DiscoveredMethod<'db>>>> {
+) -> Result<BTreeMap<String, Vec<DiscoveredMethod>>> {
     let index = crate::index::debug_index(db, binary);
 
     // get the debug files that we eagerly loaded
@@ -134,7 +134,7 @@ pub fn discover_all_methods<'db>(
     let indexed_debug_files = index.indexed_debug_files(db);
 
     let symbol_index = index.symbol_index(db);
-    let mut methods_by_type: BTreeMap<String, Vec<DiscoveredMethod<'db>>> = BTreeMap::new();
+    let mut methods_by_type: BTreeMap<String, Vec<DiscoveredMethod>> = BTreeMap::new();
 
     // Iterate through all functions that have symbols in the binary
     for symbol in symbol_index.functions.values().flat_map(|map| map.values()) {
@@ -158,14 +158,14 @@ pub fn discover_all_methods<'db>(
 
         match resolve_function_signature(db, *function_entry) {
             Ok(sig) => {
-                let params = sig.params(db);
+                let params = &sig.params;
                 let Some(first_param) = params.first() else {
                     // no parameters, skip
                     continue;
                 };
 
-                let self_type = sig.self_type(db);
-                let first_type = first_param.ty(db).layout.dereferenced();
+                let self_type = sig.self_type;
+                let first_type = first_param.ty.layout.dereferenced();
 
                 if matches!(first_type, Layout::Alias { name } if name == "unknown") {
                     // Skip methods with an unknown type
@@ -176,15 +176,15 @@ pub fn discover_all_methods<'db>(
                     .entry(first_type.display_name())
                     .or_default()
                     .push(DiscoveredMethod {
-                        name: sig.name(db).to_string(),
+                        name: sig.name.to_string(),
                         full_name: symbol.name.to_string(),
-                        signature: sig.print_sig(db),
+                        signature: sig.print_sig(),
                         address: symbol.address,
                         self_type,
                         // defaults to callable
                         callable: true,
                         is_synthetic: false,
-                        return_type: sig.return_type(db),
+                        return_type: sig.return_type,
                     });
             }
             Err(e) => {
@@ -205,11 +205,11 @@ pub fn discover_all_methods<'db>(
 /// 1. Direct method discovery from type DIE structure (methods nested under structs)
 /// 2. Trait implementation discovery using module traversal ({impl#N} patterns)
 /// 3. Fallback to symbol-based search for edge cases
-pub fn discover_methods_for_type<'db>(
-    db: &'db dyn Db,
+pub fn discover_methods_for_type(
+    db: &dyn Db,
     binary: Binary,
-    target_type: &DieTypeDefinition<'db>,
-) -> Result<Vec<DiscoveredMethod<'db>>> {
+    target_type: &DieTypeDefinition,
+) -> Result<Vec<DiscoveredMethod>> {
     let mut methods = Vec::new();
 
     // Phase 1: Direct method discovery - look for methods structurally nested under the type DIE
@@ -256,10 +256,10 @@ pub fn discover_methods_for_type<'db>(
 }
 
 /// Find all DIEs that represent the same type as target_type across all compilation units
-fn find_matching_type_dies<'db>(
-    db: &'db dyn Db,
+fn find_matching_type_dies(
+    db: &dyn Db,
     binary: Binary,
-    target_type: &rudy_dwarf::types::DieTypeDefinition<'db>,
+    target_type: &rudy_dwarf::types::DieTypeDefinition,
 ) -> Result<Vec<rudy_dwarf::Die>> {
     let mut matching_dies = vec![];
 
@@ -277,7 +277,7 @@ fn find_matching_type_dies<'db>(
     };
 
     /// Parser to find all children of a type DIE that match the target type
-    fn is_matching_type<'db>(target_type: &DieTypeDefinition) -> impl Parser<Vec<Die>> {
+    fn is_matching_type(target_type: &DieTypeDefinition) -> impl Parser<Vec<Die>> {
         for_each_child(
             all((
                 is_member_tag(gimli::DW_TAG_structure_type),
@@ -301,7 +301,7 @@ fn find_matching_type_dies<'db>(
     let debug_files = crate::index::debug_index(db, binary).debug_files(db);
     for debug_file in debug_files.values() {
         let Some(module) =
-            rudy_dwarf::modules::module_index(db, *debug_file).find_by_path(db, module_path)
+            rudy_dwarf::modules::module_index(db, *debug_file).find_by_path(db, &module_path)
         else {
             tracing::trace!(
                 "No module found for path {} in debug file {}",
@@ -333,11 +333,11 @@ fn find_matching_type_dies<'db>(
 /// Phase 1: Discover methods that are structurally nested under the type DIE
 ///
 /// In DWARF, Rust methods are often represented as functions nested directly under the type DIE.
-fn discover_direct_methods<'db>(
-    db: &'db dyn Db,
+fn discover_direct_methods(
+    db: &dyn Db,
     binary: Binary,
-    target_type: &rudy_dwarf::types::DieTypeDefinition<'db>,
-) -> Result<Option<Vec<DiscoveredMethod<'db>>>> {
+    target_type: &rudy_dwarf::types::DieTypeDefinition,
+) -> Result<Option<Vec<DiscoveredMethod>>> {
     use rudy_dwarf::parser::Parser;
     use rudy_dwarf::parser::functions::child_functions_parser;
 
@@ -404,12 +404,12 @@ fn discover_direct_methods<'db>(
 }
 
 /// Convert a FunctionInfo to a DiscoveredMethod if it's a method for the target type
-fn convert_function_to_method<'db>(
-    db: &'db dyn Db,
-    function: rudy_dwarf::parser::functions::FunctionInfo<'db>,
-    target_type: &rudy_dwarf::types::DieTypeDefinition<'db>,
+fn convert_function_to_method(
+    db: &dyn Db,
+    function: rudy_dwarf::parser::functions::FunctionInfo,
+    target_type: &rudy_dwarf::types::DieTypeDefinition,
     symbol_index: &rudy_dwarf::symbols::SymbolIndex,
-) -> Result<Option<DiscoveredMethod<'db>>> {
+) -> Result<Option<DiscoveredMethod>> {
     // Determine if this is a method (has self parameter) or associated function
     use rudy_dwarf::function::SelfType;
     let self_type = if let Some(first_param) = function.parameters.first() {
@@ -565,11 +565,11 @@ fn build_function_signature(
 /// Phase 2: Discover trait implementations by searching for {impl#N} blocks
 ///
 /// Rust trait implementations are compiled into {impl#N} modules adjacent to the type definition.
-fn discover_trait_impl_methods<'db>(
-    db: &'db dyn Db,
+fn discover_trait_impl_methods(
+    db: &dyn Db,
     binary: Binary,
-    target_type: &rudy_dwarf::types::DieTypeDefinition<'db>,
-) -> Result<Vec<DiscoveredMethod<'db>>> {
+    target_type: &rudy_dwarf::types::DieTypeDefinition,
+) -> Result<Vec<DiscoveredMethod>> {
     use rudy_dwarf::parser::Parser;
     use rudy_dwarf::parser::functions::{child_functions_parser, impl_namespaces_in_module_parser};
 
@@ -646,11 +646,11 @@ fn discover_trait_impl_methods<'db>(
 }
 
 /// Enhance a discovered method with trait information from symbol demangling
-fn enhance_method_with_trait_info<'db>(
-    mut method: DiscoveredMethod<'db>,
+fn enhance_method_with_trait_info(
+    mut method: DiscoveredMethod,
     _impl_namespace: &rudy_dwarf::Die,
-    _db: &'db dyn rudy_dwarf::DwarfDb,
-) -> Result<DiscoveredMethod<'db>> {
+    _db: &dyn rudy_dwarf::DwarfDb,
+) -> Result<DiscoveredMethod> {
     // Try to extract trait information from the demangled symbol name
     if let Ok(demangled) = extract_trait_from_symbol(&method.full_name) {
         // Update the full name to include trait context

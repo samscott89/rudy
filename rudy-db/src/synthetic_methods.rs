@@ -178,13 +178,13 @@ pub fn get_synthetic_methods<L: Location>(type_layout: &Layout<L>) -> Vec<Synthe
 }
 
 /// Evaluate a synthetic method call
-pub fn evaluate_synthetic_method<'db>(
+pub fn evaluate_synthetic_method(
     address: u64,
-    def: &DieTypeDefinition<'db>,
+    def: &DieTypeDefinition,
     method: &str,
-    _args: &[Value<'db>], // For future use when we support methods with arguments
+    _args: &[Value], // For future use when we support methods with arguments
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     match def.layout.as_ref() {
         Layout::Std(std_layout) => match std_layout {
             StdLayout::Vec(vec_layout) => {
@@ -232,12 +232,12 @@ pub fn evaluate_synthetic_method<'db>(
     }
 }
 
-fn evaluate_vec_method<'db>(
+fn evaluate_vec_method(
     address: u64,
     vec_layout: &rudy_types::VecLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     match method {
         "len" => {
             let len_address = address + vec_layout.length_offset as u64;
@@ -273,12 +273,12 @@ fn evaluate_vec_method<'db>(
     }
 }
 
-fn evaluate_string_method<'db>(
+fn evaluate_string_method(
     address: u64,
     string_layout: &rudy_types::StringLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     // String is just a Vec<u8> internally
     let vec_layout = &string_layout.0;
     match method {
@@ -288,12 +288,12 @@ fn evaluate_string_method<'db>(
     }
 }
 
-fn evaluate_option_method<'db>(
+fn evaluate_option_method(
     address: u64,
     option_layout: &rudy_types::OptionLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     // Read the discriminant to check Some vs None
     let discriminant_bytes = resolver.read_memory(
         address + option_layout.discriminant.offset as u64,
@@ -323,12 +323,12 @@ fn evaluate_option_method<'db>(
     }
 }
 
-fn evaluate_result_method<'db>(
+fn evaluate_result_method(
     address: u64,
     result_layout: &rudy_types::ResultLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     // Read the discriminant to check Ok vs Err
     let discriminant_bytes = resolver.read_memory(
         address + result_layout.discriminant.offset as u64,
@@ -384,12 +384,12 @@ fn evaluate_result_method<'db>(
     }
 }
 
-fn evaluate_map_method<'db>(
+fn evaluate_map_method(
     _address: u64,
     _map_layout: &rudy_types::MapLayout<Die>,
     method: &str,
     _resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     // HashMap/BTreeMap methods are more complex to implement
     // as they require understanding the internal structure
     match method {
@@ -400,12 +400,12 @@ fn evaluate_map_method<'db>(
     }
 }
 
-fn evaluate_slice_method<'db>(
+fn evaluate_slice_method(
     address: u64,
     _slice_layout: &rudy_types::SliceLayout<Die>,
     method: &str,
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     match method {
         "len" => {
             // Slice is a fat pointer: (data_ptr, length)
@@ -431,11 +431,11 @@ fn evaluate_slice_method<'db>(
     }
 }
 
-fn evaluate_str_slice_method<'db>(
+fn evaluate_str_slice_method(
     address: u64,
     method: &str,
     resolver: &dyn DataResolver,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     // &str is a fat pointer just like slices: (data_ptr, length)
     match method {
         "len" => {
@@ -461,10 +461,10 @@ fn evaluate_str_slice_method<'db>(
     }
 }
 
-fn evaluate_array_method<'db>(
+fn evaluate_array_method(
     array_layout: &rudy_types::ArrayLayout<Die>,
     method: &str,
-) -> Result<Value<'db>> {
+) -> Result<Value> {
     match method {
         "len" => Ok(Value::Scalar {
             ty: "usize".to_string(),

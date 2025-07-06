@@ -153,15 +153,15 @@ impl<'db> DebugInfo<'db> {
                 .address_range
                 .map_or(0, |(start, end)| end - start),
             params: params
-                .params(self.db)
+                .params
                 .into_iter()
                 .enumerate()
                 .map(|(i, var)| crate::Variable {
                     name: var
-                        .name(self.db)
+                        .name
                         .as_ref()
                         .map_or_else(|| format!("__{i}"), |s| s.to_string()),
-                    ty: var.ty(self.db).clone(),
+                    ty: var.ty.clone(),
                     value: None,
                 })
                 .collect(),
@@ -202,8 +202,8 @@ impl<'db> DebugInfo<'db> {
 
         Ok(Some(crate::ResolvedLocation {
             function: name.to_string(),
-            file: loc.file(db).path_str(db).to_string(),
-            line: loc.line(db),
+            file: loc.file.path_str().to_string(),
+            line: loc.line,
         }))
     }
 
@@ -238,7 +238,7 @@ impl<'db> DebugInfo<'db> {
         let index = crate::index::debug_index(self.db, self.binary);
 
         let path = PathBuf::from(file.to_string());
-        let source_file = SourceFile::new(self.db, path);
+        let source_file = SourceFile::new(path);
 
         let file = if index.source_to_file(self.db).contains_key(&source_file) {
             // already indexed file, so we can use it directly
@@ -248,20 +248,20 @@ impl<'db> DebugInfo<'db> {
             if let Some(source_file) = index
                 .source_to_file(self.db)
                 .keys()
-                .find(|f| f.path(self.db).ends_with(file))
+                .find(|f| f.path.ends_with(file))
             {
                 tracing::debug!(
                     "found file `{file}` in debug index as `{}`",
-                    source_file.path_str(self.db)
+                    source_file.path_str()
                 );
-                *source_file
+                source_file.clone()
             } else {
                 tracing::warn!("file `{file}` not found in debug index");
                 return Ok(None);
             }
         };
 
-        let query = rudy_dwarf::file::SourceLocation::new(self.db, file, line, column);
+        let query = rudy_dwarf::file::SourceLocation::new(file, line, column);
         let pos = lookup_position(self.db, self.binary, query);
         Ok(pos.map(|address| crate::ResolvedAddress { address }))
     }
@@ -304,7 +304,7 @@ impl<'db> DebugInfo<'db> {
         address: u64,
         name: &str,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<Option<crate::VariableInfo<'db>>> {
+    ) -> Result<Option<crate::VariableInfo>> {
         let db = self.db;
         let f = lookup_address(db, self.binary, address);
 
@@ -332,13 +332,13 @@ impl<'db> DebugInfo<'db> {
         let fie = fie.data(db);
         // Check parameters first
         if let Some(param) = vars
-            .params(db)
+            .params
             .into_iter()
-            .find(|var| var.name(db).as_deref() == Some(name))
+            .find(|var| var.name.as_deref() == Some(name))
         {
             tracing::info!(
                 "Found parameter {name} in function {function_name} with type: {}",
-                param.ty(db).display_name()
+                param.ty.display_name()
             );
             return variable_info(db, fie.declaration_die, base_addr, param, data_resolver)
                 .map(Some);
@@ -346,13 +346,13 @@ impl<'db> DebugInfo<'db> {
 
         // Then check locals
         if let Some(local) = vars
-            .locals(db)
+            .locals
             .into_iter()
-            .find(|var| var.name(db).as_deref() == Some(name))
+            .find(|var| var.name.as_deref() == Some(name))
         {
             tracing::info!(
                 "Found variable {name} in function {function_name} with type: {}",
-                local.ty(db).display_name()
+                local.ty.display_name()
             );
             return variable_info(db, fie.declaration_die, base_addr, local, data_resolver)
                 .map(Some);
@@ -430,19 +430,20 @@ impl<'db> DebugInfo<'db> {
 
         let fie = fie.data(db);
         let params = vars
-            .params(db)
+            .params
             .into_iter()
             .map(|param| variable_info(db, fie.declaration_die, base_addr, param, data_resolver))
             .collect::<Result<Vec<_>>>()?;
 
         let locals = vars
-            .locals(db)
+            .locals
             .into_iter()
             .filter(|var| {
                 // for local variables, we want to make sure the variable
                 // is defined before the current location
-                var.location(db)
-                    .is_some_and(|var_loc| loc.line(db) > var_loc.line(db))
+                var.location
+                    .as_ref()
+                    .is_some_and(|var_loc| loc.line > var_loc.line)
             })
             .map(|local| variable_info(db, fie.declaration_die, base_addr, local, data_resolver))
             .collect::<Result<Vec<_>>>()?;
@@ -486,9 +487,9 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn read_variable(
         &self,
-        var_info: &crate::VariableInfo<'db>,
+        var_info: &crate::VariableInfo,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<crate::Value<'db>> {
+    ) -> Result<crate::Value> {
         if let Some(address) = var_info.address {
             crate::data::read_from_memory(self.db, address, &var_info.type_def, data_resolver)
         } else {
@@ -619,7 +620,7 @@ impl<'db> DebugInfo<'db> {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
-    pub fn resolve_type(&self, type_name: &str) -> Result<Option<DieTypeDefinition<'db>>> {
+    pub fn resolve_type(&self, type_name: &str) -> Result<Option<DieTypeDefinition>> {
         crate::index::resolve_type(self.db, self.binary, type_name)
     }
 
@@ -637,9 +638,9 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn read_pointer(
         &self,
-        typed_pointer: &TypedPointer<'db>,
+        typed_pointer: &TypedPointer,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<crate::Value<'db>> {
+    ) -> Result<crate::Value> {
         let TypedPointer { address, type_def } = typed_pointer;
         crate::data::read_from_memory(self.db, *address, type_def, data_resolver)
     }
@@ -670,9 +671,9 @@ impl<'db> DebugInfo<'db> {
     pub fn get_field(
         &self,
         base_address: u64,
-        base_type: &DieTypeDefinition<'db>,
+        base_type: &DieTypeDefinition,
         field_name: &str,
-    ) -> Result<TypedPointer<'db>> {
+    ) -> Result<TypedPointer> {
         match base_type.layout.as_ref() {
             Layout::Struct(struct_def) => {
                 let field = struct_def
@@ -743,10 +744,10 @@ impl<'db> DebugInfo<'db> {
     /// ```
     pub fn get_index_by_int(
         &self,
-        type_pointer: &TypedPointer<'db>,
+        type_pointer: &TypedPointer,
         index: u64,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<TypedPointer<'db>> {
+    ) -> Result<TypedPointer> {
         let TypedPointer {
             address: base_address,
             type_def: base_type,
@@ -876,10 +877,10 @@ impl<'db> DebugInfo<'db> {
     pub fn get_index_by_value(
         &self,
         base_address: u64,
-        base_type: &DieTypeDefinition<'db>,
-        key: &crate::Value<'db>,
+        base_type: &DieTypeDefinition,
+        key: &crate::Value,
         data_resolver: &dyn crate::DataResolver,
-    ) -> Result<TypedPointer<'db>> {
+    ) -> Result<TypedPointer> {
         match base_type.layout.as_ref() {
             Layout::Std(StdLayout::Map(map_def)) => {
                 // For maps, we'll iterate through all key-value pairs
@@ -915,7 +916,7 @@ impl<'db> DebugInfo<'db> {
         }
     }
 
-    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod<'db>>>> {
+    pub fn discover_all_methods(&self) -> Result<BTreeMap<String, Vec<DiscoveredMethod>>> {
         crate::function_discovery::discover_all_methods(self.db, self.binary)
     }
 
@@ -925,8 +926,8 @@ impl<'db> DebugInfo<'db> {
 
     pub fn discover_methods_for_pointer(
         &self,
-        typed_pointer: &TypedPointer<'db>,
-    ) -> Result<Vec<DiscoveredMethod<'db>>> {
+        typed_pointer: &TypedPointer,
+    ) -> Result<Vec<DiscoveredMethod>> {
         Ok(crate::function_discovery::discover_methods_for_type(
             self.db,
             self.binary,
@@ -940,20 +941,20 @@ impl<'db> DebugInfo<'db> {
 
     pub fn discover_methods_for_type(
         &self,
-        type_def: &DieTypeDefinition<'db>,
-    ) -> Result<Vec<DiscoveredMethod<'db>>> {
+        type_def: &DieTypeDefinition,
+    ) -> Result<Vec<DiscoveredMethod>> {
         crate::function_discovery::discover_methods_for_type(self.db, self.binary, type_def)
     }
 }
 
-fn variable_info<'db>(
-    db: &'db dyn Db,
+fn variable_info(
+    db: &dyn Db,
     function: Die,
     base_address: u64,
-    var: rudy_dwarf::function::Variable<'db>,
+    var: rudy_dwarf::function::Variable,
     data_resolver: &dyn crate::DataResolver,
-) -> Result<crate::VariableInfo<'db>> {
-    let die = var.origin(db);
+) -> Result<crate::VariableInfo> {
+    let die = var.origin;
     let location = rudy_dwarf::expressions::resolve_data_location(
         db,
         function,
@@ -962,9 +963,9 @@ fn variable_info<'db>(
         &crate::data::DataResolverExpressionContext(data_resolver),
     )?;
 
-    tracing::debug!("variable info: {:?} at {:?}", var.name(db), location);
+    tracing::debug!("variable info: {:?} at {:?}", var.name, location);
 
-    let ty = var.ty(db);
+    let ty = var.ty;
     let type_def = match ty.layout.as_ref() {
         Layout::Alias { .. } => {
             // For type aliases, resolve the actual type
@@ -975,7 +976,7 @@ fn variable_info<'db>(
 
     Ok(crate::VariableInfo {
         name: var
-            .name(db)
+            .name
             .as_ref()
             .map_or_else(|| "_".to_string(), |s| s.to_string()),
         address: location,
