@@ -23,7 +23,7 @@ pub struct Index<'db> {
     pub symbol_index: SymbolIndex,
     pub indexed_debug_files: Vec<DebugFile>,
     #[returns(ref)]
-    pub source_to_file: BTreeMap<SourceFile<'db>, Vec<DebugFile>>,
+    pub source_to_file: BTreeMap<SourceFile, Vec<DebugFile>>,
 }
 
 impl<'db> Index<'db> {
@@ -115,7 +115,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
 
     let mut indexed_debug_files = vec![];
 
-    let mut source_file_index: BTreeMap<SourceFile<'_>, Vec<DebugFile>> = Default::default();
+    let mut source_file_index: BTreeMap<SourceFile, Vec<DebugFile>> = Default::default();
 
     // attempt to detect the current cargo workspace
 
@@ -130,7 +130,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
         let (_, sources) = index_debug_file_sources(db, *debug_file);
         for source in sources {
             source_file_index
-                .entry(*source)
+                .entry(source.clone())
                 .or_default()
                 .push(*debug_file);
         }
@@ -138,7 +138,7 @@ pub fn debug_index<'db>(db: &'db dyn Db, binary: Binary) -> Index<'db> {
             // if the source file is external, we don't want to index it
             // as it may not be available in the workspace
             if sources.iter().any(|s| {
-                let p = s.path(db);
+                let p = &s.path;
                 p.starts_with(workspace_root) || p.starts_with(".")
             }) {
                 tracing::debug!(
@@ -196,7 +196,7 @@ pub fn find_all_by_address(
     db: &dyn Db,
     binary: Binary,
     address: u64,
-) -> Vec<(SymbolName, rudy_dwarf::file::SourceLocation<'_>)> {
+) -> Vec<(SymbolName, rudy_dwarf::file::SourceLocation)> {
     // first, find the closest function/set of functions by address
     // this is assuming that if we have symbols like:
     //  0x000: qux
@@ -235,11 +235,11 @@ pub fn find_all_by_address(
 }
 
 /// Resolve a type by name in the debug information
-pub fn resolve_type<'db>(
-    db: &'db dyn Db,
+pub fn resolve_type(
+    db: &dyn Db,
     binary: Binary,
     type_name: &str,
-) -> anyhow::Result<Option<DieTypeDefinition<'db>>> {
+) -> anyhow::Result<Option<DieTypeDefinition>> {
     let (segments, name) = if let Some((name, generics)) = type_name.split_once('<') {
         // If the type name has generics, we need to handle them separately
         let mut segments = name

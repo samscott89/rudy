@@ -23,8 +23,8 @@ pub fn result_def() -> ResultDefParser {
     ResultDefParser
 }
 
-impl<'db> Parser<'db, ResultLayout<Die<'db>>> for ResultDefParser {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<ResultLayout<Die<'db>>> {
+impl Parser<ResultLayout<Die>> for ResultDefParser {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<ResultLayout<Die>> {
         tracing::debug!("resolving result type: {}", entry.print(db));
 
         // Get the variant part

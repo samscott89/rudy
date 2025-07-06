@@ -24,9 +24,7 @@ TypeDefinition {
                             },
                         ),
                     ),
-                    location: Die(
-                        Id(25ec),
-                    ),
+                    location: Die at DebugFile { [salsa id]: Id(800) } 0x000005ef,
                 },
                 ok_offset: 8,
                 err_type: TypeDefinition {
@@ -44,24 +42,18 @@ TypeDefinition {
                                                 },
                                             ),
                                         ),
-                                        location: Die(
-                                            Id(1802),
-                                        ),
+                                        location: Die at DebugFile { [salsa id]: Id(800) } 0x00000175,
                                     },
                                 },
                             ),
                         ),
                     ),
-                    location: Die(
-                        Id(25fd),
-                    ),
+                    location: Die at DebugFile { [salsa id]: Id(800) } 0x00000638,
                 },
                 err_offset: 0,
                 size: 24,
             },
         ),
     ),
-    location: Die(
-        Id(25ee),
-    ),
+    location: Die at DebugFile { [salsa id]: Id(800) } 0x000003fe,
 }

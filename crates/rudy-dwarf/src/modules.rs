@@ -7,29 +7,29 @@ use crate::{
 };
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash, salsa::Update)]
-pub struct Module<'db> {
-    pub(crate) modules: BTreeMap<String, Module<'db>>,
-    pub entries: Vec<Die<'db>>,
+pub struct Module {
+    pub(crate) modules: BTreeMap<String, Module>,
+    pub entries: Vec<Die>,
 }
 
 #[salsa::tracked(debug)]
 pub struct ModuleIndex<'db> {
     #[returns(ref)]
-    pub by_offset: Vec<ModuleRange<'db>>,
+    pub by_offset: Vec<ModuleRange>,
     #[returns(ref)]
-    pub by_name: Module<'db>,
+    pub by_name: Module,
 }
 
 impl<'db> ModuleIndex<'db> {
     /// Find the module at a specific offset
-    pub fn find_by_offset(&self, db: &'db dyn DwarfDb, offset: usize) -> Option<&ModuleRange> {
+    pub fn find_by_offset(&self, db: &'db dyn DwarfDb, offset: usize) -> Option<&'db ModuleRange> {
         let ranges = self.by_offset(db);
         // Find the most specific (deepest) namespace that contains this offset
         let pos = ranges
             // find the first point at which the range starts _after_ the offset
             .partition_point(|range| range.start_offset <= offset);
 
-        tracing::trace!("Partition point: {:?}", ranges[pos]);
+        tracing::trace!("Partition point: {:?}", ranges.get(pos));
 
         // then, work backwards to find the first range that contains the offset
         ranges[..pos]
@@ -39,11 +39,7 @@ impl<'db> ModuleIndex<'db> {
     }
 
     /// Find a module by its name
-    pub fn find_by_path(
-        &self,
-        db: &'db dyn DwarfDb,
-        module_path: &[String],
-    ) -> Option<&Module<'db>> {
+    pub fn find_by_path(&self, db: &'db dyn DwarfDb, module_path: &[String]) -> Option<&Module> {
         let mut module = self.by_name(db);
 
         for segment in module_path {
@@ -56,14 +52,14 @@ impl<'db> ModuleIndex<'db> {
 
 /// Namespace range representing a module's DIE offset coverage
 #[derive(Clone, PartialEq, Eq, Hash, salsa::Update)]
-pub struct ModuleRange<'db> {
+pub struct ModuleRange {
     pub(crate) module_path: Vec<String>,
-    pub(crate) die: Die<'db>,
+    pub(crate) die: Die,
     pub(crate) start_offset: usize,
     pub(crate) end_offset: usize,
 }
 
-impl fmt::Debug for ModuleRange<'_> {
+impl fmt::Debug for ModuleRange {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         salsa::with_attached_database(|db| {
             f.debug_struct("ModuleRange")
@@ -86,14 +82,14 @@ impl fmt::Debug for ModuleRange<'_> {
 /// Visitor for building namespace ranges efficiently
 /// Only visits namespaces and uses depth-first traversal to capture ranges
 #[derive(Default)]
-struct ModuleRangeBuilder<'db> {
-    module_ranges: Vec<ModuleRange<'db>>,
-    modules: Module<'db>,
+struct ModuleRangeBuilder {
+    module_ranges: Vec<ModuleRange>,
+    modules: Module,
     last_seen_offset: usize, // Last offset seen during traversal
-    namespace_stack: Vec<(String, Die<'db>, usize)>, // (path segment, die, start_offset)
+    namespace_stack: Vec<(String, Die, usize)>, // (path segment, die, start_offset)
 }
 
-impl<'db> DieVisitor<'db> for ModuleRangeBuilder<'db> {
+impl<'db> DieVisitor<'db> for ModuleRangeBuilder {
     fn visit_cu<'a>(
         walker: &mut DieWalker<'a, 'db, Self>,
         node: VisitorNode<'a>,
@@ -101,7 +97,7 @@ impl<'db> DieVisitor<'db> for ModuleRangeBuilder<'db> {
         if is_rust_cu(&node.die, &node.unit_ref) {
             walker.visitor.namespace_stack.clear();
             let die = walker.get_die(node.die);
-            let start_offset = die.offset(walker.db);
+            let start_offset = die.offset();
             walker.visitor.last_seen_offset = start_offset;
 
             walker
@@ -152,7 +148,7 @@ impl<'db> DieVisitor<'db> for ModuleRangeBuilder<'db> {
             .unwrap();
 
         let die = walker.get_die(node.die);
-        let start_offset = die.offset(walker.db);
+        let start_offset = die.offset();
 
         if let Some((_, last_die, _)) = walker.visitor.namespace_stack.last() {
             if walker.visitor.last_seen_offset < start_offset {
@@ -255,10 +251,9 @@ pub fn module_index<'db>(db: &'db dyn DwarfDb, debug_file: DebugFile) -> ModuleI
     ModuleIndex::new(db, ranges, modules)
 }
 
-#[salsa::tracked(returns(ref))]
-pub fn get_containing_module<'db>(db: &'db dyn DwarfDb, die: Die<'db>) -> Option<Vec<String>> {
-    let module_index = module_index(db, die.file(db));
-    let die_offset = die.offset(db);
+pub fn get_containing_module(db: &dyn DwarfDb, die: Die) -> Option<Vec<String>> {
+    let module_index = module_index(db, die.file);
+    let die_offset = die.offset();
     module_index
         .find_by_offset(db, die_offset)
         .map(|range| range.module_path.clone())

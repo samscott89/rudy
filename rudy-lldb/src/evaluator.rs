@@ -144,8 +144,8 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Convert a TypedPointer<'a> to a final EvalResult by reading and formatting the value
-    fn pointer_to_result(&mut self, pointer: &TypedPointer<'a>) -> Result<EvalResult> {
+    /// Convert a TypedPointer to a final EvalResult by reading and formatting the value
+    fn pointer_to_result(&mut self, pointer: &TypedPointer) -> Result<EvalResult> {
         let mut value = self.debug_info.read_pointer(pointer, &self.conn)?;
 
         value = self.read_pointer_recursive(&value, 8)?;
@@ -156,7 +156,7 @@ impl<'a> EvalContext<'a> {
         })
     }
 
-    fn read_pointer_recursive(&mut self, value: &Value<'a>, max_depth: usize) -> Result<Value<'a>> {
+    fn read_pointer_recursive(&mut self, value: &Value, max_depth: usize) -> Result<Value> {
         if max_depth == 0 {
             return Ok(value.clone()); // Stop recursion at max depth
         }
@@ -262,7 +262,7 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Evaluates an expression to a TypedPointer (for intermediate computation)
-    pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer<'a>> {
+    pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable_to_ref(name),
             Expression::FieldAccess { base, field } => {
@@ -285,12 +285,12 @@ impl<'a> EvalContext<'a> {
     }
 
     fn evaluate_variable(&mut self, name: &str) -> Result<EvalResult> {
-        // Try to get a TypedPointer<'a>, then convert to result
+        // Try to get a TypedPointer, then convert to result
         let value_ref = self.evaluate_variable_to_ref(name)?;
         self.pointer_to_result(&value_ref)
     }
 
-    fn evaluate_variable_to_ref(&mut self, name: &str) -> Result<TypedPointer<'a>> {
+    fn evaluate_variable_to_ref(&mut self, name: &str) -> Result<TypedPointer> {
         let pc = self.get_pc()?;
 
         let var_info = self
@@ -303,7 +303,7 @@ impl<'a> EvalContext<'a> {
     }
 
     fn evaluate_field_access(&mut self, base: &Expression, field: &str) -> Result<EvalResult> {
-        // Get the field as a TypedPointer<'a>, then convert to result
+        // Get the field as a TypedPointer, then convert to result
         let field_ref = self.evaluate_field_access_to_ref(base, field)?;
         self.pointer_to_result(&field_ref)
     }
@@ -312,8 +312,8 @@ impl<'a> EvalContext<'a> {
         &mut self,
         base: &Expression,
         field: &str,
-    ) -> Result<TypedPointer<'a>> {
-        // First evaluate the base expression to a TypedPointer<'a>
+    ) -> Result<TypedPointer> {
+        // First evaluate the base expression to a TypedPointer
         let base_ref = self.evaluate_to_ref(base)?;
 
         self.debug_info
@@ -324,7 +324,7 @@ impl<'a> EvalContext<'a> {
         &mut self,
         base: &Expression,
         index: &Expression,
-    ) -> Result<TypedPointer<'a>> {
+    ) -> Result<TypedPointer> {
         let base_ref = self.evaluate_to_ref(base)?;
 
         // Check if the base type supports string indexing (HashMap, etc.)
@@ -404,8 +404,8 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Read an integer value from memory using a TypedPointer<'a>
-    fn read_integer_from_memory(&self, pointer: &TypedPointer<'a>) -> Result<u64> {
+    /// Read an integer value from memory using a TypedPointer
+    fn read_integer_from_memory(&self, pointer: &TypedPointer) -> Result<u64> {
         let value = self.debug_info.read_pointer(pointer, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
@@ -424,8 +424,8 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Read a string value from memory using a TypedPointer<'a>
-    fn read_string_from_memory(&self, pointer: &TypedPointer<'a>) -> Result<String> {
+    /// Read a string value from memory using a TypedPointer
+    fn read_string_from_memory(&self, pointer: &TypedPointer) -> Result<String> {
         let value = self.debug_info.read_pointer(pointer, &self.conn)?;
         match value {
             Value::Scalar { value, .. } => {
@@ -528,7 +528,7 @@ impl<'a> EvalContext<'a> {
     /// Execute a real method by calling it via LLDB
     fn execute_real_method(
         &mut self,
-        pointer: TypedPointer<'a>,
+        pointer: TypedPointer,
         method: &str,
         args: &[Expression],
     ) -> Result<EvalResult> {

@@ -16,23 +16,23 @@ use crate::{
 #[salsa::tracked(debug)]
 pub struct FunctionIndexEntry<'db> {
     #[returns(ref)]
-    pub data: FunctionData<'db>,
+    pub data: FunctionData,
 }
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, salsa::Update)]
-pub struct FunctionData<'db> {
+pub struct FunctionData {
     /// Die entry for the function
-    pub declaration_die: Die<'db>,
+    pub declaration_die: Die,
     /// Address range of the function relative to the binary
     pub address_range: Option<(u64, u64)>,
     pub name: String,
-    pub specification_die: Option<Die<'db>>,
+    pub specification_die: Option<Die>,
     /// Sometimes we'll find the same definition mulitple times
     /// in the same file due to compilation units
     ///
     /// For now, we'll just store the alternate locations
     /// although we'll probably need to do something else
-    pub alternate_locations: Vec<Die<'db>>,
+    pub alternate_locations: Vec<Die>,
 }
 
 /// Targeted function index containing only functions
@@ -47,9 +47,9 @@ pub struct FunctionIndex<'db> {
 impl<'db> FunctionIndex<'db> {
     pub fn address_to_locations(
         &self,
-        db: &'db dyn DwarfDb,
+        db: &dyn DwarfDb,
         address: u64,
-    ) -> Vec<(SymbolName, SourceLocation<'db>)> {
+    ) -> Vec<(SymbolName, SourceLocation)> {
         self.by_address(db)
             .query_address(address, true)
             .into_iter()
@@ -67,9 +67,9 @@ impl<'db> FunctionIndex<'db> {
 
     pub fn location_to_address(
         &self,
-        db: &'db dyn DwarfDb,
+        db: &dyn DwarfDb,
         debug_file: DebugFile,
-        location: SourceLocation<'db>,
+        location: &SourceLocation,
     ) -> Option<(u64, u64)> {
         location_to_address(db, debug_file, self, location)
     }

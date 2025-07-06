@@ -23,8 +23,8 @@ pub fn option_def() -> OptionDefParser {
     OptionDefParser
 }
 
-pub(super) fn parse_option_entry<'db>(
-) -> impl Parser<'db, (String, usize, Discriminant, PartiallyParsedEnumVariant<'db>)> {
+pub(super) fn parse_option_entry(
+) -> impl Parser<(String, usize, Discriminant, PartiallyParsedEnumVariant)> {
     all((
         attr::<String>(gimli::DW_AT_name),
         attr::<usize>(gimli::DW_AT_byte_size),
@@ -48,8 +48,8 @@ pub(super) fn parse_option_entry<'db>(
     .map(|(name, size, (discriminant, some_variant))| (name, size, discriminant, some_variant))
 }
 
-impl<'db> Parser<'db, OptionLayout<Die<'db>>> for OptionDefParser {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<OptionLayout<Die<'db>>> {
+impl Parser<OptionLayout<Die>> for OptionDefParser {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<OptionLayout<Die>> {
         tracing::debug!("resolving option type: {}", entry.print(db));
         let (name, size, discriminant, some_variant) = parse_option_entry().parse(db, entry)?;
 

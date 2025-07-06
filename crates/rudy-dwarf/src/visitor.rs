@@ -82,7 +82,7 @@ pub fn walk_file<'db, 'a, V: DieVisitor<'db>>(
 
 pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
     db: &'db dyn DwarfDb,
-    die: Die<'db>,
+    die: Die,
     visitor: &'a mut V,
 ) -> anyhow::Result<()> {
     tracing::trace!("Walking DWARF for DIE: {}", die.print(db));
@@ -92,8 +92,8 @@ pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
         let mut walker = DieWalker {
             db,
             visitor,
-            file: die.file(db),
-            unit_offset: die.cu_offset(db),
+            file: die.file,
+            unit_offset: die.cu_offset,
             unit_ref,
             cursor,
             current_depth: 0,
@@ -114,19 +114,19 @@ pub fn walk_die<'db, 'a, V: DieVisitor<'db>>(
 }
 
 impl<'a, 'db, V: DieVisitor<'db>> DieWalker<'a, 'db, V> {
-    pub(crate) fn get_die(&self, raw: RawDie<'a>) -> Die<'db> {
-        Die::new(self.db, self.file, self.unit_offset, raw.offset())
+    pub(crate) fn get_die(&self, raw: RawDie<'a>) -> Die {
+        Die::new(self.file, self.unit_offset, raw.offset())
     }
 
     pub(crate) fn peek_next_offset(&mut self) -> Option<usize> {
         let next = self.peek()?.1;
-        Some(self.get_die(next).offset(self.db))
+        Some(self.get_die(next).offset())
     }
 
     pub fn parse<T>(
         &self,
         node: VisitorNode<'a>,
-        parser: impl crate::parser::Parser<'db, T>,
+        parser: impl crate::parser::Parser<T>,
     ) -> Result<T> {
         let die = self.get_die(node.die);
         parser.parse(self.db, die)

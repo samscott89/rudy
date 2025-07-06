@@ -10,16 +10,19 @@ use crate::{
 };
 
 /// References a specific compilation unit in a DWARF file
-#[salsa::interned(debug)]
-#[derive(Ord, PartialOrd)]
-pub struct CompilationUnitId<'db> {
-    pub file: DebugFile,
-    pub offset: UnitSectionOffset<usize>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, salsa::Update)]
+pub struct CompilationUnitId {
+    pub(crate) file: DebugFile,
+    pub(crate) offset: UnitSectionOffset<usize>,
 }
 
-impl<'db> CompilationUnitId<'db> {
-    pub fn unit_ref(&self, db: &'db dyn DwarfDb) -> Option<UnitRef<'db>> {
-        super::unit::get_unit_ref(db, self.file(db), self.offset(db))
+impl CompilationUnitId {
+    pub fn new(file: DebugFile, offset: UnitSectionOffset<usize>) -> Self {
+        Self { file, offset }
+    }
+
+    pub fn unit_ref<'db>(&self, db: &'db dyn DwarfDb) -> Option<UnitRef<'db>> {
+        super::unit::get_unit_ref(db, self.file, self.offset)
     }
 }
 

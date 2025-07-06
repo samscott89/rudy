@@ -23,12 +23,12 @@ use crate::{
 /// Parser for discriminant information
 ///
 /// Should be called on a `DW_TAG_variant_part` DIE to extract the discriminant type and offset.
-pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
+pub fn enum_discriminant() -> impl Parser<Discriminant> {
     struct DiscriminantParser;
 
-    impl<'db> Parser<'db, Discriminant> for DiscriminantParser {
-        fn parse(&self, db: &'db dyn DwarfDb, variants_entry: Die<'db>) -> Result<Discriminant> {
-            let (discr_die, offset) = optional_attr::<Die<'db>>(gimli::DW_AT_discr)
+    impl Parser<Discriminant> for DiscriminantParser {
+        fn parse(&self, db: &dyn DwarfDb, variants_entry: Die) -> Result<Discriminant> {
+            let (discr_die, offset) = optional_attr::<Die>(gimli::DW_AT_discr)
                 .and(optional_attr::<usize>(gimli::DW_AT_data_member_location))
                 .parse(db, variants_entry)?;
 
@@ -68,7 +68,7 @@ pub fn enum_discriminant<'db>() -> impl Parser<'db, Discriminant> {
 }
 
 /// Parser for enum variants
-pub fn enum_variant<'db>() -> impl Parser<'db, EnumVariantLayout<Die<'db>>> {
+pub fn enum_variant() -> impl Parser<EnumVariantLayout<Die>> {
     // 0x000002f5:           DW_TAG_variant
     //                         DW_AT_discr_value       (0x00)
 
@@ -124,10 +124,10 @@ pub fn enum_named_tuple_variant<T>(variant_name: &str, parser: T) -> EnumNamedTu
     }
 }
 
-pub(super) struct PartiallyParsedEnumVariant<'db> {
+pub(super) struct PartiallyParsedEnumVariant {
     pub discriminant: Option<usize>,
     pub offset: usize,
-    pub layout: Die<'db>,
+    pub layout: Die,
 }
 
 /// Parses an enum variant by a specific name.
@@ -150,9 +150,7 @@ pub(super) struct PartiallyParsedEnumVariant<'db> {
 ///         DW_AT_name    ("Some")
 ///         DW_AT_type    (0x00002476 "core::option::Option<i32>::Some<i32>")
 ///         DW_AT_data_member_location    (0x00)
-pub(super) fn named_enum_variant<'db>(
-    variant_name: &str,
-) -> impl Parser<'db, PartiallyParsedEnumVariant<'db>> {
+pub(super) fn named_enum_variant(variant_name: &str) -> impl Parser<PartiallyParsedEnumVariant> {
     is_member_tag(gimli::DW_TAG_variant).then(
         optional_attr::<usize>(gimli::DW_AT_discr)
             .and(member(variant_name).then(all((data_offset(), entry_type()))))
@@ -170,11 +168,11 @@ macro_rules! impl_parse_enum_named_tuple_variant_for_tuples {
     (
         $($P:ident, $T:ident, $idx:tt),*
     ) => {
-        impl<'db, $($T, $P,)*> Parser<'db, (Option<usize>, ($((usize, $T),)*))> for EnumNamedTupleVariant<($($P,)*)>
+        impl<'db, $($T, $P,)*> Parser< (Option<usize>, ($((usize, $T),)*))> for EnumNamedTupleVariant<($($P,)*)>
         where
-            $($P: Parser<'db, $T>),*
+            $($P: Parser< $T>),*
         {
-            fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> anyhow::Result<(Option<usize>, ($((usize, $T),)*))> {
+            fn parse(&self, db: &dyn DwarfDb, entry: Die) -> anyhow::Result<(Option<usize>, ($((usize, $T),)*))> {
                 // --> DW_TAG_variant
                 //       DW_AT_discr_value       (0x00)
                 //       DW_TAG_member
@@ -252,14 +250,14 @@ impl_parse_enum_named_tuple_variant_for_tuples!(
 /// Parser for enum types
 ///
 /// Reference: https://github.com/rust-lang/rust/blob/3b97f1308ff72016a4aaa93fbe6d09d4d6427815/compiler/rustc_codegen_llvm/src/debuginfo/metadata/enums/native.rs
-pub fn enum_def<'db>() -> impl Parser<'db, EnumLayout<Die<'db>>> {
+pub fn enum_def() -> impl Parser<EnumLayout<Die>> {
     EnumParser
 }
 
 pub struct EnumParser;
 
-impl<'db> Parser<'db, EnumLayout<Die<'db>>> for EnumParser {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<EnumLayout<Die<'db>>> {
+impl Parser<EnumLayout<Die>> for EnumParser {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<EnumLayout<Die>> {
         tracing::debug!("resolving enum type: {}", entry.print(db));
 
         // Get the variant part
@@ -286,7 +284,7 @@ impl<'db> Parser<'db, EnumLayout<Die<'db>>> for EnumParser {
 }
 
 /// Parser for C-style enum variants (DW_TAG_enumerator)
-pub fn c_enum_variant<'db>() -> impl Parser<'db, CEnumVariant> {
+pub fn c_enum_variant() -> impl Parser<CEnumVariant> {
     all((
         attr::<String>(gimli::DW_AT_name),
         attr::<i128>(gimli::DW_AT_const_value),
@@ -295,11 +293,11 @@ pub fn c_enum_variant<'db>() -> impl Parser<'db, CEnumVariant> {
 }
 
 /// Parser for C-style enumeration types (DW_TAG_enumeration_type)
-pub fn c_enum_def<'db>() -> impl Parser<'db, CEnumLayout> {
+pub fn c_enum_def() -> impl Parser<CEnumLayout> {
     struct CEnumParser;
 
-    impl<'db> Parser<'db, CEnumLayout> for CEnumParser {
-        fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<CEnumLayout> {
+    impl Parser<CEnumLayout> for CEnumParser {
+        fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<CEnumLayout> {
             tracing::debug!("resolving C-style enum type: {}", entry.print(db));
 
             // Parse name, size, and underlying type

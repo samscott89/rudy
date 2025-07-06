@@ -28,25 +28,25 @@ pub struct ResolvedLocation {
 
 /// A variable with its type and optionally its runtime value.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct Variable<'db> {
+pub struct Variable {
     pub name: String,
-    pub value: Option<Value<'db>>,
-    pub ty: DieTypeDefinition<'db>,
+    pub value: Option<Value>,
+    pub ty: DieTypeDefinition,
 }
 
 /// Variable metadata without resolved value - used for expression evaluation.
 #[derive(Debug, Clone)]
-pub struct VariableInfo<'db> {
+pub struct VariableInfo {
     /// Variable name
     pub name: String,
     /// Memory address where variable is stored (if available)
     pub address: Option<u64>,
     /// Full type definition for the variable
-    pub type_def: DieTypeDefinition<'db>,
+    pub type_def: DieTypeDefinition,
 }
 
-impl<'db> VariableInfo<'db> {
-    pub fn as_pointer(&self) -> Option<TypedPointer<'db>> {
+impl VariableInfo {
+    pub fn as_pointer(&self) -> Option<TypedPointer> {
         self.address.map(|address| TypedPointer {
             address,
             type_def: self.type_def.clone(),
@@ -56,40 +56,40 @@ impl<'db> VariableInfo<'db> {
 
 /// A pointer to an entry in memory, with its type definition
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TypedPointer<'db> {
+pub struct TypedPointer {
     /// Memory address where variable is stored (if available)
     pub address: u64,
     /// Full type definition for the variable
-    pub type_def: DieTypeDefinition<'db>,
+    pub type_def: DieTypeDefinition,
 }
 
 /// A value read from memory, supporting scalars, arrays, and structs.
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum Value<'db> {
+pub enum Value {
     Scalar {
         ty: String,
         value: String,
     },
     Array {
         ty: String,
-        items: Vec<Value<'db>>,
+        items: Vec<Value>,
     },
     Struct {
         ty: String,
-        fields: BTreeMap<String, Value<'db>>,
+        fields: BTreeMap<String, Value>,
     },
     Tuple {
         ty: String,
-        entries: Vec<Value<'db>>,
+        entries: Vec<Value>,
     },
     Map {
         ty: String,
-        entries: Vec<(Value<'db>, Value<'db>)>,
+        entries: Vec<(Value, Value)>,
     },
-    Pointer(TypedPointer<'db>),
+    Pointer(TypedPointer),
 }
 
-impl<'db> Value<'db> {
+impl Value {
     pub(crate) fn map_type<F>(&self, type_map: F) -> Self
     where
         F: Fn(&str) -> String,
@@ -134,13 +134,13 @@ impl<'db> Value<'db> {
     }
 }
 
-impl<'db> PartialOrd for Value<'db> {
+impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'db> Ord for Value<'db> {
+impl Ord for Value {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering;
         match (self, other) {
@@ -220,14 +220,14 @@ pub struct Type {
 
 /// A resolved function with its address and parameter information.
 #[derive(PartialEq, Eq, Clone)]
-pub struct ResolvedFunction<'db> {
+pub struct ResolvedFunction {
     pub name: String,
     pub address: u64,
     pub size: u64,
-    pub params: Vec<Variable<'db>>,
+    pub params: Vec<Variable>,
 }
 
-impl fmt::Debug for ResolvedFunction<'_> {
+impl fmt::Debug for ResolvedFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResolvedFunction")
             .field("name", &self.name)
@@ -240,7 +240,7 @@ impl fmt::Debug for ResolvedFunction<'_> {
 
 /// A discovered method with its metadata
 #[derive(Debug, Clone)]
-pub struct DiscoveredMethod<'db> {
+pub struct DiscoveredMethod {
     /// The method name (e.g., "len", "push")
     pub name: String,
     /// The full method name including type path
@@ -256,5 +256,5 @@ pub struct DiscoveredMethod<'db> {
     /// Whether this is a synthetic method (computed, not from debug info)
     pub is_synthetic: bool,
     /// The return type definition for creating TypedPointers
-    pub return_type: Option<DieTypeDefinition<'db>>,
+    pub return_type: Option<DieTypeDefinition>,
 }

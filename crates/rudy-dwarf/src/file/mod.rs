@@ -17,11 +17,17 @@ use crate::DwarfDb;
 
 pub type Expression = gimli::Expression<DwarfReader>;
 
-#[salsa::interned(debug)]
-pub struct SourceLocation<'db> {
-    pub file: SourceFile<'db>,
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd, salsa::Update)]
+pub struct SourceLocation {
+    pub file: SourceFile,
     pub line: u64,
     pub column: Option<u64>,
+}
+
+impl SourceLocation {
+    pub fn new(file: SourceFile, line: u64, column: Option<u64>) -> Self {
+        Self { file, line, column }
+    }
 }
 
 pub fn detect_cargo_root() -> Option<PathBuf> {
@@ -195,25 +201,27 @@ pub fn load<'db>(db: &'db dyn DwarfDb, file: File) -> Result<LoadedFile, Error> 
     })
 }
 
-#[salsa::interned(debug)]
-#[derive(PartialOrd, Ord)]
-pub struct SourceFile<'db> {
-    #[returns(ref)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd, salsa::Update)]
+pub struct SourceFile {
     pub path: PathBuf,
 }
 
-impl<'db> SourceFile<'db> {
-    pub fn path_str(&self, db: &'db dyn DwarfDb) -> std::borrow::Cow<'db, str> {
-        self.path(db).to_string_lossy()
+impl SourceFile {
+    pub fn new(path: PathBuf) -> Self {
+        Self { path }
     }
 
-    pub fn is_external(&self, db: &'db dyn DwarfDb) -> bool {
+    pub fn path_str(&self) -> std::borrow::Cow<str> {
+        self.path.to_string_lossy()
+    }
+
+    pub fn is_external(&self) -> bool {
         // Check if the source file is external by checking if it is not in the same directory as the binary
         let current_dir = std::env::current_dir()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
-        !self.path(db).starts_with(&current_dir)
+        !self.path.starts_with(&current_dir)
     }
 }
 

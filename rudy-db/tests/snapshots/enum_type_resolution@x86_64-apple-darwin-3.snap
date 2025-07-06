@@ -25,15 +25,11 @@ TypeDefinition {
                             },
                         ),
                     ),
-                    location: Die(
-                        Id(183d),
-                    ),
+                    location: Die at DebugFile { [salsa id]: Id(80e) } 0x000008f1,
                 },
                 size: 8,
             },
         ),
     ),
-    location: Die(
-        Id(1832),
-    ),
+    location: Die at DebugFile { [salsa id]: Id(80e) } 0x000003d2,
 }

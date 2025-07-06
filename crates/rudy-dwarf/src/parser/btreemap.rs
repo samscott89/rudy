@@ -47,8 +47,8 @@ pub fn btree_map() -> BTreeMapParser {
 
 pub struct BTreeMapParser;
 
-impl<'db> Parser<'db, MapLayout<Die<'db>>> for BTreeMapParser {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<MapLayout<Die<'db>>> {
+impl Parser<MapLayout<Die>> for BTreeMapParser {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<MapLayout<Die>> {
         tracing::debug!("resolving btree map type: {}", entry.print(db));
 
         // Parse key type, value type, root field, and length field from BTreeMap

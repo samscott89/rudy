@@ -12,12 +12,12 @@ pub struct And<P1, P2, T, U> {
     pub(super) _marker: std::marker::PhantomData<(T, U)>,
 }
 
-impl<'db, T, U, P1, P2> Parser<'db, (T, U)> for And<P1, P2, T, U>
+impl<T, U, P1, P2> Parser<(T, U)> for And<P1, P2, T, U>
 where
-    P1: Parser<'db, T>,
-    P2: Parser<'db, U>,
+    P1: Parser<T>,
+    P2: Parser<U>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<(T, U)> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<(T, U)> {
         let first_result = self.first.parse(db, entry)?;
         let second_result = self.second.parse(db, entry)?;
         Ok((first_result, second_result))
@@ -31,12 +31,12 @@ pub struct Map<P, F, T> {
     pub(super) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, T, U, P, F> Parser<'db, U> for Map<P, F, T>
+impl<T, U, P, F> Parser<U> for Map<P, F, T>
 where
-    P: Parser<'db, T>,
+    P: Parser<T>,
     F: Fn(T) -> U,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<U> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<U> {
         let result = self.parser.parse(db, entry)?;
         Ok((self.f)(result))
     }
@@ -48,12 +48,12 @@ pub struct MapWithDb<P, F, T> {
     pub(super) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, T, U, P, F> Parser<'db, U> for MapWithDb<P, F, T>
+impl<T, U, P, F> Parser<U> for MapWithDb<P, F, T>
 where
-    P: Parser<'db, T>,
-    F: Fn(&'db dyn DwarfDb, T) -> U,
+    P: Parser<T>,
+    F: Fn(&dyn DwarfDb, T) -> U,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<U> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<U> {
         let result = self.parser.parse(db, entry)?;
         Ok((self.f)(db, result))
     }
@@ -65,12 +65,12 @@ pub struct MapWithDbAndEntry<P, F, T> {
     pub(super) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, T, U, P, F> Parser<'db, U> for MapWithDbAndEntry<P, F, T>
+impl<T, U, P, F> Parser<U> for MapWithDbAndEntry<P, F, T>
 where
-    P: Parser<'db, T>,
-    F: Fn(&'db dyn DwarfDb, Die<'db>, T) -> U,
+    P: Parser<T>,
+    F: Fn(&dyn DwarfDb, Die, T) -> U,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<U> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<U> {
         let result = self.parser.parse(db, entry)?;
         Ok((self.f)(db, entry, result))
     }
@@ -82,12 +82,12 @@ pub struct MapRes<P, F, T> {
     pub(super) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, T, U, P, F> Parser<'db, U> for MapRes<P, F, T>
+impl<T, U, P, F> Parser<U> for MapRes<P, F, T>
 where
-    P: Parser<'db, T>,
+    P: Parser<T>,
     F: Fn(T) -> Result<U>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<U> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<U> {
         let result = self.parser.parse(db, entry)?;
         (self.f)(result)
     }
@@ -100,23 +100,23 @@ pub struct Then<P1, P2, T> {
     pub(super) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2, Die<'db>>
+impl<U, P1, P2> Parser<U> for Then<P1, P2, Die>
 where
-    P1: Parser<'db, Die<'db>>,
-    P2: Parser<'db, U>,
+    P1: Parser<Die>,
+    P2: Parser<U>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<U> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<U> {
         let intermediate = self.first.parse(db, entry)?;
         self.second.parse(db, intermediate)
     }
 }
 
-impl<'db, U, P1, P2> Parser<'db, Option<U>> for Then<P1, P2, Option<Die<'db>>>
+impl<U, P1, P2> Parser<Option<U>> for Then<P1, P2, Option<Die>>
 where
-    P1: Parser<'db, Option<Die<'db>>>,
-    P2: Parser<'db, U>,
+    P1: Parser<Option<Die>>,
+    P2: Parser<U>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Option<U>> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Option<U>> {
         self.first
             .parse(db, entry)?
             .map(|intermediate| self.second.parse(db, intermediate))
@@ -124,12 +124,12 @@ where
     }
 }
 
-impl<'db, U, P1, P2> Parser<'db, U> for Then<P1, P2, Result<Die<'db>>>
+impl<U, P1, P2> Parser<U> for Then<P1, P2, Result<Die>>
 where
-    P1: Parser<'db, Result<Die<'db>>>,
-    P2: Parser<'db, U>,
+    P1: Parser<Result<Die>>,
+    P2: Parser<U>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<U> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<U> {
         self.first
             .parse(db, entry)?
             .and_then(|intermediate| self.second.parse(db, intermediate))
@@ -141,11 +141,11 @@ pub struct Filter<P> {
     pub(super) parser: P,
 }
 
-impl<'db, T, P> Parser<'db, Option<T>> for Filter<P>
+impl<T, P> Parser<Option<T>> for Filter<P>
 where
-    P: Parser<'db, T>,
+    P: Parser<T>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<Option<T>> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<Option<T>> {
         Ok(self.parser.parse(db, entry).ok())
     }
 }
@@ -156,11 +156,11 @@ pub struct Context<P> {
     pub(super) context: String,
 }
 
-impl<'db, T, P> Parser<'db, T> for Context<P>
+impl<T, P> Parser<T> for Context<P>
 where
-    P: Parser<'db, T>,
+    P: Parser<T>,
 {
-    fn parse(&self, db: &'db dyn DwarfDb, entry: Die<'db>) -> Result<T> {
+    fn parse(&self, db: &dyn DwarfDb, entry: Die) -> Result<T> {
         self.parser
             .parse(db, entry)
             .with_context(|| entry.format_with_location(db, &self.context))
@@ -187,11 +187,11 @@ macro_rules! impl_parse_all_for_tuples {
     (
         $($P:ident, $T:ident, $idx:tt),*
     ) => {
-        impl<'db, $($T, $P,)*> Parser<'db, ($($T,)*)> for All<($($P,)*)>
+        impl<$($T, $P,)*> Parser< ($($T,)*)> for All<($($P,)*)>
         where
-            $($P: Parser<'db, $T>),*
+            $($P: Parser< $T>),*
         {
-            fn parse(&self, _db: &'db dyn DwarfDb, _entry: Die<'db>) -> anyhow::Result<($($T,)*)> {
+            fn parse(&self, _db: &dyn DwarfDb, _entry: Die) -> anyhow::Result<($($T,)*)> {
 
                 Ok((
                     $(

@@ -16,10 +16,10 @@ use crate::{
 /// Root compilation unit information
 #[salsa::tracked]
 pub struct Root<'db> {
-    pub cu: CompilationUnitId<'db>,
+    pub cu: CompilationUnitId,
     pub address_range: (u64, u64),
     #[returns(ref)]
-    pub files: Vec<SourceFile<'db>>,
+    pub files: Vec<SourceFile>,
 }
 
 /// Get all root compilation units from a file
@@ -90,7 +90,7 @@ pub fn parse_roots<'db>(db: &'db dyn DwarfDb, file: DebugFile) -> Vec<Root<'db>>
                 continue;
             }
         };
-        let die = CompilationUnitId::new(db, file, cu_offset);
+        let die = CompilationUnitId::new(file, cu_offset);
 
         let referenced_files = unit_ref
             .line_program
@@ -101,7 +101,7 @@ pub fn parse_roots<'db>(db: &'db dyn DwarfDb, file: DebugFile) -> Vec<Root<'db>>
                     .iter()
                     .flat_map(|f| {
                         let path = file_entry_to_path(db, f, &unit_ref)?;
-                        Some(SourceFile::new(db, path))
+                        Some(SourceFile::new(path))
                     })
                     .collect_vec()
             })

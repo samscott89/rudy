@@ -8,7 +8,7 @@ use crate::{file::Expression, Die, DwarfDb};
 #[salsa::tracked]
 pub fn get_location_expr<'db>(
     db: &'db dyn DwarfDb,
-    entry: Die<'db>,
+    entry: Die,
     attr: gimli::DwAt,
 ) -> Option<Expression> {
     let location = match entry.get_attr(db, attr) {
@@ -36,9 +36,9 @@ pub trait ExpressionContext {
 }
 
 /// Get function frame base register
-fn get_function_frame_base<'db>(
-    db: &'db dyn DwarfDb,
-    function_entry: Die<'db>,
+fn get_function_frame_base(
+    db: &dyn DwarfDb,
+    function_entry: Die,
     context: &dyn ExpressionContext,
 ) -> anyhow::Result<u64> {
     let Some(loc_exp) = get_location_expr(db, function_entry, gimli::DW_AT_frame_base) else {
@@ -89,11 +89,11 @@ fn get_function_frame_base<'db>(
 }
 
 /// Resolve data location for a variable using DWARF expressions
-pub fn resolve_data_location<'db>(
-    db: &'db dyn DwarfDb,
-    function: Die<'db>,
+pub fn resolve_data_location(
+    db: &dyn DwarfDb,
+    function: Die,
     base_address: u64,
-    variable_entry_id: Die<'db>,
+    variable_entry_id: Die,
     context: &dyn ExpressionContext,
 ) -> Result<Option<u64>> {
     let Some(expr) = get_location_expr(db, variable_entry_id, gimli::DW_AT_location) else {

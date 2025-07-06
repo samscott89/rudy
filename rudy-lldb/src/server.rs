@@ -268,7 +268,7 @@ impl ClientConnection {
 
 /// Discover methods available for a given type using DWARF debug information
 fn discover_methods_for_pointer(
-    pointer: &TypedPointer<'_>,
+    pointer: &TypedPointer,
     debug_info: &DebugInfo,
 ) -> MethodDiscoveryResult {
     // Use the real DWARF-based method discovery

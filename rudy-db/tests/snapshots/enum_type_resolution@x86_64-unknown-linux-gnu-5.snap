@@ -33,7 +33,5 @@ TypeDefinition {
             size: 1,
         },
     ),
-    location: Die(
-        Id(2712),
-    ),
+    location: Die at DebugFile { [salsa id]: Id(800) } 0x00004917,
 }

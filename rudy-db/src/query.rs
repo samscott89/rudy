@@ -8,12 +8,12 @@ use crate::{
 };
 
 #[salsa::tracked]
-pub fn lookup_position<'db>(
-    db: &'db dyn Db,
+pub fn lookup_position(
+    db: &dyn Db,
     binary: Binary,
-    query: rudy_dwarf::file::SourceLocation<'db>,
+    query: rudy_dwarf::file::SourceLocation,
 ) -> Option<u64> {
-    let file = query.file(db);
+    let file = &query.file;
 
     // find compilation units that cover the provided file
     let index = index::debug_index(db, binary);
@@ -24,7 +24,7 @@ pub fn lookup_position<'db>(
     let mut closest_line = u64::MAX;
 
     // find closest match to this line + column within the files
-    for debug_file in source_to_file.get(&file)? {
+    for debug_file in source_to_file.get(file)? {
         let Some(function_index) = symbol_index.function_index(db, *debug_file) else {
             continue;
         };
@@ -33,7 +33,8 @@ pub fn lookup_position<'db>(
         //     continue;
         // };
         // tracing::debug!("looking for matches in {cu:?}");
-        if let Some((addr, distance)) = function_index.location_to_address(db, *debug_file, query) {
+        if let Some((addr, distance)) = function_index.location_to_address(db, *debug_file, &query)
+        {
             tracing::debug!("found match  {addr:#x} at distance {distance}");
             if distance < closest_line {
                 tracing::debug!(
@@ -59,7 +60,7 @@ pub fn lookup_address<'db>(
     db: &'db dyn Db,
     binary: Binary,
     address: u64,
-) -> Option<(SymbolName, rudy_dwarf::file::SourceLocation<'db>)> {
+) -> Option<(SymbolName, rudy_dwarf::file::SourceLocation)> {
     let mut results = find_all_by_address(db, binary, address);
 
     if results.len() > 1 {
