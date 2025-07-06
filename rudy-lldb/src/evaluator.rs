@@ -768,6 +768,23 @@ pub struct EvalResult {
     pub type_name: String,
 }
 
+/// Information about a discovered function (for serialization to client)
+#[derive(Debug, serde::Serialize, Clone)]
+pub struct FunctionInfo {
+    /// The function name (e.g., "main")
+    pub name: String,
+    /// The full function name with module path (e.g., "simple_test::main")
+    pub full_name: String,
+    /// The function signature (e.g., "fn main()")
+    pub signature: String,
+    /// The function address in memory
+    pub address: u64,
+    /// Whether this function can be called
+    pub callable: bool,
+    /// The module path components (e.g., ["simple_test"])
+    pub module_path: Vec<String>,
+}
+
 fn indent(s: &str, level: usize) -> String {
     let indent = " ".repeat(level * 2);
     s.lines()
