@@ -29,7 +29,7 @@ impl<'db> ModuleIndex<'db> {
             // find the first point at which the range starts _after_ the offset
             .partition_point(|range| range.start_offset <= offset);
 
-        tracing::trace!("Partition point: {:?}", ranges[pos]);
+        tracing::trace!("Partition point: {:?}", ranges.get(pos));
 
         // then, work backwards to find the first range that contains the offset
         ranges[..pos]

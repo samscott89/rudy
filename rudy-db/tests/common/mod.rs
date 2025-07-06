@@ -1,14 +1,13 @@
 mod definitions;
 
-// re-import the test utilities
-// from the main project
-#[path = "../../src/test_utils.rs"]
-mod test_utils;
-
+pub use ::test_utils::*;
 pub use definitions::*;
 use itertools::Itertools as _;
 use rudy_db::DataResolver;
-pub use test_utils::*;
+
+pub fn debug_db(target: Option<&'static str>) -> crate::DebugDb {
+    crate::DebugDb::new().with_source_map(source_map(target))
+}
 
 #[macro_export]
 macro_rules! function_name {
