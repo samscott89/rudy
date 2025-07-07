@@ -782,8 +782,13 @@ pub struct VecLayout<L = ()>
 where
     L: Location,
 {
+    /// Offset to the length field (vec.len)
     pub length_offset: usize,
+    /// Offset to the data pointer (vec.buf.inner.ptr.pointer)
     pub data_ptr_offset: usize,
+    /// Offset to the capacity value (vec.buf.inner.cap.__0)
+    pub capacity_offset: usize,
+    /// The element type of the Vec
     pub inner_type: TypeDefinition<L>,
 }
 
@@ -792,6 +797,7 @@ impl<L: Location + Default> VecLayout<L> {
         Self {
             length_offset: 0,
             data_ptr_offset: 0,
+            capacity_offset: 0,
             inner_type: TypeDefinition::new(Default::default(), inner_type.into()),
         }
     }

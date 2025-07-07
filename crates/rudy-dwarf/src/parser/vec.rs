@@ -15,12 +15,16 @@ pub fn vec() -> impl Parser<VecLayout<Die>> {
     parse_children((
         field_path_offset(vec!["buf", "inner", "ptr"]),
         is_member_offset("len"),
+        field_path_offset(vec!["buf", "inner", "cap", "__0"]),
         resolved_generic("T"),
     ))
-    .map(|(data_ptr_offset, length_offset, inner_type)| VecLayout {
-        data_ptr_offset,
-        length_offset,
-        inner_type,
-    })
+    .map(
+        |(data_ptr_offset, length_offset, capacity_offset, inner_type)| VecLayout {
+            data_ptr_offset,
+            length_offset,
+            capacity_offset,
+            inner_type,
+        },
+    )
     .context("Failed to parse Vec layout")
 }

@@ -858,6 +858,7 @@ fn read_std_from_memory(
                 length_offset,
                 data_ptr_offset,
                 inner_type,
+                ..
             },
         ) => {
             tracing::trace!(

@@ -186,7 +186,9 @@ pub fn discover_all_methods(
                         callable: true,
                         is_synthetic: false,
                         return_type: sig.return_type,
-                        parameters: sig.params.iter()
+                        parameters: sig
+                            .params
+                            .iter()
                             .skip(1) // Skip 'self' parameter
                             .map(|param| crate::FunctionParameter {
                                 name: param.name.clone(),
@@ -502,15 +504,21 @@ fn convert_function_to_method(
         callable,
         is_synthetic: false,
         return_type: return_type_def,
-        parameters: function.parameters.iter()
+        parameters: function
+            .parameters
+            .iter()
             .skip(if self_type.is_some() { 1 } else { 0 }) // Skip 'self' parameter if present
             .map(|param| crate::FunctionParameter {
                 name: param.name.clone(),
                 type_def: rudy_dwarf::types::resolve_type_offset(db, param.type_die)
-                    .unwrap_or_else(|_| rudy_dwarf::types::DieTypeDefinition::new(
-                        param.type_die, 
-                        rudy_types::Layout::Alias { name: "unknown".to_string() }
-                    )),
+                    .unwrap_or_else(|_| {
+                        rudy_dwarf::types::DieTypeDefinition::new(
+                            param.type_die,
+                            rudy_types::Layout::Alias {
+                                name: "unknown".to_string(),
+                            },
+                        )
+                    }),
             })
             .collect(),
     }))
