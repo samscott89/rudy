@@ -132,6 +132,10 @@ class RudyConnection:
                 return self._handle_execute_function(event_msg, target)
             elif event == "GetVariableType":
                 return self._handle_get_variable_type(event_msg, target)
+            elif event == "AllocateMemory":
+                return self._handle_allocate_memory(event_msg, target)
+            elif event == "WriteMemory":
+                return self._handle_write_memory(event_msg, target)
             else:
                 return {
                     "type": "EventResponse",
@@ -712,6 +716,85 @@ class RudyConnection:
                 "type": "EventResponse",
                 "event": "Error",
                 "message": f"Variable type query error: {e}",
+            }
+
+    def _handle_allocate_memory(self, event_msg: dict, target) -> dict:
+        """Handle AllocateMemory event"""
+        size = event_msg.get("size", 0)
+
+        try:
+            debug_print(f"Allocating {size} bytes in target process")
+
+            # Use LLDB's expression evaluator to allocate memory
+            # malloc is typically available in most processes
+            alloc_expr = f"(void*)malloc({size})"
+            result = target.EvaluateExpression(alloc_expr)
+
+            if result.IsValid() and not result.GetError().Fail():
+                address = result.GetValueAsUnsigned()
+                debug_print(f"Allocated memory at address: {address:#x}")
+                return {
+                    "type": "EventResponse",
+                    "event": "MemoryAllocated",
+                    "address": address,
+                }
+            else:
+                error = result.GetError()
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": f"Memory allocation failed: {error.GetCString() if error else 'Unknown error'}",
+                }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Memory allocation error: {e}",
+            }
+
+    def _handle_write_memory(self, event_msg: dict, target) -> dict:
+        """Handle WriteMemory event"""
+        address = event_msg.get("address", 0)
+        data = event_msg.get("data", [])
+
+        try:
+            debug_print(f"Writing {len(data)} bytes to address {address:#x}")
+
+            # Get the process
+            process = target.GetProcess()
+            if not process:
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": "No process available for memory write",
+                }
+
+            # Convert list of ints to bytes
+            data_bytes = bytes(data)
+
+            # Write memory
+            error = lldb.SBError()
+            bytes_written = process.WriteMemory(address, data_bytes, error)
+
+            if error.Success() and bytes_written == len(data_bytes):
+                debug_print(f"Successfully wrote {bytes_written} bytes")
+                return {
+                    "type": "EventResponse",
+                    "event": "MemoryWritten",
+                }
+            else:
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": f"Memory write failed: {error.GetCString() if error else 'Unknown error'}",
+                }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Memory write error: {e}",
             }
 
     def __del__(self):

@@ -161,6 +161,67 @@ impl<'a> EvalContext<'a> {
         }
     }
 
+    /// Allocate memory in the target process
+    fn allocate_memory(&mut self, size: usize) -> Result<u64> {
+        let event = EventRequest::AllocateMemory { size };
+        let response = self.conn.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::MemoryAllocated { address } => Ok(address),
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Memory allocation failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for AllocateMemory")),
+        }
+    }
+
+    /// Write data to memory in the target process
+    fn write_memory(&mut self, address: u64, data: &[u8]) -> Result<()> {
+        let event = EventRequest::WriteMemory {
+            address,
+            data: data.to_vec(),
+        };
+        let response = self.conn.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::MemoryWritten => Ok(()),
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Memory write failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for WriteMemory")),
+        }
+    }
+
+    /// Create a Rust string slice (&str) in the target process
+    fn create_string_slice(&mut self, value: &str) -> Result<u64> {
+        let bytes = value.as_bytes();
+
+        // Calculate total size needed:
+        // - bytes for the string data
+        // - 16 bytes for the fat pointer (&str is *const u8 + usize)
+        let data_size = bytes.len();
+        let total_size = data_size + 16; // 8 bytes for pointer + 8 bytes for length (assuming 64-bit)
+
+        // Allocate memory for both the string data and the fat pointer
+        let base_addr = self.allocate_memory(total_size)?;
+
+        // Write the string data
+        let data_addr = base_addr;
+        self.write_memory(data_addr, bytes)?;
+
+        // Create the fat pointer at the end of the allocated memory
+        let fat_ptr_addr = base_addr + data_size as u64;
+
+        // Write the fat pointer: [data_ptr: u64, len: u64]
+        let mut fat_ptr_bytes = Vec::new();
+        fat_ptr_bytes.extend_from_slice(&data_addr.to_le_bytes()); // data pointer
+        fat_ptr_bytes.extend_from_slice(&(data_size as u64).to_le_bytes()); // length
+
+        self.write_memory(fat_ptr_addr, &fat_ptr_bytes)?;
+
+        Ok(fat_ptr_addr)
+    }
+
     /// Convert a TypedPointer to a final EvalResult by reading and formatting the value
     fn pointer_to_result(&mut self, pointer: &TypedPointer) -> Result<EvalResult> {
         let mut value = self.debug_info.read_pointer(pointer, &self.conn)?;
@@ -1002,12 +1063,26 @@ impl<'a> EvalContext<'a> {
                 value: value.to_string(),
                 arg_type: ArgumentType::Integer,
             }),
-            Expression::StringLiteral(_value) => {
-                // For string literals, we'd need to allocate them in the target process
-                // For now, this is not supported
-                Err(anyhow!(
-                    "String literal arguments not yet supported - try passing a String variable instead"
-                ))
+            Expression::StringLiteral(value) => {
+                // Create a Rust string slice in the target process
+                match self.create_string_slice(value) {
+                    Ok(str_addr) => {
+                        tracing::debug!(
+                            "Created string slice '{}' at address {:#x}",
+                            value,
+                            str_addr
+                        );
+                        Ok(MethodArgument {
+                            value: format!("{:x}", str_addr), // Address of the &str fat pointer
+                            arg_type: ArgumentType::Pointer,
+                        })
+                    }
+                    Err(e) => Err(anyhow!(
+                        "Failed to create string slice for '{}': {}",
+                        value,
+                        e
+                    )),
+                }
             }
             // For all expressions that can be evaluated to a memory reference, use evaluate_to_ref
             Expression::Variable(_)

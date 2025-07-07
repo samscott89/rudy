@@ -118,6 +118,10 @@ pub enum EventRequest {
     },
     /// Get the type of a variable by name
     GetVariableType { name: String },
+    /// Allocate memory in the target process
+    AllocateMemory { size: usize },
+    /// Write data to memory in the target process
+    WriteMemory { address: u64, data: Vec<u8> },
 }
 
 impl fmt::Debug for EventRequest {
@@ -168,6 +172,15 @@ impl fmt::Debug for EventRequest {
                 .debug_struct("GetVariableType")
                 .field("name", name)
                 .finish(),
+            Self::AllocateMemory { size } => f
+                .debug_struct("AllocateMemory")
+                .field("size", size)
+                .finish(),
+            Self::WriteMemory { address, data } => f
+                .debug_struct("WriteMemory")
+                .field("address", &format!("{address:#x}"))
+                .field("data_len", &data.len())
+                .finish(),
         }
     }
 }
@@ -198,6 +211,10 @@ pub enum EventResponseData {
     FunctionResult { result: MethodCallResult },
     /// Variable type result
     VariableTypeResult { type_name: Option<String> },
+    /// Memory allocation result
+    MemoryAllocated { address: u64 },
+    /// Memory write confirmation
+    MemoryWritten,
     /// Generic error response
     Error { message: String },
 }
@@ -241,6 +258,11 @@ impl fmt::Debug for EventResponseData {
                 .debug_struct("VariableTypeResult")
                 .field("type_name", type_name)
                 .finish(),
+            Self::MemoryAllocated { address } => f
+                .debug_struct("MemoryAllocated")
+                .field("address", &format!("{address:#x}"))
+                .finish(),
+            Self::MemoryWritten => f.debug_struct("MemoryWritten").finish(),
             Self::Error { message } => f.debug_struct("Error").field("message", message).finish(),
         }
     }
