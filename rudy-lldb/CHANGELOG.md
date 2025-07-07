@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.4...rudy-lldb-v0.1.5) - 2025-07-07
+
+### Other
+
+- Support methods using string literals arguments ([#26](https://github.com/samscott89/rudy/pull/26))
+- Support paths + generics ([#25](https://github.com/samscott89/rudy/pull/25))
+- Support searching for methods by a type name ([#23](https://github.com/samscott89/rudy/pull/23))
+- Support passing arguments to functions/methods ([#22](https://github.com/samscott89/rudy/pull/22))
+- Add function calling ([#21](https://github.com/samscott89/rudy/pull/21))
+- Simplify lifetimes ([#19](https://github.com/samscott89/rudy/pull/19))
+
 ## [0.1.4](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.3...rudy-lldb-v0.1.4) - 2025-07-03
 
 ### Other
