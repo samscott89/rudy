@@ -503,7 +503,7 @@ class RudyConnection:
                     f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
                 )
                 func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types)})){method_address:#x})"
-                
+
                 # Combine all struct definitions
                 all_struct_defs = struct_defs + [return_struct_def]
                 struct_prefix = "; ".join(all_struct_defs) + "; "
@@ -647,7 +647,7 @@ class RudyConnection:
                     f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
                 )
                 func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
-                
+
                 # Combine all struct definitions
                 all_struct_defs = struct_defs + [return_struct_def]
                 struct_prefix = "; ".join(all_struct_defs) + "; "
