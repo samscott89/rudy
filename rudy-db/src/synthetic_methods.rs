@@ -248,20 +248,18 @@ fn evaluate_vec_method(
                 value: len.to_string(),
             })
         }
-        // TODO(Sam): this assumption was wrong -- we need to read the actual
-        // capacity from the Vec layout, not just assume it's after length.
-        // "capacity" => {
-        //     // Vec layout typically has: data_ptr, length, capacity
-        //     // capacity is usually after length
-        //     let cap_offset = vec_layout.length_offset + std::mem::size_of::<usize>();
-        //     let cap_address = address + cap_offset as u64;
-        //     let cap_bytes = resolver.read_memory(cap_address, std::mem::size_of::<usize>())?;
-        //     let cap = usize_from_bytes(&cap_bytes)?;
-        //     Ok(Value::Scalar {
-        //         ty: "usize".to_string(),
-        //         value: cap.to_string(),
-        //     })
-        // }
+        "capacity" => {
+            // Vec layout typically has: data_ptr, length, capacity
+            // capacity is usually after length
+            let cap_offset = vec_layout.capacity_offset;
+            let cap_address = address + cap_offset as u64;
+            let cap_bytes = resolver.read_memory(cap_address, std::mem::size_of::<usize>())?;
+            let cap = usize_from_bytes(&cap_bytes)?;
+            Ok(Value::Scalar {
+                ty: "usize".to_string(),
+                value: cap.to_string(),
+            })
+        }
         "is_empty" => {
             let len_address = address + vec_layout.length_offset as u64;
             let len_bytes = resolver.read_memory(len_address, std::mem::size_of::<usize>())?;
@@ -286,6 +284,7 @@ fn evaluate_string_method(
     match method {
         "len" => evaluate_vec_method(address, vec_layout, "len", resolver),
         "is_empty" => evaluate_vec_method(address, vec_layout, "is_empty", resolver),
+        "capacity" => evaluate_vec_method(address, vec_layout, "capacity", resolver),
         _ => Err(anyhow!("Unknown synthetic method '{}' for String", method)),
     }
 }
