@@ -573,9 +573,7 @@ class RudyConnection:
 
             if return_type_size is None:
                 # Simple return type - direct call returning value in register
-                func_signature = (
-                    f"((unsigned long (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
-                )
+                func_signature = f"((unsigned long (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
                 call_expr = f"{func_signature}({', '.join(arg_values)})"
 
                 debug_print(f"Simple function call: {call_expr}")
@@ -675,7 +673,7 @@ class RudyConnection:
                     "event": "VariableTypeResult",
                     "type_name": None,
                 }
-            
+
             thread = process.GetSelectedThread()
             if not thread:
                 return {
@@ -683,7 +681,7 @@ class RudyConnection:
                     "event": "VariableTypeResult",
                     "type_name": None,
                 }
-                
+
             frame = thread.GetSelectedFrame()
             if not frame:
                 return {

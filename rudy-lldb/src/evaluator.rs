@@ -145,18 +145,17 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-
     /// Check if a name is a variable in the current LLDB context
     pub fn is_variable(&mut self, name: &str) -> bool {
         let event = EventRequest::GetVariableType {
             name: name.to_string(),
         };
-        
+
         if let Ok(response) = self.conn.conn.borrow_mut().send_event_request(event) {
-            match response {
-                EventResponseData::VariableTypeResult { type_name } => type_name.is_some(),
-                _ => false,
-            }
+            matches!(
+                response,
+                EventResponseData::VariableTypeResult { type_name: Some(_) }
+            )
         } else {
             false
         }
@@ -253,6 +252,15 @@ impl<'a> EvalContext<'a> {
     pub fn evaluate(&mut self, expr: &Expression) -> Result<EvalResult> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable(name),
+            Expression::Path(segments) => Err(anyhow!(
+                "Path expressions ('{}') are type names and cannot be evaluated as values",
+                segments.join("::")
+            )),
+            Expression::Generic { base, args } => Err(anyhow!(
+                "Generic types ('{}<{}>') are type names and cannot be evaluated as values",
+                base,
+                args.join(", ")
+            )),
             Expression::FieldAccess { base, field } => self.evaluate_field_access(base, field),
             Expression::Index { base, index } => self.evaluate_index(base, index),
             Expression::NumberLiteral(value) => Ok(EvalResult {
@@ -283,6 +291,15 @@ impl<'a> EvalContext<'a> {
     pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable_to_ref(name),
+            Expression::Path(segments) => Err(anyhow!(
+                "Path expressions ('{}') are type names and cannot be evaluated to memory references",
+                segments.join("::")
+            )),
+            Expression::Generic { base, args } => Err(anyhow!(
+                "Generic types ('{}<{}>') are type names and cannot be evaluated to memory references",
+                base,
+                args.join(", ")
+            )),
             Expression::FieldAccess { base, field } => {
                 self.evaluate_field_access_to_ref(base, field)
             }
