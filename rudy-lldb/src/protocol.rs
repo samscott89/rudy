@@ -116,6 +116,8 @@ pub enum EventRequest {
         /// None for simple types returned in registers, Some(size) for complex types.
         return_type_size: Option<usize>,
     },
+    /// Get the type of a variable by name
+    GetVariableType { name: String },
 }
 
 impl fmt::Debug for EventRequest {
@@ -162,6 +164,10 @@ impl fmt::Debug for EventRequest {
                 .field("args", args)
                 .field("return_type_size", return_type_size)
                 .finish(),
+            Self::GetVariableType { name } => f
+                .debug_struct("GetVariableType")
+                .field("name", name)
+                .finish(),
         }
     }
 }
@@ -190,6 +196,8 @@ pub enum EventResponseData {
     MethodResult { result: MethodCallResult },
     /// Function execution result
     FunctionResult { result: MethodCallResult },
+    /// Variable type result
+    VariableTypeResult { type_name: Option<String> },
     /// Generic error response
     Error { message: String },
 }
@@ -228,6 +236,10 @@ impl fmt::Debug for EventResponseData {
             Self::FunctionResult { result } => f
                 .debug_struct("FunctionResult")
                 .field("result", result)
+                .finish(),
+            Self::VariableTypeResult { type_name } => f
+                .debug_struct("VariableTypeResult")
+                .field("type_name", type_name)
                 .finish(),
             Self::Error { message } => f.debug_struct("Error").field("message", message).finish(),
         }

@@ -130,6 +130,8 @@ class RudyConnection:
                 return self._handle_execute_method(event_msg, target)
             elif event == "ExecuteFunction":
                 return self._handle_execute_function(event_msg, target)
+            elif event == "GetVariableType":
+                return self._handle_get_variable_type(event_msg, target)
             else:
                 return {
                     "type": "EventResponse",
@@ -656,6 +658,62 @@ class RudyConnection:
                 "type": "EventResponse",
                 "event": "Error",
                 "message": f"Function execution error: {e}",
+            }
+
+    def _handle_get_variable_type(self, event_msg: dict, target) -> dict:
+        """Handle GetVariableType event"""
+        var_name = event_msg.get("name", "")
+
+        try:
+            debug_print(f"Getting type for variable: {var_name}")
+
+            # Get the current frame
+            process = target.GetProcess()
+            if not process:
+                return {
+                    "type": "EventResponse",
+                    "event": "VariableTypeResult",
+                    "type_name": None,
+                }
+            
+            thread = process.GetSelectedThread()
+            if not thread:
+                return {
+                    "type": "EventResponse",
+                    "event": "VariableTypeResult",
+                    "type_name": None,
+                }
+                
+            frame = thread.GetSelectedFrame()
+            if not frame:
+                return {
+                    "type": "EventResponse",
+                    "event": "VariableTypeResult",
+                    "type_name": None,
+                }
+
+            # Try to find the variable in the current frame
+            var = frame.FindVariable(var_name)
+            if var.IsValid():
+                type_name = var.GetTypeName()
+                return {
+                    "type": "EventResponse",
+                    "event": "VariableTypeResult",
+                    "type_name": type_name,
+                }
+            else:
+                # Variable not found
+                return {
+                    "type": "EventResponse",
+                    "event": "VariableTypeResult",
+                    "type_name": None,
+                }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Variable type query error: {e}",
             }
 
     def __del__(self):
