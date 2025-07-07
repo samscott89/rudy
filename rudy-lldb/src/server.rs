@@ -186,10 +186,11 @@ impl ClientConnection {
                     });
                 }
 
-                let input = &args[0];
+                // Join all arguments back together since LLDB splits on spaces
+                let input = args.join(" ");
 
                 // Parse the expression
-                let expr = match parse_expression(input) {
+                let expr = match parse_expression(&input) {
                     Ok(expr) => expr,
                     Err(e) => {
                         return Ok(e.into());
@@ -217,9 +218,10 @@ impl ClientConnection {
                     });
                 }
 
-                let input = &args[0];
-                let result = self.handle_methods_command(input, debug_info);
-                tracing::debug!("Method discovery result for '{input}': {result:#?}");
+                // Join all arguments back together since LLDB splits on spaces
+                let input = args.join(" ");
+                let result = self.handle_methods_command(&input, debug_info);
+                tracing::debug!("Method discovery result for '{}': {result:#?}", input);
                 match result {
                     Ok(methods) => Ok(ServerMessage::Complete {
                         result: serde_json::to_value(&methods)?,
@@ -260,13 +262,49 @@ impl ClientConnection {
         if let Ok(expr) = parse_expression(input) {
             tracing::debug!("Parsed as expression: {:?}", expr);
 
-            // Check if it's a simple variable name (single identifier)
-            if let rudy_parser::Expression::Variable(var_name) = &expr {
-                // For single identifiers, check if it's a variable in LLDB first
-                if !eval_context.is_variable(var_name) {
-                    // Not a variable, try to resolve as a type
-                    if let Ok(Some(type_def)) = debug_info.resolve_type(var_name) {
-                        tracing::debug!("Resolved '{}' as a type", var_name);
+            // Handle different expression types that could be type names
+            match &expr {
+                // Single identifier - check if it's a variable first
+                rudy_parser::Expression::Variable(var_name) => {
+                    if !eval_context.is_variable(var_name) {
+                        // Not a variable, try to resolve as a type
+                        if let Ok(Some(type_def)) = debug_info.resolve_type(var_name) {
+                            tracing::debug!("Resolved '{}' as a type", var_name);
+                            let discovered_methods =
+                                debug_info.discover_methods_for_type(&type_def)?;
+
+                            // Convert DiscoveredMethod to MethodInfo
+                            let methods: Vec<MethodInfo> = discovered_methods
+                                .into_iter()
+                                .map(|dm| MethodInfo {
+                                    name: dm.name,
+                                    signature: dm.signature,
+                                    description: Some(format!(
+                                        "Method at address {:#x}",
+                                        dm.address
+                                    )),
+                                    callable: dm.callable,
+                                    is_synthetic: dm.is_synthetic,
+                                })
+                                .collect();
+
+                            return Ok(MethodDiscoveryResult {
+                                type_name: var_name.clone(),
+                                methods,
+                            });
+                        } else {
+                            // it's not a variable, but we also couldn't resolve it as a type
+                            return Err(anyhow!(
+                                "No type found matching '{input}'. (Note: searching by type requires a fully qualified type name, e.g. `alloc::string::String` or `my_crates::MyStruct`.)",
+                            ));
+                        }
+                    }
+                }
+                // Path or generic - these should be treated as type names
+                rudy_parser::Expression::Path(_) | rudy_parser::Expression::Generic { .. } => {
+                    let type_name = expr.to_string();
+                    if let Ok(Some(type_def)) = debug_info.resolve_type(&type_name) {
+                        tracing::debug!("Resolved '{}' as a type", type_name);
                         let discovered_methods = debug_info.discover_methods_for_type(&type_def)?;
 
                         // Convert DiscoveredMethod to MethodInfo
@@ -281,16 +319,13 @@ impl ClientConnection {
                             })
                             .collect();
 
-                        return Ok(MethodDiscoveryResult {
-                            type_name: var_name.clone(),
-                            methods,
-                        });
+                        return Ok(MethodDiscoveryResult { type_name, methods });
                     } else {
-                        // it's not a variable, but we also couldn't resolve it as a type
-                        return Err(anyhow!(
-                            "No type found matching '{input}'. (Note: searching by type requires a fully qualified type name, e.g. `alloc::string::String` or `my_crates::MyStruct`.)",
-                        ));
+                        return Err(anyhow!("No type found matching '{}'", type_name));
                     }
+                }
+                _ => {
+                    // For other expression types, fall through to evaluate
                 }
             }
 
