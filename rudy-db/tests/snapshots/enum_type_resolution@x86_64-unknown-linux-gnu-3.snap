@@ -25,11 +25,11 @@ TypeDefinition {
                             },
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(800) } 0x0000009d,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x0000009d,
                 },
                 size: 8,
             },
         ),
     ),
-    location: Die at DebugFile { [salsa id]: Id(800) } 0x00000118,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x00000118,
 }

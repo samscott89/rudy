@@ -33,5 +33,5 @@ TypeDefinition {
             size: 1,
         },
     ),
-    location: Die at DebugFile { [salsa id]: Id(812) } 0x000004f2,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x000004f2,
 }

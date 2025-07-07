@@ -31,7 +31,7 @@ snapshot_kind: text
                                             },
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c00) } 0x000002eb,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002eb,
                                 },
                             },
                             StructField {
@@ -44,6 +44,7 @@ snapshot_kind: text
                                                 VecLayout {
                                                     length_offset: 16,
                                                     data_ptr_offset: 8,
+                                                    capacity_offset: 0,
                                                     inner_type: TypeDefinition {
                                                         layout: Primitive(
                                                             UnsignedInt(
@@ -52,21 +53,63 @@ snapshot_kind: text
                                                                 },
                                                             ),
                                                         ),
-                                                        location: Die at DebugFile { [salsa id]: Id(c00) } 0x000003c9,
+                                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000003c9,
                                                     },
                                                 },
                                             ),
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c00) } 0x000002fc,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002fc,
                                 },
                             },
                         ],
                     },
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c00) } 0x0000002f,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x0000002f,
             },
         ),
+        parameters: [
+            FunctionParameter {
+                name: None,
+                type_def: TypeDefinition {
+                    layout: Primitive(
+                        UnsignedInt(
+                            UnsignedIntLayout {
+                                size: 8,
+                            },
+                        ),
+                    ),
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002eb,
+                },
+            },
+            FunctionParameter {
+                name: None,
+                type_def: TypeDefinition {
+                    layout: Std(
+                        String(
+                            StringLayout(
+                                VecLayout {
+                                    length_offset: 16,
+                                    data_ptr_offset: 8,
+                                    capacity_offset: 0,
+                                    inner_type: TypeDefinition {
+                                        layout: Primitive(
+                                            UnsignedInt(
+                                                UnsignedIntLayout {
+                                                    size: 1,
+                                                },
+                                            ),
+                                        ),
+                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000003c9,
+                                    },
+                                },
+                            ),
+                        ),
+                    ),
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002fc,
+                },
+            },
+        ],
     },
     DiscoveredMethod {
         name: "get_id",
@@ -87,9 +130,10 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c00) } 0x000002eb,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002eb,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "set_name",
@@ -102,6 +146,35 @@ snapshot_kind: text
         callable: true,
         is_synthetic: false,
         return_type: None,
+        parameters: [
+            FunctionParameter {
+                name: None,
+                type_def: TypeDefinition {
+                    layout: Std(
+                        String(
+                            StringLayout(
+                                VecLayout {
+                                    length_offset: 16,
+                                    data_ptr_offset: 8,
+                                    capacity_offset: 0,
+                                    inner_type: TypeDefinition {
+                                        layout: Primitive(
+                                            UnsignedInt(
+                                                UnsignedIntLayout {
+                                                    size: 1,
+                                                },
+                                            ),
+                                        ),
+                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000003c9,
+                                    },
+                                },
+                            ),
+                        ),
+                    ),
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002fc,
+                },
+            },
+        ],
     },
     DiscoveredMethod {
         name: "describe",
@@ -121,6 +194,7 @@ snapshot_kind: text
                             VecLayout {
                                 length_offset: 16,
                                 data_ptr_offset: 8,
+                                capacity_offset: 0,
                                 inner_type: TypeDefinition {
                                     layout: Primitive(
                                         UnsignedInt(
@@ -129,15 +203,16 @@ snapshot_kind: text
                                             },
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c00) } 0x000003c9,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000003c9,
                                 },
                             },
                         ),
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c00) } 0x000002fc,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002fc,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "description_length",
@@ -158,9 +233,10 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c00) } 0x00000585,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x00000585,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "identifier",
@@ -180,6 +256,7 @@ snapshot_kind: text
                             VecLayout {
                                 length_offset: 16,
                                 data_ptr_offset: 8,
+                                capacity_offset: 0,
                                 inner_type: TypeDefinition {
                                     layout: Primitive(
                                         UnsignedInt(
@@ -188,15 +265,16 @@ snapshot_kind: text
                                             },
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c00) } 0x000003c9,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000003c9,
                                 },
                             },
                         ),
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c00) } 0x000002fc,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000002fc,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "fmt",
@@ -228,22 +306,35 @@ snapshot_kind: text
                                         UnitLayout,
                                     ),
                                 ),
-                                location: Die at DebugFile { [salsa id]: Id(c00) } 0x00000658,
+                                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x00000658,
                             },
                             ok_offset: 1,
                             err_type: TypeDefinition {
                                 layout: Alias {
                                     name: "Error",
                                 },
-                                location: Die at DebugFile { [salsa id]: Id(c00) } 0x00000520,
+                                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x00000520,
                             },
                             err_offset: 1,
                             size: 1,
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c00) } 0x0000049a,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x0000049a,
             },
         ),
+        parameters: [
+            FunctionParameter {
+                name: Some(
+                    "f",
+                ),
+                type_def: TypeDefinition {
+                    layout: Alias {
+                        name: "unknown",
+                    },
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x0000065f,
+                },
+            },
+        ],
     },
 ]

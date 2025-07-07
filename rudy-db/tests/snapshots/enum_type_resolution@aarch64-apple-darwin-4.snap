@@ -24,7 +24,7 @@ TypeDefinition {
                             },
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(812) } 0x000008ef,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x000008ef,
                 },
                 ok_offset: 8,
                 err_type: TypeDefinition {
@@ -34,6 +34,7 @@ TypeDefinition {
                                 VecLayout {
                                     length_offset: 16,
                                     data_ptr_offset: 8,
+                                    capacity_offset: 0,
                                     inner_type: TypeDefinition {
                                         layout: Primitive(
                                             UnsignedInt(
@@ -42,18 +43,18 @@ TypeDefinition {
                                                 },
                                             ),
                                         ),
-                                        location: Die at DebugFile { [salsa id]: Id(812) } 0x000001c6,
+                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x000001c6,
                                     },
                                 },
                             ),
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(812) } 0x000000f9,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x000000f9,
                 },
                 err_offset: 0,
                 size: 24,
             },
         ),
     ),
-    location: Die at DebugFile { [salsa id]: Id(812) } 0x000002ea,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x000002ea,
 }

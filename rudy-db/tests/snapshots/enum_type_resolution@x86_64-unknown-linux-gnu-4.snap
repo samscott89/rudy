@@ -24,7 +24,7 @@ TypeDefinition {
                             },
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(800) } 0x00002825,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x00002825,
                 },
                 ok_offset: 8,
                 err_type: TypeDefinition {
@@ -34,6 +34,7 @@ TypeDefinition {
                                 VecLayout {
                                     length_offset: 16,
                                     data_ptr_offset: 8,
+                                    capacity_offset: 0,
                                     inner_type: TypeDefinition {
                                         layout: Primitive(
                                             UnsignedInt(
@@ -42,18 +43,18 @@ TypeDefinition {
                                                 },
                                             ),
                                         ),
-                                        location: Die at DebugFile { [salsa id]: Id(800) } 0x00002a59,
+                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x00002a59,
                                     },
                                 },
                             ),
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(800) } 0x0000298c,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x0000298c,
                 },
                 err_offset: 0,
                 size: 24,
             },
         ),
     ),
-    location: Die at DebugFile { [salsa id]: Id(800) } 0x00002763,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x00002763,
 }
