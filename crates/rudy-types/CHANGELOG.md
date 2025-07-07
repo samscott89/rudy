@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1](https://github.com/samscott89/rudy/compare/rudy-types-v0.4.0...rudy-types-v0.4.1) - 2025-07-07
+
+### Other
+
+- Misc API cleanup ([#27](https://github.com/samscott89/rudy/pull/27))
+
 ## [0.4.0](https://github.com/samscott89/rudy/compare/rudy-types-v0.3.0...rudy-types-v0.4.0) - 2025-07-07
 
 ### Other
