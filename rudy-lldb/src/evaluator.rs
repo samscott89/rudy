@@ -145,13 +145,12 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-
     /// Check if a name is a variable in the current LLDB context
     pub fn is_variable(&mut self, name: &str) -> bool {
         let event = EventRequest::GetVariableType {
             name: name.to_string(),
         };
-        
+
         if let Ok(response) = self.conn.conn.borrow_mut().send_event_request(event) {
             match response {
                 EventResponseData::VariableTypeResult { type_name } => type_name.is_some(),
