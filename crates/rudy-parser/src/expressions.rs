@@ -15,6 +15,12 @@ pub enum Expression {
     /// Simple variable reference (e.g., `foo`)
     Variable(String),
 
+    /// Path expression (e.g., `std::vec::Vec`, `lldb_demo::User`)
+    Path(Vec<String>),
+
+    /// Generic type (e.g., `Vec<String>`, `HashMap<String, u32>`)
+    Generic { base: String, args: Vec<String> },
+
     /// Field access (e.g., `foo.bar`, `self.field`)
     FieldAccess {
         base: Box<Expression>,
@@ -63,6 +69,8 @@ impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expression::Variable(name) => write!(f, "{name}"),
+            Expression::Path(segments) => write!(f, "{}", segments.join("::")),
+            Expression::Generic { base, args } => write!(f, "{}<{}>", base, args.join(", ")),
             Expression::FieldAccess { base, field } => write!(f, "{base}.{field}"),
             Expression::Index { base, index } => write!(f, "{base}[{index}]"),
             Expression::Deref(expr) => write!(f, "*{expr}"),
@@ -103,6 +111,12 @@ enum Token {
     LeftParen,
     /// ')'
     RightParen,
+    /// '<'
+    LeftAngle,
+    /// '>'
+    RightAngle,
+    /// '::'
+    PathSeparator,
     /// ','
     Comma,
     Mut,
@@ -241,6 +255,23 @@ impl<'a> Tokenizer<'a> {
             Some(')') => {
                 self.advance();
                 Ok(Token::RightParen)
+            }
+            Some('<') => {
+                self.advance();
+                Ok(Token::LeftAngle)
+            }
+            Some('>') => {
+                self.advance();
+                Ok(Token::RightAngle)
+            }
+            Some(':') => {
+                self.advance();
+                if self.current_char() == Some(':') {
+                    self.advance();
+                    Ok(Token::PathSeparator)
+                } else {
+                    Err(anyhow!("Expected '::' but found single ':'"))
+                }
             }
             Some(',') => {
                 self.advance();
@@ -397,20 +428,51 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expression> {
         match self.current_token() {
             Token::Identifier(name) => {
-                let name = name.clone();
+                let first_segment = name.clone();
                 self.advance();
+
+                // Check if this is a path (e.g., std::vec::Vec)
+                let mut segments = vec![first_segment.clone()];
+                while matches!(self.current_token(), Token::PathSeparator) {
+                    self.advance(); // consume '::'
+                    if let Token::Identifier(segment) = self.current_token() {
+                        segments.push(segment.clone());
+                        self.advance();
+                    } else {
+                        return Err(anyhow!("Expected identifier after '::'"));
+                    }
+                }
+
+                // Check if this is a generic type (e.g., Vec<String>)
+                if matches!(self.current_token(), Token::LeftAngle) {
+                    self.advance(); // consume '<'
+                    let type_args = self.parse_type_arguments()?;
+                    self.expect(Token::RightAngle)?;
+
+                    // For generics, we use the full path as the base
+                    let base = segments.join("::");
+                    return Ok(Expression::Generic {
+                        base,
+                        args: type_args,
+                    });
+                }
 
                 // Check if this is a function call
                 if matches!(self.current_token(), Token::LeftParen) {
                     self.advance(); // consume '('
                     let args = self.parse_arguments()?;
                     self.expect(Token::RightParen)?;
-                    Ok(Expression::FunctionCall {
-                        function: name,
-                        args,
-                    })
+
+                    // For function calls, use the full path as the function name
+                    let function = segments.join("::");
+                    return Ok(Expression::FunctionCall { function, args });
+                }
+
+                // Return as path if multiple segments, otherwise as variable
+                if segments.len() > 1 {
+                    Ok(Expression::Path(segments))
                 } else {
-                    Ok(Expression::Variable(name))
+                    Ok(Expression::Variable(first_segment))
                 }
             }
             Token::Number(value) => {
@@ -454,6 +516,63 @@ impl Parser {
         }
 
         Ok(args)
+    }
+
+    fn parse_type_arguments(&mut self) -> Result<Vec<String>> {
+        let mut args = Vec::new();
+
+        // Handle empty type argument list
+        if matches!(self.current_token(), Token::RightAngle) {
+            return Ok(args);
+        }
+
+        // Parse first type argument
+        args.push(self.parse_type_name()?);
+
+        // Parse remaining type arguments
+        while matches!(self.current_token(), Token::Comma) {
+            self.advance(); // consume ','
+            args.push(self.parse_type_name()?);
+        }
+
+        Ok(args)
+    }
+
+    fn parse_type_name(&mut self) -> Result<String> {
+        let mut segments = Vec::new();
+
+        // Parse first segment
+        if let Token::Identifier(name) = self.current_token() {
+            segments.push(name.clone());
+            self.advance();
+        } else {
+            return Err(anyhow!("Expected type name"));
+        }
+
+        // Parse additional path segments
+        while matches!(self.current_token(), Token::PathSeparator) {
+            self.advance(); // consume '::'
+            if let Token::Identifier(segment) = self.current_token() {
+                segments.push(segment.clone());
+                self.advance();
+            } else {
+                return Err(anyhow!("Expected identifier after '::'"));
+            }
+        }
+
+        let mut type_name = segments.join("::");
+
+        // Check for nested generics
+        if matches!(self.current_token(), Token::LeftAngle) {
+            self.advance(); // consume '<'
+            let nested_args = self.parse_type_arguments()?;
+            self.expect(Token::RightAngle)?;
+            type_name.push('<');
+            type_name.push_str(&nested_args.join(", "));
+            type_name.push('>');
+        }
+
+        Ok(type_name)
     }
 }
 
@@ -705,6 +824,77 @@ mod tests {
     }
 
     #[test]
+    fn test_path_expressions() {
+        // Simple path
+        let expr = parse("std::vec::Vec");
+        assert_eq!(
+            expr,
+            Expression::Path(vec![
+                "std".to_string(),
+                "vec".to_string(),
+                "Vec".to_string()
+            ])
+        );
+
+        // Path function call
+        let expr = parse("lldb_demo::User::new(1, \"foo\", \"bar\")");
+        assert_eq!(
+            expr,
+            Expression::FunctionCall {
+                function: "lldb_demo::User::new".to_string(),
+                args: vec![
+                    Expression::NumberLiteral(1),
+                    Expression::StringLiteral("foo".to_string()),
+                    Expression::StringLiteral("bar".to_string())
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn test_generic_types() {
+        // Simple generic
+        let expr = parse("Vec<u64>");
+        assert_eq!(
+            expr,
+            Expression::Generic {
+                base: "Vec".to_string(),
+                args: vec!["u64".to_string()],
+            }
+        );
+
+        // Generic with multiple type arguments
+        let expr = parse("HashMap<String, u32>");
+        assert_eq!(
+            expr,
+            Expression::Generic {
+                base: "HashMap".to_string(),
+                args: vec!["String".to_string(), "u32".to_string()],
+            }
+        );
+
+        // Nested generics
+        let expr = parse("Vec<Option<String>>");
+        assert_eq!(
+            expr,
+            Expression::Generic {
+                base: "Vec".to_string(),
+                args: vec!["Option<String>".to_string()],
+            }
+        );
+
+        // Path with generics
+        let expr = parse("std::collections::HashMap<String, u32>");
+        assert_eq!(
+            expr,
+            Expression::Generic {
+                base: "std::collections::HashMap".to_string(),
+                args: vec!["String".to_string(), "u32".to_string()],
+            }
+        );
+    }
+
+    #[test]
     fn test_method_call_display() {
         assert_eq!(parse("vec.len()").to_string(), "vec.len()");
         assert_eq!(parse("vec.push(42)").to_string(), "vec.push(42)");
@@ -714,5 +904,30 @@ mod tests {
         );
         assert_eq!(parse("foo()").to_string(), "foo()");
         assert_eq!(parse("bar(1, 2)").to_string(), "bar(1, 2)");
+    }
+
+    #[test]
+    fn test_path_and_generic_display() {
+        // Path expressions
+        assert_eq!(parse("std::vec::Vec").to_string(), "std::vec::Vec");
+        assert_eq!(
+            parse("lldb_demo::User::new(1, \"foo\", \"bar\")").to_string(),
+            r#"lldb_demo::User::new(1, "foo", "bar")"#
+        );
+
+        // Generic expressions
+        assert_eq!(parse("Vec<u64>").to_string(), "Vec<u64>");
+        assert_eq!(
+            parse("HashMap<String, u32>").to_string(),
+            "HashMap<String, u32>"
+        );
+        assert_eq!(
+            parse("Vec<Option<String>>").to_string(),
+            "Vec<Option<String>>"
+        );
+        assert_eq!(
+            parse("std::collections::HashMap<String, u32>").to_string(),
+            "std::collections::HashMap<String, u32>"
+        );
     }
 }
