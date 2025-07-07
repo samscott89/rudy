@@ -589,7 +589,7 @@ impl<'a> EvalContext<'a> {
         let base_ref = self.evaluate_to_ref(base)?;
 
         self.debug_info
-            .get_field(base_ref.address, &base_ref.type_def, field)
+            .get_struct_field(base_ref.address, &base_ref.type_def, field)
     }
 
     fn evaluate_index_to_ref(
@@ -607,7 +607,7 @@ impl<'a> EvalContext<'a> {
                 ty: "String".to_string(),
                 value: key_string,
             };
-            let element_info = self.debug_info.get_index_by_value(
+            let element_info = self.debug_info.index_map(
                 base_ref.address,
                 &base_ref.type_def,
                 &key_value,
@@ -619,7 +619,7 @@ impl<'a> EvalContext<'a> {
             // Default to integer indexing
             let index_int = self.evaluate_to_int(index)?;
             self.debug_info
-                .get_index_by_int(&base_ref, index_int, &self.conn)
+                .index_array_or_slice(&base_ref, index_int, &self.conn)
         }
     }
 
@@ -727,7 +727,7 @@ impl<'a> EvalContext<'a> {
                 ty: "String".to_string(),
                 value: key_string,
             };
-            let element_info = self.debug_info.get_index_by_value(
+            let element_info = self.debug_info.index_map(
                 pointer.address,
                 &pointer.type_def,
                 &key_value,
@@ -740,7 +740,7 @@ impl<'a> EvalContext<'a> {
             let index_int = self.evaluate_to_int(index)?;
             let element_info = self
                 .debug_info
-                .get_index_by_int(&pointer, index_int, &self.conn)?;
+                .index_array_or_slice(&pointer, index_int, &self.conn)?;
 
             self.pointer_to_result(&element_info)
         }

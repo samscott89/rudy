@@ -152,7 +152,7 @@ fn test_simple_resolve_debug() -> Result<()> {
     let start = std::time::Instant::now();
 
     // Try to resolve a simple type
-    match debug_info.resolve_type("u32") {
+    match debug_info.lookup_type_by_name("u32") {
         Ok(Some(typedef)) => {
             tracing::info!(
                 "Found u32 type in {:?}: {}",
