@@ -263,21 +263,6 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Resolve variables at the current program counter
-    #[allow(dead_code)]
-    fn resolve_variables_at_address(
-        &mut self,
-        address: u64,
-        resolver: &dyn DataResolver,
-    ) -> Result<(
-        Vec<rudy_db::Variable>,
-        Vec<rudy_db::Variable>,
-        Vec<rudy_db::Variable>,
-    )> {
-        self.debug_info
-            .resolve_variables_at_address(address, resolver)
-    }
-
     /// Evaluates an expression, potentially generating events for the client
     pub fn evaluate(&mut self, expr: &Expression) -> Result<EvalResult> {
         match expr {
