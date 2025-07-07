@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6](https://github.com/samscott89/rudy/compare/rudy-db-v0.0.5...rudy-db-v0.0.6) - 2025-07-07
+
+### Other
+
+- Support methods using string literals arguments ([#26](https://github.com/samscott89/rudy/pull/26))
+- Support passing arguments to functions/methods ([#22](https://github.com/samscott89/rudy/pull/22))
+- Add function calling ([#21](https://github.com/samscott89/rudy/pull/21))
+- Simplify lifetimes ([#19](https://github.com/samscott89/rudy/pull/19))
+
 ## [0.0.5](https://github.com/samscott89/rudy/compare/rudy-db-v0.0.4...rudy-db-v0.0.5) - 2025-07-03
 
 ### Other

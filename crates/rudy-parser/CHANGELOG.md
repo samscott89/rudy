@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/samscott89/rudy/compare/rudy-parser-v0.3.0...rudy-parser-v0.4.0) - 2025-07-07
+
+### Other
+
+- Support methods using string literals arguments ([#26](https://github.com/samscott89/rudy/pull/26))
+- Support paths + generics ([#25](https://github.com/samscott89/rudy/pull/25))
+
 ## [0.3.0](https://github.com/samscott89/rudy/compare/rudy-parser-v0.2.1...rudy-parser-v0.3.0) - 2025-07-03
 
 ### Other
