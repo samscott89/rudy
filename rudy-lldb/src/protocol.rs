@@ -11,6 +11,8 @@ pub struct MethodArgument {
     pub value: String,
     /// The type of the argument for proper casting
     pub arg_type: ArgumentType,
+    /// Size in bytes for complex argument types. None for simple types, Some(size) for complex types.
+    pub arg_type_size: Option<usize>,
 }
 
 /// Supported argument types for method execution

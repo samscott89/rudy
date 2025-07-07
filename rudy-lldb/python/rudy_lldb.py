@@ -430,8 +430,14 @@ class RudyConnection:
             for arg in args:
                 arg_type = arg.get("arg_type", "Integer")
                 arg_value = arg.get("value", "0")
+                arg_type_size = arg.get("arg_type_size")
 
-                if arg_type == "Pointer":
+                if arg_type == "Pointer" and arg_type_size is not None:
+                    # Complex argument with known size - create generic struct and dereference
+                    arg_types.append(f"struct Arg_{arg_type_size}")
+                    arg_values.append(f"*((struct Arg_{arg_type_size}*){arg_value})")
+                elif arg_type == "Pointer":
+                    # Simple pointer argument
                     arg_types.append("void*")
                     arg_values.append(f"(void*){arg_value}")
                 elif arg_type == "Integer":
@@ -449,12 +455,22 @@ class RudyConnection:
                     arg_types.append("unsigned long")
                     arg_values.append(arg_value)
 
+            # Create struct definitions for complex arguments
+            struct_defs = []
+            for arg in args:
+                arg_type_size = arg.get("arg_type_size")
+                if arg_type_size is not None:
+                    struct_def = f"struct Arg_{arg_type_size} {{ unsigned char bytes[{arg_type_size}]; }}"
+                    if struct_def not in struct_defs:
+                        struct_defs.append(struct_def)
+
             if return_type_size is None:
                 # Simple return type - direct call returning value in register
                 func_signature = (
                     f"((unsigned long (*)({', '.join(arg_types)})){method_address:#x})"
                 )
-                call_expr = f"{func_signature}({', '.join(arg_values)})"
+                struct_prefix = "; ".join(struct_defs) + ("; " if struct_defs else "")
+                call_expr = f"{struct_prefix}{func_signature}({', '.join(arg_values)})"
 
                 debug_print(f"Simple call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
@@ -483,11 +499,15 @@ class RudyConnection:
                 size = return_type_size
 
                 # Create a struct to hold the return value
-                struct_def = (
+                return_struct_def = (
                     f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
                 )
                 func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types)})){method_address:#x})"
-                call_expr = f"{struct_def}; auto result = {func_signature}({', '.join(arg_values)}); &result"
+                
+                # Combine all struct definitions
+                all_struct_defs = struct_defs + [return_struct_def]
+                struct_prefix = "; ".join(all_struct_defs) + "; "
+                call_expr = f"{struct_prefix}auto result = {func_signature}({', '.join(arg_values)}); &result"
 
                 debug_print(f"Complex call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
@@ -556,10 +576,16 @@ class RudyConnection:
             for arg in args:
                 arg_type = arg.get("arg_type", "Integer")
                 arg_value = arg.get("value", "0")
+                arg_type_size = arg.get("arg_type_size")
 
-                if arg_type == "Pointer":
+                if arg_type == "Pointer" and arg_type_size is not None:
+                    # Complex argument with known size - create generic struct and dereference
+                    arg_types.append(f"struct Arg_{arg_type_size}")
+                    arg_values.append(f"*((struct Arg_{arg_type_size}*){arg_value})")
+                elif arg_type == "Pointer":
+                    # Simple pointer argument
                     arg_types.append("void*")
-                    arg_values.append(f"(void*)0x{arg_value}")
+                    arg_values.append(f"(void*){arg_value}")
                 elif arg_type == "Integer":
                     arg_types.append("unsigned long")
                     arg_values.append(arg_value)
@@ -575,10 +601,20 @@ class RudyConnection:
                     arg_types.append("unsigned long")
                     arg_values.append(arg_value)
 
+            # Create struct definitions for complex arguments
+            struct_defs = []
+            for arg in args:
+                arg_type_size = arg.get("arg_type_size")
+                if arg_type_size is not None:
+                    struct_def = f"struct Arg_{arg_type_size} {{ unsigned char bytes[{arg_type_size}]; }}"
+                    if struct_def not in struct_defs:
+                        struct_defs.append(struct_def)
+
             if return_type_size is None:
                 # Simple return type - direct call returning value in register
                 func_signature = f"((unsigned long (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
-                call_expr = f"{func_signature}({', '.join(arg_values)})"
+                struct_prefix = "; ".join(struct_defs) + ("; " if struct_defs else "")
+                call_expr = f"{struct_prefix}{func_signature}({', '.join(arg_values)})"
 
                 debug_print(f"Simple function call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
@@ -607,11 +643,15 @@ class RudyConnection:
                 size = return_type_size
 
                 # Create a struct to hold the return value
-                struct_def = (
+                return_struct_def = (
                     f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
                 )
                 func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
-                call_expr = f"{struct_def}; auto result = {func_signature}({', '.join(arg_values)}); &result"
+                
+                # Combine all struct definitions
+                all_struct_defs = struct_defs + [return_struct_def]
+                struct_prefix = "; ".join(all_struct_defs) + "; "
+                call_expr = f"{struct_prefix}auto result = {func_signature}({', '.join(arg_values)}); &result"
 
                 debug_print(f"Complex function call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
