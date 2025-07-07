@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow};
-use rudy_db::{DebugDb, DebugInfo, TypedPointer};
+use rudy_db::{DebugDb, DebugInfo};
 use rudy_parser::parse_expression;
 use tracing::{debug, error, info, trace, warn};
 
@@ -252,28 +252,101 @@ impl ClientConnection {
         input: &str,
         debug_info: &DebugInfo,
     ) -> Result<MethodDiscoveryResult> {
-        // First, try to parse as a type name directly (e.g., "Vec<String>", "HashMap<String, u32>")
+        tracing::info!("Discovering methods for: {}", input);
 
-        // If not a type name, try to parse as an expression and get its type
+        let mut eval_context = EvalContext::new(debug_info.clone(), self);
+
+        // First, try to parse as an expression
         if let Ok(expr) = parse_expression(input) {
-            tracing::info!("Parsed expression: {expr:#?}");
-            let mut eval_context = EvalContext::new(debug_info.clone(), self);
-            let pointer = eval_context.evaluate_to_ref(&expr);
-            match pointer {
-                Ok(pointer) => {
-                    tracing::info!("Resolved pointer: {pointer:#?}");
-                    return Ok(discover_methods_for_pointer(&pointer, debug_info));
-                }
-                Err(e) => {
-                    tracing::error!("Error resolving type for expression: {input}: {e}");
+            tracing::debug!("Parsed as expression: {:?}", expr);
+
+            // Check if it's a simple variable name (single identifier)
+            if let rudy_parser::Expression::Variable(var_name) = &expr {
+                // For single identifiers, check if it's a variable in LLDB first
+                if !eval_context.is_variable(var_name) {
+                    // Not a variable, try to resolve as a type
+                    if let Ok(Some(type_def)) = debug_info.resolve_type(var_name) {
+                        tracing::debug!("Resolved '{}' as a type", var_name);
+                        let discovered_methods = debug_info.discover_methods_for_type(&type_def)?;
+
+                        // Convert DiscoveredMethod to MethodInfo
+                        let methods: Vec<MethodInfo> = discovered_methods
+                            .into_iter()
+                            .map(|dm| MethodInfo {
+                                name: dm.name,
+                                signature: dm.signature,
+                                description: Some(format!("Method at address {:#x}", dm.address)),
+                                callable: dm.callable,
+                                is_synthetic: dm.is_synthetic,
+                            })
+                            .collect();
+
+                        return Ok(MethodDiscoveryResult {
+                            type_name: var_name.clone(),
+                            methods,
+                        });
+                    } else {
+                        // it's not a variable, but we also couldn't resolve it as a type
+                        return Err(anyhow!(
+                            "No type found matching '{input}'. (Note: searching by type requires a fully qualified type name, e.g. `alloc::string::String` or `my_crates::MyStruct`.)",
+                        ));
+                    }
                 }
             }
-        }
 
-        Err(anyhow!(
-            "Could not resolve '{}' as a type or expression",
-            input
-        ))
+            // For all other cases (composite expressions or variables), evaluate to get TypedPointer
+            match eval_context.evaluate_to_ref(&expr) {
+                Ok(pointer) => {
+                    let discovered_methods = debug_info.discover_methods_for_pointer(&pointer)?;
+                    let type_name = pointer.type_def.display_name();
+
+                    // Convert DiscoveredMethod to MethodInfo
+                    let methods: Vec<MethodInfo> = discovered_methods
+                        .into_iter()
+                        .map(|dm| MethodInfo {
+                            name: dm.name,
+                            signature: dm.signature,
+                            description: Some(format!("Method at address {:#x}", dm.address)),
+                            callable: dm.callable,
+                            is_synthetic: dm.is_synthetic,
+                        })
+                        .collect();
+
+                    Ok(MethodDiscoveryResult { type_name, methods })
+                }
+                Err(e) => {
+                    tracing::error!("Failed to evaluate expression '{}': {}", input, e);
+                    Err(e)
+                }
+            }
+        } else {
+            // If it doesn't parse as an expression, try as a direct type name
+            if let Ok(Some(type_def)) = debug_info.resolve_type(input) {
+                let discovered_methods = debug_info.discover_methods_for_type(&type_def)?;
+
+                // Convert DiscoveredMethod to MethodInfo
+                let methods: Vec<MethodInfo> = discovered_methods
+                    .into_iter()
+                    .map(|dm| MethodInfo {
+                        name: dm.name,
+                        signature: dm.signature,
+                        description: Some(format!("Method at address {:#x}", dm.address)),
+                        callable: dm.callable,
+                        is_synthetic: dm.is_synthetic,
+                    })
+                    .collect();
+
+                Ok(MethodDiscoveryResult {
+                    type_name: input.to_string(),
+                    methods,
+                })
+            } else {
+                Err(anyhow!(
+                    "Could not resolve '{}' as a type or expression",
+                    input
+                ))
+            }
+        }
     }
 
     /// Handle the functions command - discover functions in the binary
@@ -319,47 +392,6 @@ impl ClientConnection {
                 .collect();
 
             Ok(function_list)
-        }
-    }
-}
-
-/// Discover methods available for a given type using DWARF debug information
-fn discover_methods_for_pointer(
-    pointer: &TypedPointer,
-    debug_info: &DebugInfo,
-) -> MethodDiscoveryResult {
-    // Use the real DWARF-based method discovery
-    match debug_info.discover_methods_for_pointer(pointer) {
-        Ok(discovered_methods) => {
-            // Convert DiscoveredMethod to MethodInfo
-            let methods = discovered_methods
-                .into_iter()
-                .map(|dm| MethodInfo {
-                    name: dm.name,
-                    signature: dm.signature,
-                    description: Some(format!("Function at address {:#x}", dm.address)),
-                    callable: dm.callable,
-                    is_synthetic: dm.is_synthetic,
-                })
-                .collect();
-
-            MethodDiscoveryResult {
-                type_name: pointer.type_def.display_name(),
-                methods,
-            }
-        }
-        Err(e) => {
-            // Fallback to indicating an error occurred
-            MethodDiscoveryResult {
-                type_name: pointer.type_def.display_name(),
-                methods: vec![MethodInfo {
-                    name: "error".to_string(),
-                    signature: "discovery failed".to_string(),
-                    description: Some(format!("Method discovery failed: {e}")),
-                    callable: false,
-                    is_synthetic: false,
-                }],
-            }
         }
     }
 }
