@@ -975,6 +975,7 @@ mod test {
             Layout::Std(StdLayout::String(StringLayout(VecLayout {
                 length_offset: 0,
                 data_ptr_offset: 0,
+                capacity_offset: 0,
                 inner_type: TypeDefinition::new(
                     (),
                     Layout::Primitive(PrimitiveLayout::UnsignedInt(UnsignedIntLayout { size: 1 })),
