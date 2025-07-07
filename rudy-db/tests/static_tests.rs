@@ -75,12 +75,15 @@ fn test_resolve_position(#[case] target: &'static str) {
 
     // should be the position of the `let y = x + 1;` line
     let addrs = resolver
-        .resolve_position(platform_file, 2, None)
+        .find_address_from_source_location(platform_file, 2, None)
         .unwrap()
         .unwrap();
     salsa_debug_snapshot!(db, addrs);
     assert_eq!(
-        resolver.address_to_line(addrs.address).unwrap(),
+        resolver
+            .address_to_location(addrs.address)
+            .unwrap()
+            .unwrap(),
         ResolvedLocation {
             function: "simple_test::function_call".to_string(),
             file: expected.clone(),
@@ -90,13 +93,16 @@ fn test_resolve_position(#[case] target: &'static str) {
 
     // should be the position of the `const Z: u64 = 0xdeadbeef;` line
     let addrs = resolver
-        .resolve_position(platform_file, 11, None)
+        .find_address_from_source_location(platform_file, 11, None)
         .unwrap()
         .unwrap();
     salsa_debug_snapshot!(db, addrs);
 
     assert_eq!(
-        resolver.address_to_line(addrs.address).unwrap(),
+        resolver
+            .address_to_location(addrs.address)
+            .unwrap()
+            .unwrap(),
         ResolvedLocation {
             function: "simple_test::main".to_string(),
             file: expected.clone(),
@@ -129,14 +135,14 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
 
     // Find TestEnum type
     let test_enum_typedef = debug_info
-        .resolve_type("enums::TestEnum")
+        .lookup_type_by_name("enums::TestEnum")
         .expect("Failed to resolve enums::TestEnum")
         .expect("enums::TestEnum type should be found");
 
     salsa_debug_snapshot!(db, test_enum_typedef);
 
     let repr_c_typedef = debug_info
-        .resolve_type("enums::ReprCEnum")
+        .lookup_type_by_name("enums::ReprCEnum")
         .expect("Failed to resolve enums::ReprCEnum")
         .expect("enums::ReprCEnum type should be found");
 
@@ -144,14 +150,14 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
 
     // we'll also test our special-cased enums Option and Result
     let option_typedef = debug_info
-        .resolve_type("core::option::Option<i32>")
+        .lookup_type_by_name("core::option::Option<i32>")
         .expect("Failed to resolve core::option::Option<i32>")
         .expect("core::option::Option<i32> type should be found");
 
     salsa_debug_snapshot!(db, option_typedef);
 
     let result_typedef = debug_info
-        .resolve_type("core::result::Result<i32, alloc::string::String>")
+        .lookup_type_by_name("core::result::Result<i32, alloc::string::String>")
         .expect("Failed to resolve core::result::Result<i32, alloc::string::String>")
         .expect("core::result::Result<i32, alloc::string::String> type should be found");
 
@@ -159,7 +165,7 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
 
     // Test U8Enum variants
     let u8_enum_typedef = debug_info
-        .resolve_type("enums::U8Enum")
+        .lookup_type_by_name("enums::U8Enum")
         .expect("Failed to resolve enums::U8Enum")
         .expect("enums::U8Enum type should be found");
 

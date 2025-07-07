@@ -11,4 +11,8 @@ use crate::Die;
 pub type DieTypeDefinition = rudy_types::TypeDefinition<Die>;
 pub type DieLayout = rudy_types::Layout<Die>;
 
-impl rudy_types::Location for Die {}
+impl rudy_types::Location for Die {
+    fn matches(&self, other: &Self) -> bool {
+        self == other
+    }
+}

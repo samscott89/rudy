@@ -95,13 +95,8 @@ impl<L: Location> Layout<L> {
             (Layout::Std(s1), Layout::Std(s2)) => s1.matching_type(s2),
             (Layout::Struct(s1), Layout::Struct(s2)) => s1.name == s2.name,
             (Layout::Struct(s1), Layout::Alias { name }) => &s1.name == name,
-            (Layout::Alias { name: left }, Layout::Alias { name: right }) => {
-                left.ends_with(right) || right.ends_with(left)
-            }
-            (Layout::Alias { name }, x) | (x, Layout::Alias { name }) => {
-                let other_name = x.display_name();
-                other_name.contains(name) || name.contains(&other_name)
-            }
+            (Layout::Alias { name: left }, Layout::Alias { name: right }) => left == right,
+            (Layout::Alias { name }, x) | (x, Layout::Alias { name }) => name == &x.display_name(),
             (Layout::Enum(e1), Layout::Enum(e2)) => e1.name == e2.name,
             (Layout::CEnum(e1), Layout::CEnum(e2)) => e1.name == e2.name,
             _ => false,
@@ -344,11 +339,17 @@ where
     }
 
     pub fn matching_type(&self, other: &Self) -> bool {
-        self.layout.matching_type(&other.layout)
+        self.location.matches(&other.location) || self.layout.matching_type(&other.layout)
     }
 }
 
-pub trait Location: Update {}
+pub trait Location: Update {
+    fn matches(&self, _other: &Self) -> bool {
+        // Default implementation for `()` (no location)
+        // This can be overridden by specific location types
+        false
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Update)]
 pub enum Layout<L = ()>

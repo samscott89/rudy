@@ -96,7 +96,7 @@ fn benchmark_rudy_db(
 
     // Cold start - time to first query
     let cold_start_begin = Instant::now();
-    let first_result = debug_info.address_to_line(test_addresses[0].0);
+    let first_result = debug_info.address_to_location(test_addresses[0].0).unwrap();
     let cold_start = cold_start_begin.elapsed();
 
     // Validate first result
@@ -110,11 +110,11 @@ fn benchmark_rudy_db(
     // Warm queries - benefit from caching
     let mut found = 0;
     for (addr, _name) in test_addresses {
-        let _ = debug_info.address_to_line(*addr);
+        let _ = debug_info.address_to_location(*addr).unwrap();
     }
     let warm_start = Instant::now();
     for (addr, _name) in test_addresses {
-        if debug_info.address_to_line(*addr).is_some() {
+        if debug_info.address_to_location(*addr).unwrap().is_some() {
             found += 1;
         }
     }

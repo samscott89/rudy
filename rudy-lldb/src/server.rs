@@ -268,7 +268,7 @@ impl ClientConnection {
                 rudy_parser::Expression::Variable(var_name) => {
                     if !eval_context.is_variable(var_name) {
                         // Not a variable, try to resolve as a type
-                        if let Ok(Some(type_def)) = debug_info.resolve_type(var_name) {
+                        if let Ok(Some(type_def)) = debug_info.lookup_type_by_name(var_name) {
                             tracing::debug!("Resolved '{}' as a type", var_name);
                             let discovered_methods =
                                 debug_info.discover_methods_for_type(&type_def)?;
@@ -303,7 +303,7 @@ impl ClientConnection {
                 // Path or generic - these should be treated as type names
                 rudy_parser::Expression::Path(_) | rudy_parser::Expression::Generic { .. } => {
                     let type_name = expr.to_string();
-                    if let Ok(Some(type_def)) = debug_info.resolve_type(&type_name) {
+                    if let Ok(Some(type_def)) = debug_info.lookup_type_by_name(&type_name) {
                         tracing::debug!("Resolved '{}' as a type", type_name);
                         let discovered_methods = debug_info.discover_methods_for_type(&type_def)?;
 
@@ -356,7 +356,7 @@ impl ClientConnection {
             }
         } else {
             // If it doesn't parse as an expression, try as a direct type name
-            if let Ok(Some(type_def)) = debug_info.resolve_type(input) {
+            if let Ok(Some(type_def)) = debug_info.lookup_type_by_name(input) {
                 let discovered_methods = debug_info.discover_methods_for_type(&type_def)?;
 
                 // Convert DiscoveredMethod to MethodInfo

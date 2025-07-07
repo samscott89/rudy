@@ -19,7 +19,7 @@
 //!     let debug_info = DebugInfo::new(&db, "path/to/binary")?;
 //!     
 //!     // Resolve an address to source location
-//!     if let Some(location) = debug_info.address_to_line(0x12345) {
+//!     if let Ok(Some(location)) = debug_info.address_to_location(0x12345) {
 //!         println!("Address 0x12345 is at {}:{}", location.file, location.line);
 //!     }
 //!     

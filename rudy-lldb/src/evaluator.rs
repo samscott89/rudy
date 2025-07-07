@@ -49,19 +49,6 @@ impl<'conn> RemoteDataAccess<'conn> {
 }
 
 impl<'conn> DataResolver for RemoteDataAccess<'conn> {
-    fn base_address(&self) -> u64 {
-        // Get the base load address where the binary is loaded in memory
-        if let Ok(EventResponseData::BaseAddress { address }) = self
-            .conn
-            .borrow_mut()
-            .send_event_request(EventRequest::GetBaseAddress)
-        {
-            address
-        } else {
-            0 // Fallback if we can't get base address
-        }
-    }
-
     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
         let event = EventRequest::ReadMemory { address, size };
         let response: EventResponseData = self.conn.borrow_mut().send_event_request(event)?;
@@ -75,15 +62,6 @@ impl<'conn> DataResolver for RemoteDataAccess<'conn> {
 
     fn get_stack_pointer(&self) -> Result<u64> {
         Err(anyhow!("get_stack_pointer() not implemented"))
-    }
-
-    fn get_registers(&self) -> Result<Vec<u64>> {
-        // This method is supposed to return all available registers
-        // For now, we'll return an error since we don't have a way to get all registers
-        // In practice, DWARF expressions typically use get_register(idx) directly
-        Err(anyhow!(
-            "get_registers() not implemented - use get_register(idx) instead"
-        ))
     }
 
     fn get_register(&self, idx: usize) -> Result<u64> {
@@ -261,21 +239,6 @@ impl<'a> EvalContext<'a> {
                 })
             }
         }
-    }
-
-    /// Resolve variables at the current program counter
-    #[allow(dead_code)]
-    fn resolve_variables_at_address(
-        &mut self,
-        address: u64,
-        resolver: &dyn DataResolver,
-    ) -> Result<(
-        Vec<rudy_db::Variable>,
-        Vec<rudy_db::Variable>,
-        Vec<rudy_db::Variable>,
-    )> {
-        self.debug_info
-            .resolve_variables_at_address(address, resolver)
     }
 
     /// Evaluates an expression, potentially generating events for the client
@@ -604,7 +567,7 @@ impl<'a> EvalContext<'a> {
         let base_ref = self.evaluate_to_ref(base)?;
 
         self.debug_info
-            .get_field(base_ref.address, &base_ref.type_def, field)
+            .get_struct_field(base_ref.address, &base_ref.type_def, field)
     }
 
     fn evaluate_index_to_ref(
@@ -622,7 +585,7 @@ impl<'a> EvalContext<'a> {
                 ty: "String".to_string(),
                 value: key_string,
             };
-            let element_info = self.debug_info.get_index_by_value(
+            let element_info = self.debug_info.index_map(
                 base_ref.address,
                 &base_ref.type_def,
                 &key_value,
@@ -634,7 +597,7 @@ impl<'a> EvalContext<'a> {
             // Default to integer indexing
             let index_int = self.evaluate_to_int(index)?;
             self.debug_info
-                .get_index_by_int(&base_ref, index_int, &self.conn)
+                .index_array_or_slice(&base_ref, index_int, &self.conn)
         }
     }
 
@@ -742,7 +705,7 @@ impl<'a> EvalContext<'a> {
                 ty: "String".to_string(),
                 value: key_string,
             };
-            let element_info = self.debug_info.get_index_by_value(
+            let element_info = self.debug_info.index_map(
                 pointer.address,
                 &pointer.type_def,
                 &key_value,
@@ -755,7 +718,7 @@ impl<'a> EvalContext<'a> {
             let index_int = self.evaluate_to_int(index)?;
             let element_info = self
                 .debug_info
-                .get_index_by_int(&pointer, index_int, &self.conn)?;
+                .index_array_or_slice(&pointer, index_int, &self.conn)?;
 
             self.pointer_to_result(&element_info)
         }

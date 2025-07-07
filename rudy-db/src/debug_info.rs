@@ -95,12 +95,22 @@ impl<'db> DebugInfo<'db> {
     /// # use rudy_db::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// if let Some(location) = debug_info.address_to_line(0x12345) {
+    /// if let Ok(Some(location)) = debug_info.address_to_location(0x12345) {
     ///     println!("Address 0x12345 is at {}:{}", location.file, location.line);
     /// }
     /// ```
-    pub fn address_to_line(&self, address: u64) -> Option<ResolvedLocation> {
-        self.resolve_address_to_location(address).unwrap()
+    pub fn address_to_location(&self, address: u64) -> Result<Option<ResolvedLocation>> {
+        let db = self.db;
+        let Some((name, loc)) = lookup_address(db, self.binary, address) else {
+            tracing::debug!("no function found for address {address:#x}");
+            return Ok(None);
+        };
+
+        Ok(Some(crate::ResolvedLocation {
+            function: name.to_string(),
+            file: loc.file.path_str().to_string(),
+            line: loc.line,
+        }))
     }
 
     /// Resolves a function name to its debug information.
@@ -179,34 +189,6 @@ impl<'db> DebugInfo<'db> {
         Ok(symbols.first_key_value().map(|(_, s)| s.clone()))
     }
 
-    /// Resolves a memory address to its source location with error handling.
-    ///
-    /// Similar to `address_to_line` but provides detailed error information.
-    ///
-    /// # Arguments
-    ///
-    /// * `address` - The memory address to resolve
-    ///
-    /// # Returns
-    ///
-    /// The source location if found, or `None` if the address cannot be resolved
-    pub fn resolve_address_to_location(
-        &self,
-        address: u64,
-    ) -> Result<Option<crate::ResolvedLocation>> {
-        let db = self.db;
-        let Some((name, loc)) = lookup_address(db, self.binary, address) else {
-            tracing::debug!("no function found for address {address:#x}");
-            return Ok(None);
-        };
-
-        Ok(Some(crate::ResolvedLocation {
-            function: name.to_string(),
-            file: loc.file.path_str().to_string(),
-            line: loc.line,
-        }))
-    }
-
     /// Resolves a source file position to a memory address.
     ///
     /// # Arguments
@@ -225,11 +207,11 @@ impl<'db> DebugInfo<'db> {
     /// # use rudy_db::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// if let Some(addr) = debug_info.resolve_position("src/main.rs", 42, None).unwrap() {
+    /// if let Some(addr) = debug_info.find_address_from_source_location("src/main.rs", 42, None).unwrap() {
     ///     println!("Line 42 of src/main.rs is at address {:#x}", addr.address);
     /// }
     /// ```
-    pub fn resolve_position(
+    pub fn find_address_from_source_location(
         &self,
         file: &str,
         line: u64,
@@ -286,12 +268,7 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, DataResolver};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
@@ -382,12 +359,7 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, DataResolver};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
@@ -452,159 +424,17 @@ impl<'db> DebugInfo<'db> {
         Ok((params, locals, vec![]))
     }
 
-    /// Reads and formats a variable's value from its metadata.
-    ///
-    /// This method takes variable metadata (from `get_variable_at_pc` or `get_all_variables_at_pc`)
-    /// and reads the actual value from memory, formatting it for display.
-    ///
-    /// # Arguments
-    ///
-    /// * `var_info` - Variable metadata containing address and type information
-    /// * `data_resolver` - Interface for reading memory and register values
-    ///
-    /// # Returns
-    ///
-    /// The formatted variable value
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use rudy_db::{DebugDb, DebugInfo, DataResolver};
-    /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
-    /// # let db = DebugDb::new();
-    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// # let resolver = MyResolver;
-    /// if let Some(var_info) = debug_info.get_variable_at_pc(0x12345, "foo", &resolver).unwrap() {
-    ///     let value = debug_info.read_variable(&var_info, &resolver).unwrap();
-    ///     println!("Variable value: {:?}", value);
-    /// }
-    /// ```
-    pub fn read_variable(
-        &self,
-        var_info: &crate::VariableInfo,
-        data_resolver: &dyn crate::DataResolver,
-    ) -> Result<crate::Value> {
-        if let Some(address) = var_info.address {
-            crate::data::read_from_memory(self.db, address, &var_info.type_def, data_resolver)
-        } else {
-            // Variable doesn't have a memory location (e.g., optimized out)
-            Err(anyhow::anyhow!(
-                "Variable '{}' has no memory location",
-                var_info.name
-            ))
-        }
-    }
-
-    /// Resolves variables visible at a given memory address (legacy method).
-    ///
-    /// This method combines `get_all_variables_at_pc` and `read_variable` for convenience.
-    /// For better performance or more control, prefer using the separate methods.
-    ///
-    /// # Arguments
-    ///
-    /// * `address` - The memory address to inspect
-    /// * `data_resolver` - Interface for reading memory and register values
-    ///
-    /// # Returns
-    ///
-    /// A tuple of (parameters, locals, globals)
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// # use rudy_db::{DebugDb, DebugInfo, DataResolver};
-    /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
-    /// # let db = DebugDb::new();
-    /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// # let resolver = MyResolver;
-    /// let (params, locals, globals) = debug_info
-    ///     .resolve_variables_at_address(0x12345, &resolver)
-    ///     .unwrap();
-    /// println!("Found {} parameters, {} locals, {} globals",
-    ///          params.len(), locals.len(), globals.len());
-    /// ```
-    pub fn resolve_variables_at_address(
-        &self,
-        address: u64,
-        data_resolver: &dyn crate::DataResolver,
-    ) -> Result<(
-        Vec<crate::Variable>,
-        Vec<crate::Variable>,
-        Vec<crate::Variable>,
-    )> {
-        // Use the new interface internally
-        let (param_infos, local_infos, global_infos) =
-            self.get_all_variables_at_pc(address, data_resolver)?;
-
-        // Convert to Variables by reading values
-        let params = param_infos
-            .into_iter()
-            .map(|info| {
-                let value = if info.address.is_some() {
-                    self.read_variable(&info, data_resolver).ok()
-                } else {
-                    None
-                };
-                crate::Variable {
-                    name: info.name,
-                    ty: info.type_def,
-                    value,
-                }
-            })
-            .collect();
-
-        let locals = local_infos
-            .into_iter()
-            .map(|info| {
-                let value = if info.address.is_some() {
-                    self.read_variable(&info, data_resolver).ok()
-                } else {
-                    None
-                };
-                crate::Variable {
-                    name: info.name,
-                    ty: info.type_def,
-                    value,
-                }
-            })
-            .collect();
-
-        let globals = global_infos
-            .into_iter()
-            .map(|info| {
-                let value = if info.address.is_some() {
-                    self.read_variable(&info, data_resolver).ok()
-                } else {
-                    None
-                };
-                crate::Variable {
-                    name: info.name,
-                    ty: info.type_def,
-                    value,
-                }
-            })
-            .collect();
-
-        Ok((params, locals, globals))
-    }
-
     /// Resolve a type by name in the debug information
     ///
+    /// Note: The type name _must_ be fully qualified, e.g., "alloc::string::String",
+    /// and must include any generic parameters if applicable (e.g., "alloc::vec::Vec<u8>").
+    ///
+    /// Where possible it's better to find a variable at an address, and then
+    /// get the type of the variable.
+    ///
     /// # Arguments
     ///
-    /// * `type_name` - The name of the type to resolve (e.g., "String", "Vec", "TestPerson")
+    /// * `type_name` - The name of the type to resolve
     ///
     /// # Returns
     ///
@@ -616,11 +446,11 @@ impl<'db> DebugInfo<'db> {
     /// # use rudy_db::{DebugDb, DebugInfo};
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
-    /// if let Some(typedef) = debug_info.resolve_type("String").unwrap() {
+    /// if let Some(typedef) = debug_info.lookup_type_by_name("alloc::string::String").unwrap() {
     ///     println!("Found String type: {}", typedef.display_name());
     /// }
     /// ```
-    pub fn resolve_type(&self, type_name: &str) -> Result<Option<DieTypeDefinition>> {
+    pub fn lookup_type_by_name(&self, type_name: &str) -> Result<Option<DieTypeDefinition>> {
         crate::index::resolve_type(self.db, self.binary, type_name)
     }
 
@@ -664,11 +494,11 @@ impl<'db> DebugInfo<'db> {
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let var_info: VariableInfo = unimplemented!();
-    /// if let Ok(field_info) = debug_info.get_field(var_info.address.unwrap(), &var_info.type_def, "name") {
+    /// if let Ok(field_info) = debug_info.get_struct_field(var_info.address.unwrap(), &var_info.type_def, "name") {
     ///     println!("Field 'name' at address {:?}", field_info.address);
     /// }
     /// ```
-    pub fn get_field(
+    pub fn get_struct_field(
         &self,
         base_address: u64,
         base_type: &DieTypeDefinition,
@@ -728,21 +558,16 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, TypedPointer, VariableInfo, DataResolver};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
     /// # let var_pointer: TypedPointer = unimplemented!();
-    /// if let Ok(element_info) = debug_info.get_index_by_int(&var_pointer, 0, &resolver) {
+    /// if let Ok(element_info) = debug_info.index_array_or_slice(&var_pointer, 0, &resolver) {
     ///     println!("Element 0 at address {:?}", element_info.address);
     /// }
     /// ```
-    pub fn get_index_by_int(
+    pub fn index_array_or_slice(
         &self,
         type_pointer: &TypedPointer,
         index: u64,
@@ -859,22 +684,17 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, VariableInfo, DataResolver, Value};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
     /// # let var_info: VariableInfo = unimplemented!();
     /// # let key: Value = unimplemented!();
-    /// if let Ok(value_info) = debug_info.get_index_by_value(var_info.address.unwrap(), &var_info.type_def, &key, &resolver) {
+    /// if let Ok(value_info) = debug_info.index_map(var_info.address.unwrap(), &var_info.type_def, &key, &resolver) {
     ///     println!("Map value at address {:?}", value_info.address);
     /// }
     /// ```
-    pub fn get_index_by_value(
+    pub fn index_map(
         &self,
         base_address: u64,
         base_type: &DieTypeDefinition,

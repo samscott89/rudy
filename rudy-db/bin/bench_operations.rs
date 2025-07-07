@@ -70,14 +70,14 @@ fn benchmark_address_resolution(debug_info: &DebugInfo) -> Result<()> {
     // First pass - cold cache
     let cold_start = Instant::now();
     for &addr in &addresses {
-        let _ = debug_info.address_to_line(addr);
+        let _ = debug_info.address_to_location(addr);
     }
     let cold_time = cold_start.elapsed();
 
     // Second pass - warm cache
     let warm_start = Instant::now();
     for &addr in &addresses {
-        let _ = debug_info.address_to_line(addr);
+        let _ = debug_info.address_to_location(addr);
     }
     let warm_time = warm_start.elapsed();
 
@@ -145,13 +145,13 @@ fn benchmark_incremental_benefit(binary: &str) -> Result<()> {
 
         // Each session queries some common addresses
         for &addr in &common_addresses {
-            let _ = debug_info.address_to_line(addr);
+            let _ = debug_info.address_to_location(addr).unwrap();
         }
 
         // And some unique ones
         for i in 0..5 {
             let addr = 0x100010000 + (session * 0x1000) + (i * 0x100);
-            let _ = debug_info.address_to_line(addr);
+            let _ = debug_info.address_to_location(addr).unwrap();
         }
 
         let elapsed = start.elapsed();
