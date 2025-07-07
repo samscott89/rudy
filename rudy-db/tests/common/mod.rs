@@ -57,17 +57,16 @@ impl SelfProcessResolver {
     pub fn new(aslr_slide: u64) -> Self {
         Self { aslr_slide }
     }
+    pub fn file_to_runtime_address(&self, file_address: u64) -> u64 {
+        file_address + self.aslr_slide
+    }
+
+    pub fn runtime_to_file_address(&self, runtime_address: u64) -> u64 {
+        runtime_address - self.aslr_slide
+    }
 }
 
 impl DataResolver for SelfProcessResolver {
-    fn base_address(&self) -> u64 {
-        0
-    }
-
-    fn aslr_slide(&self) -> u64 {
-        self.aslr_slide
-    }
-
     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> {
         if size > 4096 {
             return Err(anyhow::anyhow!("Attempting to read too much memory"));
@@ -94,9 +93,9 @@ impl DataResolver for SelfProcessResolver {
         Ok(buffer)
     }
 
-    fn get_registers(&self) -> anyhow::Result<Vec<u64>> {
-        // For testing, we don't need actual register values
-        Ok(vec![0; 32])
+    fn get_register(&self, _idx: usize) -> anyhow::Result<u64> {
+        // For testing, we need to provide dummy register values.
+        Ok(0)
     }
 
     #[cfg(target_os = "linux")]

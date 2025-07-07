@@ -49,19 +49,6 @@ impl<'conn> RemoteDataAccess<'conn> {
 }
 
 impl<'conn> DataResolver for RemoteDataAccess<'conn> {
-    fn base_address(&self) -> u64 {
-        // Get the base load address where the binary is loaded in memory
-        if let Ok(EventResponseData::BaseAddress { address }) = self
-            .conn
-            .borrow_mut()
-            .send_event_request(EventRequest::GetBaseAddress)
-        {
-            address
-        } else {
-            0 // Fallback if we can't get base address
-        }
-    }
-
     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
         let event = EventRequest::ReadMemory { address, size };
         let response: EventResponseData = self.conn.borrow_mut().send_event_request(event)?;
@@ -75,15 +62,6 @@ impl<'conn> DataResolver for RemoteDataAccess<'conn> {
 
     fn get_stack_pointer(&self) -> Result<u64> {
         Err(anyhow!("get_stack_pointer() not implemented"))
-    }
-
-    fn get_registers(&self) -> Result<Vec<u64>> {
-        // This method is supposed to return all available registers
-        // For now, we'll return an error since we don't have a way to get all registers
-        // In practice, DWARF expressions typically use get_register(idx) directly
-        Err(anyhow!(
-            "get_registers() not implemented - use get_register(idx) instead"
-        ))
     }
 
     fn get_register(&self, idx: usize) -> Result<u64> {

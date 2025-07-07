@@ -80,7 +80,10 @@ fn test_resolve_position(#[case] target: &'static str) {
         .unwrap();
     salsa_debug_snapshot!(db, addrs);
     assert_eq!(
-        resolver.address_to_location(addrs.address).unwrap(),
+        resolver
+            .address_to_location(addrs.address)
+            .unwrap()
+            .unwrap(),
         ResolvedLocation {
             function: "simple_test::function_call".to_string(),
             file: expected.clone(),
@@ -96,7 +99,10 @@ fn test_resolve_position(#[case] target: &'static str) {
     salsa_debug_snapshot!(db, addrs);
 
     assert_eq!(
-        resolver.address_to_location(addrs.address).unwrap(),
+        resolver
+            .address_to_location(addrs.address)
+            .unwrap()
+            .unwrap(),
         ResolvedLocation {
             function: "simple_test::main".to_string(),
             file: expected.clone(),

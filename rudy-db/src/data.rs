@@ -17,58 +17,9 @@ use crate::{Value, database::Db, outputs::TypedPointer};
 /// Implementors provide access to the target process's memory and registers,
 /// allowing the debug info library to read variable values and follow pointers.
 ///
-/// # Examples
-///
-/// ```no_run
-/// use rudy_db::DataResolver;
-/// use anyhow::Result;
-///
-/// struct MyResolver {
-///     base: u64,
-///     // ... memory access implementation
-/// }
-///
-/// impl DataResolver for MyResolver {
-///     fn base_address(&self) -> u64 {
-///         self.base
-///     }
-///
-///     fn get_stack_pointer(&self) -> Result<u64> {
-///         unimplemented!()
-///     }
-///
-///     
-///     fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
-///         // Read from target process memory
-///         unimplemented!()
-///     }
-///     
-///     fn get_registers(&self) -> Result<Vec<u64>> {
-///         // Get current register values
-///         unimplemented!()
-///     }
-/// }
-/// ```
+/// NOTE: All of the addresses passed to/return from this trait will be relative
+/// to the target _binary_ and does not account for ASLR (Address Space Layout Randomization).
 pub trait DataResolver {
-    /// Returns the base address for memory calculations.
-    ///
-    /// This is typically the base address where the binary is loaded in memory.
-    /// All addresses returned by this trait should be adjusted by this base.
-    ///
-    /// Not currently in use
-    fn base_address(&self) -> u64 {
-        0
-    }
-
-    /// TODO: Fix this
-    ///
-    /// Between this and `base_address` we're supposed to be figuring out how
-    /// to access memory in the presence of ASLR. This one is currently working
-    /// in tests.
-    fn aslr_slide(&self) -> u64 {
-        0
-    }
-
     /// Reads raw bytes from memory at the given address.
     ///
     /// # Arguments
@@ -87,7 +38,7 @@ pub trait DataResolver {
 
     /// Reads a 64-bit address from memory.
     ///
-    /// This method handles pointer dereferencing and base address adjustment.
+    /// This method handles pointer dereferencing.
     ///
     /// # Arguments
     ///
@@ -95,7 +46,7 @@ pub trait DataResolver {
     ///
     /// # Returns
     ///
-    /// The dereferenced address, adjusted for the base address
+    /// The dereferenced address
     fn read_address(&self, address: u64) -> Result<u64> {
         let data = self.read_memory(address, std::mem::size_of::<u64>())?;
         if data.len() != std::mem::size_of::<u64>() {
@@ -103,26 +54,8 @@ pub trait DataResolver {
         }
         let addr = u64::from_le_bytes(data.try_into().unwrap());
         tracing::trace!("read raw address: {addr:#x}");
-        if addr == 0 {
-            Ok(0)
-        } else {
-            addr.checked_sub(self.base_address())
-                .ok_or_else(|| anyhow::anyhow!("Address underflow when adjusting for base address"))
-        }
+        Ok(addr)
     }
-    /// Gets all register values from the target.
-    ///
-    /// The order and meaning of registers is architecture-specific.
-    ///
-    /// # Returns
-    ///
-    /// A vector of register values
-    fn get_registers(&self) -> Result<Vec<u64>> {
-        Err(anyhow::anyhow!(
-            "get_registers() not implemented for this DataResolver"
-        ))
-    }
-
     /// Gets a specific register value by index.
     ///
     /// # Arguments
@@ -131,21 +64,11 @@ pub trait DataResolver {
     ///
     /// # Returns
     ///
-    /// The register value, adjusted for the base address
+    /// The register value
     fn get_register(&self, idx: usize) -> Result<u64> {
-        let registers = self.get_registers()?;
-        registers
-            .get(idx)
-            .copied()
-            .ok_or_else(|| {
-                anyhow::anyhow!("Invalid register index: {idx} (max: {})", registers.len())
-            })
-            .and_then(|addr| {
-                // Adjust the address based on the base address
-                addr.checked_sub(self.base_address()).ok_or_else(|| {
-                    anyhow::anyhow!("Address underflow when adjusting for base address")
-                })
-            })
+        Err(anyhow::anyhow!(
+            "get_register({idx}) not implemented for this DataResolver"
+        ))
     }
 
     fn get_stack_pointer(&self) -> Result<u64> {

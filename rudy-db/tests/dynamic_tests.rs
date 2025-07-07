@@ -37,7 +37,7 @@ macro_rules! variable_pointer {
     ($debug_info:ident, $var:ident) => {{
         let resolver = get_resolver(&$debug_info);
         let address = $debug_info
-            .resolve_position(file!(), line!() as u64, None)
+            .find_address_from_source_location(file!(), line!() as u64, None)
             .expect("Failed to resolve current position")
             .expect("should resolve current position")
             .address;
@@ -464,7 +464,7 @@ fn test_real_method_execution() -> Result<()> {
         num_bytes_method.signature
     );
 
-    let method_address = num_bytes_method.address + resolver.aslr_slide();
+    let method_address = resolver.file_to_runtime_address(num_bytes_method.address);
 
     // Attempt to call the num_bytes method
     let method_pointer: fn(&TestBasicStruct) -> usize =
@@ -547,7 +547,7 @@ fn test_trait_method_discovery() -> Result<()> {
         .find(|m| m.name == "description_length")
         .expect("Should find description_length() method");
 
-    let pointer = description_length_method.address + resolver.aslr_slide();
+    let pointer = resolver.file_to_runtime_address(description_length_method.address);
     let expected = <TestSession as Describable>::description_length as usize;
 
     assert_eq!(
@@ -571,7 +571,7 @@ fn test_trait_method_discovery() -> Result<()> {
     // Approach 1: Manual return-via-pointer ABI
 
     let method_pointer: fn(&TestSession) -> String =
-        unsafe { std::mem::transmute(describe_method.address + resolver.aslr_slide()) };
+        unsafe { std::mem::transmute(resolver.file_to_runtime_address(describe_method.address)) };
 
     let result = method_pointer(&test_session);
     tracing::info!("Describe result: {result}");

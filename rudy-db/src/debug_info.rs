@@ -268,12 +268,7 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, DataResolver};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
@@ -364,12 +359,7 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, DataResolver};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
@@ -568,12 +558,7 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, TypedPointer, VariableInfo, DataResolver};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
@@ -699,12 +684,7 @@ impl<'db> DebugInfo<'db> {
     /// ```no_run
     /// # use rudy_db::{DebugDb, DebugInfo, VariableInfo, DataResolver, Value};
     /// # struct MyResolver;
-    /// # impl DataResolver for MyResolver {
-    /// #     fn base_address(&self) -> u64 { 0 }
-    /// #     fn read_memory(&self, address: u64, size: usize) -> anyhow::Result<Vec<u8>> { Ok(vec![]) }
-    /// #     fn get_registers(&self) -> anyhow::Result<Vec<u64>> { Ok(vec![]) }
-    /// #     fn get_stack_pointer(&self) -> anyhow::Result<u64> { Ok(0) }
-    /// # }
+    /// # impl DataResolver for MyResolver { }
     /// # let db = DebugDb::new();
     /// # let debug_info = DebugInfo::new(&db, "binary").unwrap();
     /// # let resolver = MyResolver;
