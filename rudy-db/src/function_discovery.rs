@@ -9,13 +9,14 @@ use rudy_dwarf::{
         Parser,
         children::for_each_child,
         combinators::all,
+        functions::function_parser,
         primitives::{is_member_tag, resolve_type},
     },
     types::DieTypeDefinition,
 };
 use rudy_types::Layout;
 
-use crate::{DiscoveredMethod, database::Db};
+use crate::{DiscoveredMethod, FunctionParameter, database::Db};
 
 /// Result of analyzing a symbol for method discovery
 #[derive(Debug, Clone)]
@@ -838,36 +839,30 @@ fn create_discovered_function<'db>(
     let symbol_name = symbol.name.to_string();
 
     // Get function data from the index entry
-    let _fie_data = fie.data(db);
+    let fie_data = fie.data(db);
 
-    // Try to get function variables instead of signature
-    let (parameters, return_type) = match rudy_dwarf::function::resolve_function_variables(db, fie)
-    {
-        Ok(vars) => {
-            let mut params = Vec::new();
-            for param in &vars.params {
-                let param_name = param.name.clone();
-                let type_def = param.ty.clone();
-                params.push(crate::FunctionParameter {
-                    name: param_name,
-                    type_def,
-                });
-            }
+    let f = function_parser().parse(db, fie_data.declaration_die)?;
 
-            // Try to get return type from the function DIE itself if available
-            let ret_type = None; // For now, we'll skip return type resolution
+    let params: Vec<_> = f
+        .parameters
+        .into_iter()
+        .map(|p| {
+            Ok::<_, anyhow::Error>(FunctionParameter {
+                name: p.name.clone(),
+                type_def: rudy_dwarf::types::resolve_type_offset(db, p.type_die)?,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
-            (params, ret_type)
-        }
-        Err(_) => {
-            // If we can't resolve the variables, return empty parameters
-            (Vec::new(), None)
-        }
+    let return_type = if let Some(return_die) = f.return_type {
+        Some(rudy_dwarf::types::resolve_type_offset(db, return_die)?)
+    } else {
+        None
     };
 
     // Build signature
     let signature =
-        build_function_signature_for_discovered(&symbol.name, &parameters, return_type.as_ref());
+        build_function_signature_for_discovered(&symbol.name, &params, return_type.as_ref());
 
     Ok(crate::DiscoveredFunction {
         name: symbol.name.lookup_name.clone(),
@@ -877,7 +872,7 @@ fn create_discovered_function<'db>(
         callable: true,
         module_path: symbol.name.module_path.clone(),
         return_type,
-        parameters,
+        parameters: params,
     })
 }
 

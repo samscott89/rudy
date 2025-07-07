@@ -302,7 +302,10 @@ impl<'a> EvalContext<'a> {
 
         if is_synthetic {
             // Synthetic methods don't typically return pointers we can use as arguments
-            return Err(anyhow!("Synthetic method '{}' cannot be used as an argument", method));
+            return Err(anyhow!(
+                "Synthetic method '{}' cannot be used as an argument",
+                method
+            ));
         }
 
         // Try to execute the real method
@@ -355,9 +358,10 @@ impl<'a> EvalContext<'a> {
 
         match response {
             EventResponseData::MethodResult { result } => match result {
-                MethodCallResult::SimpleValue { .. } => {
-                    Err(anyhow!("Method '{}' returns a simple value, not a pointer that can be used as an argument", method))
-                }
+                MethodCallResult::SimpleValue { .. } => Err(anyhow!(
+                    "Method '{}' returns a simple value, not a pointer that can be used as an argument",
+                    method
+                )),
                 MethodCallResult::ComplexPointer {
                     address,
                     size: _,
@@ -370,7 +374,10 @@ impl<'a> EvalContext<'a> {
                             type_def: return_type_def.clone(),
                         })
                     } else {
-                        Err(anyhow!("Method '{}' returned a complex pointer but has no type definition", method))
+                        Err(anyhow!(
+                            "Method '{}' returned a complex pointer but has no type definition",
+                            method
+                        ))
                     }
                 }
             },
@@ -391,14 +398,12 @@ impl<'a> EvalContext<'a> {
         let discovered_functions = self.debug_info.discover_functions(function)?;
 
         // Find the best matching function
-        let function_info = discovered_functions
-            .first()
-            .ok_or_else(|| {
-                anyhow!(
-                    "Function '{}' not found when trying to use as argument",
-                    function
-                )
-            })?;
+        let function_info = discovered_functions.first().ok_or_else(|| {
+            anyhow!(
+                "Function '{}' not found when trying to use as argument",
+                function
+            )
+        })?;
 
         // Check if the function is callable (has an address)
         if function_info.address == 0 {
@@ -444,9 +449,10 @@ impl<'a> EvalContext<'a> {
 
         match response {
             EventResponseData::FunctionResult { result } => match result {
-                MethodCallResult::SimpleValue { .. } => {
-                    Err(anyhow!("Function '{}' returns a simple value, not a pointer that can be used as an argument", function))
-                }
+                MethodCallResult::SimpleValue { .. } => Err(anyhow!(
+                    "Function '{}' returns a simple value, not a pointer that can be used as an argument",
+                    function
+                )),
                 MethodCallResult::ComplexPointer {
                     address,
                     size: _,
@@ -459,7 +465,10 @@ impl<'a> EvalContext<'a> {
                             type_def: return_type_def.clone(),
                         })
                     } else {
-                        Err(anyhow!("Function '{}' returned a complex pointer but has no type definition", function))
+                        Err(anyhow!(
+                            "Function '{}' returned a complex pointer but has no type definition",
+                            function
+                        ))
                     }
                 }
             },
@@ -760,8 +769,13 @@ impl<'a> EvalContext<'a> {
                 Err(e) => {
                     // For methods, we don't have parameter type info in DiscoveredMethod
                     // Just provide the basic error
-                    return Err(anyhow!("Failed to convert argument {} ({}): {}", i + 1, format!("{:?}", arg_expr), e))
-                },
+                    return Err(anyhow!(
+                        "Failed to convert argument {} ({}): {}",
+                        i + 1,
+                        format!("{:?}", arg_expr),
+                        e
+                    ));
+                }
             }
         }
 
@@ -876,14 +890,23 @@ impl<'a> EvalContext<'a> {
                     // Provide helpful context about parameter types
                     let param_info = if i < function_info.parameters.len() {
                         let param = &function_info.parameters[i];
-                        let default_name = format!("arg{}", i);
+                        let default_name = format!("arg{i}");
                         let param_name = param.name.as_deref().unwrap_or(&default_name);
-                        format!(" (parameter '{}' expects type: {})", param_name, param.type_def.display_name())
+                        format!(
+                            " (parameter '{}' expects type: {})",
+                            param_name,
+                            param.type_def.display_name()
+                        )
                     } else {
                         String::new()
                     };
-                    return Err(anyhow!("Failed to convert argument {:?}{}: {}", arg_expr, param_info, e))
-                },
+                    return Err(anyhow!(
+                        "Failed to convert argument {:?}{}: {}",
+                        arg_expr,
+                        param_info,
+                        e
+                    ));
+                }
             }
         }
 
@@ -948,10 +971,16 @@ impl<'a> EvalContext<'a> {
             Expression::StringLiteral(_value) => {
                 // For string literals, we'd need to allocate them in the target process
                 // For now, this is not supported
-                Err(anyhow!("String literal arguments not yet supported - try passing a String variable instead"))
+                Err(anyhow!(
+                    "String literal arguments not yet supported - try passing a String variable instead"
+                ))
             }
             // For all expressions that can be evaluated to a memory reference, use evaluate_to_ref
-            Expression::Variable(_) | Expression::FieldAccess { .. } | Expression::Index { .. } | Expression::MethodCall { .. } | Expression::FunctionCall { .. } => {
+            Expression::Variable(_)
+            | Expression::FieldAccess { .. }
+            | Expression::Index { .. }
+            | Expression::MethodCall { .. }
+            | Expression::FunctionCall { .. } => {
                 // Try to get a TypedPointer first (for variables, field access, indexing, and complex pointer returns)
                 match self.evaluate_to_ref(expr) {
                     Ok(typed_pointer) => {
