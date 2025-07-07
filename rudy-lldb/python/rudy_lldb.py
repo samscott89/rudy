@@ -128,6 +128,8 @@ class RudyConnection:
                 return self._handle_evaluate_expression(event_msg, target)
             elif event == "ExecuteMethod":
                 return self._handle_execute_method(event_msg, target)
+            elif event == "ExecuteFunction":
+                return self._handle_execute_function(event_msg, target)
             else:
                 return {
                     "type": "EventResponse",
@@ -528,6 +530,132 @@ class RudyConnection:
                 "type": "EventResponse",
                 "event": "Error",
                 "message": f"Method execution error: {e}",
+            }
+
+    def _handle_execute_function(self, event_msg: dict, target) -> dict:
+        """Handle ExecuteFunction event with support for complex return types"""
+        function_address = event_msg.get("function_address", 0)
+        args = event_msg.get("args", [])
+        return_type_size = event_msg.get("return_type_size")
+
+        try:
+            debug_print(f"Executing function at {function_address:#x}")
+            debug_print(f"Return type size: {return_type_size}")
+
+            # Build argument types and values for the call
+            arg_types = []
+            arg_values = []
+
+            # Add function arguments
+            for arg in args:
+                arg_type = arg.get("arg_type", "Integer")
+                arg_value = arg.get("value", "0")
+
+                if arg_type == "Pointer":
+                    arg_types.append("void*")
+                    arg_values.append(f"(void*)0x{arg_value}")
+                elif arg_type == "Integer":
+                    arg_types.append("unsigned long")
+                    arg_values.append(arg_value)
+                elif arg_type == "Bool":
+                    arg_types.append("int")
+                    arg_values.append(
+                        "1" if arg_value.lower() in ("true", "1") else "0"
+                    )
+                elif arg_type == "Float":
+                    arg_types.append("double")
+                    arg_values.append(arg_value)
+                else:
+                    arg_types.append("unsigned long")
+                    arg_values.append(arg_value)
+
+            if return_type_size is None:
+                # Simple return type - direct call returning value in register
+                func_signature = (
+                    f"((unsigned long (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
+                )
+                call_expr = f"{func_signature}({', '.join(arg_values)})"
+
+                debug_print(f"Simple function call: {call_expr}")
+                result = target.EvaluateExpression(call_expr)
+
+                if result.IsValid() and not result.GetError().Fail():
+                    value = result.GetValueAsUnsigned()
+                    return {
+                        "type": "EventResponse",
+                        "event": "FunctionResult",
+                        "result": {
+                            "SimpleValue": {
+                                "value": value,
+                                "return_type": "usize",  # Default for simple types
+                            }
+                        },
+                    }
+                else:
+                    error = result.GetError()
+                    return {
+                        "type": "EventResponse",
+                        "event": "Error",
+                        "message": f"Simple function call failed: {error.GetCString() if error else 'Unknown error'}",
+                    }
+            else:
+                # Complex return type - use byte array struct approach
+                size = return_type_size
+
+                # Create a struct to hold the return value
+                struct_def = (
+                    f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
+                )
+                func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
+                call_expr = f"{struct_def}; auto result = {func_signature}({', '.join(arg_values)}); &result"
+
+                debug_print(f"Complex function call: {call_expr}")
+                result = target.EvaluateExpression(call_expr)
+
+                if result.IsValid() and not result.GetError().Fail():
+                    # Get the address of the result struct
+                    # Since we used &result, this should be a pointer to the struct
+                    result_addr = result.GetValueAsUnsigned()
+                    if result_addr == 0:
+                        # Fallback to load address method
+                        result_addr = result.GetLoadAddress()
+                        if result_addr == lldb.LLDB_INVALID_ADDRESS:
+                            result_addr = result.GetAddress().GetLoadAddress(target)
+
+                    debug_print(f"Complex function result at address: {result_addr:#x}")
+                    debug_print(f"Result value type: {result.GetTypeName()}")
+
+                    if result_addr != lldb.LLDB_INVALID_ADDRESS:
+                        return {
+                            "type": "EventResponse",
+                            "event": "FunctionResult",
+                            "result": {
+                                "ComplexPointer": {
+                                    "address": result_addr,
+                                    "size": size,
+                                    "return_type": "complex",
+                                }
+                            },
+                        }
+                    else:
+                        return {
+                            "type": "EventResponse",
+                            "event": "Error",
+                            "message": "Could not get address of complex function return value",
+                        }
+                else:
+                    error = result.GetError()
+                    return {
+                        "type": "EventResponse",
+                        "event": "Error",
+                        "message": f"Complex function call failed: {error.GetCString() if error else 'Unknown error'}",
+                    }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Function execution error: {e}",
             }
 
     def __del__(self):

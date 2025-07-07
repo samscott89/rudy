@@ -24,15 +24,9 @@ pub struct ParameterInfo {
     pub type_die: Die,
 }
 
-/// Parser that attempts to parse a DIE as a function
-pub fn function_parser() -> impl Parser<Option<FunctionInfo>> {
+pub fn function_parser() -> impl Parser<FunctionInfo> {
     from_fn(
-        |db: &dyn DwarfDb, entry: Die| -> anyhow::Result<Option<FunctionInfo>> {
-            // Check if this is a function DIE
-            if entry.tag(db) != crate::gimli::DW_TAG_subprogram {
-                return Ok(None);
-            }
-
+        |db: &dyn DwarfDb, entry: Die| -> anyhow::Result<FunctionInfo> {
             // Parse function components using parser combinators
             let name = entry.name(db).unwrap_or_else(|_| "<anonymous>".to_string());
 
@@ -45,13 +39,29 @@ pub fn function_parser() -> impl Parser<Option<FunctionInfo>> {
             // Parse parameters from children
             let parameters = parameter_list_parser().parse(db, entry)?;
 
-            Ok(Some(FunctionInfo {
+            Ok(FunctionInfo {
                 name,
                 linkage_name,
                 die: entry,
                 parameters,
                 return_type,
-            }))
+            })
+        },
+    )
+}
+
+/// Parser that attempts to parse a DIE as a function
+pub fn opt_function_parser() -> impl Parser<Option<FunctionInfo>> {
+    from_fn(
+        |db: &dyn DwarfDb, entry: Die| -> anyhow::Result<Option<FunctionInfo>> {
+            // Check if this is a function DIE
+            if entry.tag(db) != crate::gimli::DW_TAG_subprogram {
+                Ok(None)
+            } else {
+                // Parse the function using the function parser
+                let function_info = function_parser().parse(db, entry)?;
+                Ok(Some(function_info))
+            }
         },
     )
 }
@@ -80,7 +90,7 @@ fn parameter_list_parser() -> impl Parser<Vec<ParameterInfo>> {
 
 /// Parser that finds all functions among the children of a DIE
 pub fn child_functions_parser() -> impl Parser<Vec<FunctionInfo>> {
-    for_each_child(function_parser()).map(|results| results.into_iter().flatten().collect())
+    for_each_child(opt_function_parser()).map(|results| results.into_iter().flatten().collect())
 }
 
 /// Parser that finds impl namespace DIEs containing trait implementations
