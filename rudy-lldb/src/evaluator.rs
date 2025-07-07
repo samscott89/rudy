@@ -152,10 +152,10 @@ impl<'a> EvalContext<'a> {
         };
 
         if let Ok(response) = self.conn.conn.borrow_mut().send_event_request(event) {
-            match response {
-                EventResponseData::VariableTypeResult { type_name } => type_name.is_some(),
-                _ => false,
-            }
+            matches!(
+                response,
+                EventResponseData::VariableTypeResult { type_name: Some(_) }
+            )
         } else {
             false
         }
