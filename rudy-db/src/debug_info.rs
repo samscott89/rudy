@@ -1004,6 +1004,258 @@ impl<'db> DebugInfo<'db> {
     pub fn discover_all_functions(&self) -> Result<BTreeMap<String, crate::DiscoveredFunction>> {
         crate::function_discovery::discover_all_functions(self.db, self.binary)
     }
+
+    /// Create a typed value in the target process based on the target type.
+    ///
+    /// This method uses DWARF type information to determine the correct conversion
+    /// strategy for creating values that match function parameter types.
+    ///
+    /// # Arguments
+    ///
+    /// * `source_value` - The source value to convert (e.g., string literal, number)
+    /// * `target_type` - The target type definition from DWARF
+    /// * `data_resolver` - DataResolver for memory allocation and writing
+    ///
+    /// # Returns
+    ///
+    /// The address where the typed value was created in target memory
+    pub fn create_typed_value(
+        &self,
+        source_value: &str,
+        target_type: &DieTypeDefinition,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<u64> {
+        match target_type.layout.as_ref() {
+            Layout::Primitive(PrimitiveLayout::StrSlice(str_slice_layout)) => {
+                // Create &str fat pointer using the actual layout
+                self.create_str_slice_with_layout(source_value, str_slice_layout, data_resolver)
+            }
+            Layout::Std(StdLayout::String(string_layout)) => {
+                // Create owned String using the actual layout
+                self.create_owned_string_with_layout(source_value, string_layout, data_resolver)
+            }
+            _ => Err(anyhow::anyhow!(
+                "Cannot convert string literal '{}' to type '{}'. Only &str and String are currently supported.",
+                source_value,
+                target_type.display_name()
+            )),
+        }
+    }
+
+    /// Create a Rust string slice (&str) in the target process using the actual layout
+    fn create_str_slice_with_layout(
+        &self,
+        value: &str,
+        layout: &rudy_types::StrSliceLayout,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<u64> {
+        let bytes = value.as_bytes();
+        let data_size = bytes.len();
+
+        // Log the layout for debugging
+        tracing::debug!(
+            "Creating &str '{}' using layout: data_ptr_offset={}, length_offset={}",
+            value,
+            layout.data_ptr_offset,
+            layout.length_offset
+        );
+
+        // Validate layout offsets are reasonable for a &str (should be 0 and 8 typically)
+        if layout.data_ptr_offset > 16 || layout.length_offset > 16 {
+            return Err(anyhow::anyhow!(
+                "Invalid StrSliceLayout: data_ptr_offset={}, length_offset={}. Expected offsets <= 16.",
+                layout.data_ptr_offset,
+                layout.length_offset
+            ));
+        }
+
+        // &str is typically 16 bytes (8-byte pointer + 8-byte length)
+        let str_slice_size = 16;
+        let total_size = data_size + str_slice_size;
+
+        // Allocate memory for both the string data and the fat pointer
+        let base_addr = data_resolver.allocate_memory(total_size)?;
+
+        // Write the string data first
+        let data_addr = base_addr;
+        data_resolver.write_memory(data_addr, bytes)?;
+
+        // Create the fat pointer at the end of the allocated memory using actual offsets
+        let fat_ptr_addr = base_addr + data_size as u64;
+
+        tracing::debug!(
+            "Memory layout: base_addr={:#x}, data_addr={:#x}, fat_ptr_addr={:#x}, data_size={}",
+            base_addr,
+            data_addr,
+            fat_ptr_addr,
+            data_size
+        );
+
+        // Write the data pointer at the correct offset
+        let data_ptr_addr = fat_ptr_addr + layout.data_ptr_offset as u64;
+        tracing::debug!(
+            "Writing data pointer {:#x} to address {:#x} (fat_ptr_addr + {})",
+            data_addr,
+            data_ptr_addr,
+            layout.data_ptr_offset
+        );
+        data_resolver.write_memory(data_ptr_addr, &data_addr.to_le_bytes())?;
+
+        // Write the length at the correct offset
+        let length_addr = fat_ptr_addr + layout.length_offset as u64;
+        tracing::debug!(
+            "Writing length {} to address {:#x} (fat_ptr_addr + {})",
+            data_size,
+            length_addr,
+            layout.length_offset
+        );
+        data_resolver.write_memory(length_addr, &(data_size as u64).to_le_bytes())?;
+
+        // Validate the created &str by reading it back
+        tracing::debug!(
+            "Created &str at {:#x}: data_ptr at offset {}, length {} at offset {}",
+            fat_ptr_addr,
+            layout.data_ptr_offset,
+            data_size,
+            layout.length_offset
+        );
+
+        // Read back the pointer and length to validate
+        let read_data_ptr_bytes = data_resolver.read_memory(data_ptr_addr, 8)?;
+        let read_length_bytes = data_resolver.read_memory(length_addr, 8)?;
+        let read_data_ptr = u64::from_le_bytes(read_data_ptr_bytes.try_into().unwrap());
+        let read_length = u64::from_le_bytes(read_length_bytes.try_into().unwrap());
+
+        tracing::debug!(
+            "Validation: &str at {:#x} -> data_ptr={:#x}, length={}",
+            fat_ptr_addr,
+            read_data_ptr,
+            read_length
+        );
+
+        // Sanity check the values
+        if read_data_ptr != data_addr {
+            return Err(anyhow::anyhow!(
+                "Invalid &str: data pointer mismatch. Expected {:#x}, got {:#x}",
+                data_addr,
+                read_data_ptr
+            ));
+        }
+        if read_length != data_size as u64 {
+            return Err(anyhow::anyhow!(
+                "Invalid &str: length mismatch. Expected {}, got {}",
+                data_size,
+                read_length
+            ));
+        }
+        if read_length > 1024 * 1024 {
+            // Sanity check: strings > 1MB are suspicious
+            return Err(anyhow::anyhow!(
+                "Invalid &str: length {} is suspiciously large (> 1MB)",
+                read_length
+            ));
+        }
+
+        // Final validation: read the actual string data to make sure it's correct
+        let read_string_data = data_resolver.read_memory(read_data_ptr, read_length as usize)?;
+        let read_string = String::from_utf8_lossy(&read_string_data);
+        tracing::debug!(
+            "Final validation: &str points to data '{}' (expected '{}')",
+            read_string,
+            value
+        );
+
+        if read_string != value {
+            return Err(anyhow::anyhow!(
+                "Invalid &str: string data mismatch. Expected '{}', got '{}'",
+                value,
+                read_string
+            ));
+        }
+
+        Ok(fat_ptr_addr)
+    }
+
+    /// Create an owned String in the target process using the actual DWARF layout
+    fn create_owned_string_with_layout(
+        &self,
+        value: &str,
+        string_layout: &rudy_types::StringLayout<rudy_dwarf::Die>,
+        data_resolver: &dyn crate::DataResolver,
+    ) -> Result<u64> {
+        use rudy_types::Layout;
+
+        tracing::debug!("Creating owned String with layout for value: '{}'", value);
+
+        let vec_layout = &string_layout.0; // StringLayout(VecLayout)
+        let string_len = value.len();
+
+        // Step 1: Allocate memory for the string content (heap data)
+        let content_addr = data_resolver.allocate_memory(string_len)?;
+        tracing::debug!("Allocated string content at: {:#x}", content_addr);
+
+        // Step 2: Write the string bytes to the content memory
+        data_resolver.write_memory(content_addr, value.as_bytes())?;
+        tracing::debug!("Wrote {} bytes of string content", string_len);
+
+        // Step 3: Calculate the size of the String struct from the layout
+        let string_struct_size = Layout::Std(rudy_types::StdLayout::String(string_layout.clone()))
+            .size()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine String struct size from layout"))?;
+
+        // Step 4: Allocate memory for the String struct itself
+        let string_addr = data_resolver.allocate_memory(string_struct_size)?;
+        tracing::debug!(
+            "Allocated String struct at: {:#x} (size: {} bytes)",
+            string_addr,
+            string_struct_size
+        );
+
+        // Step 5: Zero out the struct memory first
+        let zero_bytes = vec![0u8; string_struct_size];
+        data_resolver.write_memory(string_addr, &zero_bytes)?;
+
+        // Step 6: Populate the String struct fields using the layout offsets
+
+        // Write the length field (vec.len)
+        let len_bytes = (string_len as u64).to_le_bytes();
+        data_resolver.write_memory(string_addr + vec_layout.length_offset as u64, &len_bytes)?;
+        tracing::debug!(
+            "Set length field at offset {:#x} to {}",
+            vec_layout.length_offset,
+            string_len
+        );
+
+        // Write the data pointer field (vec.buf.inner.ptr.pointer)
+        let ptr_bytes = content_addr.to_le_bytes();
+        data_resolver.write_memory(string_addr + vec_layout.data_ptr_offset as u64, &ptr_bytes)?;
+        tracing::debug!(
+            "Set data pointer field at offset {:#x} to {:#x}",
+            vec_layout.data_ptr_offset,
+            content_addr
+        );
+
+        // Write the capacity field (vec.buf.inner.cap.__0)
+        // For simplicity, set capacity equal to length
+        let cap_bytes = (string_len as u64).to_le_bytes();
+        data_resolver.write_memory(string_addr + vec_layout.capacity_offset as u64, &cap_bytes)?;
+        tracing::debug!(
+            "Set capacity field at offset {:#x} to {}",
+            vec_layout.capacity_offset,
+            string_len
+        );
+
+        // Note: Other fields (allocator, phantom data, etc.) are left as zero,
+        // which should be appropriate for the Global allocator and PhantomData
+
+        tracing::debug!(
+            "Successfully created String at {:#x} pointing to data at {:#x}",
+            string_addr,
+            content_addr
+        );
+
+        Ok(string_addr)
+    }
 }
 
 fn variable_info(

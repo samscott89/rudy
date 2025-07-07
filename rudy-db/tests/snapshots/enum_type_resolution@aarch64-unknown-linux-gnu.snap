@@ -25,7 +25,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Unit",
                         },
-                        location: Die at DebugFile { [salsa id]: Id(800) } 0x00000129,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00000129,
                     },
                 },
                 EnumVariantLayout {
@@ -35,7 +35,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Tuple",
                         },
-                        location: Die at DebugFile { [salsa id]: Id(800) } 0x00000131,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00000131,
                     },
                 },
                 EnumVariantLayout {
@@ -47,12 +47,12 @@ TypeDefinition {
                         layout: Alias {
                             name: "Struct",
                         },
-                        location: Die at DebugFile { [salsa id]: Id(800) } 0x00000152,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00000152,
                     },
                 },
             ],
             size: 32,
         },
     ),
-    location: Die at DebugFile { [salsa id]: Id(800) } 0x000000dd,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x000000dd,
 }

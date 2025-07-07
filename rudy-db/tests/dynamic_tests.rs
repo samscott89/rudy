@@ -605,19 +605,18 @@ fn test_synthetic_methods() -> Result<()> {
         }
     );
 
-    // TODO: Fix
-    // // Evaluate Vec::capacity()
-    // let cap_value =
-    //     rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "capacity", &[], &resolver)?;
-    // tracing::info!("Vec::capacity() = {cap_value:?}");
-    // // Capacity should be at least 5
-    // if let Value::Scalar { value, .. } = &cap_value {
-    //     let cap: usize = value.parse().unwrap();
-    //     assert!(
-    //         cap >= 5,
-    //         "Expected Vec capacity to be at least 5, got {cap} as {value:#?}"
-    //     );
-    // }
+    // Evaluate Vec::capacity()
+    let cap_value =
+        rudy_db::evaluate_synthetic_method(vec_ptr, &vec_type, "capacity", &[], &resolver)?;
+    tracing::info!("Vec::capacity() = {cap_value:?}");
+    // Capacity should be at least 5
+    if let Value::Scalar { value, .. } = &cap_value {
+        let cap: usize = value.parse().unwrap();
+        assert!(
+            cap >= 5,
+            "Expected Vec capacity to be at least 5, got {cap} as {value:#?}"
+        );
+    }
 
     // Evaluate Vec::is_empty()
     let is_empty_value =

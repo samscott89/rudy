@@ -79,7 +79,11 @@ pub trait DataResolver {
     /// # Returns
     ///
     /// The bytes read from memory
-    fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>>;
+    fn read_memory(&self, address: u64, size: usize) -> Result<Vec<u8>> {
+        Err(anyhow::anyhow!(
+            "read_memory({address:#x}, {size}) not implemented for this DataResolver",
+        ))
+    }
 
     /// Reads a 64-bit address from memory.
     ///
@@ -113,7 +117,11 @@ pub trait DataResolver {
     /// # Returns
     ///
     /// A vector of register values
-    fn get_registers(&self) -> Result<Vec<u64>>;
+    fn get_registers(&self) -> Result<Vec<u64>> {
+        Err(anyhow::anyhow!(
+            "get_registers() not implemented for this DataResolver"
+        ))
+    }
 
     /// Gets a specific register value by index.
     ///
@@ -140,7 +148,37 @@ pub trait DataResolver {
             })
     }
 
-    fn get_stack_pointer(&self) -> Result<u64>;
+    fn get_stack_pointer(&self) -> Result<u64> {
+        Err(anyhow::anyhow!("get_stack_pointer() not implemented"))
+    }
+
+    /// Allocates memory in the target process.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Number of bytes to allocate
+    ///
+    /// # Returns
+    ///
+    /// The address of the allocated memory
+    fn allocate_memory(&self, size: usize) -> Result<u64> {
+        Err(anyhow::anyhow!(
+            "allocate_memory({size:#x}) not implemented"
+        ))
+    }
+
+    /// Writes data to memory in the target process.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The memory address to write to
+    /// * `data` - The bytes to write
+    fn write_memory(&self, address: u64, data: &[u8]) -> Result<()> {
+        let _ = data;
+        Err(anyhow::anyhow!(
+            "write_memory({address:#x}, &[..]) not implemented"
+        ))
+    }
 }
 
 pub(crate) struct DataResolverExpressionContext<'a, T: ?Sized>(pub &'a T);
@@ -820,6 +858,7 @@ fn read_std_from_memory(
                 length_offset,
                 data_ptr_offset,
                 inner_type,
+                ..
             },
         ) => {
             tracing::trace!(

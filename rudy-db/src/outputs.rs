@@ -257,6 +257,8 @@ pub struct DiscoveredMethod {
     pub is_synthetic: bool,
     /// The return type definition for creating TypedPointers
     pub return_type: Option<DieTypeDefinition>,
+    /// Method parameters with their types (excluding self)
+    pub parameters: Vec<FunctionParameter>,
 }
 
 /// A discovered function with its metadata

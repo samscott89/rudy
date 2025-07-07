@@ -33,5 +33,5 @@ TypeDefinition {
             size: 1,
         },
     ),
-    location: Die at DebugFile { [salsa id]: Id(800) } 0x00004917,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x00004917,
 }

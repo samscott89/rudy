@@ -132,6 +132,10 @@ class RudyConnection:
                 return self._handle_execute_function(event_msg, target)
             elif event == "GetVariableType":
                 return self._handle_get_variable_type(event_msg, target)
+            elif event == "AllocateMemory":
+                return self._handle_allocate_memory(event_msg, target)
+            elif event == "WriteMemory":
+                return self._handle_write_memory(event_msg, target)
             else:
                 return {
                     "type": "EventResponse",
@@ -426,8 +430,14 @@ class RudyConnection:
             for arg in args:
                 arg_type = arg.get("arg_type", "Integer")
                 arg_value = arg.get("value", "0")
+                arg_type_size = arg.get("arg_type_size")
 
-                if arg_type == "Pointer":
+                if arg_type == "Pointer" and arg_type_size is not None:
+                    # Complex argument with known size - create generic struct and dereference
+                    arg_types.append(f"struct Arg_{arg_type_size}")
+                    arg_values.append(f"*((struct Arg_{arg_type_size}*){arg_value})")
+                elif arg_type == "Pointer":
+                    # Simple pointer argument
                     arg_types.append("void*")
                     arg_values.append(f"(void*){arg_value}")
                 elif arg_type == "Integer":
@@ -445,12 +455,22 @@ class RudyConnection:
                     arg_types.append("unsigned long")
                     arg_values.append(arg_value)
 
+            # Create struct definitions for complex arguments
+            struct_defs = []
+            for arg in args:
+                arg_type_size = arg.get("arg_type_size")
+                if arg_type_size is not None:
+                    struct_def = f"struct Arg_{arg_type_size} {{ unsigned char bytes[{arg_type_size}]; }}"
+                    if struct_def not in struct_defs:
+                        struct_defs.append(struct_def)
+
             if return_type_size is None:
                 # Simple return type - direct call returning value in register
                 func_signature = (
                     f"((unsigned long (*)({', '.join(arg_types)})){method_address:#x})"
                 )
-                call_expr = f"{func_signature}({', '.join(arg_values)})"
+                struct_prefix = "; ".join(struct_defs) + ("; " if struct_defs else "")
+                call_expr = f"{struct_prefix}{func_signature}({', '.join(arg_values)})"
 
                 debug_print(f"Simple call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
@@ -479,11 +499,15 @@ class RudyConnection:
                 size = return_type_size
 
                 # Create a struct to hold the return value
-                struct_def = (
+                return_struct_def = (
                     f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
                 )
                 func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types)})){method_address:#x})"
-                call_expr = f"{struct_def}; auto result = {func_signature}({', '.join(arg_values)}); &result"
+
+                # Combine all struct definitions
+                all_struct_defs = struct_defs + [return_struct_def]
+                struct_prefix = "; ".join(all_struct_defs) + "; "
+                call_expr = f"{struct_prefix}auto result = {func_signature}({', '.join(arg_values)}); &result"
 
                 debug_print(f"Complex call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
@@ -552,10 +576,16 @@ class RudyConnection:
             for arg in args:
                 arg_type = arg.get("arg_type", "Integer")
                 arg_value = arg.get("value", "0")
+                arg_type_size = arg.get("arg_type_size")
 
-                if arg_type == "Pointer":
+                if arg_type == "Pointer" and arg_type_size is not None:
+                    # Complex argument with known size - create generic struct and dereference
+                    arg_types.append(f"struct Arg_{arg_type_size}")
+                    arg_values.append(f"*((struct Arg_{arg_type_size}*){arg_value})")
+                elif arg_type == "Pointer":
+                    # Simple pointer argument
                     arg_types.append("void*")
-                    arg_values.append(f"(void*)0x{arg_value}")
+                    arg_values.append(f"(void*){arg_value}")
                 elif arg_type == "Integer":
                     arg_types.append("unsigned long")
                     arg_values.append(arg_value)
@@ -571,10 +601,20 @@ class RudyConnection:
                     arg_types.append("unsigned long")
                     arg_values.append(arg_value)
 
+            # Create struct definitions for complex arguments
+            struct_defs = []
+            for arg in args:
+                arg_type_size = arg.get("arg_type_size")
+                if arg_type_size is not None:
+                    struct_def = f"struct Arg_{arg_type_size} {{ unsigned char bytes[{arg_type_size}]; }}"
+                    if struct_def not in struct_defs:
+                        struct_defs.append(struct_def)
+
             if return_type_size is None:
                 # Simple return type - direct call returning value in register
                 func_signature = f"((unsigned long (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
-                call_expr = f"{func_signature}({', '.join(arg_values)})"
+                struct_prefix = "; ".join(struct_defs) + ("; " if struct_defs else "")
+                call_expr = f"{struct_prefix}{func_signature}({', '.join(arg_values)})"
 
                 debug_print(f"Simple function call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
@@ -603,11 +643,15 @@ class RudyConnection:
                 size = return_type_size
 
                 # Create a struct to hold the return value
-                struct_def = (
+                return_struct_def = (
                     f"struct ReturnBuffer_{size} {{ unsigned char bytes[{size}]; }}"
                 )
                 func_signature = f"((struct ReturnBuffer_{size} (*)({', '.join(arg_types) if arg_types else 'void'})){function_address:#x})"
-                call_expr = f"{struct_def}; auto result = {func_signature}({', '.join(arg_values)}); &result"
+
+                # Combine all struct definitions
+                all_struct_defs = struct_defs + [return_struct_def]
+                struct_prefix = "; ".join(all_struct_defs) + "; "
+                call_expr = f"{struct_prefix}auto result = {func_signature}({', '.join(arg_values)}); &result"
 
                 debug_print(f"Complex function call: {call_expr}")
                 result = target.EvaluateExpression(call_expr)
@@ -712,6 +756,85 @@ class RudyConnection:
                 "type": "EventResponse",
                 "event": "Error",
                 "message": f"Variable type query error: {e}",
+            }
+
+    def _handle_allocate_memory(self, event_msg: dict, target) -> dict:
+        """Handle AllocateMemory event"""
+        size = event_msg.get("size", 0)
+
+        try:
+            debug_print(f"Allocating {size} bytes in target process")
+
+            # Use LLDB's expression evaluator to allocate memory
+            # malloc is typically available in most processes
+            alloc_expr = f"(void*)malloc({size})"
+            result = target.EvaluateExpression(alloc_expr)
+
+            if result.IsValid() and not result.GetError().Fail():
+                address = result.GetValueAsUnsigned()
+                debug_print(f"Allocated memory at address: {address:#x}")
+                return {
+                    "type": "EventResponse",
+                    "event": "MemoryAllocated",
+                    "address": address,
+                }
+            else:
+                error = result.GetError()
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": f"Memory allocation failed: {error.GetCString() if error else 'Unknown error'}",
+                }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Memory allocation error: {e}",
+            }
+
+    def _handle_write_memory(self, event_msg: dict, target) -> dict:
+        """Handle WriteMemory event"""
+        address = event_msg.get("address", 0)
+        data = event_msg.get("data", [])
+
+        try:
+            debug_print(f"Writing {len(data)} bytes to address {address:#x}")
+
+            # Get the process
+            process = target.GetProcess()
+            if not process:
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": "No process available for memory write",
+                }
+
+            # Convert list of ints to bytes
+            data_bytes = bytes(data)
+
+            # Write memory
+            error = lldb.SBError()
+            bytes_written = process.WriteMemory(address, data_bytes, error)
+
+            if error.Success() and bytes_written == len(data_bytes):
+                debug_print(f"Successfully wrote {bytes_written} bytes")
+                return {
+                    "type": "EventResponse",
+                    "event": "MemoryWritten",
+                }
+            else:
+                return {
+                    "type": "EventResponse",
+                    "event": "Error",
+                    "message": f"Memory write failed: {error.GetCString() if error else 'Unknown error'}",
+                }
+
+        except Exception as e:
+            return {
+                "type": "EventResponse",
+                "event": "Error",
+                "message": f"Memory write error: {e}",
             }
 
     def __del__(self):

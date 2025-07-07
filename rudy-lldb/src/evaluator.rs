@@ -9,6 +9,7 @@ use anyhow::{Context, Result, anyhow};
 use itertools::Itertools;
 use rudy_db::{
     DataResolver, DebugInfo, TypedPointer, Value, evaluate_synthetic_method, get_synthetic_methods,
+    rudy_dwarf::types::DieTypeDefinition,
 };
 use rudy_parser::Expression;
 use rudy_types::{Layout, Location, StdLayout};
@@ -107,6 +108,35 @@ impl<'conn> DataResolver for RemoteDataAccess<'conn> {
         Ok(u64::from_le_bytes(bytes.try_into().map_err(|_| {
             anyhow!("Expected 8 bytes for address read")
         })?))
+    }
+
+    fn allocate_memory(&self, size: usize) -> Result<u64> {
+        let event = EventRequest::AllocateMemory { size };
+        let response = self.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::MemoryAllocated { address } => Ok(address),
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Memory allocation failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for AllocateMemory")),
+        }
+    }
+
+    fn write_memory(&self, address: u64, data: &[u8]) -> Result<()> {
+        let event = EventRequest::WriteMemory {
+            address,
+            data: data.to_vec(),
+        };
+        let response = self.conn.borrow_mut().send_event_request(event)?;
+
+        match response {
+            EventResponseData::MemoryWritten => Ok(()),
+            EventResponseData::Error { message } => {
+                Err(anyhow!("Memory write failed: {}", message))
+            }
+            _ => Err(anyhow!("Unexpected response type for WriteMemory")),
+        }
     }
 }
 
@@ -365,12 +395,39 @@ impl<'a> EvalContext<'a> {
             ));
         }
 
-        // Convert arguments to MethodArguments (recursive call)
+        // Convert arguments to MethodArguments using type-aware conversion
         let mut method_args = Vec::new();
-        for arg_expr in args {
-            match self.convert_expression_to_method_arg(arg_expr) {
+        for (i, arg_expr) in args.iter().enumerate() {
+            // Get the parameter type if available
+            let param_type = if i < method_info.parameters.len() {
+                Some(&method_info.parameters[i].type_def)
+            } else {
+                None
+            };
+
+            match self.convert_expression_to_method_arg_typed(arg_expr, param_type) {
                 Ok(method_arg) => method_args.push(method_arg),
-                Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
+                Err(e) => {
+                    // Provide helpful context about parameter types
+                    let param_info = if i < method_info.parameters.len() {
+                        let param = &method_info.parameters[i];
+                        let default_name = format!("arg{i}");
+                        let param_name = param.name.as_deref().unwrap_or(&default_name);
+                        format!(
+                            " (parameter '{}' expects type: {})",
+                            param_name,
+                            param.type_def.display_name()
+                        )
+                    } else {
+                        String::new()
+                    };
+                    return Err(anyhow!(
+                        "Failed to convert argument {:?}{}: {}",
+                        arg_expr,
+                        param_info,
+                        e
+                    ));
+                }
             }
         }
 
@@ -458,9 +515,10 @@ impl<'a> EvalContext<'a> {
         }
 
         // Convert arguments to MethodArguments (recursive call)
+        // Note: Using legacy conversion here since this is for pointer returns, not type-aware conversion
         let mut function_args = Vec::new();
-        for arg_expr in args {
-            match self.convert_expression_to_method_arg(arg_expr) {
+        for (arg_expr, param) in args.iter().zip(function_info.parameters.iter()) {
+            match self.convert_expression_to_method_arg_typed(arg_expr, Some(&param.type_def)) {
                 Ok(function_arg) => function_args.push(function_arg),
                 Err(e) => return Err(anyhow!("Failed to convert argument {:?}: {}", arg_expr, e)),
             }
@@ -795,18 +853,37 @@ impl<'a> EvalContext<'a> {
         tracing::debug!("Base object address: {:#x}", pointer.address);
         tracing::debug!("Number of arguments: {}", args.len());
 
-        // Convert arguments to MethodArguments
+        // Convert arguments to MethodArguments using type-aware conversion
         let mut method_args = Vec::new();
         for (i, arg_expr) in args.iter().enumerate() {
-            match self.convert_expression_to_method_arg(arg_expr) {
+            // Get the parameter type if available
+            let param_type = if i < method_info.parameters.len() {
+                Some(&method_info.parameters[i].type_def)
+            } else {
+                None
+            };
+
+            match self.convert_expression_to_method_arg_typed(arg_expr, param_type) {
                 Ok(method_arg) => method_args.push(method_arg),
                 Err(e) => {
-                    // For methods, we don't have parameter type info in DiscoveredMethod
-                    // Just provide the basic error
+                    // Provide helpful context about parameter types
+                    let param_info = if i < method_info.parameters.len() {
+                        let param = &method_info.parameters[i];
+                        let default_name = format!("arg{i}");
+                        let param_name = param.name.as_deref().unwrap_or(&default_name);
+                        format!(
+                            " (parameter '{}' expects type: {})",
+                            param_name,
+                            param.type_def.display_name()
+                        )
+                    } else {
+                        String::new()
+                    };
                     return Err(anyhow!(
-                        "Failed to convert argument {} ({}): {}",
+                        "Failed to convert argument {} ({}){}: {}",
                         i + 1,
                         format!("{:?}", arg_expr),
+                        param_info,
                         e
                     ));
                 }
@@ -915,10 +992,17 @@ impl<'a> EvalContext<'a> {
             ));
         }
 
-        // Convert arguments to MethodArguments
+        // Convert arguments to MethodArguments using type-aware conversion
         let mut function_args = Vec::new();
         for (i, arg_expr) in args.iter().enumerate() {
-            match self.convert_expression_to_method_arg(arg_expr) {
+            // Get the parameter type if available
+            let param_type = if i < function_info.parameters.len() {
+                Some(&function_info.parameters[i].type_def)
+            } else {
+                None
+            };
+
+            match self.convert_expression_to_method_arg_typed(arg_expr, param_type) {
                 Ok(function_arg) => function_args.push(function_arg),
                 Err(e) => {
                     // Provide helpful context about parameter types
@@ -995,19 +1079,53 @@ impl<'a> EvalContext<'a> {
         }
     }
 
-    /// Convert an expression to a MethodArgument for execution
-    fn convert_expression_to_method_arg(&mut self, expr: &Expression) -> Result<MethodArgument> {
+    /// Convert an expression to a MethodArgument for execution with type information
+    fn convert_expression_to_method_arg_typed(
+        &mut self,
+        expr: &Expression,
+        target_type: Option<&DieTypeDefinition>,
+    ) -> Result<MethodArgument> {
         match expr {
             Expression::NumberLiteral(value) => Ok(MethodArgument {
                 value: value.to_string(),
                 arg_type: ArgumentType::Integer,
+                arg_type_size: None,
             }),
-            Expression::StringLiteral(_value) => {
-                // For string literals, we'd need to allocate them in the target process
-                // For now, this is not supported
-                Err(anyhow!(
-                    "String literal arguments not yet supported - try passing a String variable instead"
-                ))
+            Expression::StringLiteral(value) => {
+                // Use type-aware conversion if we have target type information
+                if let Some(target_type) = target_type {
+                    match self
+                        .debug_info
+                        .create_typed_value(value, target_type, &self.conn)
+                    {
+                        Ok(str_addr) => {
+                            tracing::debug!(
+                                "Created typed value '{}' for type '{}' at address {:#x}",
+                                value,
+                                target_type.display_name(),
+                                str_addr
+                            );
+                            Ok(MethodArgument {
+                                value: format!("{str_addr:#x}"),
+                                arg_type: ArgumentType::Pointer,
+                                arg_type_size: target_type.layout.size(),
+                            })
+                        }
+                        Err(e) => Err(anyhow!(
+                            "Failed to create typed value '{}' for type '{}': {}",
+                            value,
+                            target_type.display_name(),
+                            e
+                        )),
+                    }
+                } else {
+                    // No type information available - cannot perform type-aware conversion
+                    Err(anyhow!(
+                        "Cannot convert string literal '{}' without parameter type information. \
+                        This function may not have parameter type information available in debug symbols.",
+                        value
+                    ))
+                }
             }
             // For all expressions that can be evaluated to a memory reference, use evaluate_to_ref
             Expression::Variable(_)
@@ -1020,15 +1138,16 @@ impl<'a> EvalContext<'a> {
                     Ok(typed_pointer) => {
                         // We got a TypedPointer - pass the address as a pointer argument
                         Ok(MethodArgument {
-                            value: format!("{:x}", typed_pointer.address), // No 0x prefix for LLDB
+                            value: format!("{:#x}", typed_pointer.address),
                             arg_type: ArgumentType::Pointer,
+                            arg_type_size: typed_pointer.type_def.layout.size(),
                         })
                     }
                     Err(_) => {
                         // evaluate_to_ref failed (likely because it returns a simple value)
                         // Fall back to evaluating and converting the result
                         let result = self.evaluate(expr)?;
-                        self.eval_result_to_method_arg(result)
+                        self.fallback_eval_result_to_method_arg(result)
                     }
                 }
             }
@@ -1037,25 +1156,13 @@ impl<'a> EvalContext<'a> {
     }
 
     /// Convert an EvalResult to a MethodArgument (for bare primitives)
-    fn eval_result_to_method_arg(&self, result: EvalResult) -> Result<MethodArgument> {
-        // Check if it's a pointer format "<Type @ 0xADDRESS>"
-        if let Some(at_pos) = result.value.find(" @ 0x") {
-            let addr_str = &result.value[at_pos + 4..result.value.len() - 1]; // Skip " @ 0x" and final ">"
-            Ok(MethodArgument {
-                value: addr_str.to_string(), // Use just the hex value without 0x prefix
-                arg_type: ArgumentType::Pointer,
-            })
-        } else if result.value.starts_with("0x") {
-            // Direct address value
-            Ok(MethodArgument {
-                value: result.value[2..].to_string(), // Remove 0x prefix
-                arg_type: ArgumentType::Pointer,
-            })
-        } else if result.value == "true" || result.value == "false" {
+    fn fallback_eval_result_to_method_arg(&self, result: EvalResult) -> Result<MethodArgument> {
+        if result.type_name == "bool" && (result.value == "true" || result.value == "false") {
             // Boolean value
             Ok(MethodArgument {
                 value: if result.value == "true" { "1" } else { "0" }.to_string(),
                 arg_type: ArgumentType::Bool,
+                arg_type_size: None,
             })
         } else if result.value.parse::<f64>().is_ok() {
             // Numeric value - could be integer or float
@@ -1063,11 +1170,13 @@ impl<'a> EvalContext<'a> {
                 Ok(MethodArgument {
                     value: result.value,
                     arg_type: ArgumentType::Float,
+                    arg_type_size: None,
                 })
             } else {
                 Ok(MethodArgument {
                     value: result.value,
                     arg_type: ArgumentType::Integer,
+                    arg_type_size: None,
                 })
             }
         } else {

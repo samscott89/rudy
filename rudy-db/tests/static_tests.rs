@@ -25,6 +25,16 @@ pub fn binary_path(target: &str, example: &str) -> String {
     binary_path.to_str().unwrap().to_string()
 }
 
+macro_rules! salsa_debug_snapshot {
+    ($db:ident, $expr:expr) => {
+        // snapshot while in the context of a db
+        // so we get nice debug output
+        salsa::attach(&$db, || {
+            insta::assert_debug_snapshot!($expr);
+        })
+    };
+}
+
 #[template]
 #[rstest]
 #[case("aarch64-unknown-linux-gnu")]
@@ -68,7 +78,7 @@ fn test_resolve_position(#[case] target: &'static str) {
         .resolve_position(platform_file, 2, None)
         .unwrap()
         .unwrap();
-    insta::assert_debug_snapshot!(addrs);
+    salsa_debug_snapshot!(db, addrs);
     assert_eq!(
         resolver.address_to_line(addrs.address).unwrap(),
         ResolvedLocation {
@@ -83,7 +93,7 @@ fn test_resolve_position(#[case] target: &'static str) {
         .resolve_position(platform_file, 11, None)
         .unwrap()
         .unwrap();
-    insta::assert_debug_snapshot!(addrs);
+    salsa_debug_snapshot!(db, addrs);
 
     assert_eq!(
         resolver.address_to_line(addrs.address).unwrap(),
@@ -106,7 +116,7 @@ fn test_load_file(#[case] target: &'static str) {
 
     // let index = parsed.
 
-    insta::assert_debug_snapshot!(parsed);
+    salsa_debug_snapshot!(db, parsed);
 }
 
 #[apply(binary_target)]
@@ -123,14 +133,14 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
         .expect("Failed to resolve enums::TestEnum")
         .expect("enums::TestEnum type should be found");
 
-    insta::assert_debug_snapshot!(test_enum_typedef);
+    salsa_debug_snapshot!(db, test_enum_typedef);
 
     let repr_c_typedef = debug_info
         .resolve_type("enums::ReprCEnum")
         .expect("Failed to resolve enums::ReprCEnum")
         .expect("enums::ReprCEnum type should be found");
 
-    insta::assert_debug_snapshot!(repr_c_typedef);
+    salsa_debug_snapshot!(db, repr_c_typedef);
 
     // we'll also test our special-cased enums Option and Result
     let option_typedef = debug_info
@@ -138,14 +148,14 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
         .expect("Failed to resolve core::option::Option<i32>")
         .expect("core::option::Option<i32> type should be found");
 
-    insta::assert_debug_snapshot!(option_typedef);
+    salsa_debug_snapshot!(db, option_typedef);
 
     let result_typedef = debug_info
         .resolve_type("core::result::Result<i32, alloc::string::String>")
         .expect("Failed to resolve core::result::Result<i32, alloc::string::String>")
         .expect("core::result::Result<i32, alloc::string::String> type should be found");
 
-    insta::assert_debug_snapshot!(result_typedef);
+    salsa_debug_snapshot!(db, result_typedef);
 
     // Test U8Enum variants
     let u8_enum_typedef = debug_info
@@ -153,7 +163,7 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
         .expect("Failed to resolve enums::U8Enum")
         .expect("enums::U8Enum type should be found");
 
-    insta::assert_debug_snapshot!(u8_enum_typedef);
+    salsa_debug_snapshot!(db, u8_enum_typedef);
 }
 
 #[apply(binary_target)]
@@ -179,7 +189,7 @@ fn test_method_discovery(#[case] target: &'static str) {
         .discover_methods_for_type(&session_param.ty)
         .expect("Failed to discover methods for session type");
 
-    insta::assert_debug_snapshot!(methods);
+    salsa_debug_snapshot!(db, methods);
 }
 
 #[apply(binary_target)]
@@ -206,7 +216,7 @@ fn test_function_discovery(#[case] target: &'static str) {
     assert!(main_function.callable);
     assert!(main_function.address > 0);
 
-    insta::assert_debug_snapshot!(main_functions);
+    salsa_debug_snapshot!(db, main_functions);
 
     // Test discovering functions by partial name
     let function_call_functions = debug_info
@@ -223,7 +233,7 @@ fn test_function_discovery(#[case] target: &'static str) {
     assert!(function_call.callable);
     assert!(function_call.address > 0);
 
-    insta::assert_debug_snapshot!(function_call_functions);
+    salsa_debug_snapshot!(db, function_call_functions);
 
     // Test discovering all functions
     let all_functions = debug_info
@@ -247,5 +257,5 @@ fn test_function_discovery(#[case] target: &'static str) {
         .map(|(k, v)| (k.clone(), v.clone()))
         .collect();
 
-    insta::assert_debug_snapshot!(subset);
+    salsa_debug_snapshot!(db, subset);
 }

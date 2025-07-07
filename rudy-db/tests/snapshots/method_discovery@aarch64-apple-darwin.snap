@@ -31,7 +31,7 @@ snapshot_kind: text
                                             },
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c06) } 0x000002e7,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002e7,
                                 },
                             },
                             StructField {
@@ -44,6 +44,7 @@ snapshot_kind: text
                                                 VecLayout {
                                                     length_offset: 16,
                                                     data_ptr_offset: 8,
+                                                    capacity_offset: 0,
                                                     inner_type: TypeDefinition {
                                                         layout: Primitive(
                                                             UnsignedInt(
@@ -52,21 +53,63 @@ snapshot_kind: text
                                                                 },
                                                             ),
                                                         ),
-                                                        location: Die at DebugFile { [salsa id]: Id(c06) } 0x000003c5,
+                                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000003c5,
                                                     },
                                                 },
                                             ),
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c06) } 0x000002f8,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002f8,
                                 },
                             },
                         ],
                     },
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c06) } 0x0000002f,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x0000002f,
             },
         ),
+        parameters: [
+            FunctionParameter {
+                name: None,
+                type_def: TypeDefinition {
+                    layout: Primitive(
+                        UnsignedInt(
+                            UnsignedIntLayout {
+                                size: 8,
+                            },
+                        ),
+                    ),
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002e7,
+                },
+            },
+            FunctionParameter {
+                name: None,
+                type_def: TypeDefinition {
+                    layout: Std(
+                        String(
+                            StringLayout(
+                                VecLayout {
+                                    length_offset: 16,
+                                    data_ptr_offset: 8,
+                                    capacity_offset: 0,
+                                    inner_type: TypeDefinition {
+                                        layout: Primitive(
+                                            UnsignedInt(
+                                                UnsignedIntLayout {
+                                                    size: 1,
+                                                },
+                                            ),
+                                        ),
+                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000003c5,
+                                    },
+                                },
+                            ),
+                        ),
+                    ),
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002f8,
+                },
+            },
+        ],
     },
     DiscoveredMethod {
         name: "get_id",
@@ -87,9 +130,10 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c06) } 0x000002e7,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002e7,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "set_name",
@@ -102,6 +146,35 @@ snapshot_kind: text
         callable: true,
         is_synthetic: false,
         return_type: None,
+        parameters: [
+            FunctionParameter {
+                name: None,
+                type_def: TypeDefinition {
+                    layout: Std(
+                        String(
+                            StringLayout(
+                                VecLayout {
+                                    length_offset: 16,
+                                    data_ptr_offset: 8,
+                                    capacity_offset: 0,
+                                    inner_type: TypeDefinition {
+                                        layout: Primitive(
+                                            UnsignedInt(
+                                                UnsignedIntLayout {
+                                                    size: 1,
+                                                },
+                                            ),
+                                        ),
+                                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000003c5,
+                                    },
+                                },
+                            ),
+                        ),
+                    ),
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002f8,
+                },
+            },
+        ],
     },
     DiscoveredMethod {
         name: "describe",
@@ -121,6 +194,7 @@ snapshot_kind: text
                             VecLayout {
                                 length_offset: 16,
                                 data_ptr_offset: 8,
+                                capacity_offset: 0,
                                 inner_type: TypeDefinition {
                                     layout: Primitive(
                                         UnsignedInt(
@@ -129,15 +203,16 @@ snapshot_kind: text
                                             },
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c06) } 0x000003c5,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000003c5,
                                 },
                             },
                         ),
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c06) } 0x000002f8,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002f8,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "description_length",
@@ -158,9 +233,10 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c06) } 0x00000581,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x00000581,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "identifier",
@@ -180,6 +256,7 @@ snapshot_kind: text
                             VecLayout {
                                 length_offset: 16,
                                 data_ptr_offset: 8,
+                                capacity_offset: 0,
                                 inner_type: TypeDefinition {
                                     layout: Primitive(
                                         UnsignedInt(
@@ -188,15 +265,16 @@ snapshot_kind: text
                                             },
                                         ),
                                     ),
-                                    location: Die at DebugFile { [salsa id]: Id(c06) } 0x000003c5,
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000003c5,
                                 },
                             },
                         ),
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c06) } 0x000002f8,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x000002f8,
             },
         ),
+        parameters: [],
     },
     DiscoveredMethod {
         name: "fmt",
@@ -228,22 +306,35 @@ snapshot_kind: text
                                         UnitLayout,
                                     ),
                                 ),
-                                location: Die at DebugFile { [salsa id]: Id(c06) } 0x00000654,
+                                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x00000654,
                             },
                             ok_offset: 1,
                             err_type: TypeDefinition {
                                 layout: Alias {
                                     name: "Error",
                                 },
-                                location: Die at DebugFile { [salsa id]: Id(c06) } 0x0000051c,
+                                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x0000051c,
                             },
                             err_offset: 1,
                             size: 1,
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(c06) } 0x00000496,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x00000496,
             },
         ),
+        parameters: [
+            FunctionParameter {
+                name: Some(
+                    "f",
+                ),
+                type_def: TypeDefinition {
+                    layout: Alias {
+                        name: "unknown",
+                    },
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/method_discovery-cbc1552500575258.29c63f9mpf8p7221terovwqjh.11pxz6e.rcgu.o 0x0000065b,
+                },
+            },
+        ],
     },
 ]

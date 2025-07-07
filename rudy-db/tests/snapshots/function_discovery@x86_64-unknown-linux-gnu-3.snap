@@ -22,7 +22,7 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(800) } 0x00000427,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/simple_test 0x00000427,
             },
         ),
         parameters: [
@@ -38,7 +38,7 @@ snapshot_kind: text
                             },
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(800) } 0x00000427,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/simple_test 0x00000427,
                 },
             },
         ],

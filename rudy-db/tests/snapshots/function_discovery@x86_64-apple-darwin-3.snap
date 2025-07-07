@@ -22,7 +22,7 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die at DebugFile { [salsa id]: Id(807) } 0x000000c6,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/simple_test-e36f77d359011ab6.d3f6kofj10y7pqfnrqz53kdp2.0h7wgx8.rcgu.o 0x000000c6,
             },
         ),
         parameters: [
@@ -38,7 +38,7 @@ snapshot_kind: text
                             },
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(807) } 0x000000c6,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/simple_test-e36f77d359011ab6.d3f6kofj10y7pqfnrqz53kdp2.0h7wgx8.rcgu.o 0x000000c6,
                 },
             },
         ],
