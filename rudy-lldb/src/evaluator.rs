@@ -252,6 +252,15 @@ impl<'a> EvalContext<'a> {
     pub fn evaluate(&mut self, expr: &Expression) -> Result<EvalResult> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable(name),
+            Expression::Path(segments) => Err(anyhow!(
+                "Path expressions ('{}') are type names and cannot be evaluated as values",
+                segments.join("::")
+            )),
+            Expression::Generic { base, args } => Err(anyhow!(
+                "Generic types ('{}<{}>') are type names and cannot be evaluated as values",
+                base,
+                args.join(", ")
+            )),
             Expression::FieldAccess { base, field } => self.evaluate_field_access(base, field),
             Expression::Index { base, index } => self.evaluate_index(base, index),
             Expression::NumberLiteral(value) => Ok(EvalResult {
@@ -282,6 +291,15 @@ impl<'a> EvalContext<'a> {
     pub fn evaluate_to_ref(&mut self, expr: &Expression) -> Result<TypedPointer> {
         match expr {
             Expression::Variable(name) => self.evaluate_variable_to_ref(name),
+            Expression::Path(segments) => Err(anyhow!(
+                "Path expressions ('{}') are type names and cannot be evaluated to memory references",
+                segments.join("::")
+            )),
+            Expression::Generic { base, args } => Err(anyhow!(
+                "Generic types ('{}<{}>') are type names and cannot be evaluated to memory references",
+                base,
+                args.join(", ")
+            )),
             Expression::FieldAccess { base, field } => {
                 self.evaluate_field_access_to_ref(base, field)
             }
