@@ -197,6 +197,16 @@ fn build_examples_for_target(workspace_root: &std::path::Path, target: &str) -> 
 
     println!("  🎯 Building examples for {target}");
 
+    let mut clean_cmd = Command::new("cargo");
+    clean_cmd.args(["clean", "--target", target, "-p", "rudy-test-examples"]);
+
+    let status = clean_cmd.status().context("Failed to run cargo clean")?;
+
+    if !status.success() {
+        println!("    ❌ Clean failed for target {target}");
+        return Ok(());
+    }
+
     let mut cmd = Command::new("cargo");
     cmd.args([
         "build",
