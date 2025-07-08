@@ -18,6 +18,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 struct SalsaEvent {
     target: String,
     message: String,
+    query_stack: Vec<String>, // Captured from salsa backtrace
 }
 
 // Custom tracing layer to capture salsa events
@@ -51,10 +52,18 @@ where
             event.record(&mut visitor);
 
             if let Some(message) = visitor.message {
+                let query_stack = if let Some(bt) = salsa::Backtrace::capture() {
+                    // Parse backtrace to extract query stack
+                    parse_backtrace(&format!("{bt}"))
+                } else {
+                    Vec::new()
+                };
+
                 let mut events = self.events.lock().unwrap();
                 events.push(SalsaEvent {
                     target: target.to_string(),
                     message,
+                    query_stack,
                 });
             }
         }
@@ -65,6 +74,70 @@ where
 fn is_internal_salsa_event(target: &str) -> bool {
     // Filter out internal tracking and bookkeeping
     matches!(target, "salsa::zalsa_local")
+}
+
+// Parse salsa backtrace to extract query names
+fn parse_backtrace(backtrace_str: &str) -> Vec<String> {
+    let mut queries = Vec::new();
+
+    for line in backtrace_str.lines() {
+        let trimmed = line.trim();
+        // Look for lines with query names like "0: lookup_address(Id(3000))"
+        if let Some(colon_pos) = trimmed.find(':') {
+            let after_colon = trimmed[colon_pos + 1..].trim();
+            // Extract query name before the first '('
+            if let Some(paren_pos) = after_colon.find('(') {
+                let query_name = after_colon[..paren_pos].trim();
+                if !query_name.is_empty() && !query_name.starts_with("at ") {
+                    queries.push(query_name.to_string());
+                }
+            }
+        }
+    }
+
+    queries
+}
+
+// Tree structure for dependency analysis
+#[derive(Debug, Clone)]
+struct QueryNode {
+    query_name: String,
+    miss_count: usize,
+    hit_count: usize,
+    children: Vec<QueryNode>,
+}
+
+impl QueryNode {
+    fn new(query_name: String, is_cache_miss: bool) -> Self {
+        Self {
+            query_name,
+            miss_count: if is_cache_miss { 1 } else { 0 },
+            hit_count: if is_cache_miss { 0 } else { 1 },
+            children: Vec::new(),
+        }
+    }
+
+    fn merge_or_add_child(&mut self, child: QueryNode) {
+        // Try to find existing child with same name (regardless of cache status)
+        if let Some(existing) = self
+            .children
+            .iter_mut()
+            .find(|c| c.query_name == child.query_name)
+        {
+            existing.miss_count += child.miss_count;
+            existing.hit_count += child.hit_count;
+            // Merge children recursively
+            for grandchild in child.children {
+                existing.merge_or_add_child(grandchild);
+            }
+        } else {
+            self.children.push(child);
+        }
+    }
+
+    fn total_count(&self) -> usize {
+        self.miss_count + self.hit_count
+    }
 }
 
 // Helper to extract message from tracing events
@@ -98,6 +171,129 @@ fn extract_query_from_message(message: &str) -> Option<String> {
         }
     } else {
         None
+    }
+}
+
+// Build a dependency tree from events using query stack information
+fn build_query_tree(events: &[&SalsaEvent]) -> Vec<QueryNode> {
+    let mut roots: Vec<QueryNode> = Vec::new();
+
+    for event in events {
+        if let Some(query_name) = extract_query_from_message(&event.message) {
+            let is_cache_miss = event.target.contains("function::execute");
+            let is_cache_hit = event.target.contains("maybe_changed_after");
+
+            if is_cache_miss || is_cache_hit {
+                let stack = &event.query_stack;
+
+                if stack.is_empty() {
+                    // Root level query
+                    let node = QueryNode::new(query_name, is_cache_miss);
+                    if let Some(existing_root) =
+                        roots.iter_mut().find(|r| r.query_name == node.query_name)
+                    {
+                        existing_root.miss_count += node.miss_count;
+                        existing_root.hit_count += node.hit_count;
+                    } else {
+                        roots.push(node);
+                    }
+                } else {
+                    // Build tree from stack (stack[0] is current query, stack[1] is parent, etc.)
+                    let current_query = stack.first().unwrap_or(&query_name);
+                    let node = QueryNode::new(current_query.clone(), is_cache_miss);
+
+                    if stack.len() == 1 {
+                        // Direct root query
+                        if let Some(existing_root) =
+                            roots.iter_mut().find(|r| r.query_name == node.query_name)
+                        {
+                            existing_root.miss_count += node.miss_count;
+                            existing_root.hit_count += node.hit_count;
+                        } else {
+                            roots.push(node);
+                        }
+                    } else {
+                        // Find or create parent and add as child
+                        let parent_query = &stack[1];
+                        let parent_node = roots.iter_mut().find(|r| r.query_name == *parent_query);
+
+                        if let Some(parent) = parent_node {
+                            parent.merge_or_add_child(node);
+                        } else {
+                            // Create parent if it doesn't exist (assume it's a hit for parents we haven't seen execute)
+                            let mut parent = QueryNode::new(parent_query.clone(), false);
+                            parent.merge_or_add_child(node);
+                            roots.push(parent);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Keep chronological order - don't sort
+    roots
+}
+
+// Display the query tree
+fn display_query_tree(nodes: &[QueryNode], indent: usize) {
+    for (i, node) in nodes.iter().enumerate() {
+        let is_last = i == nodes.len() - 1;
+        let prefix = "  ".repeat(indent);
+        let tree_char = if is_last { "└─" } else { "├─" };
+
+        // Format the cache performance display
+        let performance = match (node.miss_count, node.hit_count) {
+            (0, hits) if hits > 1 => format!("hit ({hits}×)"),
+            (misses, 0) if misses > 1 => format!("miss ({misses}×)"),
+            (misses, hits) if misses > 0 && hits > 0 => {
+                format!("{misses} miss, {hits} hit")
+            }
+            (1, 0) => "miss".to_string(),
+            (0, 1) => "hit".to_string(),
+            _ => format!("{}×", node.total_count()),
+        };
+
+        println!(
+            "{}{} {}: {}",
+            prefix, tree_char, node.query_name, performance
+        );
+
+        if !node.children.is_empty() {
+            let child_prefix = if is_last { "  " } else { "│ " };
+            display_query_tree_with_prefix(&node.children, indent + 1, child_prefix);
+        }
+    }
+}
+
+// Helper function for better tree formatting with proper vertical lines
+fn display_query_tree_with_prefix(nodes: &[QueryNode], indent: usize, line_prefix: &str) {
+    for (i, node) in nodes.iter().enumerate() {
+        let is_last = i == nodes.len() - 1;
+        let base_prefix = "  ".repeat(indent.saturating_sub(1));
+        let tree_char = if is_last { "└─" } else { "├─" };
+
+        // Format the cache performance display
+        let performance = match (node.miss_count, node.hit_count) {
+            (0, hits) if hits > 1 => format!("hit ({hits}×)"),
+            (misses, 0) if misses > 1 => format!("miss ({misses}×)"),
+            (misses, hits) if misses > 0 && hits > 0 => {
+                format!("{misses} miss, {hits} hit")
+            }
+            (1, 0) => "miss".to_string(),
+            (0, 1) => "hit".to_string(),
+            _ => format!("{}×", node.total_count()),
+        };
+
+        println!(
+            "{}{}{} {}: {}",
+            base_prefix, line_prefix, tree_char, node.query_name, performance
+        );
+
+        if !node.children.is_empty() {
+            let child_prefix = if is_last { "  " } else { "│ " };
+            display_query_tree_with_prefix(&node.children, indent + 1, child_prefix);
+        }
     }
 }
 
@@ -156,29 +352,13 @@ fn main() -> anyhow::Result<()> {
                 let hit_rate = (cache_hits as f64 / total_queries as f64) * 100.0;
                 println!("  Salsa cache performance:");
                 println!(
-                    "    {} total queries - {} misses, {} hits ({:.0}% hit rate)",
-                    total_queries, cache_misses, cache_hits, hit_rate
+                    "    {total_queries} total queries - {cache_misses} misses, {cache_hits} hits ({hit_rate:.0}% hit rate)"
                 );
 
-                // Show breakdown by query type
-                if !query_breakdown.is_empty() {
-                    println!("    Query breakdown:");
-                    let mut sorted_queries: Vec<_> = query_breakdown.iter().collect();
-                    sorted_queries.sort_by(|a, b| (b.1.0 + b.1.1).cmp(&(a.1.0 + a.1.1)));
-
-                    for (query, (misses, hits)) in sorted_queries.iter() {
-                        let query_total = misses + hits;
-                        let query_hit_rate = if query_total > 0 {
-                            (*hits as f64 / query_total as f64) * 100.0
-                        } else {
-                            0.0
-                        };
-                        println!(
-                            "      {}: {} miss, {} hit ({:.0}%)",
-                            query, misses, hits, query_hit_rate
-                        );
-                    }
-                }
+                // Show tree-based breakdown
+                println!("    Query dependency tree:");
+                let tree = build_query_tree(&recent_events);
+                display_query_tree(&tree, 2);
                 println!();
             }
         }
@@ -224,7 +404,7 @@ fn main() -> anyhow::Result<()> {
     );
 
     let speedup = cold_time.as_secs_f64() / warm_time.as_secs_f64();
-    println!("Speedup: {:.0}x faster", speedup);
+    println!("Speedup: {speedup:.0}x faster");
     let event_count = show_salsa_activity(&captured_events, event_count);
 
     // === Phase 4: Different query ===
