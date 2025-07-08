@@ -1,12 +1,12 @@
 ---
 source: rudy-db/tests/static_tests.rs
-expression: "resolver.resolve_function(\"main\").unwrap()"
+expression: "resolver.find_function_by_name(\"main\").unwrap()"
 snapshot_kind: text
 ---
 Some(
     ResolvedFunction {
         name: "simple_test::main",
-        address: "0x100000950",
+        address: "0x1000008f0",
         size: "0xa4",
         params: [],
     },
