@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2](https://github.com/samscott89/rudy/compare/rudy-types-v0.4.1...rudy-types-v0.4.2) - 2025-07-08
+
+### Other
+
+- update Cargo.toml dependencies
+
 ## [0.4.1](https://github.com/samscott89/rudy/compare/rudy-types-v0.4.0...rudy-types-v0.4.1) - 2025-07-07
 
 ### Other
