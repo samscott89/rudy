@@ -21,12 +21,6 @@ use crate::{
 
 type Result<T> = std::result::Result<T, crate::Error>;
 
-/// Resolve the full type for a DIE entry
-pub fn resolve_entry_type(db: &dyn DwarfDb, entry: Die) -> Result<DieTypeDefinition> {
-    let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
-    resolve_type_offset(db, type_entry)
-}
-
 /// Resolve the type for a DIE entry with shallow resolution
 pub fn resolve_entry_type_shallow(db: &dyn DwarfDb, entry: Die) -> Result<DieTypeDefinition> {
     let type_entry = entry.get_referenced_entry(db, gimli::DW_AT_type)?;
@@ -219,7 +213,7 @@ fn resolve_tuple_type(db: &dyn DwarfDb, entry: Die) -> Result<TupleLayout<Die>> 
         let offset = child
             .udata_attr(db, gimli::DW_AT_data_member_location)
             .context("could not get data member location for tuple element")?;
-        let ty = resolve_entry_type(db, child)?;
+        let ty = resolve_entry_type_shallow(db, child)?;
         elements.push((offset, ty));
     }
 
@@ -274,7 +268,7 @@ fn resolve_primitive_type<L: Location + Clone>(
                 .context("could not get type for data_ptr")?;
 
             // data_entry is of type `*T` for slice `&[T]`, so we'll deference once more.
-            let element_type = resolve_entry_type(db, data_ptr_type_entry)
+            let element_type = resolve_entry_type_shallow(db, data_ptr_type_entry)
                 .context("could not resolve element type for slice")?;
 
             let length_offset = entry
@@ -288,7 +282,7 @@ fn resolve_primitive_type<L: Location + Clone>(
             })
         }
         PrimitiveLayout::Array(array_def) => {
-            let element_type = resolve_entry_type(db, entry)?;
+            let element_type = resolve_entry_type_shallow(db, entry)?;
             PrimitiveLayout::Array(ArrayLayout {
                 element_type,
                 length: array_def.length,
@@ -296,7 +290,7 @@ fn resolve_primitive_type<L: Location + Clone>(
         }
         PrimitiveLayout::Function(f) => {
             // to resolve a function, type, we need to get the return type and argument types
-            let return_type = resolve_entry_type(db, entry)?;
+            let return_type = resolve_entry_type_shallow(db, entry)?;
             let return_type = if f.return_type.is_none()
                 && matches!(
                     return_type.layout.as_ref(),
@@ -311,7 +305,7 @@ fn resolve_primitive_type<L: Location + Clone>(
                 .children(db)?
                 .into_iter()
                 .filter(|c| c.tag(db) == gimli::DW_TAG_formal_parameter)
-                .map(|c| resolve_entry_type(db, c))
+                .map(|c| resolve_entry_type_shallow(db, c))
                 .collect::<Result<Vec<_>>>()?;
 
             PrimitiveLayout::Function(FunctionLayout {
@@ -320,14 +314,14 @@ fn resolve_primitive_type<L: Location + Clone>(
             })
         }
         PrimitiveLayout::Pointer(pointer_def) => {
-            let pointed_type = resolve_entry_type(db, entry)?;
+            let pointed_type = resolve_entry_type_shallow(db, entry)?;
             PrimitiveLayout::Pointer(PointerLayout {
                 mutable: pointer_def.mutable,
                 pointed_type,
             })
         }
         PrimitiveLayout::Reference(reference_def) => {
-            let pointed_type = resolve_entry_type(db, entry)?;
+            let pointed_type = resolve_entry_type_shallow(db, entry)?;
             PrimitiveLayout::Reference(ReferenceLayout {
                 mutable: reference_def.mutable,
                 pointed_type,
@@ -520,7 +514,7 @@ fn resolve_type_offset_tracked<'db>(
                 .into());
         }
         gimli::DW_TAG_array_type => {
-            let element_type = resolve_entry_type(db, entry)?;
+            let element_type = resolve_entry_type_shallow(db, entry)?;
             let children = entry.children(db)?;
             let subrange = children
                 .iter()
@@ -553,14 +547,14 @@ fn resolve_type_offset_tracked<'db>(
             let return_type = entry
                 .get_referenced_entry(db, gimli::DW_AT_type)
                 .ok()
-                .map(|ty| resolve_entry_type(db, ty))
+                .map(|ty| resolve_entry_type_shallow(db, ty))
                 .transpose()?;
 
             let arg_types = entry
                 .children(db)?
                 .into_iter()
                 .filter(|c| c.tag(db) == gimli::DW_TAG_formal_parameter)
-                .map(|c| resolve_entry_type(db, c))
+                .map(|c| resolve_entry_type_shallow(db, c))
                 .collect::<Result<Vec<_>>>()?;
 
             Layout::Primitive(PrimitiveLayout::Function(FunctionLayout {

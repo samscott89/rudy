@@ -279,7 +279,7 @@ snapshot_kind: text
     DiscoveredMethod {
         name: "fmt",
         full_name: "<method_discovery::Session as core::fmt::Display>::fmt (from core)",
-        signature: "fn fmt(&self, f: ?) -> Result<(), Error>",
+        signature: "fn fmt(&self, f: &mut Formatter) -> Result<(), Error>",
         address: 4294971888,
         self_type: Some(
             Borrowed,
@@ -329,9 +329,19 @@ snapshot_kind: text
                     "f",
                 ),
                 type_def: TypeDefinition {
-                    layout: Alias {
-                        name: "unknown",
-                    },
+                    layout: Primitive(
+                        Reference(
+                            ReferenceLayout {
+                                mutable: true,
+                                pointed_type: TypeDefinition {
+                                    layout: Alias {
+                                        name: "Formatter",
+                                    },
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/method_discovery-2584ac34c20800d9.8qpwk2cx3e9vjjbnwiy26zpq3.1spnk5u.rcgu.o 0x00000528,
+                                },
+                            },
+                        ),
+                    ),
                     location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/method_discovery-2584ac34c20800d9.8qpwk2cx3e9vjjbnwiy26zpq3.1spnk5u.rcgu.o 0x0000065f,
                 },
             },

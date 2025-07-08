@@ -16,7 +16,7 @@ use crate::{
         },
         Parser,
     },
-    types::resolve_entry_type,
+    types::resolve_entry_type_shallow,
     Die, DwarfDb,
 };
 
@@ -34,7 +34,7 @@ pub fn enum_discriminant() -> impl Parser<Discriminant> {
 
             if let Some(discr) = discr_die {
                 // We have an explicit discriminant - resolve its type
-                let discriminant_type = resolve_entry_type(db, discr)?;
+                let discriminant_type = resolve_entry_type_shallow(db, discr)?;
                 let ty = match discriminant_type.layout.as_ref() {
                     rudy_types::Layout::Primitive(rudy_types::PrimitiveLayout::Int(i)) => {
                         DiscriminantType::Int(*i)

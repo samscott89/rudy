@@ -279,7 +279,7 @@ snapshot_kind: text
     DiscoveredMethod {
         name: "fmt",
         full_name: "<method_discovery::Session as core::fmt::Display>::fmt (from core)",
-        signature: "fn fmt(&self, f: ?) -> Result<(), Error>",
+        signature: "fn fmt(&self, f: &mut Formatter) -> Result<(), Error>",
         address: 33504,
         self_type: Some(
             Borrowed,
@@ -329,9 +329,19 @@ snapshot_kind: text
                     "f",
                 ),
                 type_def: TypeDefinition {
-                    layout: Alias {
-                        name: "unknown",
-                    },
+                    layout: Primitive(
+                        Reference(
+                            ReferenceLayout {
+                                mutable: true,
+                                pointed_type: TypeDefinition {
+                                    layout: Alias {
+                                        name: "Formatter",
+                                    },
+                                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x00002485,
+                                },
+                            },
+                        ),
+                    ),
                     location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery 0x000025bc,
                 },
             },
