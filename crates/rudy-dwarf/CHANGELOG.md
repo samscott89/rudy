@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/samscott89/rudy/compare/rudy-dwarf-v0.3.1...rudy-dwarf-v0.4.0) - 2025-07-08
+
+### Other
+
+- Make all type resolution shallow ([#31](https://github.com/samscott89/rudy/pull/31))
+- Add a shiny new benchmark + tutorial ([#32](https://github.com/samscott89/rudy/pull/32))
+
 ## [0.3.1](https://github.com/samscott89/rudy/compare/rudy-dwarf-v0.3.0...rudy-dwarf-v0.3.1) - 2025-07-07
 
 ### Other

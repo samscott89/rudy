@@ -4,8 +4,8 @@ resolver = "3"
 
 [workspace.dependencies]
 # internal deps
-rudy-db = { version = "0.0.7", path = "rudy-db" }
-rudy-dwarf = { version = "0.3.1", path = "crates/rudy-dwarf" }
+rudy-db = { version = "0.0.8", path = "rudy-db" }
+rudy-dwarf = { version = "0.4.0", path = "crates/rudy-dwarf" }
 rudy-types = { version = "0.4", path = "crates/rudy-types" }
 rudy-parser = { version = "0.4", path = "crates/rudy-parser" }
 rudy-test-examples = { path = "crates/rudy-test-examples" }
