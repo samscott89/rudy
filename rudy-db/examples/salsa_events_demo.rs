@@ -109,8 +109,8 @@ fn main() -> anyhow::Result<()> {
         .with(
             salsa_capture.with_filter(
                 tracing_subscriber::filter::Targets::new()
-                    // Enable the `INFO` level for anything in `salsa`
-                    .with_target("salsa", tracing::Level::INFO),
+                    // Enable the `DEBUG` level for anything in `salsa`
+                    .with_target("salsa", tracing::Level::DEBUG),
             ),
         )
         .with(
@@ -125,45 +125,59 @@ fn main() -> anyhow::Result<()> {
     let binary_path = artifacts_dir(None).join("large");
     let db = DebugDb::new().with_source_map(source_map(None));
 
-    // Helper to show salsa activity
+    // Helper to show salsa activity with cache hit/miss analysis
     let show_salsa_activity = |events: &Arc<Mutex<Vec<SalsaEvent>>>, since: usize| -> usize {
         let events_guard = events.lock().unwrap();
         let recent_events: Vec<_> = events_guard.iter().skip(since).collect();
         let new_count = events_guard.len();
 
         if !recent_events.is_empty() {
-            let mut activity_counts: HashMap<String, usize> = HashMap::new();
+            let mut cache_misses = 0;
+            let mut cache_hits = 0;
+            let mut query_breakdown: HashMap<String, (usize, usize)> = HashMap::new(); // (misses, hits)
+
             for event in &recent_events {
-                let activity = if let Some(query) = extract_query_from_message(&event.message) {
-                    // Extract just the operation type from target (e.g., "function::execute" from "salsa::function::execute")
-                    let operation = event
-                        .target
-                        .strip_prefix("salsa::")
-                        .unwrap_or(&event.target);
-                    format!("{}: {}", operation, query)
-                } else {
-                    // Fallback to just the operation type
-                    event
-                        .target
-                        .strip_prefix("salsa::")
-                        .unwrap_or(&event.target)
-                        .to_string()
-                };
-                *activity_counts.entry(activity).or_insert(0) += 1;
+                if let Some(query) = extract_query_from_message(&event.message) {
+                    let is_cache_miss = event.target.contains("function::execute");
+                    let is_cache_hit = event.target.contains("maybe_changed_after");
+
+                    if is_cache_miss {
+                        cache_misses += 1;
+                        query_breakdown.entry(query).or_insert((0, 0)).0 += 1;
+                    } else if is_cache_hit {
+                        cache_hits += 1;
+                        query_breakdown.entry(query).or_insert((0, 0)).1 += 1;
+                    }
+                }
             }
 
-            if !activity_counts.is_empty() {
-                println!("  Salsa activity: {} events", recent_events.len());
-                let mut sorted_activities: Vec<_> = activity_counts.into_iter().collect();
-                sorted_activities.sort_by(|a, b| b.1.cmp(&a.1));
-                for (activity, count) in sorted_activities.iter().take(5) {
-                    println!("    {} ({}x)", activity, count);
-                }
-                if sorted_activities.len() > 5 {
-                    println!(
-                        "    ... and {} more activities",
-                        sorted_activities.len() - 5
-                    );
+            let total_queries = cache_misses + cache_hits;
+            if total_queries > 0 {
+                let hit_rate = (cache_hits as f64 / total_queries as f64) * 100.0;
+                println!("  Salsa cache performance:");
+                println!(
+                    "    {} total queries - {} misses, {} hits ({:.0}% hit rate)",
+                    total_queries, cache_misses, cache_hits, hit_rate
+                );
+
+                // Show breakdown by query type
+                if !query_breakdown.is_empty() {
+                    println!("    Query breakdown:");
+                    let mut sorted_queries: Vec<_> = query_breakdown.iter().collect();
+                    sorted_queries.sort_by(|a, b| (b.1.0 + b.1.1).cmp(&(a.1.0 + a.1.1)));
+
+                    for (query, (misses, hits)) in sorted_queries.iter() {
+                        let query_total = misses + hits;
+                        let query_hit_rate = if query_total > 0 {
+                            (*hits as f64 / query_total as f64) * 100.0
+                        } else {
+                            0.0
+                        };
+                        println!(
+                            "      {}: {} miss, {} hit ({:.0}%)",
+                            query, misses, hits, query_hit_rate
+                        );
+                    }
                 }
                 println!();
             }
