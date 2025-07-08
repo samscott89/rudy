@@ -8,7 +8,7 @@ snapshot_kind: text
         name: "function_call",
         full_name: "simple_test::function_call",
         signature: "fn function_call(x: i32) -> i32",
-        address: 4294969576,
+        address: 4294969480,
         callable: true,
         module_path: [
             "simple_test",
@@ -22,7 +22,7 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o 0x000000c5,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o 0x000000c5,
             },
         ),
         parameters: [
@@ -38,7 +38,7 @@ snapshot_kind: text
                             },
                         ),
                     ),
-                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o 0x000000c5,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o 0x000000c5,
                 },
             },
         ],
@@ -47,7 +47,7 @@ snapshot_kind: text
         name: "main",
         full_name: "simple_test::main",
         signature: "fn main()",
-        address: 4294969680,
+        address: 4294969584,
         callable: true,
         module_path: [
             "simple_test",

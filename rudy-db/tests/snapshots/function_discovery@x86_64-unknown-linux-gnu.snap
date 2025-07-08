@@ -8,7 +8,7 @@ snapshot_kind: text
         name: "main",
         full_name: "simple_test::main",
         signature: "fn main()",
-        address: 31536,
+        address: 31840,
         callable: true,
         module_path: [
             "simple_test",

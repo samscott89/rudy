@@ -25,6 +25,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+divan = "0.1"
 insta = { workspace = true, features = ["filters"] }
 pretty_assertions.workspace = true
 rstest.workspace = true
@@ -42,3 +43,7 @@ test = false
 name = "bench_operations"
 path = "bin/bench_operations.rs"
 test = false
+
+[[bench]]
+name = "salsa_demo"
+harness = false

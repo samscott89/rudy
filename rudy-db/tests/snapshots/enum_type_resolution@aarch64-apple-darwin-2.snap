@@ -25,7 +25,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Unit",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x0000089c,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x0000089c,
                     },
                 },
                 EnumVariantLayout {
@@ -37,7 +37,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Tuple",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x000008a4,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x000008a4,
                     },
                 },
                 EnumVariantLayout {
@@ -49,12 +49,12 @@ TypeDefinition {
                         layout: Alias {
                             name: "Struct",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x000008c5,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x000008c5,
                     },
                 },
             ],
             size: 40,
         },
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-4ed4a2f18de4d16a.ewahujymv3a3w50no99glyex8.0gzg4p4.rcgu.o 0x0000085d,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x0000085d,
 }

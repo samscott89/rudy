@@ -97,6 +97,29 @@ impl DebugDatabaseImpl {
         }
     }
 
+    /// Creates a new debug database instance with salsa event logging.
+    ///
+    /// The event callback will be called for all salsa events, allowing you to monitor
+    /// query execution, cache hits/misses, and dependency tracking.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use rudy_db::DebugDb;
+    ///
+    /// let db = DebugDb::new_with_events(Some(Box::new(|event| {
+    ///     println!("Salsa event: {:?}", event);
+    /// })));
+    /// ```
+    pub fn new_with_events(
+        event_callback: Option<Box<dyn Fn(salsa::Event) + Send + Sync + 'static>>,
+    ) -> Self {
+        Self {
+            storage: salsa::Storage::new(event_callback),
+            source_map: Default::default(),
+        }
+    }
+
     pub fn with_source_map(mut self, source_map: Vec<(PathBuf, PathBuf)>) -> Self {
         self.source_map = source_map;
         self

@@ -117,14 +117,14 @@ DebugInfo {
                 },
             },
             "__rust_begin_short_backtrace": {
-                std::sys::backtrace::__rust_begin_short_backtrace::h31b5102ab214e320: Symbol {
-                    name: std::sys::backtrace::__rust_begin_short_backtrace::h31b5102ab214e320,
-                    address: 4294970212,
+                std::sys::backtrace::__rust_begin_short_backtrace::hb7671bcbda24e17b: Symbol {
+                    name: std::sys::backtrace::__rust_begin_short_backtrace::hb7671bcbda24e17b,
+                    address: 4294970324,
                     debug_file: DebugFile {
-                        [salsa id]: Id(806),
+                        [salsa id]: Id(807),
                         file: File {
-                            [salsa id]: Id(6),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.afqv78is9n375zesvo2qfowi0.1p032sd.rcgu.o",
+                            [salsa id]: Id(7),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.efj1us2dcuz7nnw1w3geqqt21.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -701,14 +701,14 @@ DebugInfo {
                 },
             },
             "call_once": {
-                core::ops::function::FnOnce::call_once::h7d17988e2ec305b1: Symbol {
-                    name: core::ops::function::FnOnce::call_once::h7d17988e2ec305b1,
-                    address: 4294970104,
+                core::ops::function::FnOnce::call_once::h2873e46d09f6e2cf: Symbol {
+                    name: core::ops::function::FnOnce::call_once::h2873e46d09f6e2cf,
+                    address: 4294970216,
                     debug_file: DebugFile {
-                        [salsa id]: Id(805),
+                        [salsa id]: Id(806),
                         file: File {
-                            [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                            [salsa id]: Id(6),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -719,14 +719,14 @@ DebugInfo {
                         relocatable: true,
                     },
                 },
-                core::ops::function::FnOnce::call_once::hf5c25b7f9dfbdd68: Symbol {
-                    name: core::ops::function::FnOnce::call_once::hf5c25b7f9dfbdd68,
-                    address: 4294970136,
+                core::ops::function::FnOnce::call_once::haa7172c7d755c2bb: Symbol {
+                    name: core::ops::function::FnOnce::call_once::haa7172c7d755c2bb,
+                    address: 4294970248,
                     debug_file: DebugFile {
-                        [salsa id]: Id(805),
+                        [salsa id]: Id(806),
                         file: File {
-                            [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                            [salsa id]: Id(6),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -899,14 +899,14 @@ DebugInfo {
                         relocatable: true,
                     },
                 },
-                core::ops::function::FnOnce::call_once{{vtable.shim}}::h9e731c94e0981715: Symbol {
-                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h9e731c94e0981715,
-                    address: 4294970064,
+                core::ops::function::FnOnce::call_once{{vtable.shim}}::ha8936ed7be075151: Symbol {
+                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::ha8936ed7be075151,
+                    address: 4294970176,
                     debug_file: DebugFile {
-                        [salsa id]: Id(805),
+                        [salsa id]: Id(806),
                         file: File {
-                            [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                            [salsa id]: Id(6),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -4593,14 +4593,14 @@ DebugInfo {
                 },
             },
             "function_call": {
-                simple_test::function_call::hf87ed7414549f5ac: Symbol {
-                    name: simple_test::function_call::hf87ed7414549f5ac,
-                    address: 4294969576,
+                simple_test::function_call::ha01f524e54d54899: Symbol {
+                    name: simple_test::function_call::ha01f524e54d54899,
+                    address: 4294969480,
                     debug_file: DebugFile {
-                        [salsa id]: Id(802),
+                        [salsa id]: Id(801),
                         file: File {
-                            [salsa id]: Id(2),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
+                            [salsa id]: Id(1),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -5647,14 +5647,14 @@ DebugInfo {
                 },
             },
             "lang_start": {
-                std::rt::lang_start::h2a14db6cd65a0b55: Symbol {
-                    name: std::rt::lang_start::h2a14db6cd65a0b55,
-                    address: 4294969888,
+                std::rt::lang_start::h8855d1c579152deb: Symbol {
+                    name: std::rt::lang_start::h8855d1c579152deb,
+                    address: 4294970028,
                     debug_file: DebugFile {
-                        [salsa id]: Id(803),
+                        [salsa id]: Id(805),
                         file: File {
-                            [salsa id]: Id(3),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.82vkpi5ci4pwqlfaijlc4magc.1p032sd.rcgu.o",
+                            [salsa id]: Id(5),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.drca40had6yvjmdo1a28iqg30.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -5817,14 +5817,14 @@ DebugInfo {
                 },
             },
             "main": {
-                simple_test::main::h598533e335cee928: Symbol {
-                    name: simple_test::main::h598533e335cee928,
-                    address: 4294969680,
+                simple_test::main::h90d919f9b073fca4: Symbol {
+                    name: simple_test::main::h90d919f9b073fca4,
+                    address: 4294969584,
                     debug_file: DebugFile {
-                        [salsa id]: Id(802),
+                        [salsa id]: Id(801),
                         file: File {
-                            [salsa id]: Id(2),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
+                            [salsa id]: Id(1),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -6235,14 +6235,14 @@ DebugInfo {
                 },
             },
             "new_display": {
-                core::fmt::rt::Argument::new_display::h2a294edfe658f709: Symbol {
-                    name: core::fmt::rt::Argument::new_display::h2a294edfe658f709,
-                    address: 4294970248,
+                core::fmt::rt::Argument::new_display::h705318d5bdac8793: Symbol {
+                    name: core::fmt::rt::Argument::new_display::h705318d5bdac8793,
+                    address: 4294969888,
                     debug_file: DebugFile {
-                        [salsa id]: Id(807),
+                        [salsa id]: Id(803),
                         file: File {
-                            [salsa id]: Id(7),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.e7t0onm5m91h2vr7knu6ytmbl.1p032sd.rcgu.o",
+                            [salsa id]: Id(3),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9d5lb4w28a0721q9xl20m067d.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -6277,14 +6277,14 @@ DebugInfo {
                 },
             },
             "new_lower_hex": {
-                core::fmt::rt::Argument::new_lower_hex::h20c977634d704dfb: Symbol {
-                    name: core::fmt::rt::Argument::new_lower_hex::h20c977634d704dfb,
-                    address: 4294970304,
+                core::fmt::rt::Argument::new_lower_hex::h10a92109bb6fec50: Symbol {
+                    name: core::fmt::rt::Argument::new_lower_hex::h10a92109bb6fec50,
+                    address: 4294969944,
                     debug_file: DebugFile {
-                        [salsa id]: Id(807),
+                        [salsa id]: Id(803),
                         file: File {
-                            [salsa id]: Id(7),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.e7t0onm5m91h2vr7knu6ytmbl.1p032sd.rcgu.o",
+                            [salsa id]: Id(3),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9d5lb4w28a0721q9xl20m067d.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -6297,14 +6297,14 @@ DebugInfo {
                 },
             },
             "new_v1": {
-                core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hb542c80edd8c13c5: Symbol {
-                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hb542c80edd8c13c5,
-                    address: 4294969480,
+                core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h47a1b080c32d28f8: Symbol {
+                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h47a1b080c32d28f8,
+                    address: 4294969792,
                     debug_file: DebugFile {
-                        [salsa id]: Id(801),
+                        [salsa id]: Id(802),
                         file: File {
-                            [salsa id]: Id(1),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.2abnr44khxfgwedagss44ftlm.1p032sd.rcgu.o",
+                            [salsa id]: Id(2),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.6rzdpa9ibjxjtbomfoh155257.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -7645,14 +7645,14 @@ DebugInfo {
                 },
             },
             "report": {
-                <() as std::process::Termination>::report::h4b7cef54921943ca: Symbol {
-                    name: <() as std::process::Termination>::report::h4b7cef54921943ca,
-                    address: 4294970036,
+                <() as std::process::Termination>::report::h2ace7c79a96cb491: Symbol {
+                    name: <() as std::process::Termination>::report::h2ace7c79a96cb491,
+                    address: 4294970000,
                     debug_file: DebugFile {
                         [salsa id]: Id(804),
                         file: File {
                             [salsa id]: Id(4),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.8t3o7ws7158ernm8ehza21ptm.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9ysgwwvqgbc2mzm3c3p28i822.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -9551,14 +9551,14 @@ DebugInfo {
                         relocatable: true,
                     },
                 },
-                std::rt::lang_start::{{closure}}::hd86dd6705d385562: Symbol {
-                    name: std::rt::lang_start::{{closure}}::hd86dd6705d385562,
-                    address: 4294969984,
+                std::rt::lang_start::{{closure}}::h7e6a0a71d0d4bbb1: Symbol {
+                    name: std::rt::lang_start::{{closure}}::h7e6a0a71d0d4bbb1,
+                    address: 4294970124,
                     debug_file: DebugFile {
-                        [salsa id]: Id(803),
+                        [salsa id]: Id(805),
                         file: File {
-                            [salsa id]: Id(3),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.82vkpi5ci4pwqlfaijlc4magc.1p032sd.rcgu.o",
+                            [salsa id]: Id(5),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.drca40had6yvjmdo1a28iqg30.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -10262,7 +10262,58 @@ DebugInfo {
                 [salsa id]: Id(801),
                 file: File {
                     [salsa id]: Id(1),
-                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.2abnr44khxfgwedagss44ftlm.1p032sd.rcgu.o",
+                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
+                    member_file: None,
+                    mtime: SystemTime {
+                        tv_sec: [ts],
+                        tv_nsec: [ts],
+                    },
+                    size: 5048,
+                },
+                relocatable: true,
+            }: {
+                RawSymbol(__ZN11simple_test13function_call17ha01f524e54d54899E): Symbol {
+                    name: simple_test::function_call::ha01f524e54d54899,
+                    address: 4294969480,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(801),
+                        file: File {
+                            [salsa id]: Id(1),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 5048,
+                        },
+                        relocatable: true,
+                    },
+                },
+                RawSymbol(__ZN11simple_test4main17h90d919f9b073fca4E): Symbol {
+                    name: simple_test::main::h90d919f9b073fca4,
+                    address: 4294969584,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(801),
+                        file: File {
+                            [salsa id]: Id(1),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 5048,
+                        },
+                        relocatable: true,
+                    },
+                },
+            },
+            DebugFile {
+                [salsa id]: Id(802),
+                file: File {
+                    [salsa id]: Id(2),
+                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.6rzdpa9ibjxjtbomfoh155257.1vtftf4.rcgu.o",
                     member_file: None,
                     mtime: SystemTime {
                         tv_sec: [ts],
@@ -10272,14 +10323,14 @@ DebugInfo {
                 },
                 relocatable: true,
             }: {
-                RawSymbol(__ZN4core3fmt2rt38_$LT$impl$u20$core..fmt..Arguments$GT$6new_v117hb542c80edd8c13c5E): Symbol {
-                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hb542c80edd8c13c5,
-                    address: 4294969480,
+                RawSymbol(__ZN4core3fmt2rt38_$LT$impl$u20$core..fmt..Arguments$GT$6new_v117h47a1b080c32d28f8E): Symbol {
+                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h47a1b080c32d28f8,
+                    address: 4294969792,
                     debug_file: DebugFile {
-                        [salsa id]: Id(801),
+                        [salsa id]: Id(802),
                         file: File {
-                            [salsa id]: Id(1),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.2abnr44khxfgwedagss44ftlm.1p032sd.rcgu.o",
+                            [salsa id]: Id(2),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.6rzdpa9ibjxjtbomfoh155257.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -10292,102 +10343,51 @@ DebugInfo {
                 },
             },
             DebugFile {
-                [salsa id]: Id(802),
-                file: File {
-                    [salsa id]: Id(2),
-                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
-                    member_file: None,
-                    mtime: SystemTime {
-                        tv_sec: [ts],
-                        tv_nsec: [ts],
-                    },
-                    size: 5048,
-                },
-                relocatable: true,
-            }: {
-                RawSymbol(__ZN11simple_test13function_call17hf87ed7414549f5acE): Symbol {
-                    name: simple_test::function_call::hf87ed7414549f5ac,
-                    address: 4294969576,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(802),
-                        file: File {
-                            [salsa id]: Id(2),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 5048,
-                        },
-                        relocatable: true,
-                    },
-                },
-                RawSymbol(__ZN11simple_test4main17h598533e335cee928E): Symbol {
-                    name: simple_test::main::h598533e335cee928,
-                    address: 4294969680,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(802),
-                        file: File {
-                            [salsa id]: Id(2),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 5048,
-                        },
-                        relocatable: true,
-                    },
-                },
-            },
-            DebugFile {
                 [salsa id]: Id(803),
                 file: File {
                     [salsa id]: Id(3),
-                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.82vkpi5ci4pwqlfaijlc4magc.1p032sd.rcgu.o",
+                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9d5lb4w28a0721q9xl20m067d.1vtftf4.rcgu.o",
                     member_file: None,
                     mtime: SystemTime {
                         tv_sec: [ts],
                         tv_nsec: [ts],
                     },
-                    size: 5736,
+                    size: 5592,
                 },
                 relocatable: true,
             }: {
-                RawSymbol(__ZN3std2rt10lang_start17h2a14db6cd65a0b55E): Symbol {
-                    name: std::rt::lang_start::h2a14db6cd65a0b55,
+                RawSymbol(__ZN4core3fmt2rt8Argument11new_display17h705318d5bdac8793E): Symbol {
+                    name: core::fmt::rt::Argument::new_display::h705318d5bdac8793,
                     address: 4294969888,
                     debug_file: DebugFile {
                         [salsa id]: Id(803),
                         file: File {
                             [salsa id]: Id(3),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.82vkpi5ci4pwqlfaijlc4magc.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9d5lb4w28a0721q9xl20m067d.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5736,
+                            size: 5592,
                         },
                         relocatable: true,
                     },
                 },
-                RawSymbol(__ZN3std2rt10lang_start28_$u7b$$u7b$closure$u7d$$u7d$17hd86dd6705d385562E): Symbol {
-                    name: std::rt::lang_start::{{closure}}::hd86dd6705d385562,
-                    address: 4294969984,
+                RawSymbol(__ZN4core3fmt2rt8Argument13new_lower_hex17h10a92109bb6fec50E): Symbol {
+                    name: core::fmt::rt::Argument::new_lower_hex::h10a92109bb6fec50,
+                    address: 4294969944,
                     debug_file: DebugFile {
                         [salsa id]: Id(803),
                         file: File {
                             [salsa id]: Id(3),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.82vkpi5ci4pwqlfaijlc4magc.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9d5lb4w28a0721q9xl20m067d.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5736,
+                            size: 5592,
                         },
                         relocatable: true,
                     },
@@ -10397,7 +10397,7 @@ DebugInfo {
                 [salsa id]: Id(804),
                 file: File {
                     [salsa id]: Id(4),
-                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.8t3o7ws7158ernm8ehza21ptm.1p032sd.rcgu.o",
+                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9ysgwwvqgbc2mzm3c3p28i822.1vtftf4.rcgu.o",
                     member_file: None,
                     mtime: SystemTime {
                         tv_sec: [ts],
@@ -10407,14 +10407,14 @@ DebugInfo {
                 },
                 relocatable: true,
             }: {
-                RawSymbol(__ZN54_$LT$$LP$$RP$$u20$as$u20$std..process..Termination$GT$6report17h4b7cef54921943caE): Symbol {
-                    name: <() as std::process::Termination>::report::h4b7cef54921943ca,
-                    address: 4294970036,
+                RawSymbol(__ZN54_$LT$$LP$$RP$$u20$as$u20$std..process..Termination$GT$6report17h2ace7c79a96cb491E): Symbol {
+                    name: <() as std::process::Termination>::report::h2ace7c79a96cb491,
+                    address: 4294970000,
                     debug_file: DebugFile {
                         [salsa id]: Id(804),
                         file: File {
                             [salsa id]: Id(4),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.8t3o7ws7158ernm8ehza21ptm.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9ysgwwvqgbc2mzm3c3p28i822.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -10430,66 +10430,48 @@ DebugInfo {
                 [salsa id]: Id(805),
                 file: File {
                     [salsa id]: Id(5),
-                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.drca40had6yvjmdo1a28iqg30.1vtftf4.rcgu.o",
                     member_file: None,
                     mtime: SystemTime {
                         tv_sec: [ts],
                         tv_nsec: [ts],
                     },
-                    size: 5184,
+                    size: 5736,
                 },
                 relocatable: true,
             }: {
-                RawSymbol(__ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17h9e731c94e0981715E): Symbol {
-                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h9e731c94e0981715,
-                    address: 4294970064,
+                RawSymbol(__ZN3std2rt10lang_start17h8855d1c579152debE): Symbol {
+                    name: std::rt::lang_start::h8855d1c579152deb,
+                    address: 4294970028,
                     debug_file: DebugFile {
                         [salsa id]: Id(805),
                         file: File {
                             [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.drca40had6yvjmdo1a28iqg30.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5184,
+                            size: 5736,
                         },
                         relocatable: true,
                     },
                 },
-                RawSymbol(__ZN4core3ops8function6FnOnce9call_once17h7d17988e2ec305b1E): Symbol {
-                    name: core::ops::function::FnOnce::call_once::h7d17988e2ec305b1,
-                    address: 4294970104,
+                RawSymbol(__ZN3std2rt10lang_start28_$u7b$$u7b$closure$u7d$$u7d$17h7e6a0a71d0d4bbb1E): Symbol {
+                    name: std::rt::lang_start::{{closure}}::h7e6a0a71d0d4bbb1,
+                    address: 4294970124,
                     debug_file: DebugFile {
                         [salsa id]: Id(805),
                         file: File {
                             [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.drca40had6yvjmdo1a28iqg30.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5184,
-                        },
-                        relocatable: true,
-                    },
-                },
-                RawSymbol(__ZN4core3ops8function6FnOnce9call_once17hf5c25b7f9dfbdd68E): Symbol {
-                    name: core::ops::function::FnOnce::call_once::hf5c25b7f9dfbdd68,
-                    address: 4294970136,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(805),
-                        file: File {
-                            [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 5184,
+                            size: 5736,
                         },
                         relocatable: true,
                     },
@@ -10499,30 +10481,66 @@ DebugInfo {
                 [salsa id]: Id(806),
                 file: File {
                     [salsa id]: Id(6),
-                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.afqv78is9n375zesvo2qfowi0.1p032sd.rcgu.o",
+                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
                     member_file: None,
                     mtime: SystemTime {
                         tv_sec: [ts],
                         tv_nsec: [ts],
                     },
-                    size: 3280,
+                    size: 5184,
                 },
                 relocatable: true,
             }: {
-                RawSymbol(__ZN3std3sys9backtrace28__rust_begin_short_backtrace17h31b5102ab214e320E): Symbol {
-                    name: std::sys::backtrace::__rust_begin_short_backtrace::h31b5102ab214e320,
-                    address: 4294970212,
+                RawSymbol(__ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17ha8936ed7be075151E): Symbol {
+                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::ha8936ed7be075151,
+                    address: 4294970176,
                     debug_file: DebugFile {
                         [salsa id]: Id(806),
                         file: File {
                             [salsa id]: Id(6),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.afqv78is9n375zesvo2qfowi0.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 3280,
+                            size: 5184,
+                        },
+                        relocatable: true,
+                    },
+                },
+                RawSymbol(__ZN4core3ops8function6FnOnce9call_once17h2873e46d09f6e2cfE): Symbol {
+                    name: core::ops::function::FnOnce::call_once::h2873e46d09f6e2cf,
+                    address: 4294970216,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(806),
+                        file: File {
+                            [salsa id]: Id(6),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 5184,
+                        },
+                        relocatable: true,
+                    },
+                },
+                RawSymbol(__ZN4core3ops8function6FnOnce9call_once17haa7172c7d755c2bbE): Symbol {
+                    name: core::ops::function::FnOnce::call_once::haa7172c7d755c2bb,
+                    address: 4294970248,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(806),
+                        file: File {
+                            [salsa id]: Id(6),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 5184,
                         },
                         relocatable: true,
                     },
@@ -10532,48 +10550,30 @@ DebugInfo {
                 [salsa id]: Id(807),
                 file: File {
                     [salsa id]: Id(7),
-                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.e7t0onm5m91h2vr7knu6ytmbl.1p032sd.rcgu.o",
+                    path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.efj1us2dcuz7nnw1w3geqqt21.1vtftf4.rcgu.o",
                     member_file: None,
                     mtime: SystemTime {
                         tv_sec: [ts],
                         tv_nsec: [ts],
                     },
-                    size: 5592,
+                    size: 3280,
                 },
                 relocatable: true,
             }: {
-                RawSymbol(__ZN4core3fmt2rt8Argument11new_display17h2a294edfe658f709E): Symbol {
-                    name: core::fmt::rt::Argument::new_display::h2a294edfe658f709,
-                    address: 4294970248,
+                RawSymbol(__ZN3std3sys9backtrace28__rust_begin_short_backtrace17hb7671bcbda24e17bE): Symbol {
+                    name: std::sys::backtrace::__rust_begin_short_backtrace::hb7671bcbda24e17b,
+                    address: 4294970324,
                     debug_file: DebugFile {
                         [salsa id]: Id(807),
                         file: File {
                             [salsa id]: Id(7),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.e7t0onm5m91h2vr7knu6ytmbl.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.efj1us2dcuz7nnw1w3geqqt21.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5592,
-                        },
-                        relocatable: true,
-                    },
-                },
-                RawSymbol(__ZN4core3fmt2rt8Argument13new_lower_hex17h20c977634d704dfbE): Symbol {
-                    name: core::fmt::rt::Argument::new_lower_hex::h20c977634d704dfb,
-                    address: 4294970304,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(807),
-                        file: File {
-                            [salsa id]: Id(7),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.e7t0onm5m91h2vr7knu6ytmbl.1p032sd.rcgu.o",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 5592,
+                            size: 3280,
                         },
                         relocatable: true,
                     },
@@ -20131,13 +20131,53 @@ DebugInfo {
         functions_by_address: {
             4294969480: [
                 Symbol {
-                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hb542c80edd8c13c5,
+                    name: simple_test::function_call::ha01f524e54d54899,
                     address: 4294969480,
                     debug_file: DebugFile {
                         [salsa id]: Id(801),
                         file: File {
                             [salsa id]: Id(1),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.2abnr44khxfgwedagss44ftlm.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 5048,
+                        },
+                        relocatable: true,
+                    },
+                },
+            ],
+            4294969584: [
+                Symbol {
+                    name: simple_test::main::h90d919f9b073fca4,
+                    address: 4294969584,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(801),
+                        file: File {
+                            [salsa id]: Id(1),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 5048,
+                        },
+                        relocatable: true,
+                    },
+                },
+            ],
+            4294969792: [
+                Symbol {
+                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h47a1b080c32d28f8,
+                    address: 4294969792,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(802),
+                        file: File {
+                            [salsa id]: Id(2),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.6rzdpa9ibjxjtbomfoh155257.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -20149,95 +20189,55 @@ DebugInfo {
                     },
                 },
             ],
-            4294969576: [
-                Symbol {
-                    name: simple_test::function_call::hf87ed7414549f5ac,
-                    address: 4294969576,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(802),
-                        file: File {
-                            [salsa id]: Id(2),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 5048,
-                        },
-                        relocatable: true,
-                    },
-                },
-            ],
-            4294969680: [
-                Symbol {
-                    name: simple_test::main::h598533e335cee928,
-                    address: 4294969680,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(802),
-                        file: File {
-                            [salsa id]: Id(2),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 5048,
-                        },
-                        relocatable: true,
-                    },
-                },
-            ],
             4294969888: [
                 Symbol {
-                    name: std::rt::lang_start::h2a14db6cd65a0b55,
+                    name: core::fmt::rt::Argument::new_display::h705318d5bdac8793,
                     address: 4294969888,
                     debug_file: DebugFile {
                         [salsa id]: Id(803),
                         file: File {
                             [salsa id]: Id(3),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.82vkpi5ci4pwqlfaijlc4magc.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9d5lb4w28a0721q9xl20m067d.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5736,
+                            size: 5592,
                         },
                         relocatable: true,
                     },
                 },
             ],
-            4294969984: [
+            4294969944: [
                 Symbol {
-                    name: std::rt::lang_start::{{closure}}::hd86dd6705d385562,
-                    address: 4294969984,
+                    name: core::fmt::rt::Argument::new_lower_hex::h10a92109bb6fec50,
+                    address: 4294969944,
                     debug_file: DebugFile {
                         [salsa id]: Id(803),
                         file: File {
                             [salsa id]: Id(3),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.82vkpi5ci4pwqlfaijlc4magc.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9d5lb4w28a0721q9xl20m067d.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5736,
+                            size: 5592,
                         },
                         relocatable: true,
                     },
                 },
             ],
-            4294970036: [
+            4294970000: [
                 Symbol {
-                    name: <() as std::process::Termination>::report::h4b7cef54921943ca,
-                    address: 4294970036,
+                    name: <() as std::process::Termination>::report::h2ace7c79a96cb491,
+                    address: 4294970000,
                     debug_file: DebugFile {
                         [salsa id]: Id(804),
                         file: File {
                             [salsa id]: Id(4),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.8t3o7ws7158ernm8ehza21ptm.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.9ysgwwvqgbc2mzm3c3p28i822.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
@@ -20249,81 +20249,81 @@ DebugInfo {
                     },
                 },
             ],
-            4294970064: [
+            4294970028: [
                 Symbol {
-                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h9e731c94e0981715,
-                    address: 4294970064,
+                    name: std::rt::lang_start::h8855d1c579152deb,
+                    address: 4294970028,
                     debug_file: DebugFile {
                         [salsa id]: Id(805),
                         file: File {
                             [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.drca40had6yvjmdo1a28iqg30.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5184,
+                            size: 5736,
                         },
                         relocatable: true,
                     },
                 },
             ],
-            4294970104: [
+            4294970124: [
                 Symbol {
-                    name: core::ops::function::FnOnce::call_once::h7d17988e2ec305b1,
-                    address: 4294970104,
+                    name: std::rt::lang_start::{{closure}}::h7e6a0a71d0d4bbb1,
+                    address: 4294970124,
                     debug_file: DebugFile {
                         [salsa id]: Id(805),
                         file: File {
                             [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.drca40had6yvjmdo1a28iqg30.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5184,
+                            size: 5736,
                         },
                         relocatable: true,
                     },
                 },
             ],
-            4294970136: [
+            4294970176: [
                 Symbol {
-                    name: core::ops::function::FnOnce::call_once::hf5c25b7f9dfbdd68,
-                    address: 4294970136,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(805),
-                        file: File {
-                            [salsa id]: Id(5),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.9i5bof1kjvr00ml8csscrucrs.1p032sd.rcgu.o",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 5184,
-                        },
-                        relocatable: true,
-                    },
-                },
-            ],
-            4294970212: [
-                Symbol {
-                    name: std::sys::backtrace::__rust_begin_short_backtrace::h31b5102ab214e320,
-                    address: 4294970212,
+                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::ha8936ed7be075151,
+                    address: 4294970176,
                     debug_file: DebugFile {
                         [salsa id]: Id(806),
                         file: File {
                             [salsa id]: Id(6),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.afqv78is9n375zesvo2qfowi0.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 3280,
+                            size: 5184,
+                        },
+                        relocatable: true,
+                    },
+                },
+            ],
+            4294970216: [
+                Symbol {
+                    name: core::ops::function::FnOnce::call_once::h2873e46d09f6e2cf,
+                    address: 4294970216,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(806),
+                        file: File {
+                            [salsa id]: Id(6),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 5184,
                         },
                         relocatable: true,
                     },
@@ -20331,39 +20331,39 @@ DebugInfo {
             ],
             4294970248: [
                 Symbol {
-                    name: core::fmt::rt::Argument::new_display::h2a294edfe658f709,
+                    name: core::ops::function::FnOnce::call_once::haa7172c7d755c2bb,
                     address: 4294970248,
                     debug_file: DebugFile {
-                        [salsa id]: Id(807),
+                        [salsa id]: Id(806),
                         file: File {
-                            [salsa id]: Id(7),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.e7t0onm5m91h2vr7knu6ytmbl.1p032sd.rcgu.o",
+                            [salsa id]: Id(6),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.dwpo35gwch6lenzsi9gr9j0mu.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5592,
+                            size: 5184,
                         },
                         relocatable: true,
                     },
                 },
             ],
-            4294970304: [
+            4294970324: [
                 Symbol {
-                    name: core::fmt::rt::Argument::new_lower_hex::h20c977634d704dfb,
-                    address: 4294970304,
+                    name: std::sys::backtrace::__rust_begin_short_backtrace::hb7671bcbda24e17b,
+                    address: 4294970324,
                     debug_file: DebugFile {
                         [salsa id]: Id(807),
                         file: File {
                             [salsa id]: Id(7),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.e7t0onm5m91h2vr7knu6ytmbl.1p032sd.rcgu.o",
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.efj1us2dcuz7nnw1w3geqqt21.1vtftf4.rcgu.o",
                             member_file: None,
                             mtime: SystemTime {
                                 tv_sec: [ts],
                                 tv_nsec: [ts],
                             },
-                            size: 5592,
+                            size: 3280,
                         },
                         relocatable: true,
                     },
@@ -30259,10 +30259,10 @@ DebugInfo {
     },
     indexed_debug_files: [
         DebugFile {
-            [salsa id]: Id(802),
+            [salsa id]: Id(801),
             file: File {
-                [salsa id]: Id(2),
-                path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-172da6aabb64056d.7jzowx8v8x6tdxj38c2e3cpb7.1p032sd.rcgu.o",
+                [salsa id]: Id(1),
+                path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o",
                 member_file: None,
                 mtime: SystemTime {
                     tv_sec: [ts],

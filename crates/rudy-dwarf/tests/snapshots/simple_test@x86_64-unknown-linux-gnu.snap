@@ -4,10 +4,10 @@ expression: all_structure
 snapshot_kind: text
 ---
 === [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/simple_test ===
-0x0000038b:  namespace 'simple_test'
-0x00000390:    subprogram 'function_call'
-0x000003ad:      formal_parameter 'x'
-0x000003c0:      variable 'y'
-0x000003d1:    subprogram 'main'
-0x000003f7:      variable 'x'
-0x00000413:      variable 'result'
+0x00000e1c:  namespace 'simple_test'
+0x00000e21:    subprogram 'function_call'
+0x00000e3e:      formal_parameter 'x'
+0x00000e51:      variable 'y'
+0x00000e62:    subprogram 'main'
+0x00000e88:      variable 'x'
+0x00000ea4:      variable 'result'
