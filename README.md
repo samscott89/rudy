@@ -58,10 +58,10 @@ fn main() -> Result<()> {
     let mut db = DebugDb::new();
 
     // Get debug information for a binary
-    let debug_info = DebugInfo::new(&db, "/path/to/binary").unwrap();
+    let debug_info = DebugInfo::new(&db, "/path/to/binary")?;
     
     // Find a function by name
-    let function = db.find_function_by_name("my_function").unwrap();
+    let function = db.find_function_by_name("my_function")?;
 
     // get all params:
     for param in &function.params {
