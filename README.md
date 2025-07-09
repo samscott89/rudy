@@ -10,11 +10,19 @@ A Rust library for interacting with debugging information of compiled artifacts 
 
 ⚠️ **Experimental Status**: This library is in early development (0.0.x). The API is unstable and subject to breaking changes.
 
-## LLDB Integration
 
-[![asciicast](https://asciinema.org/a/CfSY9cLqPwkkB1qxPJrLA302D.svg)](https://asciinema.org/a/CfSY9cLqPwkkB1qxPJrLA302D)
+> [!IMPORTANT]
+> See the [announcement post](https://www.samjs.io/blog/rudy) for more on the rationale/design behind Rudy.
 
-### Installation
+## LLDB Extension
+
+We also provide an example `rudy-lldb` extension that brings the capabilities of `rudy-db` to the `lldb` debugger.
+
+Here's a short demo:
+
+[![rudy-lldb demo](https://asciinema.org/a/CfSY9cLqPwkkB1qxPJrLA302D.svg)](https://asciinema.org/a/CfSY9cLqPwkkB1qxPJrLA302D)
+
+### Installation (rudy-lldb)
 
 For now, the installation process is a little manual:
 
@@ -37,7 +45,7 @@ For now, the installation process is a little manual:
 - Cross-platform support (x86_64, aarch64 on macOS, Linux)
 
 
-## Basic Usage
+## Basic Usage (rudy-db)
 
 Here's a simple example of loading a binary and resolving type information from a memory address:
 
@@ -50,10 +58,10 @@ fn main() -> Result<()> {
     let mut db = DebugDb::new();
 
     // Get debug information for a binary
-    let debug_info = DebugInfo::new(&db, "/path/to/binary").unwrap();
+    let debug_info = DebugInfo::new(&db, "/path/to/binary")?;
     
     // Find a function by name
-    let function = db.find_function_by_name("my_function").unwrap();
+    let function = db.find_function_by_name("my_function")?;
 
     // get all params:
     for param in &function.params {
