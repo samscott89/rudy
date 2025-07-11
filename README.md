@@ -28,7 +28,7 @@ For now, the installation process is a little manual:
 
 - Install `rudy-lldb` from source: `cargo install rudy-lldb`.
 - Download the Rudy LLDB client: `curl https://raw.githubusercontent.com/samscott89/rudy/refs/heads/main/rudy-lldb/python/rudy_lldb.py -o ~/.lldb/rudy_lldb.py`
-- Add Rudy to your `~/.lldbinit` file: `cat "command script import ~/.lldb/rudy_lldb.py" >> ~/.lldbinit`
+- Add Rudy to your `~/.lldbinit` file: `echo "command script import ~/.lldb/rudy_lldb.py" >> ~/.lldbinit`
 
 
 ## Architecture
