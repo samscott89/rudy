@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/src/modules.rs
 expression: output
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/enums ===
 ===== By Offset =====
 
 0x0000000b - 0x0000002a: 

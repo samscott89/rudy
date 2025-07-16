@@ -22,7 +22,7 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o 0x000000c5,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1ojx9kh.rcgu.o 0x000000c5,
             },
         ),
         parameters: [
@@ -38,7 +38,7 @@ snapshot_kind: text
                             },
                         ),
                     ),
-                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1vtftf4.rcgu.o 0x000000c5,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/simple_test-b2987a769e7398e2.4ys7de4jd11fqxl03vm99it60.1ojx9kh.rcgu.o 0x000000c5,
                 },
             },
         ],

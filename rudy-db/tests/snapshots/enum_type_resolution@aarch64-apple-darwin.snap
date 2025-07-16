@@ -25,7 +25,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Unit",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x00000812,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.1t4xesi.rcgu.o 0x00000812,
                     },
                 },
                 EnumVariantLayout {
@@ -35,7 +35,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Tuple",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x0000081a,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.1t4xesi.rcgu.o 0x0000081a,
                     },
                 },
                 EnumVariantLayout {
@@ -47,12 +47,12 @@ TypeDefinition {
                         layout: Alias {
                             name: "Struct",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x0000083b,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.1t4xesi.rcgu.o 0x0000083b,
                     },
                 },
             ],
             size: 32,
         },
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.11duw25.rcgu.o 0x000007c6,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/enums-6089fa49a62bd7f1.236ahwzmws8e14oxugah92weq.1t4xesi.rcgu.o 0x000007c6,
 }

@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/lldb_demo ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/examples/lldb_demo ===
 0x0000506d:  namespace 'lldb_demo'
 0x00005072:    structure_type 'User'
 0x000050aa:      subprogram 'new'

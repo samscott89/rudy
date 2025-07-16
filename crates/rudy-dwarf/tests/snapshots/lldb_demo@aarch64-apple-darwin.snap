@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-4fb46d66525a9738.01uii0t86evghvf301f7rulbz.0tnqea9.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/lldb_demo-4fb46d66525a9738.01uii0t86evghvf301f7rulbz.1q0t443.rcgu.o ===
 0x0000063a:  namespace 'lldb_demo'
 0x0000063f:    structure_type 'User'
 0x00000677:      subprogram 'new'
@@ -30,20 +30,20 @@ snapshot_kind: text
 0x0000082c:        formal_parameter 'self'
 0x0000083a:        formal_parameter 'f'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-4fb46d66525a9738.20r8zifbyvfytodsihxql4hg9.0tnqea9.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/lldb_demo-4fb46d66525a9738.20r8zifbyvfytodsihxql4hg9.1q0t443.rcgu.o ===
 0x00000768:  namespace 'lldb_demo'
 0x0000076d:    structure_type 'User'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-4fb46d66525a9738.57j50cccl61bps5o28s4qlnsi.0tnqea9.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/lldb_demo-4fb46d66525a9738.57j50cccl61bps5o28s4qlnsi.1q0t443.rcgu.o ===
 0x00000d9d:  namespace 'lldb_demo'
 0x00000da2:    structure_type 'User'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-4fb46d66525a9738.c7k85xtb883ariwxp3n146inh.0tnqea9.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/lldb_demo-4fb46d66525a9738.c7k85xtb883ariwxp3n146inh.1q0t443.rcgu.o ===
 0x00000ce8:  namespace 'lldb_demo'
 0x00000ced:    structure_type 'User'
 0x00000d26:    structure_type 'Session'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/lldb_demo-4fb46d66525a9738.drq4p2mtcsfl4l46k3nunx3x1.0tnqea9.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-apple-darwin/examples/lldb_demo-4fb46d66525a9738.drq4p2mtcsfl4l46k3nunx3x1.1q0t443.rcgu.o ===
 0x000003fc:  namespace 'lldb_demo'
 0x00000401:    structure_type 'Session'
 0x0000042e:    structure_type 'User'

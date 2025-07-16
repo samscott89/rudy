@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/simple_test ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/examples/simple_test ===
 0x00000e1c:  namespace 'simple_test'
 0x00000e21:    subprogram 'function_call'
 0x00000e3e:      formal_parameter 'x'

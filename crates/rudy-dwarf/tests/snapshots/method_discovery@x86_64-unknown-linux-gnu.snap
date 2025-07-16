@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/method_discovery ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/examples/method_discovery ===
 0x000010e3:  namespace 'method_discovery'
 0x000010e8:    structure_type 'Session'
 0x00001f87:  namespace 'method_discovery'

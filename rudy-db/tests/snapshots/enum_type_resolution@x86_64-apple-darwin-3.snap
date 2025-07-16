@@ -25,11 +25,11 @@ TypeDefinition {
                             },
                         ),
                     ),
-                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.15x5wb4.rcgu.o 0x000008f1,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.04grrn2.rcgu.o 0x000008f1,
                 },
                 size: 8,
             },
         ),
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.15x5wb4.rcgu.o 0x000003d2,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.04grrn2.rcgu.o 0x000003d2,
 }

@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/lldb_demo ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/lldb_demo ===
 0x00001234:  namespace 'lldb_demo'
 0x00001239:    structure_type 'User'
 0x000028d2:  namespace 'lldb_demo'

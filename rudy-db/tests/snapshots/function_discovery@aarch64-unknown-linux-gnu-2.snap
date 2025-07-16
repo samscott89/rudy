@@ -22,7 +22,7 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/simple_test 0x000005a6,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test 0x000005a6,
             },
         ),
         parameters: [
@@ -38,7 +38,7 @@ snapshot_kind: text
                             },
                         ),
                     ),
-                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/simple_test 0x000005a6,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test 0x000005a6,
                 },
             },
         ],

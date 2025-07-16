@@ -10,9 +10,9 @@ pub mod common;
 
 use common::root_artifacts_dir;
 
-pub fn binary_path(target: &str, example: &str) -> String {
+pub fn example_binary_path(target: &str, example: &str) -> String {
     let artifacts = root_artifacts_dir();
-    let binary_path = artifacts.join(target).join(example);
+    let binary_path = artifacts.join(target).join("examples").join(example);
 
     if !binary_path.exists() {
         panic!(
@@ -51,7 +51,7 @@ pub fn binary_target(#[case] target: &'static str) {}
 #[apply(binary_target)]
 fn test_resolve_function(#[case] target: &'static str) {
     let _guards = setup!(target);
-    let path = binary_path(target, "simple_test");
+    let path = example_binary_path(target, "simple_test");
     let db = common::debug_db(Some(target));
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
@@ -62,7 +62,7 @@ fn test_resolve_function(#[case] target: &'static str) {
 #[apply(binary_target)]
 fn test_resolve_position(#[case] target: &'static str) {
     let _guards = setup!(target);
-    let path = binary_path(target, "simple_test");
+    let path = example_binary_path(target, "simple_test");
     let db = common::debug_db(Some(target));
     let resolver = DebugInfo::new(&db, &path).unwrap();
 
@@ -115,7 +115,7 @@ fn test_resolve_position(#[case] target: &'static str) {
 fn test_load_file(#[case] target: &'static str) {
     let _guards = setup!(target);
 
-    let path = binary_path(target, "simple_test");
+    let path = example_binary_path(target, "simple_test");
 
     let db = common::debug_db(Some(target));
     let parsed = DebugInfo::new(&db, &path).unwrap();
@@ -130,7 +130,7 @@ fn test_enum_type_resolution(#[case] target: &'static str) {
     let _guards = setup!(target);
 
     let db = common::debug_db(Some(target));
-    let exe_path = binary_path(target, "enums");
+    let exe_path = example_binary_path(target, "enums");
     let debug_info = DebugInfo::new(&db, &exe_path).expect("Failed to load debug info");
 
     // Find TestEnum type
@@ -177,7 +177,7 @@ fn test_method_discovery(#[case] target: &'static str) {
     let _guards = setup!(target);
 
     let db = common::debug_db(Some(target));
-    let exe_path = binary_path(target, "method_discovery");
+    let exe_path = example_binary_path(target, "method_discovery");
     let debug_info = DebugInfo::new(&db, &exe_path).expect("Failed to load debug info");
 
     // Find `test_all_methods` function
@@ -203,7 +203,7 @@ fn test_function_discovery(#[case] target: &'static str) {
     let _guards = setup!(target);
 
     let db = common::debug_db(Some(target));
-    let exe_path = binary_path(target, "simple_test");
+    let exe_path = example_binary_path(target, "simple_test");
     let debug_info = DebugInfo::new(&db, &exe_path).expect("Failed to load debug info");
 
     // Test discovering functions by pattern

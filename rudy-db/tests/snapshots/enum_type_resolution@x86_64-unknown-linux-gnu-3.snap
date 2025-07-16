@@ -25,11 +25,11 @@ TypeDefinition {
                             },
                         ),
                     ),
-                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x00001719,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/examples/enums 0x00001719,
                 },
                 size: 8,
             },
         ),
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/enums 0x000011fa,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/examples/enums 0x000011fa,
 }

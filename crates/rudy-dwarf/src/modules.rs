@@ -269,7 +269,7 @@ mod tests {
         let _guard = test_utils::init_tracing_and_insta();
 
         let platform = "aarch64-unknown-linux-gnu";
-        let example_name = "enums";
+        let example_name = "examples/enums";
 
         let artifacts = test_utils::artifacts_dir(Some(platform));
         let db = test_utils::test_db(Some(platform));

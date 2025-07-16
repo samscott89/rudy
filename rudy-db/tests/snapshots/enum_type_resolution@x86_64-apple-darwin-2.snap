@@ -25,7 +25,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Unit",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.15x5wb4.rcgu.o 0x0000089e,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.04grrn2.rcgu.o 0x0000089e,
                     },
                 },
                 EnumVariantLayout {
@@ -37,7 +37,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Tuple",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.15x5wb4.rcgu.o 0x000008a6,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.04grrn2.rcgu.o 0x000008a6,
                     },
                 },
                 EnumVariantLayout {
@@ -49,12 +49,12 @@ TypeDefinition {
                         layout: Alias {
                             name: "Struct",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.15x5wb4.rcgu.o 0x000008c7,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.04grrn2.rcgu.o 0x000008c7,
                     },
                 },
             ],
             size: 40,
         },
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.15x5wb4.rcgu.o 0x0000085f,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.04grrn2.rcgu.o 0x0000085f,
 }
