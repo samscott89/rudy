@@ -167,9 +167,9 @@ DebugInfo {
                 },
             },
             "__rust_begin_short_backtrace": {
-                std::sys::backtrace::__rust_begin_short_backtrace::hb8d005c5822bf432: Symbol {
-                    name: std::sys::backtrace::__rust_begin_short_backtrace::hb8d005c5822bf432,
-                    address: 26296,
+                std::sys::backtrace::__rust_begin_short_backtrace::h65cd429c7a9d93d3: Symbol {
+                    name: std::sys::backtrace::__rust_begin_short_backtrace::h65cd429c7a9d93d3,
+                    address: 25832,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -857,9 +857,9 @@ DebugInfo {
                 },
             },
             "call_once": {
-                core::ops::function::FnOnce::call_once::h681e03c1bae7691f: Symbol {
-                    name: core::ops::function::FnOnce::call_once::h681e03c1bae7691f,
-                    address: 25836,
+                core::ops::function::FnOnce::call_once::hac338959e06626e1: Symbol {
+                    name: core::ops::function::FnOnce::call_once::hac338959e06626e1,
+                    address: 25936,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -875,9 +875,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                core::ops::function::FnOnce::call_once::he3b87b56a57a18f2: Symbol {
-                    name: core::ops::function::FnOnce::call_once::he3b87b56a57a18f2,
-                    address: 25912,
+                core::ops::function::FnOnce::call_once::hd52fffdba84b4d30: Symbol {
+                    name: core::ops::function::FnOnce::call_once::hd52fffdba84b4d30,
+                    address: 26012,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -898,6 +898,24 @@ DebugInfo {
                 core::ops::function::FnOnce::call_once{{vtable.shim}}::h07e627a3339ff0f0: Symbol {
                     name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h07e627a3339ff0f0,
                     address: 29400,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(800),
+                        file: File {
+                            [salsa id]: Id(0),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 3756568,
+                        },
+                        relocatable: false,
+                    },
+                },
+                core::ops::function::FnOnce::call_once{{vtable.shim}}::h35eff2daa6f070c3: Symbol {
+                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h35eff2daa6f070c3,
+                    address: 25896,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -1006,24 +1024,6 @@ DebugInfo {
                 core::ops::function::FnOnce::call_once{{vtable.shim}}::hd49113a55a697cd7: Symbol {
                     name: core::ops::function::FnOnce::call_once{{vtable.shim}}::hd49113a55a697cd7,
                     address: 29640,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(800),
-                        file: File {
-                            [salsa id]: Id(0),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 3756568,
-                        },
-                        relocatable: false,
-                    },
-                },
-                core::ops::function::FnOnce::call_once{{vtable.shim}}::heee31211669dd6a7: Symbol {
-                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::heee31211669dd6a7,
-                    address: 25796,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -4387,9 +4387,9 @@ DebugInfo {
                 },
             },
             "function_call": {
-                simple_test::function_call::h50c56432ed5aa9ca: Symbol {
-                    name: simple_test::function_call::h50c56432ed5aa9ca,
-                    address: 25944,
+                simple_test::function_call::hd3112207faf7b98e: Symbol {
+                    name: simple_test::function_call::hd3112207faf7b98e,
+                    address: 26044,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -5671,9 +5671,9 @@ DebugInfo {
                 },
             },
             "lang_start": {
-                std::rt::lang_start::h467c76dc4c7aeea1: Symbol {
-                    name: std::rt::lang_start::h467c76dc4c7aeea1,
-                    address: 26428,
+                std::rt::lang_start::h44479759d5ade239: Symbol {
+                    name: std::rt::lang_start::h44479759d5ade239,
+                    address: 25684,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -5871,9 +5871,9 @@ DebugInfo {
                 },
             },
             "main": {
-                simple_test::main::h52b048e3e178a31b: Symbol {
-                    name: simple_test::main::h52b048e3e178a31b,
-                    address: 26048,
+                simple_test::main::h4e1675e6e05af4c9: Symbol {
+                    name: simple_test::main::h4e1675e6e05af4c9,
+                    address: 26148,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -6275,9 +6275,9 @@ DebugInfo {
                 },
             },
             "new_display": {
-                core::fmt::rt::Argument::new_display::h1f3efb10f0042f53: Symbol {
-                    name: core::fmt::rt::Argument::new_display::h1f3efb10f0042f53,
-                    address: 25684,
+                core::fmt::rt::Argument::new_display::h2d83ed9e987c6bb8: Symbol {
+                    name: core::fmt::rt::Argument::new_display::h2d83ed9e987c6bb8,
+                    address: 26464,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -6315,9 +6315,9 @@ DebugInfo {
                 },
             },
             "new_lower_hex": {
-                core::fmt::rt::Argument::new_lower_hex::h2a4b6b5045681cfe: Symbol {
-                    name: core::fmt::rt::Argument::new_lower_hex::h2a4b6b5045681cfe,
-                    address: 25740,
+                core::fmt::rt::Argument::new_lower_hex::h438fb076c2b514b3: Symbol {
+                    name: core::fmt::rt::Argument::new_lower_hex::h438fb076c2b514b3,
+                    address: 26520,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -6373,9 +6373,9 @@ DebugInfo {
                 },
             },
             "new_v1": {
-                core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h6dd4049f9577a004: Symbol {
-                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h6dd4049f9577a004,
-                    address: 26332,
+                core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hf7234e75a8657fcd: Symbol {
+                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hf7234e75a8657fcd,
+                    address: 26368,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -8045,9 +8045,9 @@ DebugInfo {
                 },
             },
             "report": {
-                <() as std::process::Termination>::report::h634783b2f071da7d: Symbol {
-                    name: <() as std::process::Termination>::report::h634783b2f071da7d,
-                    address: 26268,
+                <() as std::process::Termination>::report::h4890b034e32d6f9f: Symbol {
+                    name: <() as std::process::Termination>::report::h4890b034e32d6f9f,
+                    address: 25868,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -10217,9 +10217,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                std::rt::lang_start::{{closure}}::hc8e2bef15e8d01d0: Symbol {
-                    name: std::rt::lang_start::{{closure}}::hc8e2bef15e8d01d0,
-                    address: 26524,
+                std::rt::lang_start::{{closure}}::hb886c72f77ccdaf4: Symbol {
+                    name: std::rt::lang_start::{{closure}}::hb886c72f77ccdaf4,
+                    address: 25780,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -11698,9 +11698,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN11simple_test13function_call17h50c56432ed5aa9caE): Symbol {
-                    name: simple_test::function_call::h50c56432ed5aa9ca,
-                    address: 25944,
+                RawSymbol(_ZN11simple_test13function_call17hd3112207faf7b98eE): Symbol {
+                    name: simple_test::function_call::hd3112207faf7b98e,
+                    address: 26044,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -11716,9 +11716,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN11simple_test4main17h52b048e3e178a31bE): Symbol {
-                    name: simple_test::main::h52b048e3e178a31b,
-                    address: 26048,
+                RawSymbol(_ZN11simple_test4main17h4e1675e6e05af4c9E): Symbol {
+                    name: simple_test::main::h4e1675e6e05af4c9,
+                    address: 26148,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -13156,9 +13156,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN3std2rt10lang_start17h467c76dc4c7aeea1E): Symbol {
-                    name: std::rt::lang_start::h467c76dc4c7aeea1,
-                    address: 26428,
+                RawSymbol(_ZN3std2rt10lang_start17h44479759d5ade239E): Symbol {
+                    name: std::rt::lang_start::h44479759d5ade239,
+                    address: 25684,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -13174,9 +13174,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN3std2rt10lang_start28_$u7b$$u7b$closure$u7d$$u7d$17hc8e2bef15e8d01d0E): Symbol {
-                    name: std::rt::lang_start::{{closure}}::hc8e2bef15e8d01d0,
-                    address: 26524,
+                RawSymbol(_ZN3std2rt10lang_start28_$u7b$$u7b$closure$u7d$$u7d$17hb886c72f77ccdaf4E): Symbol {
+                    name: std::rt::lang_start::{{closure}}::hb886c72f77ccdaf4,
+                    address: 25780,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -14218,9 +14218,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN3std3sys9backtrace28__rust_begin_short_backtrace17hb8d005c5822bf432E): Symbol {
-                    name: std::sys::backtrace::__rust_begin_short_backtrace::hb8d005c5822bf432,
-                    address: 26296,
+                RawSymbol(_ZN3std3sys9backtrace28__rust_begin_short_backtrace17h65cd429c7a9d93d3E): Symbol {
+                    name: std::sys::backtrace::__rust_begin_short_backtrace::h65cd429c7a9d93d3,
+                    address: 25832,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -15280,9 +15280,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN4core3fmt2rt38_$LT$impl$u20$core..fmt..Arguments$GT$6new_v117h6dd4049f9577a004E): Symbol {
-                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h6dd4049f9577a004,
-                    address: 26332,
+                RawSymbol(_ZN4core3fmt2rt38_$LT$impl$u20$core..fmt..Arguments$GT$6new_v117hf7234e75a8657fcdE): Symbol {
+                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hf7234e75a8657fcd,
+                    address: 26368,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -15298,9 +15298,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN4core3fmt2rt8Argument11new_display17h1f3efb10f0042f53E): Symbol {
-                    name: core::fmt::rt::Argument::new_display::h1f3efb10f0042f53,
-                    address: 25684,
+                RawSymbol(_ZN4core3fmt2rt8Argument11new_display17h2d83ed9e987c6bb8E): Symbol {
+                    name: core::fmt::rt::Argument::new_display::h2d83ed9e987c6bb8,
+                    address: 26464,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -15316,9 +15316,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN4core3fmt2rt8Argument13new_lower_hex17h2a4b6b5045681cfeE): Symbol {
-                    name: core::fmt::rt::Argument::new_lower_hex::h2a4b6b5045681cfe,
-                    address: 25740,
+                RawSymbol(_ZN4core3fmt2rt8Argument13new_lower_hex17h438fb076c2b514b3E): Symbol {
+                    name: core::fmt::rt::Argument::new_lower_hex::h438fb076c2b514b3,
+                    address: 26520,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -16198,6 +16198,24 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
+                RawSymbol(_ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17h35eff2daa6f070c3E): Symbol {
+                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h35eff2daa6f070c3,
+                    address: 25896,
+                    debug_file: DebugFile {
+                        [salsa id]: Id(800),
+                        file: File {
+                            [salsa id]: Id(0),
+                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test",
+                            member_file: None,
+                            mtime: SystemTime {
+                                tv_sec: [ts],
+                                tv_nsec: [ts],
+                            },
+                            size: 3756568,
+                        },
+                        relocatable: false,
+                    },
+                },
                 RawSymbol(_ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17h713a754d32a2b63dE): Symbol {
                     name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h713a754d32a2b63d,
                     address: 29424,
@@ -16306,24 +16324,6 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17heee31211669dd6a7E): Symbol {
-                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::heee31211669dd6a7,
-                    address: 25796,
-                    debug_file: DebugFile {
-                        [salsa id]: Id(800),
-                        file: File {
-                            [salsa id]: Id(0),
-                            path: "[CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test",
-                            member_file: None,
-                            mtime: SystemTime {
-                                tv_sec: [ts],
-                                tv_nsec: [ts],
-                            },
-                            size: 3756568,
-                        },
-                        relocatable: false,
-                    },
-                },
                 RawSymbol(_ZN4core3ops8function6FnOnce40call_once$u7b$$u7b$vtable.shim$u7d$$u7d$17hefc2efafdd08f340E): Symbol {
                     name: core::ops::function::FnOnce::call_once{{vtable.shim}}::hefc2efafdd08f340,
                     address: 29824,
@@ -16342,9 +16342,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN4core3ops8function6FnOnce9call_once17h681e03c1bae7691fE): Symbol {
-                    name: core::ops::function::FnOnce::call_once::h681e03c1bae7691f,
-                    address: 25836,
+                RawSymbol(_ZN4core3ops8function6FnOnce9call_once17hac338959e06626e1E): Symbol {
+                    name: core::ops::function::FnOnce::call_once::hac338959e06626e1,
+                    address: 25936,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -16360,9 +16360,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN4core3ops8function6FnOnce9call_once17he3b87b56a57a18f2E): Symbol {
-                    name: core::ops::function::FnOnce::call_once::he3b87b56a57a18f2,
-                    address: 25912,
+                RawSymbol(_ZN4core3ops8function6FnOnce9call_once17hd52fffdba84b4d30E): Symbol {
+                    name: core::ops::function::FnOnce::call_once::hd52fffdba84b4d30,
+                    address: 26012,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -18754,9 +18754,9 @@ DebugInfo {
                         relocatable: false,
                     },
                 },
-                RawSymbol(_ZN54_$LT$$LP$$RP$$u20$as$u20$std..process..Termination$GT$6report17h634783b2f071da7dE): Symbol {
-                    name: <() as std::process::Termination>::report::h634783b2f071da7d,
-                    address: 26268,
+                RawSymbol(_ZN54_$LT$$LP$$RP$$u20$as$u20$std..process..Termination$GT$6report17h4890b034e32d6f9fE): Symbol {
+                    name: <() as std::process::Termination>::report::h4890b034e32d6f9f,
+                    address: 25868,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -22889,7 +22889,7 @@ DebugInfo {
             ],
             25684: [
                 Symbol {
-                    name: core::fmt::rt::Argument::new_display::h1f3efb10f0042f53,
+                    name: std::rt::lang_start::h44479759d5ade239,
                     address: 25684,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
@@ -22907,10 +22907,10 @@ DebugInfo {
                     },
                 },
             ],
-            25740: [
+            25780: [
                 Symbol {
-                    name: core::fmt::rt::Argument::new_lower_hex::h2a4b6b5045681cfe,
-                    address: 25740,
+                    name: std::rt::lang_start::{{closure}}::hb886c72f77ccdaf4,
+                    address: 25780,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -22927,10 +22927,10 @@ DebugInfo {
                     },
                 },
             ],
-            25796: [
+            25832: [
                 Symbol {
-                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::heee31211669dd6a7,
-                    address: 25796,
+                    name: std::sys::backtrace::__rust_begin_short_backtrace::h65cd429c7a9d93d3,
+                    address: 25832,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -22947,10 +22947,10 @@ DebugInfo {
                     },
                 },
             ],
-            25836: [
+            25868: [
                 Symbol {
-                    name: core::ops::function::FnOnce::call_once::h681e03c1bae7691f,
-                    address: 25836,
+                    name: <() as std::process::Termination>::report::h4890b034e32d6f9f,
+                    address: 25868,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -22967,10 +22967,10 @@ DebugInfo {
                     },
                 },
             ],
-            25912: [
+            25896: [
                 Symbol {
-                    name: core::ops::function::FnOnce::call_once::he3b87b56a57a18f2,
-                    address: 25912,
+                    name: core::ops::function::FnOnce::call_once{{vtable.shim}}::h35eff2daa6f070c3,
+                    address: 25896,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -22987,10 +22987,10 @@ DebugInfo {
                     },
                 },
             ],
-            25944: [
+            25936: [
                 Symbol {
-                    name: simple_test::function_call::h50c56432ed5aa9ca,
-                    address: 25944,
+                    name: core::ops::function::FnOnce::call_once::hac338959e06626e1,
+                    address: 25936,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -23007,10 +23007,10 @@ DebugInfo {
                     },
                 },
             ],
-            26048: [
+            26012: [
                 Symbol {
-                    name: simple_test::main::h52b048e3e178a31b,
-                    address: 26048,
+                    name: core::ops::function::FnOnce::call_once::hd52fffdba84b4d30,
+                    address: 26012,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -23027,10 +23027,10 @@ DebugInfo {
                     },
                 },
             ],
-            26268: [
+            26044: [
                 Symbol {
-                    name: <() as std::process::Termination>::report::h634783b2f071da7d,
-                    address: 26268,
+                    name: simple_test::function_call::hd3112207faf7b98e,
+                    address: 26044,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -23047,10 +23047,10 @@ DebugInfo {
                     },
                 },
             ],
-            26296: [
+            26148: [
                 Symbol {
-                    name: std::sys::backtrace::__rust_begin_short_backtrace::hb8d005c5822bf432,
-                    address: 26296,
+                    name: simple_test::main::h4e1675e6e05af4c9,
+                    address: 26148,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -23067,10 +23067,10 @@ DebugInfo {
                     },
                 },
             ],
-            26332: [
+            26368: [
                 Symbol {
-                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::h6dd4049f9577a004,
-                    address: 26332,
+                    name: core::fmt::rt::<impl core::fmt::Arguments>::new_v1::hf7234e75a8657fcd,
+                    address: 26368,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -23087,10 +23087,10 @@ DebugInfo {
                     },
                 },
             ],
-            26428: [
+            26464: [
                 Symbol {
-                    name: std::rt::lang_start::h467c76dc4c7aeea1,
-                    address: 26428,
+                    name: core::fmt::rt::Argument::new_display::h2d83ed9e987c6bb8,
+                    address: 26464,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {
@@ -23107,10 +23107,10 @@ DebugInfo {
                     },
                 },
             ],
-            26524: [
+            26520: [
                 Symbol {
-                    name: std::rt::lang_start::{{closure}}::hc8e2bef15e8d01d0,
-                    address: 26524,
+                    name: core::fmt::rt::Argument::new_lower_hex::h438fb076c2b514b3,
+                    address: 26520,
                     debug_file: DebugFile {
                         [salsa id]: Id(800),
                         file: File {

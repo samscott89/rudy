@@ -3,7 +3,7 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/simple_test-dbe642f4dd4f59d8.7ksbxthbq75640r9t9o1wr3yl.0ejb1u2.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/simple_test-b1a4a25dd437a2d4.cemzqusq1lnrztssvtj9i7fb4.0x9dyrw.rcgu.o ===
 0x0000002a:  namespace 'simple_test'
 0x0000002f:    subprogram 'function_call'
 0x0000004c:      formal_parameter 'x'
