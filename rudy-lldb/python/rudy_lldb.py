@@ -6,6 +6,8 @@ This module provides the `rd` command for LLDB with advanced expression evaluati
 and pretty printing capabilities powered by rudy-db.
 """
 
+VERSION = "0.1.0"
+
 from io import TextIOWrapper
 import json
 import shutil
