@@ -89,7 +89,7 @@ fn address_resolution_warm(bencher: Bencher, num_addresses: usize) {
 fn bench_args() -> impl Iterator<Item = (&'static str, &'static str)> {
     ["x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
         .into_iter()
-        .cartesian_product(["small", "medium", "large"])
+        .cartesian_product(["examples/small", "examples/medium", "examples/large"])
 }
 
 /// Benchmark showing different sized binaries

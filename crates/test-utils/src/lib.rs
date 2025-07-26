@@ -72,13 +72,21 @@ pub fn workspace_dir() -> PathBuf {
 }
 
 pub fn source_map(target: Option<&'static str>) -> Vec<(PathBuf, PathBuf)> {
-    let subfolder = target.unwrap_or_else(current_arch);
+    let arch_folder = target.unwrap_or_else(current_arch);
     let old_target_dir = workspace_dir()
         .join("target")
-        .join(subfolder)
-        .join("debug")
-        .join("examples");
-    let new_artifacts = workspace_dir().join("test-artifacts").join(subfolder);
+        .join(arch_folder)
+        .join("debug");
+    let new_artifacts = workspace_dir().join("test-artifacts").join(arch_folder);
+    let rudy_lldb_target_dir = workspace_dir()
+        .join("target")
+        .join("rudy-lldb")
+        .join(arch_folder)
+        .join("debug");
+    let new_rudy_lldb_artifacts = workspace_dir()
+        .join("test-artifacts")
+        .join(arch_folder)
+        .join("rudy-lldb");
     let rustup_home = PathBuf::from(rustup_home());
     tracing::info!("RUSTUP HOME: {}", rustup_home.display());
     // we add some source maps to make our debug/source files work correctly
@@ -100,6 +108,8 @@ pub fn source_map(target: Option<&'static str>) -> Vec<(PathBuf, PathBuf)> {
         // then, remap any path in the generic target dir, into the target
         // artifacts directory
         (old_target_dir, new_artifacts.clone()),
+        // remap the rudy-lldb target dir to the rudy-lldb artifacts directory
+        (rudy_lldb_target_dir, new_rudy_lldb_artifacts.clone()),
         // also remap the rustup home directory
         (PathBuf::from("/Users/sam/.rustup"), rustup_home.clone()),
         (PathBuf::from("/root/.rustup"), rustup_home.clone()),

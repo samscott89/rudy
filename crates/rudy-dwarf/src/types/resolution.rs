@@ -591,7 +591,7 @@ mod test {
         let artifacts = test_utils::artifacts_dir(Some("aarch64-apple-darwin"));
         let db = test_utils::test_db(Some("aarch64-apple-darwin"));
         let db = &db;
-        let binary = test_utils::load_binary(db, artifacts.join("std_types"));
+        let binary = test_utils::load_binary(db, artifacts.join("examples/std_types"));
 
         let (_, symbol_index) = crate::symbols::index_symbol_map(db, binary).unwrap();
 

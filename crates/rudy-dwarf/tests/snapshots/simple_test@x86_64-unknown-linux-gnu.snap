@@ -3,11 +3,11 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/simple_test ===
-0x00000e1c:  namespace 'simple_test'
-0x00000e21:    subprogram 'function_call'
-0x00000e3e:      formal_parameter 'x'
-0x00000e51:      variable 'y'
-0x00000e62:    subprogram 'main'
-0x00000e88:      variable 'x'
-0x00000ea4:      variable 'result'
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-unknown-linux-gnu/examples/simple_test ===
+0x00000120:  namespace 'simple_test'
+0x00000125:    subprogram 'function_call'
+0x00000142:      formal_parameter 'x'
+0x00000155:      variable 'y'
+0x00000166:    subprogram 'main'
+0x0000018c:      variable 'x'
+0x000001a8:      variable 'result'

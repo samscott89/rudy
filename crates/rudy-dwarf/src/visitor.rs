@@ -476,6 +476,7 @@ mod test {
 
         let small_file = crate::test_utils::root_artifacts_dir()
             .join("x86_64-unknown-linux-gnu")
+            .join("examples")
             .join("small");
         let db = crate::test_utils::test_db(None);
         let db = &db;
@@ -549,6 +550,7 @@ mod test {
 
         let small_file = crate::test_utils::root_artifacts_dir()
             .join("x86_64-unknown-linux-gnu")
+            .join("examples")
             .join("small");
 
         // Create a test database
