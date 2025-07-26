@@ -25,11 +25,11 @@ def is_truthy(x: str) -> bool:
 
 # Configuration
 RUDY_HOST = os.environ.get("RUDY_HOST", "127.0.0.1")
-RUDY_PORT = int(os.environ.get("RUDY_PORT", "9001"))
+RUDY_PORT = int(os.environ.get("RUDY_PORT", "5737"))
 RUDY_DEBUG = is_truthy(os.environ.get("RUDY_DEBUG", ""))
 
 # Controls whether to automatically start the rudy-lldb server
-RUDY_AUTOSTART = is_truthy(os.environ.get("RUDY_AUTOSTART", ""))
+RUDY_AUTOSTART = is_truthy(os.environ.get("RUDY_AUTOSTART", "1"))
 
 
 def debug_print(msg: str):
@@ -891,12 +891,15 @@ def _start_server() -> bool:
 
     command = [
         *path_bin,
+        "start",
         "--port",
         str(RUDY_PORT),
+        "--host",
+        RUDY_HOST,
     ]
 
     try:
-        print(f"Starting Rudy server via {command} on {RUDY_HOST}:{RUDY_PORT}...")
+        print(f"Starting Rudy server on {RUDY_HOST}:{RUDY_PORT}...")
         subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
@@ -947,13 +950,13 @@ def _get_connection(debugger) -> Optional[RudyConnection]:
     if not _ensure_server_running():
         if RUDY_AUTOSTART:
             print(
-                "\033[93mrudy-lldb server is not running, attempting to start...\033[0m"
+                "\033[93mrudy-lldb server is not running, automatically attempting to start.\nTo stop this behavior set the RUDY_AUTOSTART env var to 0\033[0m"
             )
             if not _start_server():
                 return None
         else:
             print(
-                "\033[93mrudy-lldb server is not runnging. make sure you run `rudy-lldb-server` first, or set the RUDY_AUTOSTART env var to True\033[0m"
+                "\033[93mrudy-lldb server is not running.\nMake sure you run `rudy-lldb-server` first, or set the RUDY_AUTOSTART env var to True\033[0m"
             )
             return None
     else:
