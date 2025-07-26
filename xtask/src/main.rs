@@ -159,6 +159,7 @@ fn build_examples(current_platform_only: bool) -> Result<()> {
             println!("🛠️  Generating example binaries for {target}");
 
             build_examples_for_target(&workspace_root, target)?;
+            build_rudy_lldb_for_target(&workspace_root, target)?;
 
             println!("  ✅ Generated binaries for {target}");
         }
@@ -231,19 +232,82 @@ fn build_examples_for_target(workspace_root: &std::path::Path, target: &str) -> 
 
         // Copy contents of folder to artifacts directory
         let source = source_folder;
-        let dest = artifacts_dir;
+        let dest = artifacts_dir.join("examples");
 
         if source.exists() {
-            // remove dest
-            if dest.exists() {
-                fs::remove_dir_all(&dest)
-                    .context("Failed to remove existing artifacts directory")?;
-            }
-
-            fs::create_dir_all(&dest)?;
-
             copy_dir(&source, &dest).context("Failed to copy binaries")?;
+            println!("    ✅ Built and copied to {}", dest.display());
+        } else {
+            println!("    ❌ Binary not found at {}", source.display());
+        }
+    } else {
+        println!("    ❌ Build failed for target {target}");
+    }
 
+    Ok(())
+}
+
+fn build_rudy_lldb_for_target(workspace_root: &std::path::Path, target: &str) -> Result<()> {
+    println!("📦 Building rudy-lldb for {target}");
+
+    // Check if target is installed
+    let installed = Command::new("rustup")
+        .args(["target", "list", "--installed"])
+        .output()
+        .context("Failed to run rustup")?;
+
+    let installed_targets = String::from_utf8_lossy(&installed.stdout);
+    if !installed_targets.contains(target) {
+        println!("  ⚠️  Target {target} not installed. Run: rustup target add {target}");
+        return Ok(());
+    }
+
+    let artifacts_dir = artifact_dir(target)?;
+
+    println!("  🎯 Building rudy-lldb for {target}");
+
+    let mut clean_cmd = Command::new("cargo");
+    clean_cmd.args(["clean", "--target", target, "-p", "rudy-lldb"]);
+
+    let status = clean_cmd.status().context("Failed to run cargo clean")?;
+
+    if !status.success() {
+        println!("    ❌ Clean failed for target {target}");
+        return Ok(());
+    }
+
+    let mut cmd = Command::new("cargo");
+    cmd.args([
+        "build",
+        "--bin",
+        "rudy-lldb-server",
+        "--target-dir",
+        // store all binaries in a rudy-lldb subfolder
+        "target/rudy-lldb",
+        "--target",
+        target,
+        "-p",
+        "rudy-lldb",
+    ]);
+
+    // Add frame pointers for better debugging
+    cmd.env("RUSTFLAGS", "-Cforce-frame-pointers=yes");
+
+    let status = cmd.status().context("Failed to run cargo build")?;
+
+    if status.success() {
+        let source_folder = workspace_root
+            .join("target")
+            .join("rudy-lldb")
+            .join(target)
+            .join("debug");
+
+        // Copy contents of folder to artifacts directory
+        let source = source_folder;
+        let dest = artifacts_dir.join("rudy-lldb");
+
+        if source.exists() {
+            copy_dir(&source, &dest).context("Failed to copy binaries")?;
             println!("    ✅ Built and copied to {}", dest.display());
         } else {
             println!("    ❌ Binary not found at {}", source.display());
@@ -697,8 +761,15 @@ fn get_git_sha() -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-fn copy_dir(source_folder: &std::path::Path, artifacts_dir: &std::path::Path) -> Result<()> {
+fn copy_dir(source_folder: &std::path::Path, dest_folder: &std::path::Path) -> Result<()> {
     let mut copied_files = 0;
+
+    // remove dest
+    if dest_folder.exists() {
+        fs::remove_dir_all(dest_folder)
+            .context("Failed to remove existing destination directory")?;
+    }
+    fs::create_dir_all(dest_folder)?;
 
     // Read all files in the source folder
     for entry in fs::read_dir(source_folder).context("Failed to read source directory")? {
@@ -706,12 +777,14 @@ fn copy_dir(source_folder: &std::path::Path, artifacts_dir: &std::path::Path) ->
         let file_name = entry.file_name();
         let file_name_str = file_name.to_string_lossy();
 
-        let source_file = entry.path();
-        let dest_file = artifacts_dir.join(&file_name);
-        // Copy files
-        if source_file.is_file() {
-            fs::copy(&source_file, &dest_file)
-                .with_context(|| format!("Failed to copy {file_name_str}"))?;
+        let source = entry.path();
+        let dest = dest_folder.join(&file_name);
+
+        if source.is_dir() && file_name_str == "deps" {
+            copy_dir(&source, &dest)?;
+        } else if source.is_file() {
+            // Copy files
+            fs::copy(&source, &dest).with_context(|| format!("Failed to copy {file_name_str}"))?;
             copied_files += 1;
         }
     }

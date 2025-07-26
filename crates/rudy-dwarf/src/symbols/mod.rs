@@ -289,7 +289,7 @@ mod test {
         // Initialize the debug database and load a binary with debug info
         // test on macos file because it has the external symbol files
         let artifact_dir = crate::test_utils::artifacts_dir(Some("aarch64-apple-darwin"));
-        let exe_path = artifact_dir.join("small");
+        let exe_path = artifact_dir.join("examples/small");
 
         let db = crate::test_utils::test_db(Some("aarch64-apple-darwin"));
         let db = &db;

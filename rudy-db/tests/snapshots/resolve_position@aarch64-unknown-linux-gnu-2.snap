@@ -4,5 +4,5 @@ expression: addrs
 snapshot_kind: text
 ---
 ResolvedAddress {
-    address: "0x6620",
+    address: "0x6684",
 }

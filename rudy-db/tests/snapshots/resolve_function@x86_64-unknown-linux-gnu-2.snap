@@ -6,7 +6,7 @@ snapshot_kind: text
 Some(
     ResolvedFunction {
         name: "simple_test::function_call",
-        address: "0x7c10",
+        address: "0x7a70",
         size: "0x4b",
         params: [
             Variable {
@@ -20,7 +20,7 @@ Some(
                             },
                         ),
                     ),
-                    location: Die at DebugFile { [salsa id]: Id(c00) } 0x00000eb8,
+                    location: Die at DebugFile { [salsa id]: Id(c00) } 0x000001bc,
                 },
             },
         ],

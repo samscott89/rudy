@@ -3,7 +3,16 @@ source: crates/rudy-dwarf/tests/example_visitor.rs
 expression: all_structure
 snapshot_kind: text
 ---
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/method_discovery-2584ac34c20800d9.8qpwk2cx3e9vjjbnwiy26zpq3.1spnk5u.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/method_discovery-9bd04d74df44b8e6.6flzzdz5w8enggkotujeq4jjx.1oc1f3x.rcgu.o ===
+0x0000002a:  namespace 'method_discovery'
+0x0000002f:    structure_type 'Container<method_discovery::Session>'
+0x0000004c:      subprogram 'new<method_discovery::Session>'
+0x00000064:        formal_parameter
+0x0000006a:      subprogram 'get<method_discovery::Session>'
+0x00000082:        formal_parameter
+0x00000089:    structure_type 'Session'
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/method_discovery-9bd04d74df44b8e6.85sa3hoj2p0nh78j44txxyd6p.1oc1f3x.rcgu.o ===
 0x0000002a:  namespace 'method_discovery'
 0x0000002f:    structure_type 'Session'
 0x0000004f:      subprogram 'new'
@@ -40,25 +49,7 @@ snapshot_kind: text
 0x000002b2:    subprogram 'main'
 0x000002d8:      variable 'session'
 
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/method_discovery-2584ac34c20800d9.8xnkh4nll1kcpip0gaogaoqau.1spnk5u.rcgu.o ===
-0x000004ce:  namespace 'method_discovery'
-0x000004d3:    structure_type 'Session'
-
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/method_discovery-2584ac34c20800d9.bbmhd48sl3wq98qxheopmo003.1spnk5u.rcgu.o ===
-0x0000002a:  namespace 'method_discovery'
-0x0000002f:    structure_type 'Container<method_discovery::Session>'
-0x0000004c:      subprogram 'new<method_discovery::Session>'
-0x00000064:        formal_parameter
-0x0000006a:      subprogram 'get<method_discovery::Session>'
-0x00000082:        formal_parameter
-0x00000089:    structure_type 'Session'
-
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/method_discovery-2584ac34c20800d9.cx6lde57siijihd1abujsiwls.1spnk5u.rcgu.o ===
-0x00000480:  namespace 'method_discovery'
-0x00000485:    structure_type 'Session'
-0x000004a6:    structure_type 'Container<method_discovery::Session>'
-
-=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/method_discovery-2584ac34c20800d9.dbtnmgu2p7x8trw1mpc7d8et0.1spnk5u.rcgu.o ===
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/method_discovery-9bd04d74df44b8e6.89lmesofrwkfs747hs0lhkfk8.1oc1f3x.rcgu.o ===
 0x0000002a:  namespace 'method_discovery'
 0x0000002f:    namespace 'utils'
 0x00000034:      subprogram 'validate_session'
@@ -66,3 +57,12 @@ snapshot_kind: text
 0x00000060:      subprogram 'format_session'
 0x0000007d:        formal_parameter 'session'
 0x000000ab:    structure_type 'Session'
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/method_discovery-9bd04d74df44b8e6.ctffmbhy59ntile04b2durqom.1oc1f3x.rcgu.o ===
+0x00000480:  namespace 'method_discovery'
+0x00000485:    structure_type 'Session'
+0x000004a6:    structure_type 'Container<method_discovery::Session>'
+
+=== [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/method_discovery-9bd04d74df44b8e6.ddo0vrrbv4vxprem9f0z1jugr.1oc1f3x.rcgu.o ===
+0x0000037a:  namespace 'method_discovery'
+0x0000037f:    structure_type 'Session'

@@ -8,7 +8,7 @@ snapshot_kind: text
         name: "function_call",
         full_name: "simple_test::function_call",
         signature: "fn function_call(x: i32) -> i32",
-        address: 25944,
+        address: 26044,
         callable: true,
         module_path: [
             "simple_test",
@@ -22,7 +22,7 @@ snapshot_kind: text
                         },
                     ),
                 ),
-                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/simple_test 0x000005a6,
+                location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test 0x0000066b,
             },
         ),
         parameters: [
@@ -38,7 +38,7 @@ snapshot_kind: text
                             },
                         ),
                     ),
-                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/simple_test 0x000005a6,
+                    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/simple_test 0x0000066b,
                 },
             },
         ],

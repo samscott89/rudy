@@ -33,5 +33,5 @@ TypeDefinition {
             size: 1,
         },
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/enums-cdc3bebaf4fbad4b.6tddask0mt1uzszm1v6fzrels.15x5wb4.rcgu.o 0x000004f2,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/x86_64-apple-darwin/examples/enums-061f6db8dde826a1.9j92jqavkne4829mc4eb81ydc.1lxzu9j.rcgu.o 0x000004f2,
 }

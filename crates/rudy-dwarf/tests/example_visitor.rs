@@ -211,8 +211,13 @@ fn dwarf_outline_examples(#[case] target: &'static str) {
     let db = test_db(Some(target));
     let db = &db;
 
-    for name in ["method_discovery", "simple_test", "lldb_demo"] {
-        let path = artifact_dir.join(name);
+    for (folder, bin) in [
+        ("examples", "method_discovery"),
+        ("examples", "simple_test"),
+        ("examples", "lldb_demo"),
+        ("rudy-lldb", "rudy-lldb-server"),
+    ] {
+        let path = artifact_dir.join(folder).join(bin);
         if !path.exists() {
             panic!(
                 "Example binary not found at: {}. Please run `cargo xtask build-examples` first.",
@@ -220,7 +225,7 @@ fn dwarf_outline_examples(#[case] target: &'static str) {
             );
         }
 
-        tracing::debug!("Examining DWARF structure for: {name}");
+        tracing::debug!("Examining DWARF structure for: {bin}");
 
         let binary = load_binary(db, &path);
         let (debug_files, _) =
@@ -235,7 +240,7 @@ fn dwarf_outline_examples(#[case] target: &'static str) {
             // Only examine files that likely contain our method_discovery code
             tracing::debug!("Examining DWARF structure for: {file_name}",);
 
-            let mut visitor = TestVisitor::new_for_module(name);
+            let mut visitor = TestVisitor::new_for_module(&bin.replace('-', "_"));
             walk_file(db, *debug_file, &mut visitor).unwrap();
 
             let structure = visitor.format_structure();

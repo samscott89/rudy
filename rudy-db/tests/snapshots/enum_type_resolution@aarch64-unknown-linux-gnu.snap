@@ -25,7 +25,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Unit",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00001ed4,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/enums 0x00000a7d,
                     },
                 },
                 EnumVariantLayout {
@@ -35,7 +35,7 @@ TypeDefinition {
                         layout: Alias {
                             name: "Tuple",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00001edc,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/enums 0x00000a85,
                     },
                 },
                 EnumVariantLayout {
@@ -47,12 +47,12 @@ TypeDefinition {
                         layout: Alias {
                             name: "Struct",
                         },
-                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00001efd,
+                        location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/enums 0x00000aa6,
                     },
                 },
             ],
             size: 32,
         },
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00001e88,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/enums 0x00000a31,
 }

@@ -33,5 +33,5 @@ TypeDefinition {
             size: 1,
         },
     ),
-    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/enums 0x00001e64,
+    location: Die [CARGO_WORKSPACE_DIR]/test-artifacts/aarch64-unknown-linux-gnu/examples/enums 0x0000075d,
 }

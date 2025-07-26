@@ -38,6 +38,9 @@ pub trait DwarfDb: salsa::Database {
     fn remap_path(&self, path: &Path) -> PathBuf {
         let mut path = path.to_path_buf();
         for (source, target) in self.get_source_map() {
+            if source == target {
+                continue; // No remapping needed
+            }
             if let Ok(stripped) = path.strip_prefix(source) {
                 tracing::debug!(
                     "Remapping {} from {} to {}",
