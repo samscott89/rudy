@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.9](https://github.com/samscott89/rudy/compare/rudy-db-v0.0.8...rudy-db-v0.0.9) - 2025-07-26
+
+### Added
+
+- Better installation and setup ([#39](https://github.com/samscott89/rudy/pull/39))
+
+### Other
+
+- Add rudy-lldb as a test artifact ([#40](https://github.com/samscott89/rudy/pull/40))
+- Fix manual installation step. ([#37](https://github.com/samscott89/rudy/pull/37))
+- Expand the readme a little ([#36](https://github.com/samscott89/rudy/pull/36))
+- Add some basic installation instructions for rudy-lldb ([#34](https://github.com/samscott89/rudy/pull/34))
+
 ## [0.0.8](https://github.com/samscott89/rudy/compare/rudy-db-v0.0.7...rudy-db-v0.0.8) - 2025-07-08
 
 ### Other
