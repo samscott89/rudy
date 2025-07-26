@@ -887,6 +887,7 @@ def _start_server() -> bool:
     if shutil.which("rudy-lldb-server"):
         path_bin = ["rudy-lldb-server"]
     elif shutil.which("cargo"):
+        print("rudy-lldb-server binary not found, trying to run with cargo")
         path_bin = cargo_bin
 
     command = [
@@ -900,20 +901,45 @@ def _start_server() -> bool:
 
     try:
         print(f"Starting Rudy server on {RUDY_HOST}:{RUDY_PORT}...")
-        subprocess.Popen(
+        # Capture stderr to show errors if startup fails
+        process = subprocess.Popen(
             command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
 
         # Wait a bit for server to start
-        for _ in range(10):
+        for i in range(10):
             time.sleep(0.5)
             if _ensure_server_running():
                 print("Rudy server started successfully")
                 return True
 
-        print("Failed to start Rudy server")
+            # Check if process has terminated
+            if process.poll() is not None:
+                # Process exited, capture and display error output
+                stdout, stderr = process.communicate()
+                print("\033[91mRudy server failed to start!\033[0m")
+                if stdout:
+                    print("stdout:", stdout)
+                if stderr:
+                    print("stderr:", stderr)
+                return False
+
+        # Timeout waiting for server
+        print("Failed to start Rudy server - timeout waiting for server to respond")
+        # Try to get any output from the process
+        try:
+            stdout, stderr = process.communicate(timeout=1)
+            if stdout:
+                print("stdout:", stdout)
+            if stderr:
+                print("stderr:", stderr)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            print("Server process did not respond, killed it")
+
         return False
 
     except Exception as e:
