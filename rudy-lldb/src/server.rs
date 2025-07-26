@@ -90,25 +90,46 @@ impl ClientConnection {
         Ok(())
     }
 
-    fn init<'db>(&mut self, db: &'db DebugDb) -> Result<DebugInfo<'db>> {
+    fn init<'db>(&mut self, db: &'db DebugDb) -> Result<Option<DebugInfo<'db>>> {
         // Read the initial message from the client
-        // This should be the initialization message
-        // containing the path to the binary
+        // This should be either an initialization message or a shutdown command
         let Some(message) = self.read_next_message()? else {
             // Client disconnected
             return Err(anyhow!("Client disconnected before sending init message"));
         };
 
         match message {
-            ClientMessage::Init { binary_path } => DebugInfo::new(db, &binary_path)
-                .with_context(|| format!("Failed to load binary: {binary_path}")),
-            _ => Err(anyhow!("Invalid message, expected init: {message:?}")),
+            ClientMessage::Init { binary_path } => {
+                let debug_info = DebugInfo::new(db, &binary_path)
+                    .with_context(|| format!("Failed to load binary: {binary_path}"))?;
+                Ok(Some(debug_info))
+            }
+            ClientMessage::Command { cmd, .. } if cmd == "shutdown" => {
+                info!("Received shutdown command (session: {})", self.session_id);
+                // Send success response
+                self.write_message(&ServerMessage::Complete {
+                    result: serde_json::json!({"status": "shutting down"}),
+                })?;
+                // Return None to indicate shutdown
+                Ok(None)
+            }
+            _ => Err(anyhow!(
+                "Invalid message, expected init or shutdown: {message:?}"
+            )),
         }
     }
 
     /// Handle a single client connection
     pub fn run_server_loop(&mut self, db: DebugDb) -> Result<()> {
-        let debug_info = self.init(&db)?;
+        let debug_info = match self.init(&db)? {
+            Some(debug_info) => debug_info,
+            None => {
+                // Shutdown was requested during init
+                info!("Shutting down server...");
+                std::process::exit(0);
+            }
+        };
+
         loop {
             let msg = match self.read_next_message() {
                 Ok(Some(msg)) => msg,
@@ -126,6 +147,11 @@ impl ClientConnection {
                 }
             };
             trace!("Received message: {:?}", msg);
+
+            // Check if this is a shutdown command
+            let is_shutdown =
+                matches!(&msg, ClientMessage::Command { cmd, .. } if cmd == "shutdown");
+
             // Handle the message
             let response = match msg {
                 ClientMessage::Command { cmd, args } => {
@@ -141,6 +167,12 @@ impl ClientConnection {
 
             // Send response
             self.write_message(&response)?;
+
+            // If it was a shutdown command, exit the entire process
+            if is_shutdown {
+                info!("Shutting down server...");
+                std::process::exit(0);
+            }
         }
 
         Ok(())
@@ -239,6 +271,14 @@ impl ClientConnection {
                     }),
                     Err(e) => Ok(e.into()),
                 }
+            }
+
+            "shutdown" => {
+                info!("Received shutdown command (session: {})", self.session_id);
+                // Return success response before shutting down
+                Ok(ServerMessage::Complete {
+                    result: serde_json::json!({"status": "shutting down"}),
+                })
             }
 
             _ => Ok(ServerMessage::Error {

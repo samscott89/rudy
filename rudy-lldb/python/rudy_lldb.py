@@ -6,8 +6,11 @@ This module provides the `rd` command for LLDB with advanced expression evaluati
 and pretty printing capabilities powered by rudy-db.
 """
 
+VERSION = "0.1.0"
+
 from io import TextIOWrapper
 import json
+import shutil
 
 # ignore lldb since it doesn't have type hints
 import lldb  # type: ignore
@@ -18,10 +21,17 @@ import time
 from typing import Optional
 
 
+def is_truthy(x: str) -> bool:
+    return x.lower() in ("1", "true", "on", "yes")
+
+
 # Configuration
 RUDY_HOST = os.environ.get("RUDY_HOST", "127.0.0.1")
-RUDY_PORT = int(os.environ.get("RUDY_PORT", "9001"))
-RUDY_DEBUG = os.environ.get("RUDY_DEBUG", "").lower() in ("1", "true", "on", "yes")
+RUDY_PORT = int(os.environ.get("RUDY_PORT", "5737"))
+RUDY_DEBUG = is_truthy(os.environ.get("RUDY_DEBUG", ""))
+
+# Controls whether to automatically start the rudy-lldb server
+RUDY_AUTOSTART = is_truthy(os.environ.get("RUDY_AUTOSTART", "1"))
 
 
 def debug_print(msg: str):
@@ -874,33 +884,64 @@ def _start_server() -> bool:
     if _ensure_server_running():
         return True
 
+    path_bin = ["rudy-lldb-server"]
+    cargo_bin = ["cargo", "run", "-p", "rudy-lldb", "--bin", "rudy-lldb-server", "--"]
+    if shutil.which("rudy-lldb-server"):
+        path_bin = ["rudy-lldb-server"]
+    elif shutil.which("cargo"):
+        print("rudy-lldb-server binary not found, trying to run with cargo")
+        path_bin = cargo_bin
+
+    command = [
+        *path_bin,
+        "start",
+        "--port",
+        str(RUDY_PORT),
+        "--host",
+        RUDY_HOST,
+    ]
+
     try:
-        # Try to start the server (TODO: should look for binary in PATH)
         print(f"Starting Rudy server on {RUDY_HOST}:{RUDY_PORT}...")
-        subprocess.Popen(
-            [
-                "cargo",
-                "run",
-                "-p",
-                "rudy-lldb",
-                "--bin",
-                "rudy-lldb-server",
-                "--",
-                "--port",
-                str(RUDY_PORT),
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+        # Capture stderr to show errors if startup fails
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
 
         # Wait a bit for server to start
-        for _ in range(10):
+        for i in range(10):
             time.sleep(0.5)
             if _ensure_server_running():
                 print("Rudy server started successfully")
                 return True
 
-        print("Failed to start Rudy server")
+            # Check if process has terminated
+            if process.poll() is not None:
+                # Process exited, capture and display error output
+                stdout, stderr = process.communicate()
+                print("\033[91mRudy server failed to start!\033[0m")
+                if stdout:
+                    print("stdout:", stdout)
+                if stderr:
+                    print("stderr:", stderr)
+                return False
+
+        # Timeout waiting for server
+        print("Failed to start Rudy server - timeout waiting for server to respond")
+        # Try to get any output from the process
+        try:
+            stdout, stderr = process.communicate(timeout=1)
+            if stdout:
+                print("stdout:", stdout)
+            if stderr:
+                print("stderr:", stderr)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            print("Server process did not respond, killed it")
+
         return False
 
     except Exception as e:
@@ -935,8 +976,16 @@ def _get_connection(debugger) -> Optional[RudyConnection]:
 
     # Ensure server is running
     if not _ensure_server_running():
-        debug_print("Server not running, starting...")
-        if not _start_server():
+        if RUDY_AUTOSTART:
+            print(
+                "\033[93mrudy-lldb server is not running, automatically attempting to start.\nTo stop this behavior set the RUDY_AUTOSTART env var to 0\033[0m"
+            )
+            if not _start_server():
+                return None
+        else:
+            print(
+                "\033[93mrudy-lldb server is not running.\nMake sure you run `rudy-lldb-server` first, or set the RUDY_AUTOSTART env var to True\033[0m"
+            )
             return None
     else:
         debug_print("Server already running")
