@@ -30,6 +30,11 @@ For now, the installation process is a little manual:
 - Download the Rudy LLDB client: `curl https://raw.githubusercontent.com/samscott89/rudy/refs/heads/main/rudy-lldb/python/rudy_lldb.py -o ~/.lldb/rudy_lldb.py`
 - Add Rudy to your `~/.lldbinit` file: `echo "command script import ~/.lldb/rudy_lldb.py" >> ~/.lldbinit`
 
+**Server Management**: The rudy-lldb server will automatically start when you run your first `rd` command in LLDB. You can also manage it manually:
+- `rudy-lldb-server start` - Start the server
+- `rudy-lldb-server stop` - Stop the server
+- Set `RUDY_AUTOSTART=0` to disable automatic server startup
+
 
 ## Architecture
 
