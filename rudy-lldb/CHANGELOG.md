@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.7...rudy-lldb-v0.1.8) - 2025-07-26
+
+### Added
+
+- Better installation and setup ([#39](https://github.com/samscott89/rudy/pull/39))
+
 ## [0.1.7](https://github.com/samscott89/rudy/compare/rudy-lldb-v0.1.6...rudy-lldb-v0.1.7) - 2025-07-08
 
 ### Other
