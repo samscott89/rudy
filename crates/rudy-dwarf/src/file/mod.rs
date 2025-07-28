@@ -211,7 +211,7 @@ impl SourceFile {
         Self { path }
     }
 
-    pub fn path_str(&self) -> std::borrow::Cow<str> {
+    pub fn path_str(&self) -> std::borrow::Cow<'_, str> {
         self.path.to_string_lossy()
     }
 

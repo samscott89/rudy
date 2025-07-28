@@ -32,7 +32,7 @@ impl<'db> Index<'db> {
         &self,
         db: &'db dyn Db,
         name: &SymbolName,
-    ) -> Option<(DebugFile, FunctionIndexEntry)> {
+    ) -> Option<(DebugFile, FunctionIndexEntry<'_>)> {
         let symbol_index = self.symbol_index(db);
         let sym = symbol_index
             .get_functions_by_lookup_name(&name.lookup_name)?
