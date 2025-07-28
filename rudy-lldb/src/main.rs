@@ -47,6 +47,10 @@ enum Command {
         /// Skip adding to ~/.lldbinit
         #[arg(short, long)]
         skip_lldbinit: bool,
+
+        /// Automatically answer yes to all prompts
+        #[arg(short = 'y', long = "yes")]
+        assume_yes: bool,
     },
 }
 
@@ -69,8 +73,12 @@ fn main() -> Result<()> {
         Command::Stop { port, host } => {
             stop_server(&host, port)?;
         }
-        Command::Install { dir, skip_lldbinit } => {
-            install_lldb_client(&dir, skip_lldbinit)?;
+        Command::Install {
+            dir,
+            skip_lldbinit,
+            assume_yes,
+        } => {
+            install_lldb_client(&dir, skip_lldbinit, assume_yes)?;
         }
     }
 
@@ -103,7 +111,7 @@ fn stop_server(host: &str, port: u16) -> Result<()> {
     }
 }
 
-fn install_lldb_client(install_dir: &str, skip_lldbinit: bool) -> Result<()> {
+fn install_lldb_client(install_dir: &str, skip_lldbinit: bool, assume_yes: bool) -> Result<()> {
     use std::fs;
     use std::io::{self, BufRead, Write};
     use std::path::PathBuf;
@@ -122,7 +130,7 @@ fn install_lldb_client(install_dir: &str, skip_lldbinit: bool) -> Result<()> {
     let script_path = PathBuf::from(&install_dir).join("rudy_lldb.py");
 
     // Check if script already exists
-    if script_path.exists() {
+    if script_path.exists() && !assume_yes {
         print!(
             "Script already exists at {}. Overwrite? [y/N]: ",
             script_path.display()
@@ -212,15 +220,19 @@ fn install_lldb_client(install_dir: &str, skip_lldbinit: bool) -> Result<()> {
         if already_added {
             println!("✓ Import already exists in ~/.lldbinit");
         } else {
-            print!("Add import to ~/.lldbinit? [Y/n]: ");
-            io::stdout().flush()?;
+            let should_add = assume_yes || {
+                print!("Add import to ~/.lldbinit? [Y/n]: ");
+                io::stdout().flush()?;
 
-            let stdin = io::stdin();
-            let mut response = String::new();
-            stdin.lock().read_line(&mut response)?;
+                let stdin = io::stdin();
+                let mut response = String::new();
+                stdin.lock().read_line(&mut response)?;
 
-            let response = response.trim().to_lowercase();
-            if response.is_empty() || response.starts_with('y') {
+                let response = response.trim().to_lowercase();
+                response.is_empty() || response.starts_with('y')
+            };
+
+            if should_add {
                 // Append to .lldbinit
                 use std::fs::OpenOptions;
                 let mut file = OpenOptions::new()
