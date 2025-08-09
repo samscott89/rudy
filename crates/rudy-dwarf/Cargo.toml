@@ -4,7 +4,8 @@ version = "0.4.1"
 edition = "2021"
 description = "DWARF debug information parsing and querying for Rust debugging tools"
 license = "MIT"
-repository = "https://github.com/anthropics/rudy"
+repository = "https://github.com/samscott89/rudy"
+rust-version.workspace = true
 
 [dependencies]
 # Core dependencies

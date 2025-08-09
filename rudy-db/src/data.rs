@@ -925,25 +925,25 @@ fn read_btree_node_entries(
     // For each index from 0 to len (inclusive for edges)
     for i in 0..=len {
         // If this is an internal node, traverse the edge before processing the key/value
-        if let Some(edges_base) = edges_addr {
-            if i <= len {
-                // Read the edge pointer (edges[i])
-                // Edges are MaybeUninit<NodePtr>, so we need to handle the pointer size
-                let edge_addr = edges_base + (i * 8) as u64; // Assume 8-byte pointers
-                let edge_ptr = data_resolver.read_address(edge_addr)?;
+        if let Some(edges_base) = edges_addr
+            && i <= len
+        {
+            // Read the edge pointer (edges[i])
+            // Edges are MaybeUninit<NodePtr>, so we need to handle the pointer size
+            let edge_addr = edges_base + (i * 8) as u64; // Assume 8-byte pointers
+            let edge_ptr = data_resolver.read_address(edge_addr)?;
 
-                if edge_ptr != 0 {
-                    // Recursively process the child node
-                    read_btree_node_entries(
-                        edge_ptr,
-                        height - 1,
-                        key_type,
-                        value_type,
-                        node_layout,
-                        data_resolver,
-                        entries,
-                    )?;
-                }
+            if edge_ptr != 0 {
+                // Recursively process the child node
+                read_btree_node_entries(
+                    edge_ptr,
+                    height - 1,
+                    key_type,
+                    value_type,
+                    node_layout,
+                    data_resolver,
+                    entries,
+                )?;
             }
         }
 
