@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3](https://github.com/samscott89/rudy/compare/rudy-types-v0.4.2...rudy-types-v0.4.3) - 2025-08-09
+
+### Other
+
+- Set rust-version ([#45](https://github.com/samscott89/rudy/pull/45))
+
 ## [0.4.2](https://github.com/samscott89/rudy/compare/rudy-types-v0.4.1...rudy-types-v0.4.2) - 2025-07-08
 
 ### Other

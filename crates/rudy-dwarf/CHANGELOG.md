@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2](https://github.com/samscott89/rudy/compare/rudy-dwarf-v0.4.1...rudy-dwarf-v0.4.2) - 2025-08-09
+
+### Other
+
+- Set rust-version ([#45](https://github.com/samscott89/rudy/pull/45))
+- fix compiler warnings on nightly ([#42](https://github.com/samscott89/rudy/pull/42))
+
 ## [0.4.1](https://github.com/samscott89/rudy/compare/rudy-dwarf-v0.4.0...rudy-dwarf-v0.4.1) - 2025-07-26
 
 ### Other
