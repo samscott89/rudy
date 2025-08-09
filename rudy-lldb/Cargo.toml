@@ -5,6 +5,7 @@ edition = "2024"
 default-run = "rudy-lldb-server"
 description = "Rudy LLDB server for debugging Rust programs"
 license = "MIT"
+rust-version.workspace = true
 
 [dependencies]
 rudy-db = { workspace = true }

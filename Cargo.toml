@@ -2,6 +2,9 @@
 members = ["crates/*", "rudy-lldb", "rudy-db", "xtask"]
 resolver = "3"
 
+[workspace.package]
+rust-version = "1.88.0"
+
 [workspace.dependencies]
 # internal deps
 rudy-db = { version = "0.0.9", path = "rudy-db" }
