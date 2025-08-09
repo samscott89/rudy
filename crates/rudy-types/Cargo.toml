@@ -4,6 +4,7 @@ version = "0.4.2"
 edition = "2024"
 description = "Type layouts of common Rust types for Rudy"
 license = "MIT"
+rust-version.workspace = true
 
 [dependencies]
 itertools.workspace = true

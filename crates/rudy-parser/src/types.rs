@@ -614,209 +614,211 @@ impl Path {
         if is_std || is_hashbrown || segments.len() == 1 {
             // Parse the last segment for generic types
             // (we're guaranteed to have at least one segment here)
-            if let Some(path_segment) = self.segments.0.last() {
-                if let PathSegment::Segment(segment) = &path_segment.value {
-                    let type_name = segment.ident.to_string();
+            if let Some(path_segment) = self.segments.0.last()
+                && let PathSegment::Segment(segment) = &path_segment.value
+            {
+                let type_name = segment.ident.to_string();
 
-                    let get_generics =
-                        || {
-                            segment.generics.0.first().map_or_else(
-                                std::vec::Vec::new,
-                                |generic_args| match &generic_args.value {
-                                    GenericArgs::Parsed { inner, .. } => {
-                                        inner.0.iter().map(|d| d.value.clone()).collect()
-                                    }
-                                    GenericArgs::Unparsed(_) => vec![],
-                                },
-                            )
-                        };
+                let get_generics = || {
+                    segment
+                        .generics
+                        .0
+                        .first()
+                        .map_or_else(std::vec::Vec::new, |generic_args| {
+                            match &generic_args.value {
+                                GenericArgs::Parsed { inner, .. } => {
+                                    inner.0.iter().map(|d| d.value.clone()).collect()
+                                }
+                                GenericArgs::Unparsed(_) => vec![],
+                            }
+                        })
+                };
 
-                    tracing::trace!("Checking std type: '{}' against known types", type_name);
+                tracing::trace!("Checking std type: '{}' against known types", type_name);
 
-                    match type_name.as_str() {
-                        "String" => {
-                            tracing::trace!("Matched String type!");
-                            return Layout::Std(StdLayout::String(StringLayout(VecLayout {
-                                length_offset: 0,
-                                data_ptr_offset: 0,
-                                capacity_offset: 0,
-                                inner_type: TypeDefinition::new(
-                                    (),
-                                    Layout::Primitive(PrimitiveLayout::UnsignedInt(
-                                        UnsignedIntLayout { size: 1 },
-                                    )),
-                                ),
-                            })));
-                        }
-                        "Vec" => {
-                            let inner = get_generics()
-                                .first()
-                                .map(|t| TypeDefinition::new((), t.as_layout()))
-                                .unwrap_or_else(|| {
-                                    TypeDefinition::new(
-                                        (),
-                                        Layout::Alias {
-                                            name: "Unknown".to_string(),
-                                        },
-                                    )
-                                });
-                            return Layout::Std(StdLayout::Vec(VecLayout {
-                                inner_type: inner,
-                                length_offset: 0,
-                                data_ptr_offset: 0,
-                                capacity_offset: 0,
-                            }));
-                        }
-                        "Option" => {
-                            let inner = get_generics()
-                                .first()
-                                .map(|t| TypeDefinition::new((), t.as_layout()))
-                                .unwrap_or_else(|| {
-                                    TypeDefinition::new(
-                                        (),
-                                        Layout::Alias {
-                                            name: "Unknown".to_string(),
-                                        },
-                                    )
-                                });
-                            return Layout::Std(StdLayout::Option(OptionLayout {
-                                name: "Option".to_string(),
-                                discriminant: Discriminant {
-                                    offset: 0,
-                                    ty: DiscriminantType::Implicit,
-                                },
-                                some_offset: 0,
-                                some_type: inner,
-                                size: 0,
-                            }));
-                        }
-                        "Result" => {
-                            let mut generics_iter = get_generics().into_iter();
-                            let ok_type = generics_iter
-                                .next()
-                                .map(|t| TypeDefinition::new((), t.as_layout()))
-                                .unwrap_or_else(|| {
-                                    TypeDefinition::new(
-                                        (),
-                                        Layout::Alias {
-                                            name: "Unknown".to_string(),
-                                        },
-                                    )
-                                });
-                            let err_type = generics_iter
-                                .next()
-                                .map(|t| TypeDefinition::new((), t.as_layout()))
-                                .unwrap_or_else(|| {
-                                    TypeDefinition::new(
-                                        (),
-                                        Layout::Alias {
-                                            name: "Unknown".to_string(),
-                                        },
-                                    )
-                                });
-                            return Layout::Std(StdLayout::Result(ResultLayout {
-                                name: "Result".to_string(),
-                                discriminant: Discriminant {
-                                    offset: 0,
-                                    ty: DiscriminantType::Implicit,
-                                },
-                                ok_type,
-                                ok_offset: 0,
-                                err_type,
-                                err_offset: 0,
-                                size: 0,
-                            }));
-                        }
-                        "HashMap" | "BTreeMap" => {
-                            let mut generics_iter = get_generics().into_iter();
-                            let key_type = generics_iter
-                                .next()
-                                .map(|t| TypeDefinition::new((), t.as_layout()))
-                                .unwrap_or_else(|| {
-                                    TypeDefinition::new(
-                                        (),
-                                        Layout::Alias {
-                                            name: "Unknown".to_string(),
-                                        },
-                                    )
-                                });
-                            let value_type = generics_iter
-                                .next()
-                                .map(|t| TypeDefinition::new((), t.as_layout()))
-                                .unwrap_or_else(|| {
-                                    TypeDefinition::new(
-                                        (),
-                                        Layout::Alias {
-                                            name: "Unknown".to_string(),
-                                        },
-                                    )
-                                });
-                            let variant = match type_name.as_str() {
-                                "HashMap" => MapVariant::HashMap {
-                                    bucket_mask_offset: 0,
-                                    ctrl_offset: 0,
-                                    items_offset: 0,
-                                    pair_size: 0,
-                                    key_offset: 0,
-                                    value_offset: 0,
-                                },
-                                "BTreeMap" => MapVariant::BTreeMap {
-                                    length_offset: 0,
-                                    root_offset: 0,
-                                    root_layout: BTreeRootLayout {
-                                        node_offset: 0,
-                                        height_offset: 0,
-                                    },
-                                    node_layout: BTreeNodeLayout {
-                                        keys_offset: 0,
-                                        vals_offset: 0,
-                                        len_offset: 0,
-                                        edges_offset: 0,
-                                    },
-                                },
-                                _ => unreachable!(),
-                            };
-                            tracing::trace!("Matched Map type: '{type_name}'");
-                            return Layout::Std(StdLayout::Map(MapLayout {
-                                key_type,
-                                value_type,
-                                variant,
-                            }));
-                        }
-                        "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "UnsafeCell" | "Mutex"
-                        | "RwLock" => {
-                            let inner = get_generics()
-                                .into_iter()
-                                .next()
-                                .map(|t| TypeDefinition::new((), t.as_layout()))
-                                .unwrap_or_else(|| {
-                                    TypeDefinition::new(
-                                        (),
-                                        Layout::Alias {
-                                            name: "Unknown".to_string(),
-                                        },
-                                    )
-                                });
-                            let variant = match type_name.as_str() {
-                                "Box" => SmartPtrVariant::Box,
-                                "Rc" => SmartPtrVariant::Rc,
-                                "Arc" => SmartPtrVariant::Arc,
-                                "Cell" => SmartPtrVariant::Cell,
-                                "RefCell" => SmartPtrVariant::RefCell,
-                                "UnsafeCell" => SmartPtrVariant::UnsafeCell,
-                                "Mutex" => SmartPtrVariant::Mutex,
-                                "RwLock" => SmartPtrVariant::RwLock,
-                                _ => unreachable!(),
-                            };
-                            return Layout::Std(StdLayout::SmartPtr(SmartPtrLayout {
-                                inner_type: inner,
-                                inner_ptr_offset: 0,
-                                data_ptr_offset: 0,
-                                variant,
-                            }));
-                        }
-                        _ => {}
+                match type_name.as_str() {
+                    "String" => {
+                        tracing::trace!("Matched String type!");
+                        return Layout::Std(StdLayout::String(StringLayout(VecLayout {
+                            length_offset: 0,
+                            data_ptr_offset: 0,
+                            capacity_offset: 0,
+                            inner_type: TypeDefinition::new(
+                                (),
+                                Layout::Primitive(PrimitiveLayout::UnsignedInt(
+                                    UnsignedIntLayout { size: 1 },
+                                )),
+                            ),
+                        })));
                     }
+                    "Vec" => {
+                        let inner = get_generics()
+                            .first()
+                            .map(|t| TypeDefinition::new((), t.as_layout()))
+                            .unwrap_or_else(|| {
+                                TypeDefinition::new(
+                                    (),
+                                    Layout::Alias {
+                                        name: "Unknown".to_string(),
+                                    },
+                                )
+                            });
+                        return Layout::Std(StdLayout::Vec(VecLayout {
+                            inner_type: inner,
+                            length_offset: 0,
+                            data_ptr_offset: 0,
+                            capacity_offset: 0,
+                        }));
+                    }
+                    "Option" => {
+                        let inner = get_generics()
+                            .first()
+                            .map(|t| TypeDefinition::new((), t.as_layout()))
+                            .unwrap_or_else(|| {
+                                TypeDefinition::new(
+                                    (),
+                                    Layout::Alias {
+                                        name: "Unknown".to_string(),
+                                    },
+                                )
+                            });
+                        return Layout::Std(StdLayout::Option(OptionLayout {
+                            name: "Option".to_string(),
+                            discriminant: Discriminant {
+                                offset: 0,
+                                ty: DiscriminantType::Implicit,
+                            },
+                            some_offset: 0,
+                            some_type: inner,
+                            size: 0,
+                        }));
+                    }
+                    "Result" => {
+                        let mut generics_iter = get_generics().into_iter();
+                        let ok_type = generics_iter
+                            .next()
+                            .map(|t| TypeDefinition::new((), t.as_layout()))
+                            .unwrap_or_else(|| {
+                                TypeDefinition::new(
+                                    (),
+                                    Layout::Alias {
+                                        name: "Unknown".to_string(),
+                                    },
+                                )
+                            });
+                        let err_type = generics_iter
+                            .next()
+                            .map(|t| TypeDefinition::new((), t.as_layout()))
+                            .unwrap_or_else(|| {
+                                TypeDefinition::new(
+                                    (),
+                                    Layout::Alias {
+                                        name: "Unknown".to_string(),
+                                    },
+                                )
+                            });
+                        return Layout::Std(StdLayout::Result(ResultLayout {
+                            name: "Result".to_string(),
+                            discriminant: Discriminant {
+                                offset: 0,
+                                ty: DiscriminantType::Implicit,
+                            },
+                            ok_type,
+                            ok_offset: 0,
+                            err_type,
+                            err_offset: 0,
+                            size: 0,
+                        }));
+                    }
+                    "HashMap" | "BTreeMap" => {
+                        let mut generics_iter = get_generics().into_iter();
+                        let key_type = generics_iter
+                            .next()
+                            .map(|t| TypeDefinition::new((), t.as_layout()))
+                            .unwrap_or_else(|| {
+                                TypeDefinition::new(
+                                    (),
+                                    Layout::Alias {
+                                        name: "Unknown".to_string(),
+                                    },
+                                )
+                            });
+                        let value_type = generics_iter
+                            .next()
+                            .map(|t| TypeDefinition::new((), t.as_layout()))
+                            .unwrap_or_else(|| {
+                                TypeDefinition::new(
+                                    (),
+                                    Layout::Alias {
+                                        name: "Unknown".to_string(),
+                                    },
+                                )
+                            });
+                        let variant = match type_name.as_str() {
+                            "HashMap" => MapVariant::HashMap {
+                                bucket_mask_offset: 0,
+                                ctrl_offset: 0,
+                                items_offset: 0,
+                                pair_size: 0,
+                                key_offset: 0,
+                                value_offset: 0,
+                            },
+                            "BTreeMap" => MapVariant::BTreeMap {
+                                length_offset: 0,
+                                root_offset: 0,
+                                root_layout: BTreeRootLayout {
+                                    node_offset: 0,
+                                    height_offset: 0,
+                                },
+                                node_layout: BTreeNodeLayout {
+                                    keys_offset: 0,
+                                    vals_offset: 0,
+                                    len_offset: 0,
+                                    edges_offset: 0,
+                                },
+                            },
+                            _ => unreachable!(),
+                        };
+                        tracing::trace!("Matched Map type: '{type_name}'");
+                        return Layout::Std(StdLayout::Map(MapLayout {
+                            key_type,
+                            value_type,
+                            variant,
+                        }));
+                    }
+                    "Box" | "Rc" | "Arc" | "Cell" | "RefCell" | "UnsafeCell" | "Mutex"
+                    | "RwLock" => {
+                        let inner = get_generics()
+                            .into_iter()
+                            .next()
+                            .map(|t| TypeDefinition::new((), t.as_layout()))
+                            .unwrap_or_else(|| {
+                                TypeDefinition::new(
+                                    (),
+                                    Layout::Alias {
+                                        name: "Unknown".to_string(),
+                                    },
+                                )
+                            });
+                        let variant = match type_name.as_str() {
+                            "Box" => SmartPtrVariant::Box,
+                            "Rc" => SmartPtrVariant::Rc,
+                            "Arc" => SmartPtrVariant::Arc,
+                            "Cell" => SmartPtrVariant::Cell,
+                            "RefCell" => SmartPtrVariant::RefCell,
+                            "UnsafeCell" => SmartPtrVariant::UnsafeCell,
+                            "Mutex" => SmartPtrVariant::Mutex,
+                            "RwLock" => SmartPtrVariant::RwLock,
+                            _ => unreachable!(),
+                        };
+                        return Layout::Std(StdLayout::SmartPtr(SmartPtrLayout {
+                            inner_type: inner,
+                            inner_ptr_offset: 0,
+                            data_ptr_offset: 0,
+                            variant,
+                        }));
+                    }
+                    _ => {}
                 }
             }
         }
