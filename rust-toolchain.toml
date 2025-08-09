@@ -1,2 +1,4 @@
 [toolchain]
 channel = "1.89.0"
+# Specify all components needed for CI and development
+components = ["rust-src", "rustfmt", "clippy"]
