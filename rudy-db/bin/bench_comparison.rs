@@ -360,10 +360,10 @@ fn get_process_memory_mb() -> f64 {
             for line in status.lines() {
                 if line.starts_with("VmRSS:") {
                     let parts: Vec<&str> = line.split_whitespace().collect();
-                    if parts.len() >= 2 {
-                        if let Ok(kb) = parts[1].parse::<f64>() {
-                            return kb / 1024.0; // Convert KB to MB
-                        }
+                    if parts.len() >= 2
+                        && let Ok(kb) = parts[1].parse::<f64>()
+                    {
+                        return kb / 1024.0; // Convert KB to MB
                     }
                 }
             }
